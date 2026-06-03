@@ -3044,38 +3044,105 @@ function normalizeBins(bins, lo, hi) {
 const WF_MIN_SPAN_DB = 12;       // floor->ceil span when the band is ~all noise
 const WF_RANGE = new Map();      // canvasId -> smoothed noise-floor (30th pct) dBFS
 const WF_CEIL = new Map();       // canvasId -> smoothed ceiling (95th pct) dBFS
+// Per-dongle (per-half) contrast normalization: the stitched Live IQ frame
+// is the concatenation of two RTL-SDR halves whose noise floors can sit
+// ~40 dB apart.  A single whole-frame scale lets the hotter dongle peg
+// the 95th-pct ceiling, crushing weaker signals on the cooler dongle into
+// noise.  We split the bin array at the midpoint and run an independent
+// 30/95 percentile + EMA per half, so each dongle's signals stand out
+// relative to its own noise floor.  WF_HALF_COUNT = number of halves the
+// stitched frame is split into (one per dongle).  Per-half EMA state is
+// keyed "<paneKey>|<halfIdx>" so multiple panes can coexist.
+const WF_HALF_COUNT = 2;
+const WF_RANGE_HALF = new Map(); // "<key>|<halfIdx>" -> smoothed floor dBFS
+const WF_CEIL_HALF  = new Map(); // "<key>|<halfIdx>" -> smoothed ceiling dBFS
+const WF_PCT_FLOOR  = 0.30;      // noise-floor percentile (per half + whole-frame)
+const WF_PCT_CEIL   = 0.95;      // saturation percentile (per half + whole-frame)
+const WF_EMA_ALPHA  = 0.20;      // per-frame mix for the smoothed floor/ceil
+const WF_FLOOR_PAD_DB = 4;       // lo = floor - WF_FLOOR_PAD_DB (noise stays dark)
 function _wfPercentile(sorted, p) {
   if (!sorted.length) return -100;
   const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor(p * sorted.length)));
   return sorted[idx];
 }
 // Shared scale computation: 30th-pct floor + 95th-pct ceiling, EMA-smoothed
-// across frames.  Both the waterfall heatmap stretch (autoStretchIntensity)
-// and the spectrum plot trace (renderSpectrum) call this, keyed by pane, so
-// the two readouts always agree on what "noise" and "saturation" mean.
-// Skips the gap-fill sentinel (-120) the stitcher writes where no dongle
-// covered the bin.
+// across frames.  Now WHOLE-FRAME only — used for peak-marker threshold and
+// the tabular-nums readouts, which are deliberately frame-wide.  The spec
+// plot + waterfall heatmap use _specScaleHalves instead so each dongle's
+// half maps to colour against its own noise floor.  Skips the gap-fill
+// sentinel (-120) the stitcher writes where no dongle covered the bin.
 function _specScale(bins, key) {
   const real = [];
   for (let i = 0; i < bins.length; i++) {
     if (bins[i] > -119) real.push(bins[i]);
   }
   const sorted = real.slice().sort((a, b) => a - b);
-  const floorNow = _wfPercentile(sorted, 0.30);
-  const ceilNow = _wfPercentile(sorted, 0.95);
+  const floorNow = _wfPercentile(sorted, WF_PCT_FLOOR);
+  const ceilNow = _wfPercentile(sorted, WF_PCT_CEIL);
   let floor = WF_RANGE.get(key);
-  floor = (typeof floor === "number") ? (floor * 0.8 + floorNow * 0.2) : floorNow;
+  floor = (typeof floor === "number") ? (floor * (1 - WF_EMA_ALPHA) + floorNow * WF_EMA_ALPHA) : floorNow;
   WF_RANGE.set(key, floor);
   let ceil = WF_CEIL.get(key);
-  ceil = (typeof ceil === "number") ? (ceil * 0.8 + ceilNow * 0.2) : ceilNow;
+  ceil = (typeof ceil === "number") ? (ceil * (1 - WF_EMA_ALPHA) + ceilNow * WF_EMA_ALPHA) : ceilNow;
   WF_CEIL.set(key, ceil);
-  const lo = floor - 4;
+  const lo = floor - WF_FLOOR_PAD_DB;
   const hi = Math.max(ceil, floor + WF_MIN_SPAN_DB);
   return { floor, ceil, lo, hi };
 }
+// Per-half scale computation.  Returns one {start, end, floor, ceil, lo, hi}
+// entry per half (currently WF_HALF_COUNT = 2 — one per RTL-SDR dongle).
+// Boundaries split bins evenly at the midpoint, which matches the stitcher's
+// concatenation order (dongle A's bins precede dongle B's).  EMA state is
+// independent per half so a quick gain change on one dongle doesn't perturb
+// the other half's color stretch.
+function _specScaleHalves(bins, key) {
+  const N = bins.length;
+  const out = [];
+  for (let s = 0; s < WF_HALF_COUNT; s++) {
+    const start = Math.floor((s * N) / WF_HALF_COUNT);
+    const end   = Math.floor(((s + 1) * N) / WF_HALF_COUNT);
+    const real = [];
+    for (let i = start; i < end; i++) {
+      if (bins[i] > -119) real.push(bins[i]);
+    }
+    const sorted = real.slice().sort((a, b) => a - b);
+    const floorNow = _wfPercentile(sorted, WF_PCT_FLOOR);
+    const ceilNow  = _wfPercentile(sorted, WF_PCT_CEIL);
+    const mapKey = key + "|" + s;
+    let floor = WF_RANGE_HALF.get(mapKey);
+    floor = (typeof floor === "number") ? (floor * (1 - WF_EMA_ALPHA) + floorNow * WF_EMA_ALPHA) : floorNow;
+    WF_RANGE_HALF.set(mapKey, floor);
+    let ceil = WF_CEIL_HALF.get(mapKey);
+    ceil = (typeof ceil === "number") ? (ceil * (1 - WF_EMA_ALPHA) + ceilNow * WF_EMA_ALPHA) : ceilNow;
+    WF_CEIL_HALF.set(mapKey, ceil);
+    const lo = floor - WF_FLOOR_PAD_DB;
+    const hi = Math.max(ceil, floor + WF_MIN_SPAN_DB);
+    out.push({ start, end, floor, ceil, lo, hi });
+  }
+  return out;
+}
+// Returns the half-scale entry that owns bin index idx.  Linear scan is
+// fine here — WF_HALF_COUNT is 2 — and avoids any division/branch surprise
+// if half boundaries shift later (e.g. seam-aware splits).
+function _halfOfIdx(halves, idx) {
+  for (let i = 0; i < halves.length; i++) {
+    if (idx >= halves[i].start && idx < halves[i].end) return halves[i];
+  }
+  return halves[halves.length - 1];
+}
 function autoStretchIntensity(bins, key) {
-  const { lo, hi } = _specScale(bins, key);
-  return normalizeBins(bins, lo, hi);
+  const halves = _specScaleHalves(bins, key);
+  const out = new Float32Array(bins.length);
+  for (let h = 0; h < halves.length; h++) {
+    const seg = halves[h];
+    const span = (seg.hi - seg.lo) || 1;
+    for (let i = seg.start; i < seg.end; i++) {
+      let t = (bins[i] - seg.lo) / span;
+      if (t < 0) t = 0; else if (t > 1) t = 1;
+      out[i] = t;
+    }
+  }
+  return out;
 }
 
 // ----- Spectrum (FFT trace) plot — HDSDR/SDR#-style line graph -----
@@ -3354,7 +3421,9 @@ function _updateSpecPeakLabelsDOM(canvas, chosen, freqLo, fSpan, N, yOf) {
     const c = chosen[i];
     const d = labels[i];
     const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
-    const y = yOf(c.val);
+    // Pass the bin idx so callers using per-half scales (Live IQ) can map
+    // the dBFS value through the segment that owns this peak.
+    const y = yOf(c.val, c.idx);
     d.textContent = `${c.val.toFixed(0)} dBFS @ ${freq.toFixed(3)}`;
     d.style.display = 'block';
     d.style.left = `${c.x}px`;
@@ -3507,12 +3576,29 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
 
   const key = scaleKey || canvas.id;
   const N = bins.length;
-  const { floor, lo, hi } = _specScale(bins, key);
-  const span = hi - lo;
-  // Map dBFS -> y (CSS-pixel coords).  Same formula used by both the
-  // WebGL DOM-overlay labels and the 2D fallback canvas text.
-  const yOf = (db) => {
-    const t = Math.max(0, Math.min(1, (db - lo) / span));
+  // Whole-frame scale: kept for the peak-marker threshold + tabular-nums
+  // readouts so a strong burst on one dongle still registers as "loud"
+  // relative to the band as a whole (peaks are inherently frame-wide).
+  const { floor: gFloor } = _specScale(bins, key);
+  // Per-half scales drive the spec line + label y-coords so each dongle's
+  // bins map to display height against its own noise floor (see
+  // _specScaleHalves for the rationale).
+  const halves = _specScaleHalves(bins, key);
+  // Map dBFS -> y (CSS-pixel coords) using the per-half lo/hi that contains
+  // bin idx.  Used for label placement; the live + peak traces paint from
+  // pre-normalized arrays below.
+  const yOf = (db, idx) => {
+    const seg = _halfOfIdx(halves, idx);
+    const segSpan = (seg.hi - seg.lo) || 1;
+    let t = (db - seg.lo) / segSpan;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    return (cssH - 1) - t * (cssH - 2);
+  };
+  // Mapping for already-normalized t01 values back to a CSS-pixel y (matches
+  // yOf when t = (db - seg.lo) / segSpan).  Used by the 2D fallback line draw.
+  const yOfNorm = (t01) => {
+    let t = t01;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
     return (cssH - 1) - t * (cssH - 2);
   };
 
@@ -3528,7 +3614,11 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   // Top-3 peaks — local maxima >= floor + 10 dB.  Computed once and used
   // by both the WebGL path (DOM-overlay labels) and the 2D fallback path
   // (canvas-drawn labels).  SPEC_PEAK_HITS is consumed by wireSpecPeakClicks.
-  const threshold = floor + 10;
+  // Threshold uses the whole-frame floor on purpose — peak markers compete
+  // band-wide so the strongest burst on the hotter dongle still wins over
+  // a mid-strength burst on the cooler dongle.
+  const PEAK_THRESHOLD_DB_OVER_FLOOR = 10;
+  const threshold = gFloor + PEAK_THRESHOLD_DB_OVER_FLOOR;
   const peaks = [];
   for (let i = 2; i < N - 2; i++) {
     const v = bins[i];
@@ -3559,10 +3649,32 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   }
   SPEC_PEAK_HITS.set(key, { hits, cssW });
 
+  // Pre-normalize live + peak-hold to [0,1] using each half's own lo/hi
+  // so the two halves of the displayed trace stretch against their own
+  // noise floor.  Both the WebGL paint (called with lo=0, hi=1) and the
+  // 2D fallback line draw consume these arrays directly.
+  const normBins = new Float32Array(N);
+  const normPeak = new Float32Array(N);
+  for (let h = 0; h < halves.length; h++) {
+    const seg = halves[h];
+    const segSpan = (seg.hi - seg.lo) || 1;
+    for (let i = seg.start; i < seg.end; i++) {
+      let tB = (bins[i] - seg.lo) / segSpan;
+      if (tB < 0) tB = 0; else if (tB > 1) tB = 1;
+      normBins[i] = tB;
+      let tP = (ph.peak[i] - seg.lo) / segSpan;
+      if (tP < 0) tP = 0; else if (tP > 1) tP = 1;
+      normPeak[i] = tP;
+    }
+  }
+
   // --- WebGL path -----------------------------------------------------
   const glState = SPEC_GL.get(canvas);
   if (glState && !glState.lost && !glState.gl.isContextLost()) {
-    _paintSpecGL(glState, bins, ph.peak, lo, hi, cssW, cssH);
+    // Pass already-normalized arrays so the shader maps each half against
+    // its own dongle's floor/ceiling (lo=0, hi=1 makes _paintSpecGL a
+    // pass-through clamp).
+    _paintSpecGL(glState, normBins, normPeak, 0, 1, cssW, cssH);
     _updateSpecPeakLabelsDOM(canvas, chosen, freqLo, fSpan, N, yOf);
     return;
   }
@@ -3593,6 +3705,8 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
 
   // Per-pixel linear interpolation between bins gives a smoother trace
   // than nearest-neighbour when N < cssW (typical for SDR FFT rows).
+  // The arrays passed in are already per-half normalized to [0,1] so the
+  // 2D path matches the WebGL path visually.
   const sampleAt = (arr, x) => {
     const t = (x / Math.max(1, cssW - 1)) * (N - 1);
     const i0 = Math.floor(t), i1 = Math.min(N - 1, i0 + 1);
@@ -3607,7 +3721,7 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = 0; x < cssW; x++) {
-    const y = yOf(sampleAt(ph.peak, x));
+    const y = yOfNorm(sampleAt(normPeak, x));
     if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
@@ -3621,7 +3735,7 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   ctx.lineCap = 'round';
   ctx.beginPath();
   for (let x = 0; x < cssW; x++) {
-    const y = yOf(sampleAt(bins, x));
+    const y = yOfNorm(sampleAt(normBins, x));
     if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
@@ -3638,7 +3752,7 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
     ctx.lineWidth = 1;
     for (const c of chosen) {
       const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
-      const y = yOf(c.val);
+      const y = yOf(c.val, c.idx);
       const txt = `${c.val.toFixed(0)} dBFS @ ${freq.toFixed(3)}`;
       const w = ctx.measureText(txt).width;
       let lx = c.x - w / 2;
@@ -6393,6 +6507,22 @@ function _autoApplyCancel() {
   _autoApplyHide();
 }
 
+// After a successful auto-apply, rtl-airband has restarted with the
+// slider values the user committed during the countdown.  The
+// "pending · applies on next rtl-airband restart" hint on each band
+// card is now stale (the next restart already happened), so clear
+// st.pending for both bands and re-render their controls.  Subsequent
+// slider commits flow through _bandCommit, which re-sets st.pending if
+// the backend still reports pending_restart for that change.
+const AUTO_APPLY_APPLIED_LINGER_MS = 2500;  // how long "Applied ✓" stays before auto-hide
+const AUTO_APPLY_ERROR_LINGER_MS   = 5000;  // how long "Apply failed:" stays before auto-hide
+function _clearBandPendingAfterApply() {
+  for (const band of ["air", "ground"]) {
+    if (BAND_STATE[band]) BAND_STATE[band].pending = false;
+    renderBandControls(band);
+  }
+}
+
 function _autoApplyFire() {
   _autoApplyStopTimer();
   _autoApply.applying = true;
@@ -6406,12 +6536,16 @@ function _autoApplyFire() {
     .then(res => {
       _autoApply.applying = false;
       if (res.ok && res.json && res.json.ok !== false) {
+        // rtl-airband just restarted — the per-band "pending" hint is
+        // stale.  Drop it before showing "Applied ✓" so the indicator
+        // is already gone by the time the checkmark fades out.
+        _clearBandPendingAfterApply();
         _autoApplyRender("Applied ✓", "applied");
-        setTimeout(() => { if (!_autoApply.intervalId && !_autoApply.applying) _autoApplyHide(); }, 2500);
+        setTimeout(() => { if (!_autoApply.intervalId && !_autoApply.applying) _autoApplyHide(); }, AUTO_APPLY_APPLIED_LINGER_MS);
       } else {
         const err = (res.json && res.json.error) ? String(res.json.error) : "restart failed";
         _autoApplyRender("Apply failed: " + err, "error");
-        setTimeout(() => { if (!_autoApply.intervalId && !_autoApply.applying) _autoApplyHide(); }, 5000);
+        setTimeout(() => { if (!_autoApply.intervalId && !_autoApply.applying) _autoApplyHide(); }, AUTO_APPLY_ERROR_LINGER_MS);
       }
     })
     .catch(e => {
