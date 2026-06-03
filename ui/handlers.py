@@ -442,6 +442,11 @@ _STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")
 _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
 _UNIT_EXISTS_CACHE_TTL_SEC = max(2.0, float(os.getenv("UNIT_EXISTS_CACHE_TTL_SEC", "30")))
+# H2 (2026-06-03): cache for `systemctl is-enabled` state so the heartbeat
+# can distinguish "intentionally disabled" (ok) from "should be running but
+# isn't" (warn). Refresh window matches _UNIT_ACTIVE_CACHE_TTL_SEC since
+# the underlying truth changes at roughly the same cadence.
+_UNIT_ENABLED_CACHE_TTL_SEC = max(2.0, float(os.getenv("UNIT_ENABLED_CACHE_TTL_SEC", "30")))
 HIT_LIST_MAX_AGE_SEC = max(60, int(os.getenv("HIT_LIST_MAX_AGE_SEC", "1800")))
 STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
 HP_STATE_SYNC_WAIT_SEC = max(0.0, float(os.getenv("HP_STATE_SYNC_WAIT_SEC", "3.0")))
@@ -475,6 +480,7 @@ _STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
 _UNIT_EXISTS_CACHE: dict[str, tuple[float, bool]] = {}
+_UNIT_ENABLED_CACHE: dict[str, tuple[float, str]] = {}
 
 # Sliding-window samples of (NRestarts, monotonic_ts) per unit, used by
 # _unit_restart_loop_state() to detect crash-loops behind the
@@ -2059,6 +2065,53 @@ def _unit_exists_cached(unit: str) -> bool:
     return value
 
 
+# H2 (2026-06-03): the heartbeat used to flip ANY inactive service to warn,
+# which made acarsdec / radiosonde-auto-rx / scanner-vlc-vfo show permanent
+# yellow flags even though they are intentionally `systemctl disable`d. This
+# helper exposes the systemctl is-enabled state string so callers can
+# distinguish "should be running but isn't" from "intentionally off".
+#
+# Returns one of: "enabled", "enabled-runtime", "disabled", "masked",
+# "static", "linked", "alias", "indirect", "generated", "transient",
+# "not-found", or "unknown" (any unexpected output / subprocess failure).
+def _unit_enabled_state_cached(unit: str) -> str:
+    import subprocess
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        entry = _UNIT_ENABLED_CACHE.get(unit)
+        if entry and (now - float(entry[0])) <= _UNIT_ENABLED_CACHE_TTL_SEC:
+            return str(entry[1])
+    state = "unknown"
+    try:
+        # `is-enabled` writes the state to stdout and exits 0 for enabled,
+        # 1 for disabled/masked/static/etc, 4 for not-found. We trust the
+        # stdout token regardless of returncode.
+        proc = subprocess.run(
+            ["systemctl", "is-enabled", unit],
+            capture_output=True, text=True, timeout=5.0,
+        )
+        token = (proc.stdout or proc.stderr or "").strip().lower()
+        if token:
+            # `systemctl` sometimes prepends a warning line; take the last
+            # non-empty token, which is the actual state.
+            for line in reversed(token.splitlines()):
+                line = line.strip()
+                if line and not line.startswith("warning:"):
+                    state = line
+                    break
+    except Exception:
+        state = "unknown"
+    with _CACHE_LOCK:
+        _UNIT_ENABLED_CACHE[unit] = (now, state)
+    return state
+
+
+# H2 helper: a unit is "intentionally off" (operator deliberately disabled
+# it) when the is-enabled state is one of these. Heartbeat / sitrep should
+# surface those as ok rather than warn so the dashboard stays meaningful.
+_UNIT_INTENTIONALLY_OFF_STATES = frozenset({"disabled", "masked"})
+
+
 def _unit_restart_loop_state(unit: str) -> dict[str, Any]:
     """Sample systemd's NRestarts for *unit* and detect crash-loops.
 
@@ -3187,11 +3240,34 @@ def _compute_heartbeat_payload() -> dict:
             active = _unit_active_cached(unit)
         except Exception:
             active = False
-        evidence.append({
-            "label": label,
-            "value": "active" if active else "inactive",
-            "status": "ok" if active else "warn",
-        })
+        if active:
+            evidence.append({
+                "label": label,
+                "value": "active",
+                "status": "ok",
+            })
+            continue
+        # H2 (2026-06-03): inactive is not necessarily a problem. Some
+        # services are intentionally `systemctl disable`d (acarsdec,
+        # radiosonde-auto-rx, scanner-vlc-vfo on this host) and were
+        # showing permanent warn yellows that trained the operator to
+        # ignore the row. Cross-check is-enabled before flipping warn.
+        try:
+            enabled_state = _unit_enabled_state_cached(unit)
+        except Exception:
+            enabled_state = "unknown"
+        if enabled_state in _UNIT_INTENTIONALLY_OFF_STATES:
+            evidence.append({
+                "label": label,
+                "value": "intentionally off",
+                "status": "ok",
+            })
+        else:
+            evidence.append({
+                "label": label,
+                "value": "inactive",
+                "status": "warn",
+            })
 
     # 3) Icecast ANALOG.mp3 mount-publishing state (cheap — icecast JSON).
     analog_mount_publishing = False
@@ -4478,12 +4554,32 @@ def _sitrep_services() -> list[dict]:
             active = _unit_active_cached(unit)
         except Exception:
             active = False
+        if active:
+            rows.append({
+                "label": label,
+                "unit": unit,
+                "active": True,
+                "installed": True,
+                "status": "ok",
+            })
+            continue
+        # H2 (2026-06-03): mirror the heartbeat's is-enabled logic so the
+        # sitrep modal also marks intentionally-disabled units as ok rather
+        # than bad. Otherwise the modal would still red-flag units that the
+        # main heartbeat now considers healthy.
+        try:
+            enabled_state = _unit_enabled_state_cached(unit)
+        except Exception:
+            enabled_state = "unknown"
+        intentionally_off = enabled_state in _UNIT_INTENTIONALLY_OFF_STATES
         rows.append({
             "label": label,
             "unit": unit,
-            "active": bool(active),
+            "active": False,
             "installed": True,
-            "status": "ok" if active else "bad",
+            "status": "ok" if intentionally_off else "bad",
+            "enabled_state": enabled_state,
+            "intentionally_off": intentionally_off,
         })
     return rows
 
