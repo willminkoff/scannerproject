@@ -3091,6 +3091,48 @@ def _compute_heartbeat_payload() -> dict:
             if not recovery:
                 recovery = f"systemctl restart {unit}"
 
+    # 2b) Extended service surface — decoders, VLC bridges, op25/VFO/broker.
+    #     These are not part of the core "wedge" decision (the 5-unit block
+    #     above is authoritative for that) but their silent failure has been
+    #     burning operator time, so surface them as evidence rows.
+    #     Severity: `warn` on inactive (RF_DEGRADED in the rollup) rather
+    #     than `bad`, so a stopped decoder doesn't catastrophize the badge.
+    #     Units not installed on this host → status `ok`, value `not
+    #     configured` (skipped cleanly, no failure).
+    extended_service_units = [
+        ("scanner-digital-op25",        "scanner-digital-op25.service"),
+        ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service"),
+        ("scanner-vfo",                 "scanner-vfo.service"),
+        ("scanner-tuner-broker",        "scanner-tuner-broker.service"),
+        ("dumpvdl2",                    "dumpvdl2.service"),
+        ("acarsdec",                    "acarsdec.service"),
+        ("radiosonde-auto-rx",          "radiosonde-auto-rx.service"),
+        ("scanner-vlc-analog",          "scanner-vlc-analog.service"),
+        ("scanner-vlc-ground",          "scanner-vlc-ground.service"),
+        ("scanner-vlc-vfo",             "scanner-vlc-vfo.service"),
+    ]
+    for label, unit in extended_service_units:
+        try:
+            exists = _unit_exists_cached(unit)
+        except Exception:
+            exists = True  # err on the side of probing; worst case we surface inactive
+        if not exists:
+            evidence.append({
+                "label": label,
+                "value": "not configured",
+                "status": "ok",
+            })
+            continue
+        try:
+            active = _unit_active_cached(unit)
+        except Exception:
+            active = False
+        evidence.append({
+            "label": label,
+            "value": "active" if active else "inactive",
+            "status": "ok" if active else "warn",
+        })
+
     # 3) Icecast ANALOG.mp3 mount-publishing state (cheap — icecast JSON).
     analog_mount_publishing = False
     icecast_status_text = ""
@@ -3152,6 +3194,60 @@ def _compute_heartbeat_payload() -> dict:
             evidence.append({
                 "label": "/ANALOG.mp3 byte rate",
                 "value": f"0 B in {sample['elapsed_sec']:.1f}s (frame gap)",
+                "status": "warn",
+            })
+
+    # 4b) Byte-probe the other operator-facing icecast mounts.
+    #     Same short-read pattern as ANALOG.mp3.  We probe even if the
+    #     mount isn't listed as `publishing` in icecast status — a
+    #     no-source mount surfaces as a warn row instead of being
+    #     silently skipped.  Mounts intentionally NOT probed here:
+    #       * disco.mp3 — followed up separately (separate FU task)
+    #       * GND.mp3   — removed; do not probe
+    #
+    #     Severity: `warn` on dead/empty (under ~256 bytes in the window),
+    #     consistent with the ANALOG.mp3 frame-gap policy.  Not `bad`,
+    #     because the core ANALOG.mp3 path is the wedge signal of record.
+    _HEARTBEAT_MOUNT_MIN_BYTES = 256
+    extra_mount_probes = [
+        ("/ANALOG_GROUND.mp3", "ANALOG_GROUND.mp3"),
+        ("/DIGITAL.mp3",       "DIGITAL.mp3"),
+        ("/VFO.mp3",           "VFO.mp3"),
+    ]
+    for label, mount in extra_mount_probes:
+        try:
+            publishing = mount_publishing(icecast_status_text, mount)
+        except Exception:
+            publishing = False
+        if not publishing:
+            evidence.append({
+                "label": f"{label} mount",
+                "value": "no source",
+                "status": "warn",
+            })
+            continue
+        sample = _heartbeat_sample_mount_bytes(
+            mount,
+            _HEARTBEAT_MP3_SAMPLE_DURATION_SEC,
+            _HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC,
+        )
+        if sample.get("error"):
+            evidence.append({
+                "label": f"{label} byte rate",
+                "value": sample.get("error") or "error",
+                "status": "warn",
+            })
+        elif sample.get("bytes", 0) >= _HEARTBEAT_MOUNT_MIN_BYTES:
+            kbps = (sample["bytes"] * 8) / max(0.05, sample["elapsed_sec"]) / 1000.0
+            evidence.append({
+                "label": f"{label} byte rate",
+                "value": f"{sample['bytes']} B / {sample['elapsed_sec']:.1f}s ({kbps:.0f} kbps)",
+                "status": "ok",
+            })
+        else:
+            evidence.append({
+                "label": f"{label} byte rate",
+                "value": f"{sample.get('bytes', 0)} B in {sample.get('elapsed_sec', 0):.1f}s (under {_HEARTBEAT_MOUNT_MIN_BYTES}B floor)",
                 "status": "warn",
             })
 
@@ -4266,23 +4362,48 @@ def _broker_aware_dongle_rows() -> list[dict]:
 # are the units whose state lights up the service-health grid in the
 # Sitrep modal.  Order matters: it's the painting order in the modal.
 _SITREP_SERVICE_UNITS: tuple[tuple[str, str], ...] = (
-    ("airband-ui",           "airband-ui.service"),
-    ("rtl-airband-airband",  "rtl-airband-airband.service"),
-    ("rtl-airband-ground",   "rtl-airband-ground.service"),
-    ("scanner-digital-op25", "scanner-digital-op25.service"),
-    ("scanner-waterfall",    "scanner-waterfall.service"),
-    ("scanner-vfo",          "scanner-vfo.service"),
-    ("disco-coordinator",    "disco-coordinator.service"),
-    ("dumpvdl2",             "dumpvdl2.service"),
-    ("acarsdec",             "acarsdec.service"),
-    ("icecast2",             "icecast2.service"),
+    ("airband-ui",                  "airband-ui.service"),
+    ("rtl-airband-airband",         "rtl-airband-airband.service"),
+    ("rtl-airband-ground",          "rtl-airband-ground.service"),
+    ("scanner-digital-op25",        "scanner-digital-op25.service"),
+    ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service"),
+    ("scanner-waterfall",           "scanner-waterfall.service"),
+    ("scanner-vfo",                 "scanner-vfo.service"),
+    ("scanner-tuner-broker",        "scanner-tuner-broker.service"),
+    ("disco-coordinator",           "disco-coordinator.service"),
+    ("dumpvdl2",                    "dumpvdl2.service"),
+    ("acarsdec",                    "acarsdec.service"),
+    ("radiosonde-auto-rx",          "radiosonde-auto-rx.service"),
+    ("scanner-vlc-digital",         "scanner-vlc-digital.service"),
+    ("scanner-vlc-analog",          "scanner-vlc-analog.service"),
+    ("scanner-vlc-ground",          "scanner-vlc-ground.service"),
+    ("scanner-vlc-vfo",             "scanner-vlc-vfo.service"),
+    ("icecast2",                    "icecast2.service"),
 )
 
 
 def _sitrep_services() -> list[dict]:
-    """Active-state for each operator-relevant service."""
+    """Active-state for each operator-relevant service.
+
+    Units not installed on this host are surfaced as status `ok` with
+    ``active=False`` and ``installed=False`` so the modal can render them
+    as "not configured" rather than red-flagging the grid.
+    """
     rows = []
     for label, unit in _SITREP_SERVICE_UNITS:
+        try:
+            exists = _unit_exists_cached(unit)
+        except Exception:
+            exists = True
+        if not exists:
+            rows.append({
+                "label": label,
+                "unit": unit,
+                "active": False,
+                "installed": False,
+                "status": "ok",
+            })
+            continue
         try:
             active = _unit_active_cached(unit)
         except Exception:
@@ -4291,6 +4412,7 @@ def _sitrep_services() -> list[dict]:
             "label": label,
             "unit": unit,
             "active": bool(active),
+            "installed": True,
             "status": "ok" if active else "bad",
         })
     return rows

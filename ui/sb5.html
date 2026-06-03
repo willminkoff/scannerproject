@@ -2862,21 +2862,28 @@
       </div>
 
       <div class="sitrep-section">
-        <div class="sitrep-section-hd">Service health</div>
+        <div class="sitrep-section-hd" id="sitrep-services-hd">Services</div>
         <div class="sitrep-service-list" id="sitrep-service-list">
           <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
         </div>
       </div>
 
       <div class="sitrep-section">
-        <div class="sitrep-section-hd">Dongle assignments</div>
+        <div class="sitrep-section-hd" id="sitrep-mounts-hd">Mounts</div>
+        <div class="sitrep-service-list" id="sitrep-mounts-list">
+          <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
+        </div>
+      </div>
+
+      <div class="sitrep-section">
+        <div class="sitrep-section-hd" id="sitrep-dongles-hd">Dongles</div>
         <div class="sitrep-service-list" id="sitrep-dongle-list">
           <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
         </div>
       </div>
 
       <div class="sitrep-section">
-        <div class="sitrep-section-hd">Heartbeat evidence</div>
+        <div class="sitrep-section-hd" id="sitrep-evidence-hd">Heartbeat evidence</div>
         <div class="sitrep-service-list" id="sitrep-evidence-list">
           <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
         </div>
@@ -5590,11 +5597,35 @@ async function renderSitrepModal() {
     const data = await r.json();
     if ($("sitrep-headline")) $("sitrep-headline").textContent = data.headline || "—";
     if ($("sitrep-explain"))  $("sitrep-explain").textContent  = data.explanation || "";
-    _sitrepRenderServiceList("sitrep-service-list", data.services, row =>
-      row.active ? "active" : "inactive");
+    // Services — "not configured" when the unit isn't installed on this host
+    // (installed===false), otherwise "active" / "inactive".
+    _sitrepRenderServiceList("sitrep-service-list", data.services, row => {
+      if (row && row.installed === false) return "not configured";
+      return row && row.active ? "active" : "inactive";
+    });
     _sitrepRenderServiceList("sitrep-dongle-list", data.dongles, row =>
       `${row.role || "?"}${row.detail ? " · " + row.detail : ""}`);
-    _sitrepRenderServiceList("sitrep-evidence-list", data.evidence, row => row.value);
+    // Split heartbeat evidence into Mounts vs everything-else for a
+    // cleaner at-a-glance read. Mount rows are the ones whose label
+    // starts with "/" (e.g. "/ANALOG.mp3 byte rate", "/VFO.mp3 mount").
+    const evAll = Array.isArray(data.evidence) ? data.evidence : [];
+    const mountRows = evAll.filter(r => r && typeof r.label === "string" && r.label.startsWith("/"));
+    const otherRows = evAll.filter(r => !(r && typeof r.label === "string" && r.label.startsWith("/")));
+    _sitrepRenderServiceList("sitrep-mounts-list",   mountRows, row => row.value);
+    _sitrepRenderServiceList("sitrep-evidence-list", otherRows, row => row.value);
+    // Collapse "all green" section headers — append a "· all green" hint
+    // so the operator can scan past sections that need no attention.
+    const _setAllGreenHint = (hdId, rows) => {
+      const hd = $(hdId);
+      if (!hd) return;
+      const baseTxt = hd.dataset.baseTitle || hd.textContent.replace(/\s*·\s*all green\s*$/, "");
+      hd.dataset.baseTitle = baseTxt;
+      const allOk = rows && rows.length > 0 && rows.every(r => (r.status || "ok") === "ok");
+      hd.textContent = allOk ? `${baseTxt} · all green` : baseTxt;
+    };
+    _setAllGreenHint("sitrep-services-hd", data.services);
+    _setAllGreenHint("sitrep-mounts-hd",   mountRows);
+    _setAllGreenHint("sitrep-evidence-hd", otherRows);
   } catch (e) {
     const el = $("sitrep-evidence-list");
     if (el) el.innerHTML = _sitrepServiceRowHTML("error", String(e && e.message || e), "bad");
