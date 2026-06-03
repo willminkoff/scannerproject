@@ -29,7 +29,7 @@ devices:
       (
         {{
           type = "icecast";
-          mountpoint = "GND.mp3";
+          mountpoint = "ANALOG.mp3";
           bitrate = 32;
         }}
       );

@@ -92,7 +92,7 @@ HP_AVOIDS_PATH = os.getenv("HP_AVOIDS_PATH", os.path.join(AVOIDS_DIR, "hp_avoids
 # Icecast Configuration
 ICECAST_PORT = int(os.getenv("ICECAST_PORT", "8000"))
 ICECAST_HOST = os.getenv("ICECAST_HOST", "127.0.0.1").strip() or "127.0.0.1"
-MOUNT_NAME = os.getenv("MOUNT_NAME", "GND.mp3").strip().lstrip("/")
+MOUNT_NAME = os.getenv("MOUNT_NAME", "ANALOG.mp3").strip().lstrip("/")
 ICECAST_STATUS_URL = f"http://{ICECAST_HOST}:{ICECAST_PORT}/status-json.xsl"
 # NOTE: must live under /run/scannerproject (ubuntu:ubuntu, writable by the
 # non-root airband-ui service). The historical /run/airband_ui_hitlog.jsonl

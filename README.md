@@ -109,13 +109,13 @@ Notes:
 Profiles notes:
 - **Labeling convention:** Profiles use the ICAO airport code as the human-facing label (e.g., **KATL (Atlanta)**). The profile *id* should be short and lowercase (e.g., `"atl"`).
 - **Frequency rules:** Only VHF airband frequencies (118.0–136.0 MHz) should be placed in `freqs = (...)` blocks. Out-of-band entries (UHF/other) may be ignored by the UI or treated as invalid.
-- **Icecast mount convention:** All profiles must use the single mountpoint `GND.mp3` (do not create profile-specific mount names like `ATL_TWR.mp3`). Metadata and frequency tags are still sent with each hit.
+- **Icecast mount convention:** All profiles must use the single mountpoint `ANALOG.mp3` (do not create profile-specific mount names like `ATL_TWR.mp3`). Metadata and frequency tags are still sent with each hit. (The legacy `GND.mp3` mount was retired 2026-06-03 in favor of `ANALOG.mp3` / `ANALOG_GROUND.mp3`.)
 - **Deploying a profile:** Copy or symlink the profile into `/usr/local/etc/airband-profiles` and restart the UI service to pick up label changes:
 
   sudo cp profiles/rtl_airband_atl.conf /usr/local/etc/airband-profiles/
   sudo systemctl restart airband-ui.service
 
-- **Example:** `profiles/rtl_airband_atl.conf` implements **KATL (Atlanta)** and contains Tower, Approach, and Departure channels (all VHF) and uses `GND.mp3` as the single Icecast mount.
+- **Example:** `profiles/rtl_airband_atl.conf` implements **KATL (Atlanta)** and contains Tower, Approach, and Departure channels (all VHF) and uses `ANALOG.mp3` as the single Icecast mount.
 ├── scripts/
 │   ├── build-combined-config.py # Generates combined dual-scanner config
 │   ├── rtl-airband              # Launch wrapper (preserves SIGHUP capability)
@@ -148,7 +148,7 @@ rtl-airband (combined process, dedicated airband + shared ground dongle)
     ├─ Airband scanner (118-136 MHz) [00000002]
     └─ Ground scanner (VHF/UHF other) [45469635, shared with WX]
     ↓
-Icecast Analog Mount (/ANALOG.mp3 or /GND.mp3)
+Icecast Analog Mount (/ANALOG.mp3 + /ANALOG_GROUND.mp3)
     ├→ Browser (analog player)
     ├→ Journalctl (analog activity logging)
     └→ Frequency metadata
