@@ -1989,7 +1989,6 @@
     font-size: var(--type-meta); font-weight: 600;
     cursor: pointer;
     font-family: inherit;
-    margin-left: 6px;
   }
   .profile-sync-btn:hover:not([disabled]) {
     background: rgba(255, 178, 90, 0.18);
@@ -1998,6 +1997,23 @@
   .profile-sync-btn[disabled] {
     opacity: 0.45;
     cursor: not-allowed;
+  }
+  /* Secondary action row below the AIR picker — keeps "Sync to Ground"
+     visible and clickable without crowding the picker's Build/Edit
+     button or the chip list. Right-aligned on desktop; on narrow
+     viewports the button stretches edge-to-edge so it stays tappable. */
+  .profile-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: var(--space-sm);
+    margin-top: var(--space-sm);
+    border-top: 1px dashed var(--line);
+  }
+  @media (max-width: 600px) {
+    .profile-actions .profile-sync-btn {
+      flex: 1 1 auto;
+      text-align: center;
+    }
   }
   /* GROUND card mirrors AIR's analog-profile block but tints amber so
      the two pickers are visually distinct at a glance. */
@@ -2299,10 +2315,13 @@
           <div class="psub" id="ana-psub">—</div>
         </div>
         <button class="profile-build-btn" id="ana-profile-build-btn" type="button">Build / Edit</button>
-        <!-- Phase 7g: copy AIR's active favorite to ALSO be GROUND's
-             active favorite.  POSTs /api/hp/state/activate with
-             band='both' so a single click syncs both bands.  Disabled
-             when AIR has no active favorite. -->
+      </div>
+      <!-- Phase 7g (relocated): the "Sync to Ground" action lives in its own
+           secondary row below the AIR picker so it never crowds the picker's
+           Build/Edit button or the chip list on narrower viewports.  POSTs
+           /api/hp/state/activate with band='both' so a single click syncs
+           both bands.  Disabled when AIR has no active favorite. -->
+      <div class="profile-actions" id="ana-profile-actions">
         <button class="profile-sync-btn" id="ana-profile-sync-btn" type="button"
                 title="Copy AIR's favorite to GROUND" disabled>Sync to Ground</button>
       </div>
