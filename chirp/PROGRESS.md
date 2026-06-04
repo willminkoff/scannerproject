@@ -88,7 +88,7 @@ follow-up that mocks `/var/log/chirp/airband_hits.jsonl` and asserts
 `read_hit_list()` returns the expected band-tagged dicts under
 `SB5_USE_GR_DEMOD=true`.
 
-**Deploy SHA on `main`** — ``4fedfab`` (pushed to `origin/main`).
+**Deploy SHA on `main`** — ``2237fda`` (pushed to `origin/main`).
 Trailing PROGRESS-fill commit pattern.
 
 ---
