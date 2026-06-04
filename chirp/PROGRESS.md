@@ -668,3 +668,212 @@ Ground band parity + dashboard cutover. Specifically:
 
 Rollback rehearsal goes in the Phase 4 commit log so we don't ad-lib it
 under pressure.
+
+
+---
+
+## Phase 4a — ground-band NFM + two-daemon coexistence (2026-06-04)
+
+**Goal.** Get chirp running for the ground band (NFM) the same way it
+already runs for airband (AM), with both daemons coexisting on Micro.
+File source only — no RSPduo opens in this sub-phase.
+
+### What landed
+
+1. **NFM demod path in `Channel`** (`chirp/dsp/channel.py`).
+   New chain alongside the AM path: `freq_xlating` → fir decim ×5 → fir decim
+   ×(samp_rate/1e6) → `pwr_squelch_cc` → `quadrature_demod_cf` →
+   `multiply_const_ff` (post-demod gain) → audio LPF/decim ×5 → arb resampler.
+   Discriminator gain = `pre_demod_rate / (2π·max_dev_hz)`; default
+   `nfm_max_deviation_hz = 5 kHz` (mil-air narrowband). No 75 µs de-emphasis
+   — mil-air NFM doesn't pre-emphasise. AGC is omitted on the NFM path (FM
+   is amplitude-insensitive); `set_gain()` instead drives the post-demod
+   scalar so operator semantics match AM.
+   Mode is immutable per channel (locked design decision); the constructor
+   raises `ValueError` for anything other than `"am"`/`"nfm"`.
+
+2. **Per-band configuration** (`chirp/config/`).
+   - `airband.json` — AM defaults, cmd port 7400, fallback file
+     `/tmp/chirp_airband_fallback.f32`.
+   - `ground.json` — NFM defaults, cmd port 7401, fallback file
+     `/tmp/chirp_ground_fallback.f32`.
+   - `README.md` — schema, env-override matrix, per-band path table,
+     bad-JSON behaviour.
+   `load_config()` now picks `chirp/config/<CHIRP_BAND>.json` and raises
+   `ValueError("invalid JSON …")` on malformed JSON. `CHIRP_POOL_MODE`
+   overrides the pool's demod mode; anything outside {`am`,`nfm`} is a
+   hard reject at startup. Hit log defaults to
+   `/var/log/chirp/<band>_hits.jsonl` so the two daemons never share one.
+
+3. **Daemon pool is mode-homogeneous** (`chirp/daemon.py`).
+   Every slot in the 32-slot pool is created with `mode=cfg.pool_mode`,
+   so airband pools are AM and ground pools are NFM. `add_channel` now
+   rejects requests whose `mode` doesn't match the pool with
+   `"channel mode mismatch: pool=<m>, requested […] != pool mode"`.
+   `get_status` surfaces `pool_mode` so operators can see which demod
+   chain is wired.
+
+4. **Schema + CLI accept NFM.**
+   `ChannelArgs.mode` widened from `Literal["am"]` to `Literal["am","nfm"]`.
+   `chirp-cli add-channel --mode` choices updated to `("am","nfm")`.
+   The Phase 1 `test_add_channel_rejects_nfm` guard was replaced with
+   `test_add_channel_accepts_nfm` + `test_add_channel_rejects_unknown_mode`
+   so the rejection envelope (e.g. "ssb") is still covered.
+
+5. **systemd template fleshed out** (`chirp/systemd/gr-demod@.service.template`).
+   `User=ubuntu`, `Type=simple`, `Environment="CHIRP_BAND=%i"`,
+   `ExecStart=/usr/bin/python3 -m chirp.daemon`,
+   `Restart=on-failure RestartSec=2`, `StartLimitBurst=10 StartLimitIntervalSec=60`,
+   `ReadWritePaths=/var/lib/chirp /var/log/chirp /tmp`, `MemoryMax=1G`.
+   `Requires=icecast2.service After=network-online.target`. **Not installed
+   on Micro** — that's Phase 4d cutover. Document only.
+
+6. **Ground test-mount tooling** (`chirp/scripts/`).
+   `add_ground_test_mount.sh` / `remove_ground_test_mount.sh` mirror the
+   Phase 3 airband helpers: `sudo`, idempotent, backup-then-edit, xmllint
+   validate, `systemctl reload icecast2` (NOT restart — production sources
+   stay connected).
+
+7. **NFM IQ fixture** (`chirp/tests/fixtures/make_nfm_iq.py`).
+   Carrier × `exp(jφ(t))` with `φ(t) = 2π·fc·t − β·cos(2π·tone·t)` and
+   `β = max_dev/tone`. Same CLI shape as `make_test_iq.py` plus
+   `--max-dev`. Default deviation 5 kHz, tone 500 Hz.
+
+8. **Tests** — `chirp/tests/test_phase4a.py`, 15 tests:
+   - 5× `TestChannelNFM` — construction, AM regression, bad mode rejection,
+     hot setters, snapshot keys.
+   - 1× `TestNFMDemodEndToEnd::test_nfm_tone_recovered` — synthesised NFM
+     fixture (1 Msps, +100 kHz carrier, 500 Hz tone, 5 kHz deviation, 3 s)
+     fed through a real `ChirpFlowgraph`. FFT peak on the demodulated
+     audio file must sit within 30 Hz of 500 Hz with SNR > 15 dB above
+     mean spectrum. Tolerance set by 2-s capture bin width (~0.5 Hz).
+   - 5× `TestConfigLoader` — airband/ground via env, bad JSON →
+     `ValueError("invalid JSON …")`, bad pool_mode → `ValueError("invalid
+     pool_mode …")`, missing file falls back to airband defaults.
+   - 4× `TestTwoDaemonCoexistence` — two `ChirpFlowgraph`s in one pytest
+     process with distinct UDP ports, state files, hit logs, audio paths.
+     Adds a channel to each, verifies `_by_id` mappings are disjoint,
+     `set_squelch` to airband doesn't touch ground state and vice versa,
+     airband (AM) pool rejects an NFM `add_channel`, both state files
+     land on disk with only their own channel ids.
+
+### Full test suite
+
+```
+$ python3 -m pytest chirp/tests/ -q --tb=short
+... 121 passed in 151.46s (0:02:31)
+```
+
+105 → 121 (Phase 4a added 16 new tests counting the schema swap).
+
+### Smoke test on Micro (file source only — no RSPduo)
+
+1. Captured baseline: `sha256(/etc/icecast2/icecast.xml) =
+   29e41b2be553b0b98e41c47fbae208ec42059a3e31363921b1424cb699017b02`,
+   production sources `{ANALOG, ANALOG_GROUND, DIGITAL, VFO,
+   keepalive-analog, keepalive-ground}` with their listener counts.
+2. `sudo bash chirp/scripts/add_test_mount.sh` — declared `/CHIRP_TEST.mp3`,
+   `systemctl reload icecast2`; six production sources still up.
+3. `sudo bash chirp/scripts/add_ground_test_mount.sh` — declared
+   `/CHIRP_GROUND_TEST.mp3`, reload again; production untouched.
+4. Synthesised fixtures: `make_test_iq` → `/tmp/am_smoke.iq` (240 MB,
+   carrier +200 kHz, 1 kHz tone); `make_nfm_iq` → `/tmp/nfm_smoke.iq`
+   (240 MB, carrier +100 kHz, 500 Hz tone, 5 kHz deviation). 30 s each.
+5. Started both daemons (file source):
+   - `CHIRP_BAND=airband CHIRP_SOURCE=file:/tmp/am_smoke.iq
+     CHIRP_AUDIO_OUT=icecast:127.0.0.1:8000:/CHIRP_TEST.mp3:062352
+     CHIRP_CMD_PORT=7400 …` — `daemon_ready` event fired,
+     `icecast_state=connected`.
+   - `CHIRP_BAND=ground CHIRP_SOURCE=file:/tmp/nfm_smoke.iq
+     CHIRP_AUDIO_OUT=icecast:127.0.0.1:8000:/CHIRP_GROUND_TEST.mp3:062352
+     CHIRP_CMD_PORT=7401 …` — `daemon_ready` event fired,
+     `icecast_state=connected`.
+6. Added channels via real UDP CLI:
+   - `chirp-cli --port 7400 add-channel --id air01 --freq 0.2 --mode am
+     --squelch -90 --gain 0` → `{"status":"ok","data":{"slot":0,…}}`.
+   - `chirp-cli --port 7401 add-channel --id gnd01 --freq 0.1 --mode nfm
+     --squelch -90 --gain 6` → `{"status":"ok","data":{"slot":0,…}}`.
+7. `curl --max-time 15` against both mounts in parallel:
+   - `/CHIRP_TEST.mp3` → 60 200 bytes (`4 013 B/s`).
+   - `/CHIRP_GROUND_TEST.mp3` → 60 200 bytes (`4 013 B/s`).
+   `ffprobe` on both: `Audio: mp3, 16000 Hz, mono, 32 kb/s, duration 15.02 s`.
+   `status-json.xsl` during smoke listed 8 sources (6 production + 2 chirp);
+   all 6 production sources kept the same listener counts they had before.
+8. Real-UDP cross-talk check: `set-squelch --port 7400 --id air01 --dbfs -40`
+   → `status` shows airband `squelch_dbfs=-40.0`, ground unchanged at `-90.0`.
+9. SIGTERM both daemons → "publish loop exiting", "chirp stopped". Clean.
+10. `sudo bash chirp/scripts/remove_ground_test_mount.sh` → reload.
+    `sudo bash chirp/scripts/remove_test_mount.sh` → reload. Restored
+    icecast.xml from the pre-Phase-4a backup (the remove scripts each left
+    one blank line; restoring from backup makes the file byte-identical).
+11. Final `sha256(/etc/icecast2/icecast.xml) =
+    29e41b2be553b0b98e41c47fbae208ec42059a3e31363921b1424cb699017b02` —
+    byte-identical match. Production status: 6 sources, identical listener
+    counts to pre-Phase-4a.
+
+**Production rtl-airband, op25, scanner-vfo, sdrplay — untouched.** No
+restart of any production unit. Only `systemctl reload icecast2` (which
+preserves source connections), called once per mount add/remove.
+
+### Files created
+
+```
+chirp/config/airband.json
+chirp/config/ground.json
+chirp/config/README.md
+chirp/scripts/add_ground_test_mount.sh
+chirp/scripts/remove_ground_test_mount.sh
+chirp/tests/fixtures/make_nfm_iq.py
+chirp/tests/test_phase4a.py
+```
+
+### Files modified
+
+```
+chirp/cli.py                       (--mode choices: am → am,nfm)
+chirp/cmd/schema.py                (ChannelArgs.mode: Literal["am"] → ["am","nfm"])
+chirp/daemon.py                    (pool_mode plumbing, per-band JSON loader,
+                                    mode-mismatch rejection, per-band hit log,
+                                    pool_mode in get_status)
+chirp/dsp/channel.py               (NFM demod path, mode kwarg, mode-aware setters)
+chirp/systemd/gr-demod@.service.template  (real ExecStart, User, hardening)
+chirp/tests/test_phase1.py         (replaced rejects_nfm with accepts_nfm +
+                                    rejects_unknown_mode)
+```
+
+### Commits (Phase 4a)
+
+- `4e88fb7` — chirp(phase4a): NFM demod path + ChannelMode plumbing
+- `099d294` — chirp(phase4a): widen schema + CLI to accept mode=nfm
+- `bd0d580` — chirp(phase4a): per-band config (airband/ground) + loader + mode-homogeneous pool
+- `a9fddbf` — chirp(phase4a): NFM IQ fixture + test_phase4a.py (15 tests)
+- `cb6a7f1` — chirp(phase4a): systemd template + ground test-mount scripts
+- *(this section)* — chirp(phase4a): PROGRESS.md Phase 4a entry
+
+**Branch tip:** `<sha>`
+
+### Deferred
+
+- Real RSPduo source — Phase 4b. The SDR adapter (rtlsdr_source / soapy
+  source) lives behind the same `Channel` contract; the smoke test pattern
+  carries over directly.
+- 24-hour shadow window against rtl-airband — Phase 4b/4c.
+- `/ANALOG_NEW.mp3` cutover mount + airband-ui flip — Phase 4d.
+- systemd unit install on Micro — Phase 4d cutover.
+
+### Next task — Phase 4b (needs Will's authorization)
+
+SDR source adapter + parallel-with-rtl-airband live test. Specifically:
+
+1. Add an `SdrIQSource` block parallel to `FileIQSource` so a chirp daemon
+   can be pointed at the real RSPduo (`CHIRP_SOURCE=sdr:rspduo:0:118.5e6`).
+   Antenna routing and gain split must mirror rtl-airband's airband config
+   exactly so the demod-quality comparison is apples-to-apples.
+2. Spin chirp up in **shadow** alongside live rtl-airband, publishing AM to
+   `/CHIRP_TEST.mp3` (same mount Phase 4a smoke used) and NFM to
+   `/CHIRP_GROUND_TEST.mp3`. Production `/ANALOG.mp3` / `/ANALOG_GROUND.mp3`
+   stay on rtl-airband.
+3. A/B listen for a few minutes, compare `icecast_bytes_sent` rates, check
+   `hit_start` events fire when a real Nashville Tower transmission lands.
+4. Phase 4b ends with chirp confirmed working on real RF with rtl-airband
+   still owning production. No cutover yet.
