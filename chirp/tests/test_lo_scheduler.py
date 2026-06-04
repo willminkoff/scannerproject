@@ -234,6 +234,9 @@ class TestLoSchedulerStateMachine:
         assert hops[1]["dwell_actual_sec"] == pytest.approx(11.0)
         assert hops[1]["cluster_idx"] == 1
         assert hops[1]["n_clusters"] == 2
+        # No ``ts`` key — emit_event injects it itself.  Passing it
+        # would collide with CommandServer.emit_event.
+        assert "ts" not in hops[0]
 
     def test_invalidate_recomputes_at_next_tick(self):
         sink = FakeSink(channels=[PlanChannel("a", 121.0e6)])

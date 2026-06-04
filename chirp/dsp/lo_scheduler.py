@@ -385,6 +385,10 @@ class LoScheduler:
         self._current_cluster_idx = idx
         self._cluster_dwell_start_ts = now
 
+        # NOTE: do NOT pass ``ts`` here — the chirp CommandServer's
+        # emit_event() already stamps every event with the current
+        # wall-clock ts; passing one here triggers
+        # ``got multiple values for keyword argument 'ts'``.
         self._emit_event(
             "cluster_hop",
             from_center_hz=from_center,
@@ -394,7 +398,6 @@ class LoScheduler:
             dwell_actual_sec=round(dwell_actual, 3),
             live_channel_ids=sorted(target_ids),
             parked_channel_ids=sorted(to_park),
-            ts=now,
         )
 
 

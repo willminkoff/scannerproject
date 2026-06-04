@@ -64,7 +64,13 @@ from chirp.cmd.schema import (
 )
 from chirp.cmd.server import CommandServer, ServerConfig
 from chirp.dsp.channel import Channel
+from chirp.dsp.cluster_planner import PlanChannel
 from chirp.dsp.icecast_sink import IcecastSink, IcecastSinkConfig, STATE_NOT_CONFIGURED
+from chirp.dsp.lo_scheduler import (
+    DEFAULT_DWELL_S as LO_DEFAULT_DWELL_S,
+    DEFAULT_MAX_CLUSTERS as LO_DEFAULT_MAX_CLUSTERS,
+    LoScheduler,
+)
 from chirp.dsp.mixer import AudioMixer
 from chirp.dsp.source_file import FileIQSource
 from chirp.dsp.source_sdr import SdrIQSource, SdrSourceConfig
@@ -122,6 +128,10 @@ class DaemonConfig:
     icecast_bitrate_kbps: int = 32
     # File fallback path when icecast init fails. Defaults to a tmp file.
     icecast_fallback_file: str = "/tmp/chirp_audio_fallback.f32"
+    # Phase 4-pre LO scheduler config.  When max_channels < 2 or the
+    # channel list fits in one cluster these have no effect.
+    lo_dwell_sec: float = LO_DEFAULT_DWELL_S
+    lo_max_clusters: int = LO_DEFAULT_MAX_CLUSTERS
 
 
 def _parse_event_sink(spec: Optional[str]) -> Optional[tuple[str, int]]:
@@ -295,6 +305,14 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
             (raw.get("sdr") or {}).get("antenna"),
         ),
         sdr_element_gains=(raw.get("sdr") or {}).get("element_gains", {}) or {},
+        lo_dwell_sec=float(os.environ.get(
+            "CHIRP_LO_DWELL_SEC",
+            raw.get("lo_dwell_sec", LO_DEFAULT_DWELL_S),
+        )),
+        lo_max_clusters=int(os.environ.get(
+            "CHIRP_LO_MAX_CLUSTERS",
+            raw.get("lo_max_clusters", LO_DEFAULT_MAX_CLUSTERS),
+        )),
     )
 
 
@@ -450,12 +468,34 @@ class ChirpFlowgraph(gr.top_block):
 
         self._audio_out_path = audio_path
 
-        # Hit detector / health probe.
+        # Phase 4-pre: LO retuning scheduler.  Constructed BEFORE the
+        # hit detector so we can pass the scheduler's
+        # ``current_cluster_center_hz`` callback to the detector for
+        # hit-log tagging.  Started by main() after the flowgraph is
+        # running (see start_health()).
+        self.lo_scheduler = LoScheduler(
+            get_channels=self._get_plan_channels,
+            retune_to=self._scheduler_retune_to,
+            park_channels=self._scheduler_park_channels,
+            unpark_channels=self._scheduler_unpark_channels,
+            emit_event=self._server.emit_event,
+            # Use source sample rate as the IQ window width.  The chirp
+            # channel-pool decimation chain assumes >= 1 Msps, and
+            # operators bump source_samp_rate to 2e6 for Phase 4d.
+            iq_bw_hz=cfg.source_samp_rate,
+            dwell_s=cfg.lo_dwell_sec,
+            max_clusters=cfg.lo_max_clusters,
+        )
+
+        # Hit detector / health probe.  Phase 4-pre: pass the scheduler's
+        # current-cluster-center callback so every hit event includes the
+        # LO state at hit-start time.
         self.hit_detector = HitDetector(
             slots=self.slots,
             server=self._server,
             hit_log_path=cfg.hit_log_path,
             warmup_s=1.0,
+            get_cluster_center_hz=self.lo_scheduler.current_cluster_center_hz,
         )
 
     # -- pool helpers -------------------------------------------------------
@@ -568,14 +608,30 @@ class ChirpFlowgraph(gr.top_block):
                 restored += 1
         if restored:
             self._server.emit_event("state_restored", count=restored, band=self._cfg.band)
+        # Phase 4-pre: any restored channels must trigger a plan compute.
+        if restored:
+            self._invalidate_and_apply_now()
         return restored
 
     def _apply_channel_to_slot(self, slot: _Slot, ch: ChannelArgs | ChannelState) -> None:
-        """Internal helper. Assumes lock held."""
+        """Internal helper. Assumes lock held.
+
+        Phase 4-pre: park the channel BEFORE setting ``user_id`` so the
+        hit detector (which polls without the daemon lock) never sees a
+        live-but-uncatalogued channel firing hits during the gap between
+        ``add_channel`` returning and the scheduler's first apply.  The
+        scheduler's :py:meth:`invalidate_and_apply` (called by the
+        command handler right after we return) will unpark the channel
+        if it belongs to the active cluster.  Single-cluster pools see
+        the channel un-park within microseconds.
+        """
         offset_hz = self._freq_to_offset_hz(ch.freq_mhz)
         slot.channel.set_center_freq_offset(offset_hz)
         slot.channel.set_squelch(ch.squelch_dbfs)
         slot.channel.set_gain(ch.gain_db)
+        # Phase 4-pre: park before publishing user_id so hit detector
+        # never sees a fresh-but-already-firing channel.
+        slot.channel.set_parked(True)
         slot.user_id = ch.id
         slot.label = ch.label
         slot.mode = ch.mode
@@ -584,6 +640,24 @@ class ChirpFlowgraph(gr.top_block):
         slot.last_freq_mhz = ch.freq_mhz
         slot.claimed_at = time.time()
         self._by_id[ch.id] = slot.index
+
+    def _invalidate_and_apply_now(self) -> None:
+        """Mark the scheduler plan stale and step it once synchronously.
+
+        Phase 4-pre.  Used by every pool-mutating command so the
+        scheduler reacts in the same critical section that mutated the
+        pool — preventing the hit detector (which runs on its own
+        thread) from seeing a transient inconsistent state where a
+        channel is in the pool but not yet parked/unparked per plan.
+
+        Safe to call while holding ``self._lock`` — RLock is reentrant
+        and the scheduler's callbacks acquire the same lock.
+        """
+        self.lo_scheduler.invalidate()
+        try:
+            self.lo_scheduler.step()
+        except Exception:
+            log.exception("scheduler immediate-apply failed (will catch up on next tick)")
 
     # -- commands -----------------------------------------------------------
 
@@ -630,6 +704,10 @@ class ChirpFlowgraph(gr.top_block):
                     gain_db=ch.gain_db,
                 )
             self._persist_state()
+            # Phase 4-pre: pool membership changed → recompute + apply
+            # NOW so the scheduler parks the non-active-cluster channels
+            # before the hit detector's next tick.
+            self._invalidate_and_apply_now()
             # Backward compat: single-channel form returns slot in flat shape.
             if len(applied) == 1:
                 a0 = applied[0]
@@ -663,6 +741,7 @@ class ChirpFlowgraph(gr.top_block):
             slot.claimed_at = None
             self._server.emit_event("channel_removed", ch=removed, slot=slot.index)
             self._persist_state()
+            self._invalidate_and_apply_now()  # Phase 4-pre
             return Response.make_ok(env.id, {"slot": slot.index})
 
     def _cmd_set_squelch(self, env: Envelope, args: SetSquelchArgs) -> Response:
@@ -686,6 +765,8 @@ class ChirpFlowgraph(gr.top_block):
             slot.channel.set_center_freq_offset(self._freq_to_offset_hz(args.mhz))
             slot.last_freq_mhz = args.mhz
             self._persist_state()
+            # Phase 4-pre: channel freq changed → cluster plan stale.
+            self._invalidate_and_apply_now()
             return Response.make_ok(env.id, {"mhz": args.mhz})
 
     def _cmd_set_gain(self, env: Envelope, args: SetGainArgs) -> Response:
@@ -729,6 +810,7 @@ class ChirpFlowgraph(gr.top_block):
             except Exception:
                 log.exception("state clear failed")
             self._server.emit_event("reset", removed=removed_ids)
+            self._invalidate_and_apply_now()  # Phase 4-pre
             return Response.make_ok(env.id, {
                 "removed": removed_ids,
                 "pool_free": len(self.slots),
@@ -751,6 +833,9 @@ class ChirpFlowgraph(gr.top_block):
                     "mode": s.mode,
                     "signal_level_dbfs": snap["signal_level_dbfs"],
                     "squelch_open": snap["squelch_open"],
+                    # Phase 4-pre: parked channels are dormant on the
+                    # LO scheduler's other clusters.
+                    "is_parked": snap.get("is_parked", False),
                 })
             data = {
                 "version": PROTOCOL_VERSION,
@@ -788,14 +873,100 @@ class ChirpFlowgraph(gr.top_block):
                     "icecast_reconnect_count": 0,
                     "icecast_drop_count": 0,
                 })
+            # Phase 4-pre: surface LO scheduler state for the dashboard.
+            data["lo_scheduler"] = self.lo_scheduler.snapshot()
             return Response.make_ok(env.id, data)
+
+    # -- LO scheduler callbacks (Phase 4-pre) -----------------------------
+
+    def _get_plan_channels(self) -> list[PlanChannel]:
+        """Snapshot of pool channels for the cluster planner.
+
+        Called from the scheduler thread.  Acquires the daemon lock for
+        consistent reads against add/remove/set_freq.
+        """
+        with self._lock:
+            out: list[PlanChannel] = []
+            for s in self.slots:
+                if s.user_id is None or s.last_freq_mhz is None:
+                    continue
+                out.append(PlanChannel(
+                    id=s.user_id,
+                    freq_hz=s.last_freq_mhz * 1e6,
+                    # Phase 4-pre: priority is informational only.  Hit-log
+                    # weighting wires up in Phase 5.
+                    recent_hits=0.0,
+                ))
+            return out
+
+    def _scheduler_retune_to(self, hz: float) -> None:
+        """Retune the source LO to ``hz`` and re-baseline channel offsets.
+
+        File source: no-op (the file has no LO concept; carriers sit at
+        the operator's chosen freq_mhz directly).  This keeps the file-
+        source unit tests deterministic.
+
+        SDR source: ``source.set_center_freq(hz)`` and then walk every
+        claimed slot recomputing its xlating-filter offset against the
+        new LO so the channel stays demodulating its intended absolute
+        RF frequency.
+        """
+        with self._lock:
+            if self._cfg.source_kind != "sdr":
+                return
+            try:
+                self.source.set_center_freq(float(hz))
+            except Exception:
+                log.exception(
+                    "scheduler: source.set_center_freq(%.6f MHz) failed",
+                    hz / 1e6,
+                )
+                # Don't re-baseline offsets on retune failure — channels
+                # remain on the old LO's offsets, which still demodulate
+                # correctly (we didn't actually move the LO).
+                return
+            # Remember the LO position so future add_channel calls use
+            # the right offset.  (DaemonConfig is a dataclass — mutable.)
+            self._cfg.sdr_center_freq_hz = float(hz)
+            for s in self.slots:
+                if s.user_id is None or s.last_freq_mhz is None:
+                    continue
+                new_offset = (s.last_freq_mhz * 1e6) - float(hz)
+                s.channel.set_center_freq_offset(new_offset)
+
+    def _scheduler_park_channels(self, ids) -> None:
+        with self._lock:
+            for cid in ids:
+                slot = self._slot_for(cid)
+                if slot is not None:
+                    slot.channel.set_parked(True)
+
+    def _scheduler_unpark_channels(self, ids) -> None:
+        with self._lock:
+            for cid in ids:
+                slot = self._slot_for(cid)
+                if slot is not None:
+                    slot.channel.set_parked(False)
+                    # Restart warmup window so the first second of audio
+                    # after a hop doesn't trigger downstream alerts on
+                    # the noise-estimator settling.  Mirrors the
+                    # claimed_at semantic from add_channel.
+                    slot.claimed_at = time.time()
 
     # -- health / hit-event probe (delegates to HitDetector) ---------------
 
     def start_health(self) -> None:
         self.hit_detector.start()
+        # Phase 4-pre: LO scheduler runs alongside the hit detector.
+        # Its initial step (planner recompute + apply cluster 0) happens
+        # within the first tick (~250 ms), so the LO is correctly
+        # positioned before any operator command arrives.
+        self.lo_scheduler.start()
 
     def stop_health(self) -> None:
+        # Stop scheduler first so it doesn't fire retune callbacks
+        # against a tearing-down flowgraph.
+        self.lo_scheduler.stop()
         self.hit_detector.stop()
 
     # -- shutdown drain ----------------------------------------------------
