@@ -2316,3 +2316,39 @@ The runbook from Phase 4c is updated:
 no-going-back step — once chirp is the airband demod, the only way
 to revert is to start rtl-airband-airband again, which means chirp
 loses its SDRplay slot.
+
+
+---
+
+## Phase 4d — Cutover (in progress)
+
+Branch: `gr-demod/airband`.  Start tip: `4190ea2`.  Will authorized
+the cutover; downtime budget ~10-15 min for swap + ~30 min soak.
+
+### Step 1 — Pre-flight (complete)
+
+- Baseline icecast sources captured → `/tmp/chirp_cutover_baseline.json`.
+  All six expected mounts publishing: `/ANALOG.mp3`, `/ANALOG_GROUND.mp3`,
+  `/DIGITAL.mp3`, `/VFO.mp3`, `/keepalive-analog.mp3`,
+  `/keepalive-ground.mp3`.
+- All 7 services active: rtl-airband-airband, rtl-airband-ground,
+  sdrplay, icecast2, scanner-digital-op25, scanner-vfo, airband-ui.
+- `pytest chirp/tests/ ui/tests/ -m 'not slow'` → **266 passed** (4
+  deselected, 10 warnings).
+- rtl-airband-airband: 1h46m uptime, ~2.5% CPU, actively producing
+  "Activity on ..." hits across the dense ATC subset (121.025,
+  124.6, 125.45, 127.7, 128.3, 133.125, 134.325 MHz cluster — looks
+  like normal afternoon traffic).
+  rtl-airband-ground: 54 min uptime, ~2.6% CPU, idle (no traffic on
+  138 MHz cluster right now — normal for ground side).
+  Stats snapshot → `/tmp/chirp_cutover_baseline_stats.txt`.
+- HP state baseline: `fav-sic` active for both bands.  20 airband
+  custom_favorites, 27 ground.  Squelch preset metadata: airband
+  `balanced` @ -30 dBFS gain 32.8 dB, ground `sensitive` @ -33 dBFS
+  gain 32.8 dB.
+- `/var/lib/chirp/{airband,ground}.state.json` exists with a single
+  placeholder channel each — migration script will replace them.
+- Added `/CHIRP_TEST.mp3` and `/CHIRP_GROUND_TEST.mp3` to
+  `/etc/icecast2/icecast.xml` via the chirp scripts.  Icecast
+  reloaded (not restarted) — all 6 production sources stayed up
+  across the reload.
