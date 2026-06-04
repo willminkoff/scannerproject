@@ -462,3 +462,209 @@ estimate, probably not for parser.
 6. If you hit a blocker (not a question — an actual stop): STOP, log clearly
    to PROGRESS.md, commit, exit.
 7. DO NOT spawn sub-agents.
+
+
+---
+
+## Phase 3 — Icecast publish + CLI + UDP event subscribers (2026-06-04)
+
+**Goal.** End-to-end audio: file IQ source → 32-slot demod pool → mixer →
+MP3 encode (libmp3lame) → libshout → Icecast on a TEST mount distinct from
+production. Plus an operator CLI and a live UDP event subscriber. Production
+rtl-airband UNTOUCHED throughout.
+
+### Files added/modified
+
+- `chirp/dsp/icecast_sink.py` *(new — 380 lines)*. Three pieces:
+  - `IcecastReconnector` — the same backoff schedule (0.25, 0.5, 1.0, 2.0,
+    4.0 s, capped) that lived inline in `test_radio_bugs.py` for Phase 2, now
+    the canonical production class. Phase 2's regression tests were updated
+    to import from here (single source of truth — the 4 reconnect tests now
+    exercise the production class directly).
+  - `_ShoutPublisher` — adapter around `python-shout`. Translates
+    `shout.ShoutException` into `ConnectionError` so the reconnector
+    contract Just Works. Exposes `send/reconnect/sync/close/get_connected`.
+  - `IcecastSink(gr.sync_block)` — mono float32 input → int16 LE → `lame -r
+    -s 16 --bitwidth 16 -m m --cbr -b 32 --silent - -` subprocess → MP3
+    chunks → IcecastReconnector → libshout. Publisher runs in a dedicated
+    background thread; GR work() just feeds lame.stdin. Silent-frame
+    keepalive is implicit: parked channels output zeros, lame produces
+    valid silent MP3 frames, byte flow never stops (preserves the
+    `mount_publishing` heuristic in `ui/sample_flow.py` per design doc §4.7).
+  - `IcecastSinkConfig(host, port, mount, password, bitrate_kbps,
+    sample_rate, user, server_name, description, genre, public)`.
+
+- `chirp/scripts/add_test_mount.sh` *(new)*, `chirp/scripts/remove_test_mount.sh`
+  *(new)*. Idempotent shell scripts that edit `/etc/icecast2/icecast.xml` to
+  add/remove the `/CHIRP_TEST.mp3` mount block immediately before `<paths>`,
+  then `systemctl reload icecast2` (NEVER restart — production sources stay
+  connected through the reload). Each backs up the xml to
+  `icecast.xml.bak.YYYYMMDD-HHMMSS`. Both validate with `xmllint` if installed.
+
+- `chirp/daemon.py` *(modified)*:
+  - `DaemonConfig` gains `icecast_host/port/mount/password/bitrate_kbps` and
+    `icecast_fallback_file` (default `/tmp/chirp_audio_fallback.f32`).
+  - `_parse_audio_out` accepts `icecast:host:port:/mount:password`.
+  - `_parse_icecast_spec` REFUSES `/ANALOG.mp3`, `/ANALOG_GROUND.mp3`,
+    `/DIGITAL.mp3`, `/VFO.mp3` — Phase 3 refuses to publish to production
+    mountpoints with a hard validation error. Phase 4 cutover will lift this.
+  - `ChirpFlowgraph` wires `IcecastSink` when configured; falls back to a
+    `file_sink` at `icecast_fallback_file` (logged loudly) if IcecastSink
+    instantiation fails (e.g. no `lame` binary).
+  - `_cmd_get_status` now surfaces `icecast_state`, `icecast_bytes_sent`,
+    `icecast_reconnect_count`, `icecast_drop_count`, `icecast_mount`,
+    `icecast_bitrate_kbps`. When no icecast configured, state =
+    `not_configured`.
+
+- `chirp/cmd/schema.py` *(modified)*: `SubscribeArgs(events: list[str])` and
+  `UnsubscribeArgs()` added to `COMMAND_ARGS`.
+
+- `chirp/cmd/server.py` *(modified)*:
+  - `CommandServer` carries a `{(host, port) → set(event_names)}` subscriber
+    registry; empty set = all events.
+  - `_CommandProtocol.datagram_received` short-circuits `subscribe` /
+    `unsubscribe` to `CommandServer.add_subscriber/remove_subscriber` so we
+    record the source addr (which `dispatch` never sees).
+  - `emit_event` now fans out to dynamic subscribers in addition to the
+    static `CHIRP_EVENT_SINK` and stdout JSON logging.
+
+- `chirp/cli.py` *(new — 294 lines)*. argparse-based UDP client:
+  `status / add-channel / remove-channel / set-squelch / set-freq /
+  set-gain / set-master-gain / reset / events --filter`. Pretty-prints via
+  `rich` if installed AND stdout is a tty; otherwise plain JSON for
+  pipeability. The `events` subcommand binds a UDP socket, sends
+  `subscribe` FROM that socket so the daemon records OUR port, then prints
+  events as they arrive. Ctrl-C unsubscribes politely.
+
+- `chirp/tests/test_phase3.py` *(new — 565 lines)*. 17 tests covering
+  IcecastSink construction, sample flow through fake encoder & fake
+  publisher, mid-stream drop → reconnect, daemon refusing production mounts,
+  daemon get_status surfacing icecast fields, audio flowing daemon →
+  publisher via fake factory, CLI round-trip (status, add, remove, reset),
+  subscribe/unsubscribe + event fan-out, and an end-to-end real-lame MP3
+  smoke (gated on `lame` binary present).
+
+### Test results
+
+```
+$ python3 -m pytest chirp/tests/ --ignore=chirp/tests/test_phase2_stress.py
+============================= test session starts ==============================
+collected 101 items
+
+chirp/tests/test_imports.py    ....                                  [ 3%]
+chirp/tests/test_phase1.py     ...........................           [30%]
+chirp/tests/test_phase2.py     .......................               [53%]
+chirp/tests/test_phase3.py     .................                     [70%]   ← 17 new
+chirp/tests/test_radio_bugs.py .............                         [83%]
+chirp/tests/test_state.py      .................                     [100%]
+============================= 101 passed in 17.72s =============================
+```
+
+(Phase 2 stress suite excluded from gating run — it's a multi-minute soak
+test of its own and unaffected by Phase 3 changes.)
+
+### Smoke test on Micro — `/CHIRP_TEST.mp3` end to end
+
+**Order of operations** (production rtl-airband, op25, scanner-vfo,
+sdrplay-coord untouched at every step):
+
+1. `curl /status-json.xsl` BEFORE — 6 sources active:
+   `/ANALOG.mp3 (1 listener)`, `/ANALOG_GROUND.mp3 (1)`, `/DIGITAL.mp3 (1)`,
+   `/VFO.mp3 (0)`, `/keepalive-analog.mp3 (0)`, `/keepalive-ground.mp3 (0)`.
+2. `sudo bash chirp/scripts/add_test_mount.sh` — backed up xml, inserted
+   `/CHIRP_TEST.mp3` mount block before `<paths>`, `systemctl reload
+   icecast2`. xmllint OK. `curl -I` returns 400 (declared but unsourced).
+   `status-json.xsl` STILL shows all 6 production sources connected.
+3. `python3 -m chirp.tests.fixtures.make_test_iq --out /tmp/chirp_smoke.iq
+   --samp-rate 1e6 --duration 30 --carrier 200e3 --tone 1000` —
+   240 MB synthetic AM IQ.
+4. `CHIRP_AUDIO_OUT=icecast:127.0.0.1:8000:/CHIRP_TEST.mp3:062352
+   python3 -m chirp.daemon` (port 27400, max 4 channels) — daemon ready,
+   icecast_state = `connected`, `icecast_reconnect_count = 1`.
+5. `python3 -m chirp.cli --port 27400 add-channel --id ch01 --freq 0.2
+   --mode am --squelch -90 --gain 0` → `{"status": "ok"}`. `hit_start`
+   fires immediately (synthetic carrier is on tune).
+6. `curl /status-json.xsl` DURING — now 7 sources: production 6 unchanged
+   + `/CHIRP_TEST.mp3 (server_name=chirp, 0 listeners)`. All 3 production
+   listeners still connected through the icecast reload.
+7. `curl -o /tmp/chirp_30s.mp3 --max-time 30 http://127.0.0.1:8000/CHIRP_TEST.mp3`
+   →  **120 400 bytes in 30 s = 4 013 B/s** (expected 32 kbps = 4 000 B/s;
+   0.3 % over — essentially exact).
+   `ffprobe`: `Audio: mp3, 16000 Hz, mono, fltp, 32 kb/s`, duration
+   `30.074 s`, bit_rate 32027. VLC-listenable per ffprobe stream profile.
+8. `pkill -TERM chirp.daemon` — clean shutdown, no shout errors, publish
+   loop drained.
+9. `sudo bash chirp/scripts/remove_test_mount.sh` — backed up xml again,
+   removed the mount block, systemctl reload. xml now contains exactly
+   `/ANALOG.mp3`, `/ANALOG_GROUND.mp3`, `/DIGITAL.mp3` — pre-smoke baseline.
+10. `curl /status-json.xsl` AFTER — back to 6 sources, all production
+    listener counts identical to BEFORE.
+
+**Production mount diff before vs. after smoke: zero changes.** Same
+mount-name list in `icecast.xml`, same active sources, same listener counts.
+
+### Hard rules compliance
+
+- Production `rtl-airband` untouched (no systemctl writes to it).
+- All 3 production listeners on ANALOG / ANALOG_GROUND / DIGITAL stayed
+  connected the entire smoke (icecast `reload` preserves source connections).
+- `icecast.xml` only ever held `/CHIRP_TEST.mp3` as a NEW mount, never
+  modified the existing 3. After teardown, identical to baseline.
+- Refused to publish to production mountpoints with a hard validation error
+  in `_parse_icecast_spec` (tested in `TestDaemonIcecastConfigRefusal`).
+- Branch tip: `e667485` on `origin/gr-demod/airband` (this section adds one
+  more commit).
+
+### Deferred / open questions for Will
+
+- **lame subprocess vs. libmp3lame python binding.** Phase 3 uses a `lame`
+  subprocess for simplicity (one fewer python dep, well-understood CBR
+  behaviour). If startup latency or process count matters for production
+  deployment (32 channels = ~1 ms startup), we can swap to a pure-Python
+  encoder later; the IcecastSink takes an injected `encoder=` exactly for
+  this kind of swap.
+- **Subscriber TTL.** Subscribers persist until daemon restart or explicit
+  `unsubscribe`. No heartbeat / auto-expiry. If airband-ui's webhook bridge
+  ever subscribes and crashes without unsubscribing, the daemon will keep
+  pushing to a dead UDP port — silent waste but not a failure mode. Phase 4
+  can add a periodic ping if needed.
+- **Icecast credentials in env.** `CHIRP_AUDIO_OUT=icecast:host:port:/mount:password`
+  embeds the password in process env, which `ps -e` and journald don't see
+  (Linux strips the env from /proc), but it's still less hygenic than a
+  credentials file. Phase 4 cutover (which will need the real source
+  password for `/ANALOG.mp3`) should consider a `CHIRP_ICECAST_PASSWORD_FILE`
+  alternative.
+- **CHIRP_TEST mount removed.** Mount is no longer in `icecast.xml` —
+  re-running the add script will reinstate it. Phase 4 will define
+  `/ANALOG_NEW.mp3` per the design-doc rollout plan; chirp will publish
+  there during A/B shadow.
+
+### Commits on `gr-demod/airband` (Phase 3 in order)
+
+- `142a941` — IcecastSink + production IcecastReconnector
+- `2533405` — add/remove /CHIRP_TEST.mp3 mount scripts
+- `061d4b0` — wire IcecastSink into daemon; subscribe/unsubscribe commands
+- `a1e6209` — chirp.cli operator CLI + UDP event subscriber
+- `e667485` — test_phase3.py (17 tests)
+- *(this section's commit)* — PROGRESS.md Phase 3 entry
+
+**Branch tip:** (filled at push time)
+
+### Next task — Phase 4
+
+Ground band parity + dashboard cutover. Specifically:
+
+1. Spin up `gr-demod@ground` alongside `gr-demod@airband` (NFM mode added to
+   `Channel`; the design doc has the receiver hierarchy already).
+2. Publish chirp to `/ANALOG_NEW.mp3` (NOT `/ANALOG.mp3` yet) for a 24-hour
+   shadow window, side-by-side with rtl-airband.
+3. Flip `SB5_USE_GR_DEMOD=1` in `/etc/airband-ui.conf`, restart airband-ui.
+   `/api/airband/*` proxies pivot from rtl-airband to chirp.
+4. Chirp overwrites `/ANALOG.mp3` (and `/ANALOG_GROUND.mp3`) directly so
+   existing bookmarked stream URLs keep working. `/ANALOG_NEW.mp3` mount is
+   removed once cutover is signed off.
+5. `systemctl stop rtl-airband; systemctl disable rtl-airband` — rollback
+   path: flip the env flag back, `systemctl start rtl-airband`. ≤ 30 s revert.
+
+Rollback rehearsal goes in the Phase 4 commit log so we don't ad-lib it
+under pressure.
