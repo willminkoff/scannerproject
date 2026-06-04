@@ -103,11 +103,9 @@ state touched.
 - `f52977e` — docs: lock in chirp design decisions from operator review
 - `c92b2d7` — chirp: scaffold module structure
 - `507179b` — chirp: vendor ham2mon DSP code, ported to GR 3.10
-- `<final SHA>` — chirp: README + import sanity tests + initial PROGRESS log
+- `3bd2b1e` — chirp: README + import sanity tests + initial PROGRESS log
 
-(Final SHA filled in by the commit that adds this file; see `git log` on the branch.)
-
-**Branch tip:** see `git log -1 gr-demod/airband` after the final commit lands.
+**Branch tip:** `3bd2b1e05360db0127cd0f57755245e450921c97`
 
 **Deferred / surfaces for Will:**
 
