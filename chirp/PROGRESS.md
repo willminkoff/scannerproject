@@ -17,6 +17,157 @@ Hard rules every overnight task must follow are restated at the bottom.
 
 ---
 
+## 2026-06-04 11:18 UTC — Phase 2 (task 3 of 4+)
+
+**Goal** — multi-channel scanner. 32-slot pool feeding a single audio mixer +
+master gain trim. State persistence across daemon restarts. Hit detection per
+channel with JSONL log. Batched `add_channel` for fast 31-channel load.
+Regression tests for the four rtl-airband radio bugs Will hit on 2026-06-03.
+31-channel stress test.
+
+**Done**
+
+- **State persistence** (`chirp/state.py`):
+  - Pydantic v2 `ChirpState` / `ChannelState` models with bounds validation.
+  - `StateStore.load()` returns empty state on missing / corrupt / empty /
+    schema-violating files (never raises — boot must always succeed).
+  - `StateStore.save()` is atomic: tmp file in same dir → fsync → `os.replace`.
+  - 17 tests, including atomic round-trip across 50 saves with no orphan tmp
+    files, future-version forward-compat, env-override path resolution.
+- **AudioMixer + 32-slot pool** (`chirp/dsp/mixer.py` + `chirp/daemon.py`):
+  - `AudioMixer` = `add_ff` N-in-1 + `multiply_const_ff` master gain (dB).
+  - Every slot's `Channel` hier_block is permanently wired to a mixer input.
+    Parked slots (squelch slammed to 0 dBFS) contribute zero to the sum.
+  - Single `file_sink` at `audio_out_path` instead of one file per slot.
+  - Default `max_channels` is now 32 (Phase 1 used 1).
+  - Backward-compat: Phase 1 daemon-dispatch tests still pass against
+    `max_channels=1` mixer-fed config.
+- **New commands** (`chirp/cmd/schema.py` + `chirp/cmd/server.py`):
+  - `add_channel` accepts batches: `{"channels": [ChannelArgs, ...]}`. Legacy
+    single-channel wire shape still works — internally normalised to a
+    1-element list. All-or-nothing: a too-large batch is rejected without
+    partial slot allocation.
+  - `set_master_gain { db }`: post-mixer trim, bounds [-20, 40] dB.
+  - `reset { }`: parks every slot, zeroes master gain, clears state file.
+  - `get_status` now reports `master_gain_db` + a single top-level
+    `audio_path` (the mixer sink).
+- **State restore on boot** (`ChirpFlowgraph.restore_from_state`): reads the
+  persisted JSON and reapplies channels into free slots. Skips IDs that
+  collide or overflow the pool, logging a warning. Emits `state_restored`
+  event with the count.
+- **Hit detector** (`chirp/hit_detector.py`):
+  - Per-slot state machine: closed→open emits `hit_start`; open→closed emits
+    `hit_end` with peak_dbfs + duration_s.
+  - Appends one JSON record per hit to `/var/log/chirp/hits.jsonl`
+    (overridable via `CHIRP_HIT_LOG`). Path-unwritable → JSONL log silently
+    disabled (events still go out via UDP).
+  - Tracks a warmup flag on the `hit_start` so downstream consumers can
+    discount hits from a sub-1s-old channel.
+- **Shutdown drain** (`ChirpFlowgraph.shutdown_drain`): blocks acquiring the
+  dispatch lock with a bounded timeout so an in-flight setter finishes
+  before `tb.stop()`. `daemon.main()` calls `shutdown_drain()` between the
+  SIGTERM handler and the flowgraph stop. Regression test for the rtl-airband
+  master/slave-on-restart wedge.
+- **Radio bug regression tests** (`chirp/tests/test_radio_bugs.py`, 13 tests):
+  - Bug 1 (squelch poison value): `Channel.get_signal_level_dbfs()` on a
+    fresh-construction probe returns -120 dBFS (our explicit floor), not
+    -10.964 (rtl-airband's poison). Codebase scan: no chirp source file
+    contains the poison constant.
+  - Bug 2 (master/slave shutdown wedge): `shutdown_drain` waits for in-flight
+    setter, times out cleanly if it can't, and `daemon.main()` source
+    inspection confirms drain precedes the final `tb.stop()`.
+  - Bug 3 (libshout drop without reconnect): reference `IcecastReconnector`
+    contract with exponential-backoff schedule (0.25, 0.5, 1, 2, 4 s capped),
+    drops are logged not swallowed, successful send resets backoff. Phase 3
+    will plug the real python-shout sink into this contract.
+  - Bug 4 (noise-floor init race): `set_squelch` on a sub-1s-old channel
+    applies the operator value verbatim and does not block waiting for the
+    noise estimator. End-to-end test confirms the band is not silenced.
+- **31-channel stress test** (`chirp/tests/test_phase2_stress.py`, 4 tests):
+  - Synthesizes 31 AM carriers at 50 kHz spacing in a 35 s, 2 Msps IQ file.
+  - Batch `add_channel` adds all 31 in one command (pool_free → 1).
+  - Runs ~28 s, asserts hit JSONL log is non-empty + audio file kept growing.
+  - Live `remove_channel` mid-test (pool_free → 2).
+  - State file on disk matches live pool.
+  - `reset` returns pool_free to 32.
+  - Wall-clock on micro (20 cores): ~178 s. Marked `slow` so a developer can
+    run `pytest -m "not slow"` to skip.
+
+- **Requirements file** (`chirp/requirements.txt`) — pydantic, pytest, numpy.
+  Documents that GNU Radio is an apt package, not a pip dep.
+
+**Tests** (final count)
+
+- `pytest -m "not slow" chirp/tests/`: **84 passed, 4 deselected** in ~13 s.
+- `pytest chirp/tests/test_phase2_stress.py`: **4 passed** in 178 s.
+- Total: **88 tests, all green** (was 31 after Phase 1).
+
+**Smoke test outcomes**
+
+- 31-channel synthetic load — daemon stayed up the full 35 s simulated
+  duration on a 32-slot pool with no crashes; hit JSONL had multiple records
+  by the time we checked at t≈28 s; live remove succeeded mid-run.
+- Phase 1 single-channel daemon test (`test_squelch_gates_audio_amplitude`)
+  still passes verbatim — the mixer path is transparent at master_gain=0 dB.
+- `set_master_gain(-20)` causes ≥5× drop in audio RMS (matches the 10× linear
+  attenuation within AGC overshoot tolerance).
+
+**Commits on `gr-demod/airband` (Phase 2, in order)**
+
+- `5dc46f2` — chirp(phase2): state persistence with atomic JSON I/O (17 tests)
+- `d2a2a6a` — chirp(phase2): mixer + 32-slot pool + batch add_channel + reset
+  + set_master_gain + hit_detector skeleton
+- `625d47e` — chirp(phase2): unit + integration tests for mixer / schema /
+  hit_detector / daemon (23 tests)
+- `1c34a36` — chirp(phase2): regression tests for the 4 rtl-airband radio
+  bugs from 2026-06-03 (13 tests)
+- `9844ddb` — chirp(phase2): 31-channel stress test (4 tests, ~3 min @ 2 Msps)
+- (this commit) — chirp(phase2): requirements.txt + PROGRESS.md Phase 2 entry
+
+**Branch tip:** filled in at commit time (see latest commit on `gr-demod/airband`).
+
+**Deferred / surfaces for Will**
+
+- **Hit log fsync.** `HitDetector._append_log` writes with O_APPEND but does
+  not fsync per-hit; under a sudden crash the last hit or two could be lost.
+  Acceptable for Phase 2 (low-rate, single host), but for a gigabit fleet
+  Phase 4 will need batched fsync or a small in-memory buffer flushed on
+  SIGTERM. Cost ~20 LOC.
+- **Hit log rotation.** Spec called for "30-day rotation in Phase 3 or 4".
+  Not implemented yet. Recommend `logrotate` config rather than reinventing —
+  a `/etc/logrotate.d/chirp` entry of ~10 lines.
+- **freq_mhz > 0 schema constraint.** Daemon treats `freq_mhz` as a signed
+  offset from the file source's baseband center (0 Hz). The schema requires
+  freq_mhz > 0, so the stress test packs carriers on the positive side only.
+  When we swap to a real SDR in Phase 3, freq_mhz will become an absolute
+  RF frequency (e.g. 121.025) and this constraint is naturally satisfied.
+  The file-source semantics will then be the surprising case; that
+  reconciliation belongs in the Phase 3 source-abstraction commit.
+- **IcecastReconnector backoff schedule** is hard-coded constants
+  (0.25, 0.5, 1, 2, 4 s capped). Easy to make configurable in Phase 3 when
+  the real libshout sink lands — but the contract test ensures whatever we
+  ship satisfies the no-silent-drop property.
+- **Master gain bounds vs. per-channel gain bounds** are both [-20, 40] dB,
+  shared by `_check_gain`. If they should diverge (e.g. master gain wants
+  a wider negative range to fully mute the output), trivial to split.
+- **rtl-airband poison constant scan** in test_radio_bugs grep-matches
+  `-10.964` and `10.964` substrings. False positives are possible if any
+  future config file contains those digits incidentally; if that happens,
+  tighten the match to a regex like `-?10\.964\b`.
+- **Snapshots directory** is still untracked on micro (`?? snapshots/`).
+  Left alone per Phase 1 deferral note.
+
+**Next task** — **Phase 3:** plumb real-time hit emission to subscribers (the
+event-stream UDP fan-out is in place but no one's subscribing yet) and add
+the python-shout Icecast publisher to a **TEST mount** (do not publish to
+production). The libshout reconnect contract is already covered by
+`chirp/tests/test_radio_bugs.py::TestBug3LibshoutReconnectsAfterDrop` — Phase 3
+just wires a real `shout.Shout` instance into the existing `IcecastReconnector`.
+Plus: a small `chirp/cli.py` (CLI client around the UDP command bus) to make
+operator-facing add/remove/reset/status accessible without crafting JSON by
+hand. Smoke test: 1-channel demod from a file, published to a local
+Icecast mount, listenable in VLC.
+
 ## 2026-06-04 06:35 UTC — Phase 1 (task 2 of 4+)
 
 **Goal:** A single-channel AM demod prototype that runs as a Python daemon, has

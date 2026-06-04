@@ -1,0 +1,14 @@
+# chirp runtime + test dependencies.
+#
+# Install on micro:
+#   pip3 install --break-system-packages -r chirp/requirements.txt
+#
+# Notes:
+#   - GNU Radio (gr 3.10) is a system package, NOT a pip dep. Install via apt:
+#       sudo apt-get install gnuradio python3-gi python3-numpy
+#   - python-shout (libshout binding) is reserved for Phase 3 and not yet
+#     listed here — Phase 2 reaches up to a stub interface only.
+
+pydantic>=2.10
+pytest>=8.0
+numpy>=1.24
