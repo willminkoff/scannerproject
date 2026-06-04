@@ -17,6 +17,110 @@ Hard rules every overnight task must follow are restated at the bottom.
 
 ---
 
+## TODO — high-priority follow-ups from 2026-06-04 ~22:10 UTC reboot
+
+These came out of the chirp-daemon-bounce-wedges-sdrplay incident and the
+subsequent dead-PCM diagnosis.  Both are structural — not "log it and
+forget" hygiene like the earlier TODOs — and both involve the daemon's
+hot/teardown path on production.
+
+- **chirp daemon shutdown leaves `sdrplay_apiService` in a wedged state.**
+  Reproduced 2026-06-04 ~17:43 EDT: `sudo systemctl restart gr-demod@airband`
+  on a healthy daemon resulted in the new instance hanging in
+  `sdrplay_api_Open` indefinitely, with `sdrplay_apiService_device:
+  registerDevThread` never completing — the same tier-2 symptom the
+  reboot earlier in the session triggered.  Ground daemon (still
+  running master/slave-paired with airband) had to be stopped too;
+  only `systemctl restart sdrplay` recovered.
+
+  Architectural class: **same as the rtl-airband SIGKILL-on-stop-timeout
+  wedge** that chirp was supposed to escape.  `chirp/PROGRESS.md` Phase 2
+  documents `shutdown_drain()` and the radio-bug regression test for
+  bug #2 ("master/slave-on-restart wedge").  That work fixed the
+  inflight-setter race but NOT the SDR-side shutdown.  Today's chirp
+  daemon just stops; it doesn't tear down its `osmosdr.source` /
+  SoapySDR device handle, doesn't call any equivalent of
+  `sdrplay_api_Close`, and on a paired RSPduo master/slave config that
+  abandons the API service's device session.
+
+  Fix sketch: in `chirp/daemon.py` shutdown path (the `SIGTERM` handler
+  that already calls `shutdown_drain()` before `tb.stop()`), add an
+  explicit `self.source.close()` (or whatever the SoapySDR/osmocom
+  unmake-equivalent is) after `tb.stop()` and before `sys.exit`.  Mirror
+  the bug-2 regression test pattern: a stop-then-start cycle on the
+  master daemon should leave `sdrplay_apiService` answering UDP within
+  the chirp_client default 2 s timeout.  If we can't get a clean
+  device-close out of gr-osmosdr, fall back to spawning a tiny helper
+  subprocess that holds the device session and dies with its own
+  SIGTERM — equivalent to the rtl-airband peer-mode trick.
+
+  Priority: **high**.  Every chirp daemon bounce is currently a tier-2
+  wedge risk, which means restart-driven config changes (the entire
+  point of the chirp architecture) are operationally unsafe today.
+  The cutover gain is materially smaller than we thought as long as
+  this is open.
+
+- **Dead-PCM root cause unconfirmed (audio chain runtime-degrades
+  during long-running daemon hot ops).**  Reproduced 2026-06-04
+  ~17:42 EDT: `/ANALOG.mp3` icecast mount stayed publishing at the
+  configured 32 kbps but every decoded PCM sample was exact 0 for
+  at least 30 seconds straight (`max_abs=0`, `nonzero%=0.00`).  Hits
+  were still firing in `/var/log/chirp/airband_hits.jsonl` during the
+  same window, with peak_dbfs values from -12 to -37 — so the
+  `pwr_squelch_cc.unmuted()` and `signal_level_dbfs` taps reported
+  real signal, but the audio path between `pwr_squelch_cc → agc3_cc →
+  complex_to_mag → audio_lpf → audio_resamp → audio_trim → mixer →
+  file_sink → lame` was producing zeros.  `set_master_gain(+12)` had
+  no effect, ruling out a master-gain bug.  Post-reboot the SAME
+  state file (1 channel, 127.700, squelch=-38, gain_db=0,
+  master_gain_db=12) produces healthy audio (RMS -19 dBFS, 99.7%
+  nonzero) — so this is NOT a config-side or `_AGC_REF_0DB` /
+  `audio_trim` migration bug.  It's some hot-path GR scheduler /
+  hier_block runtime state degradation, almost certainly cumulative
+  across the many `remove_channel` + `set_squelch` + cluster-replan
+  operations I ran between 17:01 and 17:42.
+
+  What we ruled out today:
+    1. master_gain = 0.0 mishandled (not it; +12 dB had no effect).
+    2. `audio_trim.k = 0` from migration (state file has gain_db=0
+       which produces audio_trim=1.0 linear; mixer code converts dB→
+       linear correctly via `10**(db/20)`).
+    3. lame process death (PIDs 59408 / 61906 were both healthy at
+       43-minute uptime).
+    4. icecast mount drop (mount was publishing the configured 32 kbps;
+       only the content was zero).
+    5. python-shout reconnect loop (no journal evidence).
+
+  What we did not rule out:
+    1. `pwr_squelch_cc.unmuted()` returning True while the actual
+       streaming gate stays muted (e.g. ramp/alpha config mismatch).
+    2. AGC3 wound down to effectively-zero gain after a long quiet
+       window between hits (AGC needs the input to NOT be perfectly
+       zero to ramp back up; if the squelch's "non-blocking close"
+       output is perfectly zero, the AGC has nothing to ramp on).
+    3. `audio_resamp` ratio drift across hot `set_freq` calls in the
+       cluster scheduler retunes.
+    4. Mixer input port for the surviving channel becoming
+       disconnected/null-source after many `remove_channel` cycles
+       within the same process.
+
+  Reproducing this is the next-step work.  Cheapest repro path: bring
+  up a daemon with 20 channels, run a tight loop of
+  `remove_channel`/`add_channel` for a few minutes, sample the icecast
+  mount after each iteration, and watch for the moment RMS goes to
+  zero.  Add an internal probe to the daemon that taps the
+  `audio_trim` output (or the mixer output) directly so we don't have
+  to round-trip through lame to know.
+
+  Priority: **high**.  Every production deploy is one hot-loop test
+  away from publishing 32 kbps of silent mp3 to listeners.  The
+  reboot-as-recovery here is the same failure-mode shape as the
+  rtl-airband-restart-wedge we built chirp to escape; if our own
+  daemon needs a host reboot to recover audio, we are not actually
+  ahead.
+
+---
+
 ## 2026-06-04 ~21:35 UTC — Phase 4d hotfix #3: chirp hit-ingest into /api/hits
 
 **Goal** — fill the last UI-side gap surfaced during a 1:1 chirp-vs-Uniden
