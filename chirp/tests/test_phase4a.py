@@ -426,3 +426,205 @@ class TestTwoDaemonCoexistence:
         assert {c["id"] for c in state_g["channels"]} == {"gnd01"}
         assert state_a["band"] == "airband"
         assert state_g["band"] == "ground"
+
+
+# ---------------------------------------------------------------------------
+# Phase 4d — RF gain vs audio gain separation
+#
+# These regression tests pin the contract that ``set_gain(db)`` is a
+# post-demod audio trim (drives ``audio_trim`` only) and does NOT
+# perturb the AM AGC reference or the NFM post-discriminator multiplier.
+#
+# Background: the Phase-4c migration script copied the operator's RF
+# front-end gain (32.8 dB) into per-channel ``gain_db``.  Pre-Phase-4d,
+# ``set_gain(32.8)`` scaled the AM AGC reference to 4.37x full scale,
+# pegging /ANALOG.mp3 every squelch-open burst.  These tests would have
+# failed before the patch.
+# ---------------------------------------------------------------------------
+
+
+def _run_channel_for(channel, iq, n_run_samples):
+    """Drive a Channel block with an IQ vector, collect the audio output.
+
+    Wires ``vector_source_c(iq) -> Channel -> head(n_run_samples) -> sink``
+    in a top_block, runs it to completion, and returns the float32 audio
+    samples produced.
+    """
+    from gnuradio import gr as _gr
+    from gnuradio import blocks as _blocks
+
+    tb = _gr.top_block("channel_test_harness")
+    src = _blocks.vector_source_c(iq.tolist(), repeat=False)
+    head = _blocks.head(_gr.sizeof_float, int(n_run_samples))
+    sink = _blocks.vector_sink_f()
+    tb.connect(src, channel)
+    tb.connect(channel, head)
+    tb.connect(head, sink)
+    tb.run()
+    return np.array(sink.data(), dtype=np.float32)
+
+
+class TestPhase4dGainSeparation:
+    """``set_gain`` is post-demod audio trim only."""
+
+    # The Phase-1 fixture lives in make_test_iq, imported lazily so the
+    # other tests don't pay for the import when not running this class.
+    @staticmethod
+    def _am_iq(samp_rate=1e6, duration_s=1.5):
+        from chirp.tests.fixtures.make_test_iq import make_am_iq
+        return make_am_iq(
+            samp_rate=samp_rate, duration_s=duration_s,
+            carrier_hz=0.0, tone_hz=1000.0,
+            mod_index=0.8, noise_sigma=0.001,
+        )
+
+    def test_am_audio_no_clip_at_unity_gain(self):
+        """AM channel with ``gain_db=0`` must not clip on a typical AM tone.
+
+        Pre-Phase-4d this test fails with ``gain_db=32.8`` (the operator's
+        RF front-end value) because ``set_gain`` scaled the AGC reference
+        from 0.1 to 4.37 → audio_trim sink sees |x| ≫ 1.0.  Post-patch
+        the AGC reference is fixed at ``_AGC_REF_0DB`` regardless of
+        ``gain_db``.
+        """
+        samp_rate = 1e6
+        audio_rate = 16000.0
+        duration = 1.5
+        iq = self._am_iq(samp_rate=samp_rate, duration_s=duration)
+
+        ch = Channel(
+            samp_rate=samp_rate, audio_rate=audio_rate,
+            center_freq_offset=0.0, squelch_dbfs=-100.0,
+            gain_db=0.0, mode="am",
+        )
+        # Allow ~0.5 s of startup transient; capture ~0.8 s of audio after.
+        # n_run_samples is the total audio output we let flow.
+        out = _run_channel_for(ch, iq, int(audio_rate * (duration - 0.1)))
+        if out.size == 0:
+            pytest.skip("no audio produced by harness")
+        n_skip = int(audio_rate * 0.5)
+        if out.size <= n_skip + int(audio_rate * 0.2):
+            pytest.skip(f"insufficient audio ({out.size} samples)")
+        steady = out[n_skip:]
+        peak = float(np.max(np.abs(steady)))
+        assert peak < 0.95, (
+            f"AM channel clipping at unity gain: peak |x|={peak:.3f} "
+            f"(expected < 0.95). This indicates set_gain is still scaling "
+            f"the AGC reference."
+        )
+
+    def test_nfm_audio_unity_at_unity_gain(self):
+        """NFM channel with ``gain_db=0`` produces output in ~[-1, +1].
+
+        ``quadrature_demod`` is calibrated so a full-deviation FM signal
+        produces output near unity; the (now-static) ``nfm_audio_gain``
+        block stays at 1.0 regardless of ``gain_db``.
+        """
+        samp_rate = 1e6
+        audio_rate = 16000.0
+        duration = 1.5
+        iq = make_nfm_iq(
+            samp_rate=samp_rate, duration_s=duration,
+            carrier_hz=0.0, tone_hz=500.0,
+            max_dev_hz=5e3, noise_sigma=0.001,
+        )
+
+        ch = Channel(
+            samp_rate=samp_rate, audio_rate=audio_rate,
+            center_freq_offset=0.0, squelch_dbfs=-100.0,
+            gain_db=0.0, mode="nfm",
+        )
+        out = _run_channel_for(ch, iq, int(audio_rate * (duration - 0.1)))
+        if out.size == 0:
+            pytest.skip("no audio produced by harness")
+        n_skip = int(audio_rate * 0.5)
+        if out.size <= n_skip + int(audio_rate * 0.2):
+            pytest.skip(f"insufficient audio ({out.size} samples)")
+        steady = out[n_skip:]
+        peak = float(np.max(np.abs(steady)))
+        # Quadrature demod output is bounded by pi/decim_gain; with the
+        # discriminator gain set so a max-deviation tone gives ±1, a 5 kHz
+        # tone at full deviation should peak well under 1.1 in steady state.
+        assert peak < 1.1, (
+            f"NFM channel exceeds unity at unity gain: peak |x|={peak:.3f} "
+            f"(expected < 1.1). This indicates set_gain is still scaling "
+            f"the post-discriminator multiplier."
+        )
+
+    def test_set_gain_does_not_scale_demod_amplitude(self):
+        """``set_gain`` must touch ``audio_trim`` only.
+
+        Verifies the invariant on both modes:
+          - AM: ``agc.reference()`` stays at ``_AGC_REF_0DB`` regardless
+            of ``gain_db``.
+          - NFM: ``nfm_audio_gain.k()`` stays at 1.0 regardless of
+            ``gain_db``.
+          - Both modes: ``audio_trim.k()`` follows ``10 ** (gain_db/20)``.
+        """
+        ch_am = Channel(samp_rate=1e6, mode="am", gain_db=0.0)
+        ch_nfm = Channel(samp_rate=1e6, mode="nfm", gain_db=0.0)
+
+        # Baseline: gain_db=0 → audio_trim=1.0, AGC ref=_AGC_REF_0DB,
+        # NFM multiplier=1.0.
+        assert ch_am.audio_trim is not None
+        assert ch_nfm.audio_trim is not None
+        assert abs(ch_am.audio_trim.k() - 1.0) < 1e-6
+        assert abs(ch_nfm.audio_trim.k() - 1.0) < 1e-6
+        agc_ref_baseline = float(ch_am.agc.reference())
+        assert abs(agc_ref_baseline - Channel._AGC_REF_0DB) < 1e-6, \
+            f"AM AGC reference baseline wrong: {agc_ref_baseline!r}"
+        assert abs(ch_nfm.nfm_audio_gain.k() - 1.0) < 1e-6
+
+        # Move gain to +6 dB.  Audio trim should follow; demod-side
+        # blocks must NOT.
+        ch_am.set_gain(6.0)
+        ch_nfm.set_gain(6.0)
+        expected_trim = 10.0 ** (6.0 / 20.0)
+        assert abs(ch_am.audio_trim.k() - expected_trim) < 1e-6
+        assert abs(ch_nfm.audio_trim.k() - expected_trim) < 1e-6
+        # CRITICAL: AGC reference and NFM multiplier unchanged.
+        assert abs(float(ch_am.agc.reference()) - Channel._AGC_REF_0DB) < 1e-6, (
+            "set_gain(6.0) leaked into the AGC reference — Phase 4d "
+            "regression."
+        )
+        assert abs(ch_nfm.nfm_audio_gain.k() - 1.0) < 1e-6, (
+            "set_gain(6.0) leaked into the NFM post-discriminator "
+            "multiplier — Phase 4d regression."
+        )
+
+        # And the reverse: -6 dB.
+        ch_am.set_gain(-6.0)
+        ch_nfm.set_gain(-6.0)
+        expected_trim_neg = 10.0 ** (-6.0 / 20.0)
+        assert abs(ch_am.audio_trim.k() - expected_trim_neg) < 1e-6
+        assert abs(ch_nfm.audio_trim.k() - expected_trim_neg) < 1e-6
+        assert abs(float(ch_am.agc.reference()) - Channel._AGC_REF_0DB) < 1e-6
+        assert abs(ch_nfm.nfm_audio_gain.k() - 1.0) < 1e-6
+
+    def test_gain_clamps_to_plus_minus_20_db(self):
+        """Out-of-range gain requests clamp to [-20, +20] dB.
+
+        Protects the audio sink from stale RF-gain values (32.8 dB was
+        the value the migration leaked in) and from the symmetric
+        below-mute case.
+        """
+        ch = Channel(samp_rate=1e6, mode="am", gain_db=0.0)
+        ch.set_gain(32.8)
+        assert ch.gain_db == 20.0
+        max_trim = 10.0 ** (20.0 / 20.0)  # =10.0
+        assert abs(ch.audio_trim.k() - max_trim) < 1e-6
+        # And the negative side.
+        ch.set_gain(-99.0)
+        assert ch.gain_db == -20.0
+        min_trim = 10.0 ** (-20.0 / 20.0)  # =0.1
+        assert abs(ch.audio_trim.k() - min_trim) < 1e-6
+
+    def test_constructor_clamps_gain_db(self):
+        """``Channel(gain_db=...)`` also clamps to the legal range so the
+        Phase-4c migration's 32.8 dB cannot reach the AGC reference at
+        construction time either."""
+        ch = Channel(samp_rate=1e6, mode="am", gain_db=32.8)
+        assert ch.gain_db == 20.0
+        assert abs(float(ch.agc.reference()) - Channel._AGC_REF_0DB) < 1e-6
+        # Sanity: the trim landed at +20 dB.
+        assert abs(ch.audio_trim.k() - 10.0) < 1e-6

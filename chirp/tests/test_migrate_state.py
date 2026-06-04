@@ -166,7 +166,11 @@ def test_build_state_includes_preset_metadata(sample_hp_state, sample_controls):
     assert len(st["channels"]) == 3
     for c in st["channels"]:
         assert c["mode"] == "am"
-        assert c["gain_db"] == 32.8
+        # Phase 4d: per-channel ``gain_db`` is an audio TRIM, not the
+        # SDR RF gain.  Migration no longer copies the override's RF
+        # ``gain`` field (32.8 dB) into per-channel state — that value
+        # belongs in the per-band sdr.gain_db config.
+        assert c["gain_db"] == 0.0
         assert c["squelch_dbfs"] == -55.0
 
 
@@ -175,7 +179,9 @@ def test_build_state_ground_uses_nfm(sample_hp_state, sample_controls):
     ov = ms.load_preset_override(sample_controls, "ground")
     st = ms.build_state("ground", hp, ov)
     assert all(c["mode"] == "nfm" for c in st["channels"])
-    assert all(c["gain_db"] == 28.0 for c in st["channels"])
+    # Phase 4d: per-channel gain_db is audio trim, defaults to 0.0
+    # regardless of the operator's RF-gain override.
+    assert all(c["gain_db"] == 0.0 for c in st["channels"])
     assert all(c["squelch_dbfs"] == -34.0 for c in st["channels"])
 
 

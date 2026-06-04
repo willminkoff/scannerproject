@@ -180,11 +180,20 @@ def build_state(band: str, hp_state: dict, override: dict,
     #   2) -60 dBFS safe default (matches rtl-airband's initial state)
     default_squelch = float(override.get("squelch_dbfs", -60.0))
 
-    # Per-channel gain: rtl-airband uses one gain value per band, applied
-    # to every channel.  We preserve that — the override's ``gain`` (dB) is
-    # the per-band gain.  Chirp's daemon supports per-channel gain but the
-    # cutover starts from rtl-airband's uniform-gain state.
-    gain_db = float(override.get("gain", default_gain_db))
+    # Per-channel gain: the ``override.gain`` value from
+    # managed_analog_controls.json is the operator's SDR FRONT-END gain
+    # in dB — it goes into the SDR's RF chain (see chirp/config/*.json
+    # ``sdr.gain_db``), NOT into the per-channel audio trim.  Phase 4d
+    # (2026-06-04) corrects this: the migration now writes
+    # ``gain_db: 0.0`` per channel.  The RF gain stays in the per-band
+    # config's sdr block where it belongs.
+    #
+    # ``default_gain_db`` is still respected so callers/tests can pass a
+    # non-zero per-channel trim if they have a real reason to — that's
+    # what ``Channel.set_gain`` is for (clamped to ±20 dB).  The
+    # ``override.gain`` is intentionally ignored.
+    _ = default_gain_db  # keep the API surface; not consulted in default flow
+    channel_audio_trim_db = 0.0
 
     channels = []
     for c in chans_in:
@@ -193,7 +202,7 @@ def build_state(band: str, hp_state: dict, override: dict,
             "freq_mhz": float(c["freq_mhz"]),
             "mode": c["mode"],
             "squelch_dbfs": float(default_squelch),
-            "gain_db": float(gain_db),
+            "gain_db": float(channel_audio_trim_db),
             "label": c["label"],
         })
 

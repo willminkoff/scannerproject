@@ -8,14 +8,29 @@ flowgraph wiring).
 
 AM chain (mirrors ham2mon TunerDemodAM, see Phase 1 docstring):
     xlating(decim 5) -> fir(decim 5) -> fir(decim ~samp_rate/1e6)
-        -> pwr_squelch -> agc -> complex_to_mag (envelope)
-        -> audio_lpf(decim 5) -> arb_resampler -> audio_out
+        -> pwr_squelch -> agc(ref=_AGC_REF_0DB, fixed)
+        -> complex_to_mag (envelope)
+        -> audio_lpf(decim 5) -> arb_resampler
+        -> audio_trim(gain_db) -> audio_out
 
-NFM chain (Phase 4a):
+NFM chain (Phase 4a, audio_trim added Phase 4d):
     xlating(decim 5) -> fir(decim 5) -> fir(decim ~samp_rate/1e6)
         -> pwr_squelch
         -> quadrature_demod(gain = samp_rate_pre / (2*pi*max_dev))
-        -> audio_lpf(decim 5) -> arb_resampler -> audio_out
+        -> nfm_audio_gain(=1.0, static)
+        -> audio_lpf(decim 5) -> arb_resampler
+        -> audio_trim(gain_db) -> audio_out
+
+Phase 4d (2026-06-04):  ``set_gain(db)`` now drives a dedicated
+post-demod ``audio_trim`` block instead of perturbing the AM AGC
+reference or the NFM post-discriminator multiplier.  Both demod-side
+blocks are kept at their amplitude-calibrated defaults (AGC target
+0.1, NFM multiplier 1.0) so the demod output stays near unity for any
+operator ``gain_db`` choice.  The ``audio_trim`` block is clamped to
+±20 dB.  Background: the Phase-4c migration copied the operator's RF
+front-end gain (32.8 dB) into per-channel ``gain_db``, which the
+pre-Phase-4d AGC-scaling path interpreted as 4.37x AGC target → audio
+sink clipped on every squelch-open burst.
 
 For mil-air narrowband FM the canonical max deviation is ~5 kHz and the
 audio LPF is at ~3.5 kHz. We deliberately do NOT apply 75 us de-emphasis --
@@ -65,8 +80,23 @@ class Channel(gr.hier_block2):
             Default 5 kHz (mil-air narrowband). Only consulted when mode=="nfm".
     """
 
-    # AGC reference at 0 dB gain. Matches ham2mon's TunerDemodAM default.
+    # AGC reference for the AM path.  This is a CONSTANT target output
+    # magnitude for the agc3_cc block (ham2mon's TunerDemodAM default).
+    # It is intentionally NOT modulated by ``gain_db`` — see the design
+    # note on Phase-4d / 2026-06-04: ``gain_db`` is a post-demod audio
+    # trim, not an SDR-side or AGC-reference knob.  Multiplying the AGC
+    # reference by ``10^(gain_db/20)`` with a stage gain of 32.8 dB (the
+    # operator's RF front-end setting, accidentally copied into per-
+    # channel ``gain_db`` by the Phase-4c migration) drove the AGC to
+    # target 4.37x full scale → the audio sink clipped every
+    # squelch-open burst on /ANALOG.mp3.
     _AGC_REF_0DB = 0.1
+
+    # ``set_gain`` clamps the per-channel trim to this dB range.  20 dB
+    # of headroom on either side covers operator level trims between
+    # channels without letting a stale config peg the audio sink.
+    _GAIN_DB_MIN = -20.0
+    _GAIN_DB_MAX = 20.0
 
     def __init__(
         self,
@@ -96,7 +126,7 @@ class Channel(gr.hier_block2):
         self._audio_bw_hz = float(audio_bw_hz)
         self._center_freq_offset = float(center_freq_offset)
         self._squelch_dbfs = float(squelch_dbfs)
-        self._gain_db = float(gain_db)
+        self._gain_db = self._clamp_gain_db(float(gain_db))
         self._nfm_max_deviation_hz = float(nfm_max_deviation_hz)
 
         # Phase 4-pre: LO scheduler parks channels that are NOT in the
@@ -199,6 +229,13 @@ class Channel(gr.hier_block2):
             resamp_ratio, taps=None, flt_size=32
         )
 
+        # --- Audio trim (Phase 4d) -----------------------------------------
+        # Post-mixer-stage audio level trim driven by ``set_gain(db)``.  Sits
+        # at the very end of the channel chain so it does NOT affect the AGC
+        # reference (AM) or the quadrature_demod output (NFM).  Default
+        # initial multiplier = 1.0 (0 dB).  Updated via ``_apply_gain``.
+        self.audio_trim = blocks.multiply_const_ff(1.0)
+
         # --- Wiring ---------------------------------------------------------
         self.connect(self, self.freq_xlating)
         self.connect(self.freq_xlating, self.fir_stage1)
@@ -217,7 +254,12 @@ class Channel(gr.hier_block2):
             self.connect(self.nfm_audio_gain, self.audio_lpf)
 
         self.connect(self.audio_lpf, self.audio_resamp)
-        self.connect(self.audio_resamp, self)
+        # Phase 4d: route the resampled audio through the trim multiplier
+        # so set_gain(db) is a clean post-demod level adjustment rather
+        # than something that perturbs the AM AGC or the NFM
+        # discriminator output.
+        self.connect(self.audio_resamp, self.audio_trim)
+        self.connect(self.audio_trim, self)
 
         # Apply gain (after demod wiring is complete).
         self._apply_gain(self._gain_db)
@@ -275,20 +317,42 @@ class Channel(gr.hier_block2):
             self._squelch_dbfs = self._parked_saved_squelch_dbfs
             self.pwr_squelch.set_threshold(self._parked_saved_squelch_dbfs)
 
+    @classmethod
+    def _clamp_gain_db(cls, db: float) -> float:
+        """Clamp a gain-in-dB request to [``_GAIN_DB_MIN``, ``_GAIN_DB_MAX``].
+
+        Phase 4d: ``gain_db`` is a post-demod audio trim, not an RF or AGC
+        knob.  Values outside ±20 dB tend to either drive the audio sink
+        into clipping (positive) or mute the channel below MP3-encoder
+        noise floor (negative), so the clamp protects the audio output
+        from accidental stale configs (e.g. the 32.8 dB RF gain the
+        Phase-4c migration script used to drop in here).
+        """
+        return max(cls._GAIN_DB_MIN, min(cls._GAIN_DB_MAX, float(db)))
+
     def set_gain(self, db: float) -> None:
-        self._gain_db = float(db)
+        """Set the per-channel post-demod audio trim in dB.
+
+        Phase 4d: this is a small audio level trim applied AFTER the
+        demod chain (post-AGC for AM, post-quad-demod for NFM, post
+        audio LPF + resampler).  It does NOT modulate the AGC reference
+        or the quadrature_demod gain — those are amplitude-calibrated to
+        keep the demod output near unity, independent of the operator's
+        per-channel trim choice.  Clamped to [_GAIN_DB_MIN, _GAIN_DB_MAX].
+        """
+        self._gain_db = self._clamp_gain_db(db)
         self._apply_gain(self._gain_db)
 
     def _apply_gain(self, db: float) -> None:
-        # AM path applies gain by scaling the AGC reference (matches Phase 1).
-        # NFM path applies it as a post-discriminator scalar multiplier, so
-        # the operator semantics ("gain_db dB louder") are equivalent.
-        linear = 10.0 ** (db / 20.0)
-        if self._mode == "am":
-            self.agc.set_reference(self._AGC_REF_0DB * linear)
-        else:  # nfm
-            # set_k is the GR name for multiply_const_ff's setter.
-            self.nfm_audio_gain.set_k(linear)
+        """Push the current ``gain_db`` to the audio trim multiplier.
+
+        Pre-Phase-4d this scaled the AM AGC reference and the NFM
+        post-discriminator multiply_const.  Both side-effects are gone:
+        the AGC always targets ``_AGC_REF_0DB`` (0.1), and the NFM
+        post-demod block stays at 1.0.  Only ``audio_trim`` is touched.
+        """
+        linear = 10.0 ** (self._clamp_gain_db(db) / 20.0)
+        self.audio_trim.set_k(linear)
 
     # ----- Probes ----------------------------------------------------------
 
