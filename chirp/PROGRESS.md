@@ -17,6 +17,56 @@ Hard rules every overnight task must follow are restated at the bottom.
 
 ---
 
+## 2026-06-04 ~21:10 UTC — Phase 4d hotfix follow-up: dashboard badge wiring
+
+**Goal** — fix a Phase 4d cutover gap surfaced during the post-reboot
+verification of commit `a4bdc2f`: the AIRBAND + GROUND tuner badges
+and "recent hit" widgets in `sb5.html` were still bound to the legacy
+`rtl-airband-airband` / `rtl-airband-ground` heartbeat-evidence labels.
+Under `SB5_USE_GR_DEMOD=true`, those services are intentionally
+`inactive` (masked via `/run/systemd/system/rtl-airband-*.service -> /dev/null`),
+so the badges always rendered **0/1 RED** and the band cards always
+showed `Service offline` / `No hits yet` even when chirp was healthy
+and hitting (heartbeat correctly reported `chirp-airband: active
+(20 chan, 12 free)`).
+
+**Same root-cause-class as the original 0/1 TUNER report at 15:46 EDT.**
+The original incident's pool-wipe was real and was fixed by `a4bdc2f`;
+this badge-wiring bug was a second, independent contributor hidden by
+the first.  Will hit it again at 17:07 EDT staring at a healthy
+backend producing hits while the UI said "Service offline".
+
+**Done**
+
+- `ui/sb5.html` (~6 LOC across two patch sites in the heartbeat-render
+  flow):
+  - `setDongleBadge("ev-air-badge", ...)` / `setDongleBadge("ev-ground-badge", ...)`
+    now read `gr-demod@airband` / `gr-demod@ground` evidence rows when
+    `USE_GR_DEMOD` is true; fall back to the rtl-airband-* labels
+    otherwise.
+  - `paint("air-now", ..., labels)` / `paint("ground-now", ..., labels)`
+    in `renderNowListeningFromHeartbeat` same conditional, so the
+    "▶ hit" vs "Squelched" vs "Service offline" tri-state reflects
+    the live demod service.
+- Same `USE_GR_DEMOD` module-level flag introduced by `a4bdc2f`
+  (mirrored from `/api/heartbeat.use_gr_demod` on every heartbeat
+  refresh).  No new backend work, no new tests — pure frontend
+  label-mapping fix.
+
+**Live verification post-deploy**
+
+- `curl /sb5.html | grep 'USE_GR_DEMOD ? "gr-demod@' | wc -l` → 2
+  (one for each patch site), confirming the served file has both
+  patches.
+- airband-ui not restarted (Python's BaseHTTPServer reads sb5.html
+  per-GET, so the change is live as soon as the file lands).  Browsers
+  see the new code on next refresh / hard-refresh.
+
+**Deploy SHA on `main`** — ``67fbe07`` (pushed to `origin/main`).
+Trailing PROGRESS-fill commit pattern as before.
+
+---
+
 ## 2026-06-04 ~20:00 UTC — Phase 4d hotfix: reset_radios pool-wipe regression
 
 **Goal** — kill a regression discovered in production triage right after

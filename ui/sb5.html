@@ -4153,9 +4153,15 @@ function renderHeartbeat(hb) {
     return (st === "ok" || st === "warn") ? 1 : 0;
   };
   // AIR + GROUND are split cards, each with its own tuner badge.
-  // AIR tracks rtl-airband-airband; GROUND tracks rtl-airband-ground.
-  setDongleBadge("ev-air-badge",     svcAliveFromEvid(find("rtl-airband-airband")), 1);
-  setDongleBadge("ev-ground-badge",  svcAliveFromEvid(find("rtl-airband-ground")),  1);
+  // Under SB5_USE_GR_DEMOD=true (chirp is the analog backend), the
+  // rtl-airband-* units are intentionally inactive — track gr-demod@*
+  // instead so the badge reflects the live demod service, not the
+  // dormant legacy unit.  Flag is mirrored from /api/heartbeat per
+  // commit a4bdc2f.
+  const airSvcLabel    = USE_GR_DEMOD ? "gr-demod@airband" : "rtl-airband-airband";
+  const groundSvcLabel = USE_GR_DEMOD ? "gr-demod@ground"  : "rtl-airband-ground";
+  setDongleBadge("ev-air-badge",     svcAliveFromEvid(find(airSvcLabel)),    1);
+  setDongleBadge("ev-ground-badge",  svcAliveFromEvid(find(groundSvcLabel)), 1);
   setDongleBadge("ev-digital-badge", svcAliveFromEvid(find("scanner-vlc-digital")), 1);
 
   renderNowListeningFromHeartbeat(hb);
@@ -4219,8 +4225,15 @@ function renderNowListeningFromHeartbeat(hb) {
       now.textContent = "Squelched — no recent hits";
     }
   }
-  paint("air-now",     recentHitForBand("airband"), ["rtl-airband-airband"]);
-  paint("ground-now",  recentHitForBand("ground"),  ["rtl-airband-ground"]);
+  // Under SB5_USE_GR_DEMOD=true the analog backend is gr-demod, not
+  // rtl-airband; switch the service-up check to the live unit so the
+  // "Service offline" / "Squelched" / "▶ hit" states reflect reality
+  // instead of always falling into "Service offline" because the
+  // legacy unit is masked.
+  const airSvcLabels    = USE_GR_DEMOD ? ["gr-demod@airband"] : ["rtl-airband-airband"];
+  const groundSvcLabels = USE_GR_DEMOD ? ["gr-demod@ground"]  : ["rtl-airband-ground"];
+  paint("air-now",     recentHitForBand("airband"), airSvcLabels);
+  paint("ground-now",  recentHitForBand("ground"),  groundSvcLabels);
   paint("digital-now", recentHitForBand("digital"), ["scanner-vlc-digital"], "dig");
 }
 
