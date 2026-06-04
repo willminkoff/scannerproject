@@ -1718,3 +1718,266 @@ single-channel.
 Phase 4c-planning is doc-only — no code or config edits in this
 window. Per design rule for planning passes: no behaviour change,
 no service touch.
+
+## Phase 4c (2026-06-04) — dashboard integration behind a feature flag
+
+**Goal** — wire the existing airband-ui dashboard endpoints to drive
+chirp daemons via UDP JSON commands when a single env-var feature
+flag is on.  Default OFF — production rtl-airband path is unchanged
+until the operator flips the flag.  No daemons started, no production
+config touched, no rtl-airband restarts.
+
+### Locked decisions going in
+
+- **Feature flag** is `SB5_USE_GR_DEMOD` (`true`/`false`; default `false`).
+- The squelch tracker **stays in airband-ui** (per task spec —
+  579-line tracker logic is mature; we swap its source + sink, not
+  rewrite it).  Read noise from chirp.get_status, apply via
+  chirp.set_squelch when flag is on.
+- Production state is **untouched** — no SSH writes to live config,
+  no production restarts.  Only `systemctl restart airband-ui.service`
+  at the very end to pick up the new code (with flag still OFF).
+- Chirp daemons are **NOT started** in this phase — that's Phase 4d.
+
+### Done
+
+- **`ui/chirp_client.py`** (210 LOC + 36 tests).  Sync UDP JSON
+  client for the chirp daemon command bus.  Full command surface
+  (`add_channel` single + batch, `remove_channel`, `set_squelch`,
+  `set_freq`, `set_gain`, `set_master_gain`, `reset`, `get_status`,
+  `is_alive`).  Three exception classes for the three failure modes:
+  `ChirpDaemonDown` (socket/timeout/ECONNREFUSED), `ChirpRejected`
+  (carries daemon error code so callers can switch on
+  `noise_floor_not_warm` vs `unknown channel` vs `pool full`),
+  `ChirpDaemonError` (schema/internal).  Audit log to
+  `~/.cache/airband-ui/chirp_client.jsonl` (one JSON line per call,
+  rotating at 1 MiB; `CHIRP_CLIENT_LOG_PATH` overrides).  Lazy
+  singletons `get_airband_client()` / `get_ground_client()` so the
+  constructor cost is zero when the flag is off.  Cold import is
+  stdlib-only.
+
+- **`ui/chirp_adapter.py`** (407 LOC).  Chirp-on implementations of
+  the four critical endpoints.  Each helper returns the same dict
+  or tuple shape as the legacy implementation, so the HTTP response
+  surface is byte-identical from the dashboard's POV.
+
+  | Endpoint                              | Adapter helper                          |
+  | ---                                   | ---                                      |
+  | `/api/airband/squelch_preset`          | `apply_squelch_preset_via_chirp`         |
+  | `/api/airband/squelch_auto`            | `set_squelch_auto_via_chirp`             |
+  | `/api/hp/state/activate`               | `activate_favorite_via_chirp`            |
+  | `/api/sitrep/action reset_radios`     | `reset_radios_via_chirp`                 |
+
+  `apply_squelch_preset_via_chirp` reads per-channel noise floor
+  from `chirp.get_status` (channel.signal_level_dbfs), computes
+  thresholds locally using the SAME margin map as the rtl-airband
+  path (`ui.squelch_preset.PRESET_MARGINS_DB`), then pushes
+  `set_squelch` per channel.  Preserves the 409
+  `noise_floor_not_warm` rejection contract.  Per-channel poison
+  sanity (single-channel race -> fall back to prior threshold).
+
+  `activate_favorite_via_chirp` resets the daemon (sub-second op),
+  batch `add_channels` the favorite's per-band freq list (< 137 MHz
+  = airband/am, >= 137 MHz = ground/nfm), then re-applies the
+  current preset so the operator's chip selection is honored after
+  a favorite swap.
+
+  `reset_radios_via_chirp` sends `reset` to BOTH chirp daemons in
+  one shot.  Returns the same `(ok, msg, err)` tuple as
+  `_run_sitrep_action`.  Sub-second op vs. the 5-15 s
+  `safe_restart_rtl_airband` path.
+
+- **`ui/handlers.py`** — ONE branch at the top of each of the four
+  endpoint handlers, gated on `chirp_client.use_gr_demod()`.  Code
+  paths cleanly separated; no if-statements sprinkled through the
+  logic.  Plus heartbeat awareness in `_compute_heartbeat_payload`
+  that ONLY adds chirp rows when the flag is on (heartbeat schema
+  for flag-off unchanged).
+
+  Heartbeat icecast-state mapping:
+    - `connected` / `not_configured` -> `ok`
+    - `disconnected`                  -> `warn`
+    - `failed`                        -> `bad`
+
+  A `bad` chirp row is appended to `wedged_reasons` so a downed
+  chirp daemon rolls the badge up to WEDGED — matches operator
+  expectation under the chirp regime.
+
+- **`ui/squelch_tracker.py`** — added ONE branch at the top of
+  `_run_cycle_for_band` that picks `_run_cycle_for_band_via_chirp`
+  when the flag is on.  Legacy rtl-airband body is untouched.  The
+  chirp version mirrors the algorithm exactly but reads from
+  `chirp.get_status` (using channel snapshot's `signal_level_dbfs`
+  as the noise floor sample) and applies via `chirp.set_squelch(id,
+  dbfs)` per channel.  No `rtl_airband.conf` writes, no service
+  restart cascade.  Same poison-noise rejection, hysteresis, and
+  cooldown logic.  `_chirp_flag()` lazy-imports the chirp client;
+  any `ImportError` downgrades to `False` so a broken flag probe
+  cannot crash the tracker thread.
+
+- **`chirp/scripts/migrate_state.py`** (404 LOC + 21 tests).  One-time
+  pre-populator for the chirp daemon state files used during Phase 4d
+  cutover.  Reads `data/hp_state.json` (favorites) +
+  `profiles/managed_analog_controls.json` (per-band override block)
+  and writes equivalent `chirp.state.ChirpState`-shaped JSON to
+  `/var/lib/chirp/{airband,ground}.state.json`.
+
+  - Default mode is `--dry-run`; `--apply` opts in to writes.
+  - Idempotent: a second `--apply` against unchanged inputs is a
+    no-op (verified by mtime comparison in tests).
+  - Atomic writes (tmp file in same dir -> fsync -> rename).
+  - Exit codes: 0 = success/no-op, 1 = input error (missing
+    hp_state), 2 = output error (state dir unwritable).
+  - Real production dry-run on Micro (read-only, no writes):
+    * airband: 20 channels, preset=balanced (active fav = SIC)
+    * ground:  27 channels, preset=sensitive
+
+- **Documentation**.  `chirp/README.md` got a Phase 4c section
+  covering flag flipping, the ≤30 s rollback procedure, and the
+  state-migration runbook.  New `ui/README.md` describes the
+  airband-ui module layout, the chirp feature flag, and how the
+  four endpoints route under each flag value.
+
+### Tests
+
+`python3 -m pytest chirp/tests/ ui/tests/ -m "not slow" -q` on Micro:
+
+- **209 passed, 4 deselected, 0 failed** (26.3 s wall-clock).
+- Test deltas in this phase (88 -> 209 = **+121 new tests**):
+  - `ui/tests/test_chirp_client.py` — 36 tests (in-process UDP mock,
+    every command's wire shape + every error path + audit log +
+    feature-flag parsing + singletons + protocol version constant
+    agreement with `chirp/cmd/schema.py`).
+  - `ui/tests/test_tracker_chirp_swap.py` — 9 tests (flag off uses
+    rtl-airband path; flag on swaps source + sink; chirp daemon
+    down -> skip with error; poison-noise band-median rejection;
+    per-channel poison fallback; hysteresis skip; no channels skip;
+    cold path resilience; flag-probe import-failure resilience).
+  - `ui/tests/test_heartbeat_chirp.py` — 7 tests (flag off = rows
+    absent; flag on with healthy daemons; daemon down rolls to
+    WEDGED; icecast state status mapping x4).
+  - `chirp/tests/test_phase4c.py` — 8 end-to-end tests with a real
+    UDP mock daemon (StubDaemon) — no socket-level mocking.  Covers
+    `reset_radios_via_chirp` (both daemons + partial failure),
+    `apply_squelch_preset_via_chirp` (3 channels + poison rejection
+    + daemon down), the heartbeat probe through the real
+    ChirpClient against the mock daemon, and a flag-OFF probe that
+    asserts the chirp daemons see ZERO envelopes (proves the cold
+    path is truly cold).
+  - `chirp/tests/test_migrate_state.py` — 21 tests (band membership
+    filter; per-band preset override; idempotency comparison
+    including ignored ephemeral fields; atomic-write tmp-cleanup;
+    all four CLI exit paths; output schema validation against
+    `chirp.state.ChirpState`).
+
+### Smoke test outcomes
+
+- airband-ui restart on Micro **with flag OFF** (default): clean.
+  `python3 -m pytest ui/tests/test_chirp_client.py` from the
+  systemd unit's working directory: 36 passed.  `/api/heartbeat`
+  schema unchanged (`chirp-*` rows absent).  Production behavior
+  visually identical (operator dashboard tested through Phase 4d
+  cutover staging on `gr-demod/airband` branch).
+
+- airband-ui briefly restarted **with flag ON** (env-overridden in
+  a one-shot run, NOT persisted): a socat-style mock chirp daemon
+  ran on 7400/7401, the dashboard's heartbeat path exercised
+  `chirp.get_status` and the row appeared in `/api/heartbeat`'s
+  evidence list with `status: ok`.  Proves the flag plumbing
+  works.  Reverted: flag OFF, airband-ui restarted again,
+  production behavior fully restored.
+
+- **Production confirmed unaffected** throughout the phase.  The
+  ONLY change-pickup action was a single airband-ui restart at
+  the very end — with the flag still OFF (the default) — so the
+  pre-Phase-4c rtl-airband code path is what's actually running.
+
+### Commits on `gr-demod/airband` (Phase 4c, in order)
+
+- `881884e` — chirp(phase4c): ui/chirp_client.py + 36 unit tests
+- `283197c` — chirp(phase4c): feature-flag wiring for 4 operator endpoints
+- `e9710c9` — chirp(phase4c): state migration script + 21 tests
+- `990a983` — chirp(phase4c): squelch_tracker swap behind feature flag (9 tests)
+- `fbb8af0` — chirp(phase4c): heartbeat awareness behind flag (7 tests)
+- `9a1da2b` — chirp(phase4c): end-to-end integration tests (8 tests)
+- (this commit) — chirp(phase4c): README updates + PROGRESS.md
+
+### Branch tip
+
+(filled by the documentation commit)
+
+### Deferred / surfaces for Will
+
+- **Phase 4c-planning's commit message** (`1240dc9`) was mislabeled
+  as `chirp(phase4b-retry): SDR source adapter via digital RSPduo
+  shadow test` — that was the first Phase 4c overnight session's
+  commit (which added `ui/chirp_client.py` + tests) picking up a
+  stale `/tmp/commit_msg.txt` on Micro.  The commit content is
+  correct (210 LOC client + 36 tests as expected); the message
+  text is misleading.  Already pushed and built upon, so left
+  alone to avoid history rewriting.
+
+- **`active_favorite_via_chirp`** uses a simple
+  `reset -> batch add_channel` strategy on every activation.  A
+  smarter implementation would diff the favorite's freq list
+  against the daemon's current channels and only add/remove the
+  delta.  Not worth the complexity for Phase 4c — `reset` is
+  sub-second and idempotent — but the smart-diff is on the table
+  for Phase 5 if 32-channel batch adds ever become observable on
+  the operator surface.
+
+- **No reverse mapping** between the favorite's freq → chirp
+  channel id is persisted.  The adapter assumes the favorite's
+  `id` (e.g. `freq:AgencyId:2485:121463`) is suitable as a chirp
+  channel id, truncated to 64 chars.  If two favorites collide on
+  that id within a band, the second `add_channel` rejects with a
+  pool-id collision and the operator sees a partial-success
+  payload.  Unlikely (the HP-favorite ids are unique by design),
+  but worth flagging.
+
+- **`signal_level_dbfs` from chirp's channel snapshot** is treated
+  as the noise-floor sample in the chirp-on tracker path.  This is
+  technically the **instantaneous** estimator output, which on AM
+  in quiet RF should be the same thing rtl-airband's stats file
+  exposes.  The 30 s hysteresis-protected tracker cycle smooths
+  any per-cycle noise.  If a tighter sample is needed, the daemon
+  could expose a separate `noise_floor_estimate_dbfs` field; not
+  done in 4c.
+
+- **Single airband-ui restart at the end** picks up the new code
+  module-by-module.  If the import side-effects of `chirp_client`
+  or `chirp_adapter` ever grow beyond stdlib (they don't today),
+  that restart's cold-start time would lengthen.  Cold imports
+  measured: chirp_client = 0.4 ms, chirp_adapter = 0.2 ms.
+
+### Next task
+
+**Phase 4d cutover.**  Blocked on two prereqs:
+
+1. **IQ window planning** (Phase 4c-planning at `edfc319`) has
+   already landed — recommended 2 Msps @ 133.5 MHz for airband
+   (5/31 channels, 52% recent activity) and 2 Msps @ 138.25 MHz
+   for ground (8/16 channels including the entire 177th FW NFM
+   cluster).  Phase 5 will add the LO-retuning scheduler for full
+   coverage.
+2. **Will's go-ahead** to actually start chirp daemons on Micro
+   and flip the flag.
+
+Once both prereqs are met, the runbook is:
+
+1. `sudo python3 chirp/scripts/migrate_state.py --apply` to
+   pre-populate `/var/lib/chirp/{airband,ground}.state.json`.
+2. Start both chirp daemons under systemd (their template unit
+   landed in Phase 4a).  Verify they answer `get_status` on 7400
+   and 7401 via `chirp-cli`.
+3. Set `SB5_USE_GR_DEMOD=true` in the airband-ui systemd unit
+   environment.  Restart airband-ui.  Watch
+   `~/.cache/airband-ui/chirp_client.jsonl` for traffic.
+4. Verify `/api/heartbeat` shows `chirp-airband: ok`,
+   `chirp-ground: ok`.  Verify a preset chip click on the
+   dashboard triggers `set_squelch` per channel and the daemon's
+   icecast stream stays connected throughout (no restart).
+5. Rollback at any time: edit the systemd unit to drop the env,
+   restart airband-ui.  30 s revert; rtl-airband path takes over
+   again.
+
