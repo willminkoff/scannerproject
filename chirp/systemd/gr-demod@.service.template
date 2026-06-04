@@ -19,9 +19,9 @@
 [Unit]
 Description=chirp analog demod daemon (%i band)
 Documentation=file:///home/ubuntu/scannerproject/SDR_DEMOD_DESIGN_2026-06-03.md
-After=network-online.target icecast2.service
+After=network-online.target sdrplay.service icecast2.service
 Wants=network-online.target
-Requires=icecast2.service
+Requires=icecast2.service sdrplay.service
 
 [Service]
 Type=simple
