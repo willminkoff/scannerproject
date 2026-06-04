@@ -79,10 +79,19 @@ class TestSchema:
         assert len(a.channels) == 1
         assert a.channels[0].freq_mhz == 121.025
 
-    def test_add_channel_rejects_nfm(self):
+    def test_add_channel_accepts_nfm(self):
+        # Phase 4a: NFM is now a valid mode (ground band uses it).
+        a = parse_args("add_channel", {
+            "id": "ch01", "freq_mhz": 162.4, "mode": "nfm",
+            "squelch_dbfs": -60.0,
+        })
+        assert len(a.channels) == 1
+        assert a.channels[0].mode == "nfm"
+
+    def test_add_channel_rejects_unknown_mode(self):
         with pytest.raises(ValidationError):
             parse_args("add_channel", {
-                "id": "ch01", "freq_mhz": 162.4, "mode": "nfm",
+                "id": "ch01", "freq_mhz": 162.4, "mode": "ssb",
                 "squelch_dbfs": -60.0,
             })
 
