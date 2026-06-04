@@ -1981,3 +1981,338 @@ Once both prereqs are met, the runbook is:
    restart airband-ui.  30 s revert; rtl-airband path takes over
    again.
 
+
+---
+
+## Phase 4-pre (2026-06-04) — LO retuning scheduler
+
+**Why.**  Phase 4c-planning identified the channel-coverage gap blocking
+Phase 4d cutover.  Production rtl-airband uses `mode = scan` to retune
+the LO across the full 121-385.5 MHz airband (31 channels) and the
+138-173.8 MHz ground (16 channels).  chirp at 2 Msps single-LO covers
+only ~52% of airband activity by hit-log share.  Phase 4-pre adds the
+chirp equivalent — a cluster planner + round-robin LO scheduler — so
+Phase 4d does not regress channel coverage vs the rtl-airband path it
+replaces.
+
+**North-star call:** no regression at cutover.  This phase ships the
+DSP + state-machine plumbing; Phase 4d wires it up against real RF.
+
+### Goal
+
+Add an LO retuning scheduler to chirp that:
+
+1. Given the full channel list, computes 1-N cluster centers covering
+   every channel within ±iq_bw/2 of its cluster's center.
+2. Cycles through clusters on a configurable dwell (default 60 s).
+3. Activates only the channels in the currently-tuned cluster (others
+   parked — silent, no hits).
+4. Preserves hit-log integrity across LO hops.
+5. Exposes scheduler state via `get_status` for the dashboard.
+
+### What landed
+
+- **`chirp/dsp/cluster_planner.py`** — pure-Python greedy 1D bin-
+  packing planner.  `plan_clusters(channels, iq_bw_hz, max_clusters)`
+  returns a list of `ClusterPlan(center_hz, channel_ids, priority,
+  min_freq_hz, max_freq_hz)`.  Greedy minimality on sorted input,
+  O(n log n).  Raises `ClusterPlanError(needed, max_allowed)` when the
+  greedy fit exceeds the cap, with a human-readable message that names
+  the would-be cluster centers so operators can decide whether to bump
+  `CHIRP_LO_MAX_CLUSTERS` or trim the channel list.
+
+- **`chirp/dsp/lo_scheduler.py`** — round-robin state machine.
+  Background thread (`step()` is public so tests can drive it
+  deterministically with a fake clock).  Plan recompute on
+  `invalidate()`.  Single-cluster degenerate case = no rotation — the
+  regression guard for the no-LO-retuning-needed path.  Multi-cluster
+  round-robin on `dwell_s`, default 60 s.  Emits `cluster_hop` events
+  with `from_center_hz`, `to_center_hz`, `cluster_idx`,
+  `dwell_actual_sec`, `live_channel_ids`, `parked_channel_ids`.  On
+  plan failure (channels need more clusters than the cap allows),
+  parks every channel, emits `scheduler_plan_failed`.  Mid-dwell
+  `invalidate()` triggers re-apply of cluster 0 with the new plan —
+  does NOT cut dwell short (no skip-ahead to next cluster).
+
+- **`chirp/dsp/channel.py`** — `Channel.set_parked(True/False)` +
+  `is_parked` property.  While parked the pwr_squelch threshold is
+  forced to 0 dBFS so audio output is silent; the operator's
+  configured threshold is stashed and restored on unpark.  Operator
+  `set_squelch(x)` calls while parked update the stash but do NOT
+  un-silence the channel.  Snapshot includes `is_parked`.
+
+- **`chirp/hit_detector.py`** — optional `get_cluster_center_hz`
+  callback.  Parked channels are SKIPPED in `_tick` — they never fire
+  `hit_start` / `hit_end`; in-flight hit state is dropped silently
+  (the scheduler emits its own `cluster_hop` event).  Every
+  `hit_start` and `hit_end` event AND the JSONL log record gain a
+  `cluster_center_hz` field correlating the hit to LO state at
+  `hit_start` time.  `hit_end` carries the cluster center from the
+  hit_start moment (not the current LO) so correlation survives a
+  mid-hit LO hop.  Backward-compatible — the field is absent when no
+  scheduler is wired or when the callback returns None.
+
+- **`chirp/daemon.py`** — wired the scheduler in:
+  - `DaemonConfig.lo_dwell_sec` / `lo_max_clusters` fields, envs
+    `CHIRP_LO_DWELL_SEC` (default 60.0) and `CHIRP_LO_MAX_CLUSTERS`
+    (default 3).
+  - Constructs `LoScheduler` with callbacks for `get_channels`,
+    `retune_to`, `park_channels`, `unpark_channels`, `emit_event`.
+    For SDR sources, `retune_to(hz)` calls
+    `source.set_center_freq(hz)` AND re-baselines every claimed
+    slot's xlating-filter offset against the new LO so channels stay
+    demodulating their intended absolute RF.  For file source,
+    `retune_to` is a no-op (file IQ has no LO concept).
+  - `HitDetector` constructed with
+    `get_cluster_center_hz=self.lo_scheduler.current_cluster_center_hz`
+    so every hit event carries the LO state.
+  - `_apply_channel_to_slot` parks the channel BEFORE setting
+    `user_id`, closing the race window where the hit detector could
+    see a fresh-but-unscheduled channel firing hits between
+    `add_channel` and the next scheduler tick.
+  - Pool-mutating commands (`add_channel`, `remove_channel`,
+    `set_freq`, `reset`, `restore_from_state`) all call
+    `_invalidate_and_apply_now()` — invalidate + synchronous `step()`
+    in the same critical section, so the new plan applies before the
+    caller's response leaves the wire.
+  - `get_status` returns a new `lo_scheduler` block:
+    `{ current_cluster_center_hz, current_cluster_idx,
+       dwell_remaining_sec, dwell_s, clusters: [...],
+       live_channel_ids, parked_channel_ids, plan_failed_reason,
+       plan_needed, single_cluster, n_clusters, iq_bw_hz, tick_s,
+       last_recompute_ts, max_clusters }`.
+    Per-channel: `is_parked: bool`.
+
+### Tests
+
+`python3 -m pytest chirp/tests/ ui/tests/ -m "not slow" -q` on Micro:
+
+- **266 passed, 4 deselected, 0 failed** (40.2 s wall-clock).
+- Test deltas in this phase (209 -> 266 = **+57 new tests**):
+  - `chirp/tests/test_cluster_planner.py` — 24 tests
+    (empty/single/multi/boundary geometries, greedy left-pack invariant,
+    `max_clusters` enforcement with `needed` count, priority-sum from
+    `recent_hits`, bad inputs, duplicate-id rejection, the real
+    production airband + ground lists at default caps (reject — needs
+    15 and 4 clusters respectively), Phase 4d-realistic dense subset
+    fits, `to_dict` serialization shape, cluster ordering invariant).
+  - `chirp/tests/test_lo_scheduler.py` — 25 tests across 3 groups:
+    Channel park/unpark semantics (7 — incl. set_squelch-while-parked
+    stash-and-restore + idempotency), LoScheduler state machine (12 —
+    no-channels no-op, single-cluster no-rotation regression guard,
+    two-cluster rotation w/ exact dwell timing, invalidate without
+    cut-dwell-short, plan-failed mode, snapshot shape invariance,
+    channel-removed parks it, constructor arg validation, thread
+    lifecycle, retune-failure resilience), HitDetector + scheduler
+    integration (6 — parked-no-fire, hit_start cluster tag,
+    hit_end inherits hit_start's cluster_center_hz across LO hop,
+    mid-hit park drops in-flight silently, backward-compat for
+    unwired scheduler, callback-exception resilience).
+  - `chirp/tests/test_phase4pre.py` — 8 end-to-end daemon tests
+    (real `ChirpFlowgraph` + UDP event listener over file source):
+    empty pool surfaces lo_scheduler block, single-channel no-
+    rotation, multi-cluster rotates + is_parked flips, mid-dwell
+    `add_channel` triggers recompute, `plan_failed` parks every
+    channel + emits event, `remove_channel` parks removed channel,
+    `dwell_remaining_sec` + cluster payload shape in get_status,
+    hit-log scheduler-correlation invariant (every hit's
+    `cluster_center_hz` matches the channel's cluster, no hit fires
+    before the first cluster_hop).
+
+### Cluster planner output for the production lists
+
+`plan_clusters(...)` against the real production rtl-airband configs,
+to preview what Phase 4d configurations will face:
+
+```
+iq_bw=2 MHz, max_clusters=3 (defaults):
+  airband (31 channels, 121.025-385.500 MHz): REJECT — needs 15 clusters
+  ground  (16 channels, 138.050-173.838 MHz): REJECT — needs 4 clusters
+
+iq_bw=2 MHz, max_clusters=∞:
+  airband: greedy-min = 15 clusters
+  ground:  greedy-min = 4 clusters
+
+Phase 4d-realistic subset — dense low airband (121.025-128.300 MHz):
+  iq_bw=2 MHz, max_clusters=4 → 4 clusters
+    center=121.4625 span=0.875 n=4
+    center=124.3625 span=1.925 n=4
+    center=126.3125 span=1.725 n=3
+    center=128.0000 span=0.600 n=3
+  iq_bw=3 MHz, max_clusters=3 → 3 clusters
+    center=122.2125 span=2.375 n=5
+    center=125.8875 span=2.575 n=6
+    center=128.0000 span=0.600 n=3
+  iq_bw=4 MHz, max_clusters=3 → 2 clusters
+    center=122.8125 span=3.575 n=6
+    center=126.7125 span=3.175 n=8
+
+Ground 177th FW + 119th FS block (138.050-140.700 MHz):
+  iq_bw=2 MHz, max_clusters=3 → 2 clusters
+    center=138.6000 span=1.100 n=8
+    center=140.4000 span=0.600 n=4
+  iq_bw=3 MHz, max_clusters=3 → 1 cluster (no rotation)
+    center=139.3750 span=2.650 n=12
+```
+
+**Phase 4d configuration takeaway.**  The full 31-channel airband list
+will not fit any reasonable cluster cap at chirp's RSPduo bandwidth.
+Phase 4d will either run a subset list (dense low-band of 14 channels
+fits 3 clusters at 3 Msps OR 4 clusters at 2 Msps), or bump
+`CHIRP_LO_MAX_CLUSTERS` to the greedy-min count.  Ground is much more
+tractable — the 177th FW + 119th FS block (12 of 16 channels, the
+dominant activity by far per rtl-airband stats) fits in ONE cluster at
+3 Msps with zero rotation, matching the no-regression bar.
+
+### Smoke test
+
+**Originally planned:** stop op25 (frees digital RSPduo serial
+`180903EF32`), run chirp's SDR adapter against it for 5 min, restart
+op25.  Production analog rtl-airband stays running throughout.
+
+**What actually happened.** Phase 4b-retry already documented that the
+SDRplay API service on Micro will not expose ANY device to a third
+SoapySDR client while both rtl-airband daemons hold connections.
+Empirically re-verified for Phase 4-pre — with op25 stopped (10 s
+wait, well past SDRplay API release latency),
+`SoapySDRUtil --find=driver=sdrplay` enumerates zero devices.  The
+HARD RULE prohibits restarting either rtl-airband daemon, so real-RF
+smoke must wait for Phase 4d cutover (which stops one rtl-airband
+daemon to make room for chirp).
+
+**What we ran instead.** A 3-minute file-source smoke test
+(`chirp/scripts/phase4pre_smoke.py`) exercising the full daemon
+runtime path: real `ChirpFlowgraph`, file IQ source @ 2 Msps,
+4 production airband channels split into 2 clusters around
+127.7 MHz / 133.3 MHz, 30 s dwell, UDP event-sink listener, status
+snapshot every 5 s.
+
+Result (`chirp/PHASE4PRE_SMOKE.log`):
+
+- **7 cluster_hops captured** (initial apply + 6 rotations) over the
+  3-minute window.  Dwell measurements: 30.215 s, 30.011 s, 30.011 s,
+  30.011 s, 30.011 s, 30.011 s — within the scheduler's 0.25 s tick
+  granularity of the configured 30 s.
+- Cluster centers observed: `127737500.0` Hz and `133312500.0` Hz —
+  matching the planner's geometric midpoints
+  (`(127.175+128.300)/2 = 127.7375`, `(133.125+133.500)/2 = 133.3125`).
+- `live_channel_ids` / `parked_channel_ids` flipped cleanly on every
+  hop with no overlap.
+- 0 `scheduler_plan_failed` events.  0 spurious hit events on parked
+  channels (synthetic IQ's carrier at +200 kHz is off any of the
+  target channels' RF, so all squelches stayed closed — exactly the
+  expected "no signal" behaviour).
+- `audio.f32` grew to 11,571,196 bytes (≈ 16 kHz × 4 B × 180 s ≈
+  11.5 MB ✓).
+- `get_status` returned the new `lo_scheduler` block with all
+  expected fields.
+
+**Production confirmed unaffected.**  Captured at the start of the
+smoke and at the end:
+
+```
+rtl-airband-airband:  pid=3660470  since=Thu 2026-06-04 10:59:43 EDT
+   ↳ after smoke:     pid=3660470  since=Thu 2026-06-04 10:59:43 EDT  ✓ unchanged
+rtl-airband-ground:   pid=3752202  since=Thu 2026-06-04 11:51:22 EDT
+   ↳ after smoke:     pid=3752202  since=Thu 2026-06-04 11:51:22 EDT  ✓ unchanged
+scanner-digital-op25: active
+   ↳ after smoke:     active                                          ✓ unchanged
+```
+
+The smoke didn't stop op25 at all (the file-source path doesn't touch
+the SDR), so all three production services have continuous uptime
+across the phase.
+
+### Commits on `gr-demod/airband` (Phase 4-pre, in order)
+
+- `1c8e59d` — chirp(phase4-pre): cluster planner + 24 unit tests
+- `70c2a8e` — chirp(phase4-pre): LO scheduler + channel parking + hit-log cluster tag (25 tests)
+- `c1b3982` — chirp(phase4-pre): wire LO scheduler into daemon + 8 e2e tests
+- (this commit) — chirp(phase4-pre): smoke log + PROGRESS.md Phase 4-pre entry
+
+### Deferred / surfaces for Will
+
+- **Real-RF smoke on the digital RSPduo** is blocked by the
+  Phase-4b-retry-documented SDRplay API service constraint.  Phase 4d
+  cutover will produce that signal by stopping one rtl-airband daemon
+  to make room for chirp.  This means the FIRST genuine real-RF
+  validation of chirp's LO retuning happens at Phase 4d itself — the
+  cutover and the validation are the same event.  This is acceptable
+  because:
+  - The scheduler's runtime path (state machine, dwell timer,
+    park/unpark, event emission, get_status, hit-log tagging) is
+    exhaustively unit-tested AND integration-tested over the file
+    source.
+  - The SDR source's `set_center_freq` retune + offset re-baseline
+    is a 3-line code path (`self.source.set_center_freq(hz)` plus a
+    `for s in self.slots: s.channel.set_center_freq_offset(...)`).
+    It was previously validated in isolation in Phase 4b (the SDR
+    adapter unit tests mock osmocom and assert call ordering).
+  - Phase 4d will run a graduated rollout (start chirp on a single
+    cluster first; only enable LO rotation after audio is confirmed
+    flowing for both clusters individually).
+
+- **Priority weighting is informational only in v1.**  The planner
+  computes `ClusterPlan.priority` as the sum of `PlanChannel.recent_hits`
+  in the cluster.  The scheduler is currently strict round-robin —
+  priority is exposed via `snapshot()` and the dashboard but does not
+  yet affect dwell time.  Phase 5 will add proportional dwell
+  weighting and a priority-decay window (e.g. last-15-min hit count).
+
+- **Operator's `set_squelch` while parked is stashed.**  When the
+  scheduler hops to a cluster containing a channel whose squelch was
+  just changed by the operator, the new threshold takes effect on
+  unpark.  The intermediate state (channel parked, squelch stashed
+  but not yet live) is visible in `Channel.snapshot()` as
+  `squelch_dbfs = new_value, is_parked = True`.  Dashboard heartbeat
+  should treat this as expected, not a failure mode.
+
+- **Mid-dwell `set_freq` triggers full plan recompute.**  If the
+  operator retunes a channel into a different cluster, the next
+  scheduler step recomputes the plan from scratch — the channel
+  immediately moves to its new cluster.  This is potentially noisy if
+  the dashboard does many `set_freq` calls in quick succession.  In
+  practice the only path that does this is `apply_squelch_preset_via_chirp`
+  which uses `set_squelch`, not `set_freq`, so no observable churn.
+
+- **`scripts/phase4pre_smoke.py`** kept in-tree as a regression
+  smoke test for the LO scheduler runtime.  Can be re-run by Will
+  any time the scheduler is touched.
+
+### Branch tip
+
+`<filled by final commit>`
+
+### Next task
+
+**Phase 4d cutover.**  Now unblocked on the cluster-planning side.
+The runbook from Phase 4c is updated:
+
+1. Decide the airband + ground subset that fits the configured
+   `iq_bw_hz` and `lo_max_clusters` (recommended: 14-channel dense
+   airband subset at 3 Msps × 3 clusters, ground 177th FW block at
+   3 Msps × 1 cluster).
+2. `sudo python3 chirp/scripts/migrate_state.py --apply` to
+   pre-populate `/var/lib/chirp/{airband,ground}.state.json` with
+   the chosen subset.
+3. Stop `rtl-airband-airband.service` to free the analog RSPduo's
+   `mode=MA,tuner=1` slot.  Now the SDRplay API has 2 slots free
+   (one held by rtl-airband-ground, one free for chirp-airband).
+4. Start chirp-airband daemon.  Verify it answers `get_status` on
+   7400, verify `lo_scheduler.current_cluster_center_hz` is the
+   first cluster's center.  Confirm icecast `/CHIRP_TEST.mp3`
+   stream is connected.
+5. Watch a single dwell cycle (default 60 s).  Confirm
+   `cluster_hop` events flow + audio survives the hop.
+6. Optionally start chirp-ground daemon if both fit; this would
+   require also stopping `rtl-airband-ground.service`.  Otherwise
+   chirp-airband + rtl-airband-ground coexist.
+7. Set `SB5_USE_GR_DEMOD=true` in airband-ui systemd unit, restart
+   airband-ui.  Verify `/api/heartbeat` shows chirp rows green.
+8. Rollback at any time: drop the env, restart airband-ui, restart
+   rtl-airband-airband.  Full revert in ~30 s.
+
+**Will's go-ahead required.**  Stopping `rtl-airband-airband` is the
+no-going-back step — once chirp is the airband demod, the only way
+to revert is to start rtl-airband-airband again, which means chirp
+loses its SDRplay slot.

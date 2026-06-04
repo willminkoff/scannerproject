@@ -1,0 +1,12 @@
+{"v":1,"evt":"daemon_ready","ts":1780590256.1662421,"band":"airband","cmd_port":7402}
+{"v":1,"evt":"channel_added","ts":1780590256.1978087,"ch":"khop127_175","slot":0,"freq_mhz":127.175,"squelch_dbfs":-45.0,"gain_db":0.0}
+{"v":1,"evt":"channel_added","ts":1780590256.1978648,"ch":"khop128_300","slot":1,"freq_mhz":128.3,"squelch_dbfs":-45.0,"gain_db":0.0}
+{"v":1,"evt":"channel_added","ts":1780590256.1978898,"ch":"khop133_125","slot":2,"freq_mhz":133.125,"squelch_dbfs":-45.0,"gain_db":0.0}
+{"v":1,"evt":"channel_added","ts":1780590256.1979158,"ch":"khop133_500","slot":3,"freq_mhz":133.5,"squelch_dbfs":-45.0,"gain_db":0.0}
+{"v":1,"evt":"cluster_hop","ts":1780590256.2105112,"from_center_hz":null,"to_center_hz":127737500.0,"cluster_idx":0,"n_clusters":2,"dwell_actual_sec":0.0,"live_channel_ids":["khop127_175","khop128_300"],"parked_channel_ids":["khop133_125","khop133_500"]}
+{"v":1,"evt":"cluster_hop","ts":1780590286.4252875,"from_center_hz":127737500.0,"to_center_hz":133312500.0,"cluster_idx":1,"n_clusters":2,"dwell_actual_sec":30.215,"live_channel_ids":["khop133_125","khop133_500"],"parked_channel_ids":["khop127_175","khop128_300"]}
+{"v":1,"evt":"cluster_hop","ts":1780590316.4362485,"from_center_hz":133312500.0,"to_center_hz":127737500.0,"cluster_idx":0,"n_clusters":2,"dwell_actual_sec":30.011,"live_channel_ids":["khop127_175","khop128_300"],"parked_channel_ids":["khop133_125","khop133_500"]}
+{"v":1,"evt":"cluster_hop","ts":1780590346.4470258,"from_center_hz":127737500.0,"to_center_hz":133312500.0,"cluster_idx":1,"n_clusters":2,"dwell_actual_sec":30.011,"live_channel_ids":["khop133_125","khop133_500"],"parked_channel_ids":["khop127_175","khop128_300"]}
+{"v":1,"evt":"cluster_hop","ts":1780590376.4574976,"from_center_hz":133312500.0,"to_center_hz":127737500.0,"cluster_idx":0,"n_clusters":2,"dwell_actual_sec":30.01,"live_channel_ids":["khop127_175","khop128_300"],"parked_channel_ids":["khop133_125","khop133_500"]}
+{"v":1,"evt":"cluster_hop","ts":1780590406.4681597,"from_center_hz":127737500.0,"to_center_hz":133312500.0,"cluster_idx":1,"n_clusters":2,"dwell_actual_sec":30.011,"live_channel_ids":["khop133_125","khop133_500"],"parked_channel_ids":["khop127_175","khop128_300"]}
+{"v":1,"evt":"cluster_hop","ts":1780590436.4794483,"from_center_hz":133312500.0,"to_center_hz":127737500.0,"cluster_idx":0,"n_clusters":2,"dwell_actual_sec":30.011,"live_channel_ids":["khop127_175","khop128_300"],"parked_channel_ids":["khop133_125","khop133_500"]}

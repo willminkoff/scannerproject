@@ -1,0 +1,86 @@
+{
+  "test_mode": "file_source (sdr path blocked by sdrplay_apiService \u2014 see Phase 4b retry)",
+  "rtla_airband_unchanged": true,
+  "rtla_ground_unchanged": true,
+  "op25_unchanged": true,
+  "rtla_airband_before": {
+    "pid": "3660470",
+    "since": "Thu 2026-06-04 10:59:43 EDT"
+  },
+  "rtla_airband_after": {
+    "pid": "3660470",
+    "since": "Thu 2026-06-04 10:59:43 EDT"
+  },
+  "rtla_ground_before": {
+    "pid": "3752202",
+    "since": "Thu 2026-06-04 11:51:22 EDT"
+  },
+  "rtla_ground_after": {
+    "pid": "3752202",
+    "since": "Thu 2026-06-04 11:51:22 EDT"
+  },
+  "op25_before": "active",
+  "op25_after": "active",
+  "cluster_hop_count": 7,
+  "hit_start_count": 0,
+  "hit_end_count": 0,
+  "plan_failed_count": 0,
+  "unique_cluster_centers_hz": [
+    127737500.0,
+    133312500.0
+  ],
+  "hit_log_lines": 0,
+  "audio_out_bytes": 11571196,
+  "final_icecast_state": "not_configured",
+  "final_icecast_bytes_sent": 0,
+  "final_lo_scheduler": {
+    "dwell_s": 30.0,
+    "max_clusters": 3,
+    "iq_bw_hz": 2000000.0,
+    "tick_s": 0.25,
+    "plan_failed_reason": null,
+    "plan_needed": null,
+    "last_recompute_ts": 1780590256.210425,
+    "current_cluster_center_hz": 133312500.0,
+    "current_cluster_idx": 1,
+    "dwell_remaining_sec": 1.166,
+    "clusters": [
+      {
+        "center_hz": 127737500.0,
+        "center_mhz": 127.7375,
+        "channel_ids": [
+          "khop127_175",
+          "khop128_300"
+        ],
+        "priority": 0.0,
+        "min_freq_hz": 127175000.0,
+        "max_freq_hz": 128300000.00000001,
+        "span_hz": 1125000.000000015,
+        "n_channels": 2
+      },
+      {
+        "center_hz": 133312500.0,
+        "center_mhz": 133.3125,
+        "channel_ids": [
+          "khop133_125",
+          "khop133_500"
+        ],
+        "priority": 0.0,
+        "min_freq_hz": 133125000.0,
+        "max_freq_hz": 133500000.0,
+        "span_hz": 375000.0,
+        "n_channels": 2
+      }
+    ],
+    "live_channel_ids": [
+      "khop133_125",
+      "khop133_500"
+    ],
+    "parked_channel_ids": [
+      "khop127_175",
+      "khop128_300"
+    ],
+    "single_cluster": false,
+    "n_clusters": 2
+  }
+}
