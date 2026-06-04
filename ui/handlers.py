@@ -8478,6 +8478,32 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
             if plan.get("error"):
+                # Poison-noise-floor rejection is an EXPECTED transient
+                # condition (rtl-airband just restarted; noise estimator
+                # still on init constant).  Surface it as 409 with a
+                # retry hint so the UI can show a "noise floor warming"
+                # toast and the operator knows to wait + retry — distinct
+                # from a 500 "something is broken".  Matches the gate
+                # squelch_tracker has had since f4e9eb7.
+                if plan.get("error") == "noise_floor_not_warm":
+                    return self._send(
+                        409,
+                        json.dumps({
+                            "ok": False,
+                            "status": "rejected",
+                            "error": "noise_floor_not_warm",
+                            "reason": plan.get("reason") or "noise floor not warm yet",
+                            "retry_after_sec": int(plan.get("retry_after_sec") or 30),
+                            "noise_floor_dbfs": plan.get("noise_floor_median"),
+                            "poison_ceiling_dbfs": plan.get("poison_ceiling_dbfs"),
+                            "band": "air" if plan.get("target") == "airband" else "ground",
+                            "target": plan.get("target"),
+                            "preset": plan.get("preset"),
+                            "margin_db": plan.get("margin_db"),
+                            "freqs_count": len(plan.get("freqs") or []),
+                        }),
+                        "application/json; charset=utf-8",
+                    )
                 return self._send(
                     500,
                     json.dumps({"ok": False, "error": plan.get("error"), "plan": {

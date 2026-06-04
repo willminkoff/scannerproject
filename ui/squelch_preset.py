@@ -71,6 +71,30 @@ def margin_for(preset: str) -> float:
     return float(PRESET_MARGINS_DB[normalize_preset(preset)])
 
 
+# ---- poison noise-floor rejection (shared with squelch_tracker) -------------
+#
+# rtl-airband's noise estimator returns its init constant (linear 0.283 →
+# ~-10.964 dBFS) before audio samples buffer post-restart.  Operator-driven
+# preset chip clicks that fire seconds after a service restart would read
+# that init constant and compute threshold ~= noise + margin ~= 0 dBFS
+# (clamped to the _THRESHOLD_CEILING of -1 dBFS) — silencing the band.
+#
+# Same env vars the tracker uses so one knob controls both paths.
+
+POISON_CEILING_AM_DBFS: float = float(
+    os.getenv("SQUELCH_TRACKER_POISON_CEILING_AM_DBFS", "-55.0")
+)
+POISON_CEILING_NFM_DBFS: float = float(
+    os.getenv("SQUELCH_TRACKER_POISON_CEILING_NFM_DBFS", "-20.0")
+)
+
+
+def poison_ceiling_for_band(band: str) -> float:
+    """Per-band noise-floor ceiling above which a sample is "poison"."""
+    b = _normalize_target(band)
+    return POISON_CEILING_AM_DBFS if b == "airband" else POISON_CEILING_NFM_DBFS
+
+
 # ---- target -> stats / profile resolution -----------------------------------
 
 def _normalize_target(target: str) -> str:
@@ -413,12 +437,99 @@ def apply_preset(target: str, preset: str, conf_path: str) -> dict:
     is responsible for restarting rtl-airband (typically via the
     existing /api/sitrep/action reset_radios path) — this function
     only mutates the on-disk profile.
+
+    Poison-noise-floor rejection: if the live noise floor median is
+    above the band-aware ceiling (AM=-55, NFM=-20 dBFS by default),
+    REFUSE to apply.  This matches the squelch_tracker auto-apply
+    gate — see f4e9eb7.  Without this, an operator chip click that
+    lands during the rtl-airband post-restart warmup window reads the
+    estimator init constant (~-10.964 dBFS) and writes threshold ~-1
+    dBFS, silencing the band until the tracker corrects on a healthy
+    cycle.
     """
     plan = compute_preset_plan(target, preset, conf_path)
     if not plan["thresholds"]:
         plan["changed"] = False
         plan["error"] = "no_freqs_in_profile"
         return plan
+
+    # --- poison-noise-floor rejection (mirrors squelch_tracker._run_cycle)
+    ceiling = poison_ceiling_for_band(plan["target"])
+    noise_median = float(plan.get("noise_floor_median") or 0.0)
+    stats_available = bool(plan.get("stats_available"))
+    if stats_available and noise_median > ceiling:
+        plan["changed"] = False
+        plan["error"] = "noise_floor_not_warm"
+        plan["status"] = "rejected"
+        plan["reason"] = "noise_floor_median above poison ceiling"
+        plan["poison_ceiling_dbfs"] = float(ceiling)
+        plan["retry_after_sec"] = 30
+        # Audit log: mirror the tracker's skip event so operator-driven
+        # rejections appear in the same file the tracker writes to.
+        try:
+            try:
+                from .squelch_tracker import write_audit_event
+            except ImportError:
+                from ui.squelch_tracker import write_audit_event  # type: ignore
+            write_audit_event({
+                "ts_ms": int(time.time() * 1000),
+                "event": "skip",
+                "source": "preset_click",
+                "band": plan["target"],
+                "preset": plan["preset"],
+                "margin_db": plan["margin_db"],
+                "freqs_count": len(plan["freqs"]),
+                "noise_floor_median": noise_median,
+                "poison_ceiling_dbfs": float(ceiling),
+                "would_threshold_median": plan.get("threshold_median"),
+                "skipped": "poison_noise_floor",
+                "reason": "noise_floor_median above poison ceiling",
+            })
+        except Exception:
+            logger.debug("squelch_preset: audit write skipped", exc_info=True)
+        return plan
+
+    # --- per-channel poison sanity: if a single channel is still showing
+    # the init constant while the band median is sane, fall back to that
+    # channel's prior threshold instead of writing a poison-derived value.
+    # Mirrors the per-channel guard in squelch_tracker._run_cycle_for_band.
+    sanitized_channels: list = []
+    try:
+        cur_thresholds = read_current_thresholds(conf_path)
+    except Exception:
+        cur_thresholds = []
+    noise_used = plan.get("noise_used_dbfs") or []
+    thresholds = list(plan["thresholds"])
+    for i, n in enumerate(noise_used):
+        try:
+            n_f = float(n)
+        except (TypeError, ValueError):
+            continue
+        if n_f <= ceiling:
+            continue
+        if cur_thresholds and i < len(cur_thresholds):
+            fallback = int(cur_thresholds[i])
+            src_label = "prior_threshold"
+        else:
+            fallback = -100
+            src_label = "floor"
+        sanitized_channels.append({
+            "i": i,
+            "noise_used_dbfs": n_f,
+            "poisoned_threshold": int(thresholds[i]),
+            "fallback": fallback,
+            "fallback_source": src_label,
+        })
+        thresholds[i] = fallback
+    plan["thresholds"] = thresholds
+    plan["sanitized_channels"] = sanitized_channels
+    plan["sanitized_count"] = len(sanitized_channels)
+    # Recompute median for the (now sanitized) plan so persistence
+    # reflects what we actually wrote.
+    if thresholds:
+        import statistics as _st
+        plan["threshold_median"] = int(round(_st.median(thresholds)))
+
     try:
         changed = write_per_channel_squelch_list(conf_path, plan["thresholds"])
     except FileNotFoundError:

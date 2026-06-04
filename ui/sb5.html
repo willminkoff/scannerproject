@@ -6759,6 +6759,14 @@ function _bandCommit(band, kind) {
           if (typeof r.json.threshold_median === "number") st.squelch_dbfs = r.json.threshold_median;
           if (typeof r.json.preset === "string") st.squelch_preset = r.json.preset;
           renderBandControls(band);
+        } else if (r && r.status === 409 && r.json && r.json.error === "noise_floor_not_warm") {
+          // Backend rejected the preset because rtl-airband's noise
+          // estimator is still on its post-restart init constant.
+          // Surface a toast so the operator knows to retry rather than
+          // silently writing a poisoned threshold (see f4e9eb7 +
+          // squelch-preset poison-clamp).
+          const retry = Number(r.json.retry_after_sec) || 30;
+          try { showLiveToast(`Noise floor not warm yet — retry in ${retry}s`); } catch (_) {}
         }
         _bandCommitAfter(r, band);
       }).catch(() => {});
