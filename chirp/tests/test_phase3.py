@@ -256,10 +256,26 @@ class TestDaemonIcecastConfigRefusal:
     @pytest.mark.parametrize("mount", [
         "/ANALOG.mp3", "/ANALOG_GROUND.mp3", "/DIGITAL.mp3", "/VFO.mp3"
     ])
-    def test_refuses_production_mounts(self, mount):
+    def test_refuses_production_mounts(self, mount, monkeypatch):
+        # Default behaviour (no CHIRP_ALLOW_PROD_MOUNT): refusal stays in
+        # force so Phase-3-style smoke tests cannot stomp on production.
+        monkeypatch.delenv("CHIRP_ALLOW_PROD_MOUNT", raising=False)
         from chirp.daemon import _parse_icecast_spec
         with pytest.raises(ValueError, match="production mount"):
             _parse_icecast_spec(f"127.0.0.1:8000:{mount}:062352")
+
+    @pytest.mark.parametrize("mount", [
+        "/ANALOG.mp3", "/ANALOG_GROUND.mp3", "/DIGITAL.mp3", "/VFO.mp3"
+    ])
+    @pytest.mark.parametrize("flag", ["1", "true", "yes", "YES", "True"])
+    def test_allows_production_mounts_with_env(self, mount, flag, monkeypatch):
+        # Phase 4d cutover opt-in: CHIRP_ALLOW_PROD_MOUNT lifts the guard.
+        monkeypatch.setenv("CHIRP_ALLOW_PROD_MOUNT", flag)
+        from chirp.daemon import _parse_icecast_spec
+        host, port, m, pw = _parse_icecast_spec(
+            f"127.0.0.1:8000:{mount}:062352"
+        )
+        assert (host, port, m, pw) == ("127.0.0.1", 8000, mount, "062352")
 
     def test_accepts_test_mount(self):
         from chirp.daemon import _parse_icecast_spec

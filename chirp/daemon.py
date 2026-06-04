@@ -184,12 +184,19 @@ def _parse_icecast_spec(rem: str) -> tuple[str, int, str, str]:
     host, port_str, mount, password = parts
     if not mount.startswith("/"):
         raise ValueError(f"icecast mount must start with '/': {mount!r}")
-    if mount == "/ANALOG.mp3" or mount == "/ANALOG_GROUND.mp3" \
-            or mount == "/DIGITAL.mp3" or mount == "/VFO.mp3":
-        raise ValueError(
-            f"chirp Phase 3 refuses to publish to production mount {mount!r}; "
-            f"use /CHIRP_TEST.mp3 or a unique test mount"
-        )
+    _PROD_MOUNTS = ("/ANALOG.mp3", "/ANALOG_GROUND.mp3", "/DIGITAL.mp3", "/VFO.mp3")
+    if mount in _PROD_MOUNTS:
+        # Phase 4d cutover: opt-in env CHIRP_ALLOW_PROD_MOUNT=1 lifts the
+        # Phase 3 guard.  Default behaviour (no env) keeps the refusal so
+        # accidental test runs do not stomp on production audio.
+        _allow = os.environ.get("CHIRP_ALLOW_PROD_MOUNT", "").strip().lower()
+        if _allow not in ("1", "true", "yes"):
+            raise ValueError(
+                f"chirp refuses to publish to production mount {mount!r} by "
+                f"default; set CHIRP_ALLOW_PROD_MOUNT=1 (Phase 4d cutover) to "
+                f"override, or use /CHIRP_TEST.mp3 / /CHIRP_GROUND_TEST.mp3 "
+                f"for testing"
+            )
     try:
         port = int(port_str)
     except ValueError as e:
