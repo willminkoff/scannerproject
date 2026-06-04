@@ -1,0 +1,26 @@
+# chirp / gr-demod@.service template
+#
+# Placeholder — finalized in Phase 1 (one-channel proof) and Phase 4 (cutover).
+# Unit name stays gr-demod@ for continuity with the branch and existing internal language;
+# the Python package it execs is chirp. See SDR_DEMOD_DESIGN_2026-06-03.md Section 2.
+#
+# TEMPLATE — install as /etc/systemd/system/gr-demod@.service after Phase 1.
+# Do NOT install on production until Phase 3 shadow signoff.
+
+[Unit]
+Description=chirp analog demod daemon (%i band)
+After=network-online.target icecast2.service
+Requires=icecast2.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -m chirp.daemon --band %i --config /etc/chirp/%i.yaml
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+KillSignal=SIGTERM
+StartLimitBurst=10
+StartLimitIntervalSec=60
+
+[Install]
+WantedBy=multi-user.target

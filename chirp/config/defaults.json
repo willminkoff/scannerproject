@@ -1,0 +1,4 @@
+{
+  "_comment": "chirp default config — populated in Phase 1. See SDR_DEMOD_DESIGN_2026-06-03.md Section 6 (state persistence) and the per-band YAML schema in Section 3.",
+  "version": 1
+}
