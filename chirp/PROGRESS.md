@@ -1219,3 +1219,192 @@ Will's call. The code is ready either way.
 **Total wall-clock for this slot:** ~30 min. Digital downtime: ~3 min 35 s.
 Production analog: 0 s of interruption.
 
+
+
+## Phase 4b — final validation attempt (2026-06-04, ~10:06-10:15 EDT)
+
+**Authorized by:** Will (`Option B` — stop rtl-airband on the *analog*
+RSPduo and run the chirp SdrIQSource against the now-free device).
+
+**Branch tip at start:** `4d6f04e` (`gr-demod/airband`), 132 tests passing.
+
+**Goal:** Resolve the question left open by Phase 4b's first pass —
+does `osmosdr.source(args="soapy=,driver=sdrplay,...")` hang because
+*another* sdrplay client (rtl-airband) is holding both RSPduo tuner
+slots, or because the adapter itself is broken? First-pass had no
+clean way to separate those hypotheses. This run does: with
+rtl-airband-airband + rtl-airband-ground BOTH stopped, the analog
+RSPduo (serial `1809063632`) has zero competing clients on the
+sdrplay_apiService.
+
+### Pre-flight (Step 0)
+
+| Check | Result |
+| --- | --- |
+| Branch / tip | `gr-demod/airband` @ `4d6f04e`, clean, up to date |
+| rtl-airband-airband / rtl-airband-ground / sdrplay | all `active` |
+| Baseline icestats | `/ANALOG.mp3` 07:30:08, `/ANALOG_GROUND.mp3` 07:30:19, `/DIGITAL.mp3` 09:22:24, `/VFO.mp3` 07:30:33 |
+| `chirp/config/airband.json` device_args | `soapy=,driver=sdrplay,serial=1809063632,mode=MA,tuner=1` ✓ |
+| `chirp/config/ground.json` device_args | `soapy=,driver=sdrplay,serial=1809063632,mode=SL,tuner=2` ✓ |
+| Test mounts | `/CHIRP_TEST.mp3` + `/CHIRP_GROUND_TEST.mp3` added via reload (no source drop) |
+| Top-4 airband channels by squelch_counter | 127.700 (653), 134.325 (295), 133.125 (281), 125.450 (152) |
+| Top-4 *in-band* at center 127.5 MHz / 1 Msps | only 127.700 (653), 127.175 (14), 127.850 (7) — others fall outside the +/-500 kHz IQ window |
+
+### Step 1 — stop rtl-airband (downtime clock STARTS)
+
+`systemctl stop rtl-airband-airband rtl-airband-ground` returned
+cleanly. Both units enter `failed` state (this is the normal
+post-`systemctl stop` signature for these units, not a real failure).
+`sdrplay.service` stayed `active`. No `rtl_airband` processes
+remained. **Decision gate PASSED:** sdrplay survived.
+
+### Step 2 — SdrIQSource open probe — **HUNG (abort)**
+
+Probe script: instantiate `SdrIQSource(SdrSourceConfig(device_args=
+"soapy=,driver=sdrplay,serial=1809063632,mode=MA,tuner=1",
+sample_rate=1_000_000, center_freq_hz=127_500_000, gain_db=32.8))`,
+then wire into a 2-Msample `head -> null_sink` flowgraph and run.
+
+Final probe log (`chirp/PROBE_4b_FINAL.log`):
+
+```
+CPU Features: SSE2+ SSE4.1+ AVX+ FMA+
+Using avx for xtrxdsp_iq16_sc32
+... (xtrxdsp init banners)
+T+0.0  Instantiating SdrIQSource...
+gr-osmosdr 0.2.0.0 (0.2.0) gnuradio 3.10.9.2
+built-in source types: file fcd rtl rtl_tcp uhd miri hackrf bladerf
+                      rfspace airspy airspyhf soapy redpitaya freesrp xtrx
+```
+
+The `osmosdr.source(args=...)` constructor printed the gr-osmosdr
+banner and the available-driver list, then **never returned**. No
+`Construction OK` line was ever emitted. Killed at >30 s elapsed; per
+the plan's 60 s timeout gate, this is an abort. **Skipped Step 3
+entirely** — no chirp daemon run, no live RF hits, no audio sample.
+
+This is the same hang signature recorded for Phase 4b's first pass
+against the *digital* RSPduo with rtl-airband holding the analog one.
+The hypothesis that "rtl-airband was holding 2 sdrplay client slots
+and the third client blocked" is **disproven**: zero competing
+sdrplay clients here, same hang.
+
+### Step 4 — safe_restart_rtl_airband
+
+Wrapper call:
+
+```python
+safe_restart_rtl_airband(
+    bands=("airband", "ground"),
+    reason="phase4b-final-validation-recovery",
+    also_restart_op25=False, also_restart_vfo=False,
+)
+```
+
+Returned (truncated):
+
+```json
+{
+  "status": "ok",
+  "results": {
+    "airband": {"ok": true, "escalated": true,  "elapsed_s": 115.587},
+    "ground":  {"ok": true, "escalated": false, "elapsed_s":   8.510}
+  },
+  "restarted_sdrplay": true,
+  "mounts_ok": ["airband", "ground"],
+  "elapsed_s": 124.125
+}
+```
+
+- Airband **escalated** — gentle restart's post-start probe failed
+  (`stats stale (299.3 s > 15.0 s); mount /ANALOG.mp3 not publishing`).
+  Wedge-recovery path fired: `stopping OP25 to free sdrplay daemon`
+  -> `bouncing sdrplay daemon (force=True, alive=True)` -> master
+  restart. Cleared on escalation 1.
+- Ground recovered gently in 8.5 s (sdrplay was now warm and the
+  slave attach was straightforward).
+- Total wrapper elapsed: **124.125 s.**
+
+### Step 5 — production restored A/B diff
+
+| Mount | Baseline `stream_start` | Restored `stream_start` | Verdict |
+| --- | --- | --- | --- |
+| `/ANALOG.mp3` | 07:30:08 | 10:13:44 | **FRESH** (expected) |
+| `/ANALOG_GROUND.mp3` | 07:30:19 | 10:13:55 | **FRESH** (expected) |
+| `/DIGITAL.mp3` | 09:22:24 | 10:13:51 | **FRESH** — *deviation from plan; see note* |
+| `/VFO.mp3` | 07:30:33 | 07:30:33 | unchanged |
+| `/keepalive-analog.mp3` | 03 Jun 17:32:39 | 03 Jun 17:32:39 | unchanged |
+| `/keepalive-ground.mp3` | 03 Jun 17:32:39 | 03 Jun 17:32:39 | unchanged |
+
+Service health: `rtl-airband-airband`, `rtl-airband-ground`,
+`sdrplay`, `scanner-digital-op25`, `scanner-digital-op25-audio`,
+`scanner-tuner-broker`, `scanner-vfo`, `icecast2` — **all `active`.**
+`/run/rtl_airband_{airband,ground}_stats.txt` mtime advancing
+(10:15:xx). 33 channel counters present in airband stats.
+
+**Note on DIGITAL.mp3 freshness:** the plan asserted that `/DIGITAL`
++ `/VFO` would be untouched. `/VFO` was — `scanner-vfo` was never
+contacted by the wrapper. `/DIGITAL` re-streamed because the
+wrapper's wedge-recovery escalation stops `scanner-digital-op25` to
+free the sdrplay daemon before bouncing it. The escalation also
+restarts op25 afterwards (this happens via `scanner-digital-op25`'s
+own ordering — confirmed `active` post-recovery). Plan's assumption
+that DIGITAL would be unaffected was wrong for the *escalated* path;
+it would have been correct for a gentle restart.
+
+### Production downtime
+
+Stop initiated ~10:07:00 EDT (right after the `add_*_test_mount.sh`
+logs at 10:06:48-49). `/ANALOG.mp3` back to streaming at 10:13:44 EDT.
+**Measured downtime: ~6 min 44 s** — over the 5-min budget by ~104 s.
+The overrun is entirely attributable to the wedge-recovery escalation
+on airband master (115.6 s). A gentle-only restart would have hit the
+budget. The escalation was triggered by the gentle-restart probe
+failing to see fresh stats / a publishing mount within its 30 s
+window — likely because the sdrplay_apiService needed a bounce after
+holding stale tuner state from the stop.
+
+Step 6 teardown (`remove_test_mount.sh` + `remove_ground_test_mount.sh`)
+ran clean via icecast reload (no further source-drop), restoring
+icecast.xml to the pre-test state.
+
+### Verdict — **RED LIGHT** for SDR adapter on the live cutover path
+
+`osmosdr.source(args="soapy=,driver=sdrplay,serial=...,mode=MA,tuner=1")`
+hangs at construction time on Micro **regardless** of whether any other
+sdrplay client is connected. The earlier client-cap hypothesis is no
+longer the leading explanation. Possible alternative causes worth
+investigating next:
+
+1. **gr-osmosdr SDRplay binding initialization** — the constructor
+   may be blocking on a SoapySDR device enumeration / `make` call
+   inside the SDRplay backend. Worth running with
+   `SOAPY_SDR_LOG_LEVEL=DEBUG` + `OSMOCOM_VERBOSE=1` to see where it
+   stops.
+2. **sdrplay_apiService inter-client lock** still in play even
+   without other clients — the sdrplay daemon may serialize *any*
+   first-touch from a non-rtl-airband client and time out.
+3. **device_args string format** — our string uses both `soapy=` and
+   `driver=sdrplay`. gr-osmosdr versions vary on whether `soapy=`
+   alone, `driver=` alone, or both is expected. Re-test with
+   `args="driver=sdrplay,serial=1809063632,mode=MA,tuner=1"` (no
+   leading `soapy=`).
+
+### Recommended next steps
+
+- **STILL recommend Option A from PROGRESS.md** (pre-recorded IQ
+  capture). It is the lowest-risk path to validating the entire demod
+  chain on real RF without depending on the osmosdr+sdrplay+live-RF
+  trifecta.
+- Before any further live attempt, run the `osmosdr.source()`
+  construction under `SOAPY_SDR_LOG_LEVEL=DEBUG` from a non-prod
+  window to localize the hang. ~5 min of additional downtime,
+  diagnostic only.
+- Filing this as a known blocker on Phase 4d: cutover via this SDR
+  adapter is not feasible until the osmosdr.source hang is
+  understood and resolved.
+
+### Branch tip
+
+`gr-demod/airband` @ `4d6f04e` (unchanged — no code edits in this
+window; only documentation and a probe log artifact).
