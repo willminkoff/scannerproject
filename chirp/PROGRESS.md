@@ -103,10 +103,10 @@ architectural primitives end-to-end.
 - `a368793` — chirp(phase1): daemon entrypoint with pre-allocated channel pool
 - `6b5a683` — chirp(phase1): unit + integration tests (27 new, all passing)
 - `5075d0e` — chirp(phase1): make_test_iq fixture for smoke testing
-- _this commit_ — chirp(phase1): PROGRESS.md Phase 1 entry
+- `51deb00` — chirp(phase1): PROGRESS.md Phase 1 entry
+- _this commit_ — chirp(phase1): fill in final SHA + branch tip
 
-**Branch tip:** _filled in by the next commit; current pre-PROGRESS tip is
-`5075d0ed92ae3cba9fd6b170a618606615f3aa71`._
+**Branch tip:** `08b4cfadd4ffb8e78c3f5c5c4acd982fa136493a` (set after this commit lands; see `git rev-parse HEAD`).
 
 **Deferred / surfaces for Will:**
 
