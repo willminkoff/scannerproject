@@ -2982,88 +2982,249 @@ def _heartbeat_format_age(age_sec) -> str:
     return f"{age_sec/86400:.0f}d"
 
 
-def _heartbeat_sample_mount_bytes(mount: str,
-                                  duration_sec: float,
-                                  total_timeout_sec: float) -> dict:
-    """Read a short slice of a local icecast mount and report byte count.
+# ---- Heartbeat mp3 byte-delta probe (Option B hybrid, 2026-06-03) ----------
+#
+# Why no streaming probe any more: icecast 2.4.4 propagates its source-side
+# `total_bytes_read` counter in libshout flush boundaries (~5 s chunks),
+# not smoothly. Diagnostic evidence: ANALOG_GROUND at +2s = 0 bytes read,
+# at +5s = 11,690 bytes — same healthy mount, two adjacent windows. A short
+# fixed sample window therefore reports 0 bytes on healthy low-bitrate
+# mounts whenever the call lands between flushes. The H1 patch (extending
+# the per-read socket timeout) helped high-bitrate mounts but still
+# false-warned on 8 kbps ANALOG / ANALOG_GROUND because those mounts'
+# flush cadence frequently exceeded any reasonable in-call wait.
+#
+# New approach: read icecast's own `total_bytes_read` once per heartbeat
+# call (via /admin/stats — `total_bytes_read` is NOT exposed in the public
+# /status-json.xsl). Cache the value + timestamp module-level. Subsequent
+# calls compute a delta over the heartbeat-call cadence (~10–30 s), which
+# is large enough to span at least one flush boundary and yield a
+# deterministic byte-rate signal at ~100 ms wall-time per call.
+#
+# Bootstrap (first call after airband-ui restart): no prior sample, so
+# fall back to a presence check on `stream_start` + a positive
+# `total_bytes_read`.
 
-    Bounded by `duration_sec` (read window) and `total_timeout_sec` (hard
-    cap on wall-time spent in this call). Read-only — opens a listener
-    socket, drains a few KB, closes.
+# Module-level cache. Keyed by canonical mount name (no leading slash).
+# Each entry: {"bytes": int, "ts": float (wall time)}.
+_HEARTBEAT_BYTE_CACHE: dict[str, dict] = {}
+# Last-known status per mount so the "between flushes" branch
+# (5 ≤ interval < 10 s, delta < 500 B) can hold steady rather than
+# bouncing between ok and warm-up.
+_HEARTBEAT_BYTE_LAST_STATUS: dict[str, dict] = {}
+_HEARTBEAT_BYTE_CACHE_LOCK = threading.Lock()
 
-    H1 fix (2026-06-03): the previous implementation used a 0.25 s per-read
-    socket timeout and broke the loop on the first ``socket.timeout``. At
-    low MP3 bitrates (e.g. the 8 kbps keepalive-silence stream, or any
-    mount serving sparse audio) an MP3 frame is several KB and only
-    arrives every few seconds — so the 0.25 s timeout always fired before
-    a frame arrived, returned 0 bytes, and falsely flagged healthy mounts
-    as "frame gap". Verified empirically against curl: 8 s of /VFO.mp3
-    yielded ~29 KB while heartbeat reported "0 B in 0.7 s". Three of four
-    mounts showed permanent warn yellows even when audio was flowing.
+# Operator-facing mounts. Keepalive-* mounts always flush smoothly because
+# rtl-airband-keepalive-* services publish a continuous silence stream;
+# they are intentionally NOT probed (not operator-relevant).
+_HEARTBEAT_PROBE_MOUNTS: tuple[str, ...] = (
+    "ANALOG.mp3",
+    "ANALOG_GROUND.mp3",
+    "DIGITAL.mp3",
+    "VFO.mp3",
+)
 
-    New behavior:
-      * Per-read socket timeout is sized to the remaining wall window
-        (capped at 1.5 s) so a single arriving frame is enough to declare
-        the stream alive.
-      * ``socket.timeout`` no longer exits the loop — it costs one read,
-        not the whole sample. Only a real EOF / hard error or the wall
-        deadline ends the loop.
-      * Early-exit once we have ≥ 1024 B in hand: that's plenty of signal
-        that the mount is publishing, and it keeps healthy probes fast
-        (well under 1 s for typical-bitrate mounts).
+# Healthy threshold: ≥500 B over ≥5 s = ≥800 bps. Way above counter noise,
+# well below the ~5040-byte size of a single libshout flush, so a single
+# flush in the window is enough to clear the bar.
+_HEARTBEAT_BYTE_DELTA_MIN: int = 500
+_HEARTBEAT_BYTE_INTERVAL_MIN: float = 5.0
+_HEARTBEAT_BYTE_INTERVAL_WARN: float = 10.0
+# Presence-fallback window: stream_start within the last 5 minutes is
+# accepted as "ok present" when no prior cached sample exists.
+_HEARTBEAT_BYTE_PRESENCE_MAX_AGE_SEC: float = 300.0
+# Wall-time budgets for the admin/stats fetch.
+_HEARTBEAT_ADMIN_TIMEOUT_SEC: float = 2.5
+_HEARTBEAT_ADMIN_RETRY_BACKOFF_SEC: float = 0.5
+
+
+def _heartbeat_parse_admin_stats(xml_text: str) -> dict[str, dict]:
+    """Parse icecast `/admin/stats` XML into per-mount metadata.
+
+    Returns dict keyed by mount name (no leading slash). Each entry:
+      * ``bytes_read``: int (0 if missing)
+      * ``stream_start``: str (ISO8601 or RFC-2822, empty if missing)
+      * ``has_source``: bool — True iff a publisher appears connected
+        (proxy: non-empty stream_start OR bytes_read > 0).
     """
-    import socket as _socket
-    url = f"http://127.0.0.1:{ICECAST_PORT}/{str(mount or '').lstrip('/')}"
-    start = time.monotonic()
-    bytes_read = 0
-    err = ""
-    EARLY_EXIT_BYTES = 1024  # enough signal that the mount is alive
+    out: dict[str, dict] = {}
+    if not xml_text:
+        return out
     try:
-        req = Request(url, headers={"User-Agent": "sb3-heartbeat/1.0"})
-        # Halve the connect timeout so the total stays under the cap even
-        # if the connect takes longer than expected.
-        connect_timeout = max(0.3, total_timeout_sec / 2.0)
-        with urlopen(req, timeout=connect_timeout) as resp:
-            deadline = start + min(duration_sec, total_timeout_sec)
-            raw = getattr(resp.fp, "raw", None)
-            sock = getattr(raw, "_sock", None) if raw is not None else None
-            while time.monotonic() < deadline:
-                if bytes_read >= EARLY_EXIT_BYTES:
-                    break
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                # Size the per-read timeout so one stall doesn't kill the
-                # whole sample, but we still respect the wall deadline.
-                if sock is not None:
-                    try:
-                        sock.settimeout(min(1.5, max(0.25, remaining)))
-                    except Exception:
-                        pass
-                try:
-                    chunk = resp.read(4096)
-                except (_socket.timeout, TimeoutError):
-                    # Partial-window stall — keep waiting until the wall
-                    # deadline. The old code broke here, which is why
-                    # low-bitrate mounts (8 kbps keepalive, sparse VFO)
-                    # always reported 0 B even though they were healthy.
-                    continue
-                except Exception as e:
-                    err = str(e)[:200]
-                    break
-                if not chunk:
-                    # Real EOF / mount closed.
-                    break
-                bytes_read += len(chunk)
-    except Exception as e:
-        err = str(e)[:200]
-    elapsed = time.monotonic() - start
-    return {
-        "bytes": int(bytes_read),
-        "elapsed_sec": float(elapsed),
-        "ok": bytes_read > 0 and not err,
-        "error": err,
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return out
+    for src in root.findall("source"):
+        mount_attr = (src.get("mount") or "").strip().lstrip("/")
+        if not mount_attr:
+            continue
+        bytes_node = src.find("total_bytes_read")
+        start_node = src.find("stream_start_iso8601")
+        if start_node is None:
+            start_node = src.find("stream_start")
+        bytes_read = 0
+        if bytes_node is not None:
+            try:
+                bytes_read = int((bytes_node.text or "0").strip())
+            except (ValueError, AttributeError):
+                bytes_read = 0
+        stream_start = ""
+        if start_node is not None and start_node.text:
+            stream_start = start_node.text.strip()
+        out[mount_attr] = {
+            "bytes_read": bytes_read,
+            "stream_start": stream_start,
+            "has_source": bool(stream_start) or bytes_read > 0,
+        }
+    return out
+
+
+def _heartbeat_fetch_admin_stats() -> dict[str, dict] | None:
+    """One `/admin/stats` fetch + parse. One retry with backoff on failure.
+
+    Returns the parsed-by-mount dict, or None if both attempts failed.
+    Wall-time budget: ≤ ~5.5 s in the worst case (2 × 2.5 s timeout +
+    500 ms backoff), but typical-case ~50 ms.
+    """
+    from base64 import b64encode
+    user = (
+        os.getenv("ICECAST_ADMIN_USER")
+        or os.getenv("ICECAST_SOURCE_USER")
+        or "source"
+    )
+    password = (
+        os.getenv("ICECAST_ADMIN_PASSWORD")
+        or os.getenv("ICECAST_SOURCE_PASSWORD")
+        or "062352"
+    )
+    url = f"http://127.0.0.1:{ICECAST_PORT}/admin/stats"
+    creds = b64encode(f"{user}:{password}".encode()).decode()
+    headers = {
+        "Authorization": f"Basic {creds}",
+        "User-Agent": "sb3-heartbeat/1.1",
     }
+    for attempt in range(2):
+        try:
+            req = Request(url, headers=headers)
+            with urlopen(req, timeout=_HEARTBEAT_ADMIN_TIMEOUT_SEC) as resp:
+                text = resp.read().decode("utf-8", errors="ignore")
+            return _heartbeat_parse_admin_stats(text)
+        except Exception:
+            if attempt == 0:
+                time.sleep(_HEARTBEAT_ADMIN_RETRY_BACKOFF_SEC)
+                continue
+    return None
+
+
+def _heartbeat_parse_stream_start_age(value: str, now_wall: float) -> float | None:
+    """Seconds since `stream_start`, or None if unparseable.
+
+    Accepts both ISO8601 (icecast 2.4 emits `stream_start_iso8601`) and
+    RFC-2822 (`stream_start`).
+    """
+    if not value:
+        return None
+    s = value.strip()
+    # ISO8601 — handle a trailing offset without a colon, which Python
+    # <3.11 doesn't accept (icecast emits `-0400`, not `-04:00`).
+    try:
+        candidate = s
+        if "T" in candidate and len(candidate) >= 5:
+            tail = candidate[-5:]
+            if tail[0] in "+-" and ":" not in tail:
+                candidate = candidate[:-2] + ":" + candidate[-2:]
+        dt = datetime.fromisoformat(candidate)
+        return max(0.0, now_wall - dt.timestamp())
+    except Exception:
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(s)
+        if dt is not None:
+            return max(0.0, now_wall - dt.timestamp())
+    except Exception:
+        pass
+    return None
+
+
+def _heartbeat_check_mount_bytes(mount_name: str,
+                                 admin_stats: dict[str, dict] | None,
+                                 now_wall: float) -> dict:
+    """Hybrid byte-delta probe with presence fallback for one mount.
+
+    See the module-level explanation above for the bursty-counter rationale.
+    Returns ``{"status": str, "value": str}``.
+
+    Cache semantics:
+      * On every call we read the current `total_bytes_read` + timestamp.
+      * If the elapsed interval since the last cached sample is < 5 s,
+        we do NOT overwrite the cache — we keep the older sample so the
+        next call still has a usable baseline (delta needs ≥ 5 s to span
+        a flush boundary deterministically).
+      * Otherwise we overwrite the cache with the fresh sample.
+    """
+    mount_key = str(mount_name or "").strip().lstrip("/")
+    if not mount_key:
+        return {"status": "warn", "value": "invalid mount"}
+
+    if not admin_stats:
+        return {"status": "warn", "value": "icecast admin unreachable"}
+
+    info = admin_stats.get(mount_key)
+    if info is None or not info.get("has_source"):
+        return {"status": "warn", "value": "no source connected"}
+
+    current_bytes = int(info.get("bytes_read", 0))
+    current_start = str(info.get("stream_start") or "")
+
+    with _HEARTBEAT_BYTE_CACHE_LOCK:
+        cached = _HEARTBEAT_BYTE_CACHE.get(mount_key)
+
+        # Bootstrap / presence fallback — no prior sample.
+        if cached is None:
+            stream_age = _heartbeat_parse_stream_start_age(current_start, now_wall)
+            if current_bytes > 0 and stream_age is not None \
+                    and stream_age <= _HEARTBEAT_BYTE_PRESENCE_MAX_AGE_SEC:
+                status = {"status": "ok", "value": "present"}
+            else:
+                status = {"status": "warn", "value": "no recent stream"}
+            _HEARTBEAT_BYTE_CACHE[mount_key] = {"bytes": current_bytes, "ts": now_wall}
+            _HEARTBEAT_BYTE_LAST_STATUS[mount_key] = status
+            return status
+
+        prior_bytes = int(cached.get("bytes", 0))
+        prior_ts = float(cached.get("ts", 0.0))
+        interval = now_wall - prior_ts
+
+        if interval < _HEARTBEAT_BYTE_INTERVAL_MIN:
+            # Too soon since the last sample; preserve the cached baseline
+            # so the next call has ≥5 s to compare against.
+            last = _HEARTBEAT_BYTE_LAST_STATUS.get(mount_key)
+            if last and last.get("status") == "ok":
+                return last
+            return {"status": "ok", "value": "warming up"}
+
+        # Counter resets (source reconnected, mount restart) can make the
+        # current value smaller than the cached one — clamp at zero.
+        delta = max(0, current_bytes - prior_bytes)
+
+        if delta >= _HEARTBEAT_BYTE_DELTA_MIN:
+            status = {"status": "ok", "value": f"{delta} B in {interval:.1f}s"}
+        elif interval >= _HEARTBEAT_BYTE_INTERVAL_WARN:
+            status = {"status": "warn", "value": "no source data"}
+        else:
+            # 5 ≤ interval < 10 with delta < 500: could legitimately be
+            # the gap between libshout flushes. Hold the last-known-good
+            # status rather than flagging prematurely.
+            last = _HEARTBEAT_BYTE_LAST_STATUS.get(mount_key)
+            if last and last.get("status") == "ok":
+                status = last
+            else:
+                status = {"status": "ok", "value": f"{delta} B in {interval:.1f}s"}
+
+        _HEARTBEAT_BYTE_CACHE[mount_key] = {"bytes": current_bytes, "ts": now_wall}
+        _HEARTBEAT_BYTE_LAST_STATUS[mount_key] = status
+        return status
 
 
 # Evidence-row status → severity. The overall heartbeat state is the worst
@@ -3295,107 +3456,30 @@ def _compute_heartbeat_payload() -> dict:
             # legitimate retune), but flag for follow-on byte probe.
             wedged_reasons.append("/ANALOG.mp3 has no source")
 
-    # 4) Foreground mp3 byte sample — corroborating evidence that bytes
-    #    are actually flowing out of icecast right now.  Bounded by the
-    #    configured wall-time cap; cached for the TTL.
+    # 4) Operator-facing mp3 mounts — Option B hybrid byte-delta probe.
     #
-    #    IMPORTANT: a 0-byte sample over ~1.5s does NOT prove the pipeline
-    #    is wedged.  Icecast buffers, and the keepalive silence stream is
-    #    ~6.5 kbps, so a short window can legitimately catch a frame gap.
-    #    The contractual liveness signal is `mount_publishing` (above) —
-    #    if icecast says a source is publishing, trust that for the wedge
-    #    decision.  Surface the sample as evidence only.
-    if analog_mount_publishing:
-        sample = _heartbeat_sample_mount_bytes(
-            PLAYER_MOUNT or "ANALOG.mp3",
-            _HEARTBEAT_MP3_SAMPLE_DURATION_SEC,
-            _HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC,
-        )
-        if sample.get("ok"):
-            kbps = (sample["bytes"] * 8) / max(0.05, sample["elapsed_sec"]) / 1000.0
-            evidence.append({
-                "label": "/ANALOG.mp3 byte rate",
-                "value": f"{sample['bytes']} B / {sample['elapsed_sec']:.1f}s ({kbps:.0f} kbps)",
-                "status": "ok",
-            })
-        elif sample.get("error"):
-            evidence.append({
-                "label": "/ANALOG.mp3 byte rate",
-                "value": sample.get("error") or "error",
-                "status": "warn",
-            })
-        else:
-            # 0 bytes in the window. Mount is publishing per icecast, so
-            # this is a frame gap, not a wedge. Surface as info/warn only.
-            evidence.append({
-                "label": "/ANALOG.mp3 byte rate",
-                "value": f"0 B in {sample['elapsed_sec']:.1f}s (frame gap)",
-                "status": "warn",
-            })
-
-    # 4b) Byte-probe the other operator-facing icecast mounts.
-    #     Same short-read pattern as ANALOG.mp3.  We probe even if the
-    #     mount isn't listed as `publishing` in icecast status — a
-    #     no-source mount surfaces as a warn row instead of being
-    #     silently skipped.  Mounts intentionally NOT probed here:
-    #       * disco.mp3 — removed 2026-06-03 (H3 audit, orphan mount)
-    #       * GND.mp3   — removed; do not probe
+    #    One read of icecast /admin/stats (~50 ms typical) yields the
+    #    per-mount `total_bytes_read` counter. We diff it against a
+    #    module-level cache to derive a bytes-per-interval rate over the
+    #    heartbeat-call cadence (≈10–30 s), instead of a fixed 2–3 s
+    #    in-call sample window.  Replaces the streaming probe that
+    #    false-warned on healthy 8 kbps mounts because icecast 2.4.4
+    #    flushes `total_bytes_read` in ~5 s libshout chunks; an in-call
+    #    window often landed entirely between flushes (0 bytes) on a
+    #    perfectly healthy mount. See `_heartbeat_check_mount_bytes`.
     #
-    #     Severity: `warn` on dead/empty (under ~64 bytes in the window),
-    #     consistent with the ANALOG.mp3 frame-gap policy.  Not `bad`,
-    #     because the core ANALOG.mp3 path is the wedge signal of record.
-    #
-    #     H1 fix (2026-06-03): floor dropped 256 -> 64. At 8 kbps the
-    #     keepalive-silence mount delivers ~3 KB across the 3 s window,
-    #     so 256 B was still safely above the actual floor for healthy
-    #     low-bitrate mounts, but the probe was bottoming out at 0 B
-    #     because of the 0.25 s read-timeout bug (see
-    #     `_heartbeat_sample_mount_bytes`). With that fixed we want the
-    #     floor as low as possible so a genuinely-thin frame still
-    #     reports `ok`; 64 B is "one sniff of a frame" and is plenty
-    #     to distinguish a publishing mount from a dead one.
-    _HEARTBEAT_MOUNT_MIN_BYTES = 64
-    extra_mount_probes = [
-        ("/ANALOG_GROUND.mp3", "ANALOG_GROUND.mp3"),
-        ("/DIGITAL.mp3",       "DIGITAL.mp3"),
-        ("/VFO.mp3",           "VFO.mp3"),
-    ]
-    for label, mount in extra_mount_probes:
-        try:
-            publishing = mount_publishing(icecast_status_text, mount)
-        except Exception:
-            publishing = False
-        if not publishing:
-            evidence.append({
-                "label": f"{label} mount",
-                "value": "no source",
-                "status": "warn",
-            })
-            continue
-        sample = _heartbeat_sample_mount_bytes(
-            mount,
-            _HEARTBEAT_MP3_SAMPLE_DURATION_SEC,
-            _HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC,
-        )
-        if sample.get("error"):
-            evidence.append({
-                "label": f"{label} byte rate",
-                "value": sample.get("error") or "error",
-                "status": "warn",
-            })
-        elif sample.get("bytes", 0) >= _HEARTBEAT_MOUNT_MIN_BYTES:
-            kbps = (sample["bytes"] * 8) / max(0.05, sample["elapsed_sec"]) / 1000.0
-            evidence.append({
-                "label": f"{label} byte rate",
-                "value": f"{sample['bytes']} B / {sample['elapsed_sec']:.1f}s ({kbps:.0f} kbps)",
-                "status": "ok",
-            })
-        else:
-            evidence.append({
-                "label": f"{label} byte rate",
-                "value": f"{sample.get('bytes', 0)} B in {sample.get('elapsed_sec', 0):.1f}s (under {_HEARTBEAT_MOUNT_MIN_BYTES}B floor)",
-                "status": "warn",
-            })
+    #    Keepalive-* mounts are intentionally NOT probed here — they are
+    #    rtl-airband's continuous silence-fallback streams and are not
+    #    operator-relevant.
+    _hb_now = time.time()
+    _hb_admin = _heartbeat_fetch_admin_stats()
+    for _hb_mount in _HEARTBEAT_PROBE_MOUNTS:
+        _hb_result = _heartbeat_check_mount_bytes(_hb_mount, _hb_admin, _hb_now)
+        evidence.append({
+            "label": f"/{_hb_mount} byte rate",
+            "value": _hb_result.get("value", ""),
+            "status": _hb_result.get("status", "warn"),
+        })
 
     # Phase 6a — live evidence rows for the two waterfall RTL-SDRs.
     # Backed by /run/scannerproject/waterfall/state.json which the
