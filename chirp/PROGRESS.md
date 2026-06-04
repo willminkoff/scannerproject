@@ -2840,3 +2840,64 @@ their unit files (e.g. rename to `.service.disabled`) so even a
 
 **Gate**: ready for Will's go on Step 12 (FF-merge `gr-demod/airband`
 into `main`).  Currently on the branch tip; all commits pushed.
+
+### Step 12 — FF-merge to main (complete)
+
+`gr-demod/airband` → `main`, fast-forward only.  Same tip on both
+branches.
+
+  - Pre-merge `main` tip: `a066439` (one commit after the Phase-4-pre
+    head: `chirp(phase4-pre): fill branch tip SHA in PROGRESS.md`
+    historical drop-in).
+  - Post-merge `main` tip: **`a005029`**.
+  - 25 commits merged in: the full chirp Phase-4c + Phase-4d series
+    plus the Phase-4d audio-gain fix, sitrep swap, reboot fixes, and
+    PROGRESS.md updates.
+  - `git push origin main` → `a066439..a005029`.
+
+Post-merge verification on the production host (already running
+chirp because the cutover was already live on the branch tip):
+
+  - **Test suite**: `python3 -m pytest chirp/tests/ ui/tests/ -m 'not slow' -q`
+    → **291 passed**, 4 deselected, 10 warnings in 45.97 s.
+    (Same total as the post-channel.py-patch baseline, no regressions.)
+  - **systemctl is-active** on the production units: gr-demod@airband,
+    gr-demod@ground, airband-ui, icecast2, sdrplay,
+    scanner-digital-op25, scanner-vfo — **all active**.
+  - **`/api/heartbeat`**: `state=quiet`, `headline="All systems
+    healthy. No traffic on selected channels."`, `bad_or_warn=[]`.
+  - **/var/lib/chirp/{airband,ground}.state.json**: both have
+    `gain_db: 0.0` per channel (audio-trim model from `f27d70a`).
+
+**Branch tip on `main`: `a005029`.**
+
+The `gr-demod/airband` branch is left in place at the same tip; it
+can be deleted as a follow-up cleanup once Will is satisfied
+with a few hours of production soak.
+
+Outstanding follow-ups (none blocking; track separately):
+
+  - Ground audio is hot (-10 to -13 dB mean, a few % clipped on
+    NFM bursts) because the operator's `sensitive` squelch preset
+    keeps the gate at noise-floor + 3 dB.  Fixable from the
+    dashboard preset chip (sensitive → balanced).  Not a code or
+    persistence issue.
+  - rtl-airband units are `disabled` + their sidecar
+    `rtl-airband-last-hit.service` is also `disabled`.
+    `/run/systemd/system/*` masks for the two main units are
+    ephemeral but the disable chain holds across reboots.  For
+    extra durability, consider physically relocating the legacy
+    rtl-airband unit files (e.g.  `.service.disabled`) as a
+    follow-up clean-up commit.
+  - `chirp/systemd/gr-demod@.service.template` still references
+    `StartLimitIntervalSec` in `[Service]` (systemd warns it
+    belongs in `[Unit]`); cosmetic.
+  - The sitrep code at `ui/handlers.py:5753` already serves
+    `/sb5.html` — but a transient 404 was observed once
+    immediately after the reboot.  Resolved on a follow-up
+    `systemctl restart airband-ui` from the same session; couldn't
+    reproduce.  File a follow-up if it recurs.
+
+**Phase 4d — DONE.**  chirp gr-demod is the production analog demod
+on Micro; rtl-airband is retired; the cutover survives a power
+cycle; main tip is `a005029`.
