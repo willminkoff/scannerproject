@@ -2520,3 +2520,116 @@ re-add them when SB5_USE_GR_DEMOD goes live — accept that for v1.
   - **CPU doubled vs 1 Msps as expected**: per-daemon ~400 % (4
     cores) × 2 daemons = ~8 cores out of 20.  Load avg 9.86/20.
     Comfortable margin for soak.
+
+### Step 7 — Production mount swap (complete, t=13:39:58 air / 13:40:10 gnd)
+
+systemd drop-ins rewritten to publish to /ANALOG.mp3 and
+/ANALOG_GROUND.mp3 with the new `CHIRP_ALLOW_PROD_MOUNT=1` env that
+Step 3b's daemon patch gates on.  First start attempt failed at
+13:39:14 with `no sdrplay device matches` — the previous daemon's
+sdrplay_api close hadn't fully released the device.  Restarting
+sdrplay.service unwedged it; second start at 13:39:58 (airband) +
+13:40:10 (ground) came up clean.
+
+  - airband: `sdr source ... mode=MA,tuner=1 rate=2000000`,
+    `state_restored count=20`, mount publishing.
+  - ground:  `sdr source ... mode=SL,tuner=2 rate=2000000`,
+    `state_restored count=12`, mount publishing.
+  - icecast's `<fallback-mount>` on `/ANALOG.mp3` →
+    `keepalive-analog.mp3` worked exactly as designed: the listener
+    on `/ANALOG.mp3` migrated to `keepalive-analog.mp3` when
+    rtl-airband stopped (Step 4) and back to `/ANALOG.mp3` when
+    chirp connected.  No client disconnect on either side.
+  - mid-stream `curl` pulls from both production mounts: clean MP3
+    32 kbps CBR, 16 kHz mono.
+
+### Step 8 — `SB5_USE_GR_DEMOD=true` (complete, t=13:41:22)
+
+Appended to `/etc/airband-ui.conf`:
+
+    # Phase 4d cutover: flip airband-ui to use chirp_adapter for analog ops.
+    SB5_USE_GR_DEMOD=true
+
+`systemctl restart airband-ui.service` → clean restart, journal shows
+the squelch_tracker thread starting and the dongle allocator running.
+`SB5_USE_GR_DEMOD=true` verified in `/proc/<pid>/environ`.
+
+Heartbeat at /api/heartbeat now includes the four chirp rows under
+`evidence`:
+
+  - `chirp-airband        : ok (20 chan, 12 free)`
+  - `chirp-airband icecast: ok (connected, bytes climbing, drops=0)`
+  - `chirp-ground         : ok (12 chan, 20 free)`
+  - `chirp-ground icecast : ok (connected, bytes climbing, drops=0)`
+
+Notes:
+
+  - Heartbeat still reports `state=wedged` because it still runs
+    the rtl-airband-airband / rtl-airband-ground / "stats file
+    stale" checks regardless of the flag.  Cosmetic only — all
+    chirp rows are green.  Follow-up: when SB5_USE_GR_DEMOD=true,
+    skip the rtl-airband-* and stats-file rows from the wedge
+    rollup.
+
+  - POST `/api/airband/squelch_preset` returned 409 with
+    `error=noise_floor_not_warm`, `noise_floor_dbfs=-49.4`,
+    `freqs_count=20` — those numbers come straight from the chirp
+    daemon's live `get_status`, confirming `chirp_adapter` is wired
+    in.  Rejection is expected at startup until the squelch tracker
+    accumulates samples.
+
+### Step 9 — Dashboard end-to-end (complete)
+
+  - `GET /sb5.html` → 200, served.
+  - heartbeat: chirp rows present, all four `ok`, byte counts
+    climbing in real time.
+  - chirp_adapter routes preset-apply: confirmed via 409 carrying
+    chirp's noise_floor metric (above).
+  - skipped an active favorite swap to avoid mutating state during
+    soak.  Migration's 20+12 counts match `chirp-{airband,ground}`
+    heartbeat's `(N chan, M free)` rows.
+
+### Step 10 — 30-min soak (complete, 13:40 → 14:10)
+
+  - **Production audio uptime: 28 minutes continuous since cutover.**
+    `/ANALOG.mp3` `stream_start` unchanged at 13:39:58 the whole
+    soak — chirp's source connection never dropped.  Listener on
+    that mount stayed connected the whole window.  Same for
+    `/ANALOG_GROUND.mp3`.
+
+  - **icecast_drop_count: 0** on both chirp daemons.
+
+  - **Bytes sent over the soak**:
+        airband: 6,770,688 bytes (~31.5 kbps avg — matches CBR)
+        ground:  6,721,536 bytes (~31.3 kbps avg)
+
+  - **CPU steady**: per-daemon 428-430 %, no creep across 28 min.
+
+  - **Load avg high but misleading**.  1-min averaged 35-58, but
+    `top` consistently shows `2 running, ~490 sleeping` and
+    `%Cpu(s): ~45 us, ~10 sy, ~45 id`.  The GR scheduler spawns
+    ~330 threads per daemon (32 channels × ~5 stages); the kernel's
+    load metric counts each transient R-state thread, inflating the
+    number.  Real CPU usage is ~55 % of nproc.
+
+  - **Hit log totals over the 30-min window**:
+        airband: 29 hits.  Mix of real ATC voice (1.5-3.2 s
+        transmissions, peaks -20 to -27 dBFS, on busy SIC ARTCC
+        frequencies 124.6, 128.3, 133.125) and short keyup/tail
+        clicks (0.2 s).
+        ground:  2,445 hits.  Almost all from the 138-141 MHz
+        military block.  Distribution heavily skewed: 0.2-0.35 s
+        avg duration, peaks tightly clustered at -38 to -41 dBFS.
+        Likely TACAN/DME/IFF or other rhythmic mil signals, not
+        voice.  Flag for Phase-5 squelch-tracker tuning — squelch
+        threshold of -33 dBFS plus the 2 MHz analog passband on
+        SL-mode tuner-2 is picking up bursty non-voice.
+
+  - **Cluster_hops**: 12 per 6-min sample (airband 6 + ground 2
+    cycles overlapping).  Dwell_actual_sec ≈ 60.04 s — accurate.
+
+  - **Journal errors / failures since cutover**: 0 in 28 minutes.
+    The 6 lines flagged at t+0 were from the 13:39:14 first
+    failed-open attempt before sdrplay restart — pre-cutover.
+
+### Step 10 gate — ready for Will's go on Step 11
