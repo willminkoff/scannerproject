@@ -62,7 +62,7 @@ backend producing hits while the UI said "Service offline".
   per-GET, so the change is live as soon as the file lands).  Browsers
   see the new code on next refresh / hard-refresh.
 
-**Deploy SHA on `main`** — ``67fbe07`` (pushed to `origin/main`).
+**Deploy SHA on `main`** — ``29ed519`` (pushed to `origin/main`).
 Trailing PROGRESS-fill commit pattern as before.
 
 ---
