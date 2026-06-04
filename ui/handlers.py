@@ -185,6 +185,19 @@ try:
         VALID_PRESETS as SQUELCH_VALID_PRESETS,
         DEFAULT_PRESET as SQUELCH_DEFAULT_PRESET,
     )
+    # Phase 4c — chirp UDP JSON client + feature-flag adapter.  Both
+    # modules are stdlib-only at import time and dormant when the flag
+    # (SB5_USE_GR_DEMOD) is off.  Production state is untouched until
+    # the operator flips the flag.
+    from .chirp_client import (
+        use_gr_demod as _chirp_use_gr_demod,
+        get_airband_client as _chirp_airband_client,
+        get_ground_client as _chirp_ground_client,
+        ChirpClientError as _ChirpClientError,
+        ChirpRejected as _ChirpRejected,
+        ChirpDaemonDown as _ChirpDaemonDown,
+    )
+    from . import chirp_adapter as _chirp_adapter
     from .combined_status import combined_device_summary, combined_config_stale
     from .scanner import (
         get_analog_scan_health, read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
@@ -320,6 +333,19 @@ except ImportError:
         VALID_PRESETS as SQUELCH_VALID_PRESETS,
         DEFAULT_PRESET as SQUELCH_DEFAULT_PRESET,
     )
+    # Phase 4c — chirp UDP JSON client + feature-flag adapter.  Both
+    # modules are stdlib-only at import time and dormant when the flag
+    # (SB5_USE_GR_DEMOD) is off.  Production state is untouched until
+    # the operator flips the flag.
+    from ui.chirp_client import (
+        use_gr_demod as _chirp_use_gr_demod,
+        get_airband_client as _chirp_airband_client,
+        get_ground_client as _chirp_ground_client,
+        ChirpClientError as _ChirpClientError,
+        ChirpRejected as _ChirpRejected,
+        ChirpDaemonDown as _ChirpDaemonDown,
+    )
+    from ui import chirp_adapter as _chirp_adapter
     from ui.combined_status import combined_device_summary, combined_config_stale
     from ui.scanner import (
         get_analog_scan_health, read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
@@ -5009,6 +5035,26 @@ def _run_sitrep_action(action: str) -> tuple[bool, str, str]:
     label = spec["label"]
 
     # ------------------------------------------------------------------
+    # Phase 4c — chirp feature-flag branch (single, top of reset_radios).
+    # When SB5_USE_GR_DEMOD=true, reset both chirp daemons (sub-second
+    # op, no SDR restart cascade) instead of bouncing rtl-airband.
+    # ------------------------------------------------------------------
+    if action == "reset_radios":
+        try:
+            try:
+                from .chirp_client import use_gr_demod as _flag_use_gr_demod
+                from . import chirp_adapter as _flag_chirp_adapter
+            except ImportError:
+                from ui.chirp_client import use_gr_demod as _flag_use_gr_demod  # type: ignore
+                from ui import chirp_adapter as _flag_chirp_adapter  # type: ignore
+        except Exception as exc:
+            return False, "", f"{label}: chirp module import failed: {exc}"
+        if _flag_use_gr_demod():
+            try:
+                return _flag_chirp_adapter.reset_radios_via_chirp()
+            except Exception as exc:
+                return False, "", f"{label}: chirp reset raised: {exc}"
+    # ------------------------------------------------------------------
     # Safe path: reset_radios routes through the safe wrapper.
     # ------------------------------------------------------------------
     if action == "reset_radios":
@@ -7358,6 +7404,38 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
             payload["activated"] = {"fav_id": fav_id, "band": band}
+            # ----- Phase 4c feature-flag branch.
+            # When the chirp path is on, push the favorite's channel
+            # list into the relevant chirp daemon(s) so they reflect
+            # the new activation immediately.  This REPLACES the
+            # implicit "next reset_radios will pick it up" delay
+            # baked into the rtl-airband path.  Non-fatal on failure:
+            # the HPState persistence above is the source of truth,
+            # and the operator can re-trigger via /api/sitrep/action
+            # reset_radios.
+            use_chirp = False
+            try:
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("hp/state/activate: use_gr_demod probe failed", exc_info=True)
+            if use_chirp:
+                bands_to_push: list[str] = []
+                if band in ("air", "both", "all"):
+                    bands_to_push.append("airband")
+                if band in ("ground", "both", "all"):
+                    bands_to_push.append("ground")
+                chirp_results: dict[str, dict] = {}
+                for b in bands_to_push:
+                    try:
+                        chirp_results[b] = _chirp_adapter.activate_favorite_via_chirp(
+                            b, fav_id
+                        )
+                    except Exception as exc:
+                        logger.exception(
+                            "hp/state/activate: chirp push failed band=%s", b
+                        )
+                        chirp_results[b] = {"ok": False, "error": str(exc)}
+                payload["chirp"] = chirp_results
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/hp/state":
@@ -8468,10 +8546,25 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": f"controls path failed: {e}"}),
                     "application/json; charset=utf-8",
                 )
+            # ----- Phase 4c feature-flag branch (single, top of handler).
+            # When SB5_USE_GR_DEMOD=true, route the apply through the chirp
+            # daemon's set_squelch path instead of writing rtl-airband
+            # config + restarting.  The plan dict shape is preserved so
+            # the rest of this handler (409 poison rejection, override
+            # persistence, response JSON) does not need to know which
+            # back end did the work.
+            use_chirp = False
             try:
-                plan = squelch_apply_preset(target, preset, conf_path)
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("squelch_preset: use_gr_demod probe failed", exc_info=True)
+            try:
+                if use_chirp:
+                    plan = _chirp_adapter.apply_squelch_preset_via_chirp(target, preset)
+                else:
+                    plan = squelch_apply_preset(target, preset, conf_path)
             except Exception as e:
-                logger.exception("squelch_preset apply failed")
+                logger.exception("squelch_preset apply failed (use_chirp=%s)", use_chirp)
                 return self._send(
                     500,
                     json.dumps({"ok": False, "error": f"apply_preset failed: {e}"}),
@@ -8592,10 +8685,26 @@ class Handler(BaseHTTPRequestHandler):
                         json.dumps({"ok": False, "error": "missing/unparseable 'enabled' (expected bool)"}),
                         "application/json; charset=utf-8",
                     )
+            # ----- Phase 4c feature-flag branch (single, top of handler).
+            # When the chirp path is on, route through the adapter so the
+            # audit log captures the toggle on the chirp side too.  The
+            # adapter delegates to the SAME persistence helper, so the
+            # behavior is identical — the difference is that the
+            # squelch_tracker (Task 5) reads the flag and pushes
+            # set_squelch via the chirp client instead of writing
+            # rtl_airband.conf when the flag is on.
+            use_chirp = False
             try:
-                changed = _set_band_squelch_auto(target, enabled)
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("squelch_auto: use_gr_demod probe failed", exc_info=True)
+            try:
+                if use_chirp:
+                    changed = _chirp_adapter.set_squelch_auto_via_chirp(target, enabled)
+                else:
+                    changed = _set_band_squelch_auto(target, enabled)
             except Exception as exc:
-                logger.exception("squelch_auto toggle failed")
+                logger.exception("squelch_auto toggle failed (use_chirp=%s)", use_chirp)
                 return self._send(
                     500,
                     json.dumps({"ok": False, "error": f"persist failed: {exc}"}),
