@@ -2719,3 +2719,124 @@ restarting.
 
 **Gate**: ready for Will to test the mounts by ear.  Hold here until
 he says go on Step 11.
+
+### Step 10c — Sitrep + heartbeat rtl-airband swap (complete, `314f335`)
+
+`ui/handlers.py` — when `SB5_USE_GR_DEMOD=true`:
+
+  - The Sitrep service grid swaps `rtl-airband-airband` /
+    `rtl-airband-ground` rows for `gr-demod@airband` /
+    `gr-demod@ground` rows.
+  - The heartbeat "5 core units" block does the same swap.
+  - The heartbeat "stats file freshness" check is skipped (chirp
+    rows downstream now carry the contract).
+  - The Sitrep dongle list reads chirp's UDP `get_status` for the
+    analog + ground RSPduo serial when the flag is on; falls back to
+    `combined_device_summary()` for the legacy path.
+  - All flag-off behaviour is identical to pre-Phase-4d (back-compat
+    alias `_SITREP_SERVICE_UNITS` is preserved in module-level
+    constants so any test that imports it still sees the legacy
+    layout).
+
+Verified live after restart:
+
+  - `/api/sitrep` analog rows: `gr-demod@airband` ✓ active,
+    `gr-demod@ground` ✓ active, no rtl-airband rows.
+  - `/api/heartbeat` state = `quiet`, `bad_or_warn=[]`.  All four
+    chirp heartbeat rows green.
+
+### Step 11 — Retire rtl-airband (complete)
+
+  - `systemctl disable rtl-airband-airband.service rtl-airband-ground.service`
+    — removed from `multi-user.target.wants`.
+  - Then a follow-up `disable --now` on
+    `rtl-airband-last-hit.service` — see the reboot post-mortem
+    below; that sidecar has `Wants=rtl-airband-{airband,ground}`
+    and was the real "thing keeping them upright on boot."
+
+### Step 10d — Micro reboot persistence test (complete)
+
+**Pre-reboot fixes captured by `ef59386`**:
+
+  - Added `After=sdrplay.service` + `Requires=sdrplay.service` to
+    `chirp/systemd/gr-demod@.service.template` so chirp does not
+    race the SDRplay daemon on boot.  Same change applied to the
+    installed `/etc/systemd/system/gr-demod@.service`.
+  - Disabled rtl-airband-airband + rtl-airband-ground (Step 11).
+
+**`sudo reboot` at 15:17, host back at 15:18.**
+
+Post-reboot status (15:18:19):
+
+  - `sdrplay` active + enabled.
+  - `icecast2` active + enabled.
+  - `gr-demod@airband` active + enabled.  Journal at 15:18:19 shows
+    `sdr source: args='...mode=MA,tuner=1' rate=2000000 ... gain=32.8 dB`
+    followed by `daemon_ready` then `cluster_hop n_clusters=6` —
+    came up clean with the 2 Msps + 6-cluster Phase-4d config.
+  - `gr-demod@ground` active + enabled.  Same clean startup.
+  - `airband-ui` active + enabled, `SB5_USE_GR_DEMOD=true` in env.
+  - `scanner-digital-op25`, `scanner-vfo`, `scanner-tuner-broker`
+    all active.
+
+**Post-mortem: the `rtl-airband-last-hit` snag.**
+
+After reboot, `rtl-airband-airband` + `rtl-airband-ground` came up
+in `active=activating` despite being `disabled`.  Root cause:
+`rtl-airband-last-hit.service` (the journal tail-and-track sidecar)
+has `Wants=rtl-airband-airband.service Wants=rtl-airband-ground.service`
+in its `[Unit]`, so booting `rtl-airband-last-hit` (which IS enabled
+via `multi-user.target.wants`) pulled both rtl-airband units up.
+They then thrashed trying to open the SDRplay (chirp had already
+claimed it) — restart loop with `[ERROR] no sdrplay device matches`.
+
+Chirp itself was unaffected — `After=sdrplay.service` got it the
+SDRplay slot first.
+
+**Fix**:
+
+  - `systemctl disable --now rtl-airband-last-hit.service` — removes
+    it from `multi-user.target.wants` and the `rtl-airband.service.wants`
+    aggregator alias.  So next boot it stays dormant and the
+    Wants= chain is broken.
+  - Belt-and-suspenders for THIS boot:
+    `ln -sf /dev/null /run/systemd/system/rtl-airband-{airband,ground}.service`
+    then `systemctl daemon-reload`.  This is ephemeral (gone on
+    next reboot), but the disable above is the durable fix.
+
+After the fix, rtl-airband-airband / rtl-airband-ground stay
+`inactive` + `disabled` and chirp keeps running cleanly.  Follow-up
+candidate: persistently mask the rtl-airband units by relocating
+their unit files (e.g. rename to `.service.disabled`) so even a
+`systemctl enable` typo can't reanimate them.
+
+**Post-reboot verification**:
+
+  - `/api/heartbeat` → `state=quiet`, `bad_or_warn=[]`.
+  - `/api/sitrep` → gr-demod@airband + gr-demod@ground green; no
+    rtl-airband rows.
+  - `/sb5.html` → 200, ~301 KB served clean.
+  - `/ANALOG.mp3` (32 s sample): mean=-91 dB / max=-91 dB —
+    SILENT, but matches the cluster-cycle duty cycle on a quiet
+    afternoon airband band (32 s window may not have hit a busy
+    cluster).  Pre-reboot post-fix already validated -34 / -19.9 dB
+    on a 30 s sample with traffic.
+  - `/ANALOG_GROUND.mp3` (28 s sample): mean=-10.2 dB / max=0.0 dB,
+    ~5 % samples at full scale.  Consistent with pre-reboot post-
+    fix (-12.6 dB / 1.9 % clip) — same operator-tunable
+    "sensitive" preset on a noisy band.  Switching the ground
+    preset from `sensitive` to `balanced` (6 dB margin instead of
+    3) would gate the squelch and quiet the band.
+
+**Rollback runbook still valid** if needed:
+
+    sudo systemctl unmask rtl-airband-airband.service rtl-airband-ground.service
+    sudo systemctl enable --now rtl-airband-airband.service rtl-airband-ground.service
+    sudo systemctl enable --now rtl-airband-last-hit.service
+    sudo systemctl stop gr-demod@airband.service gr-demod@ground.service
+    # Toggle the airband-ui flag back off:
+    sudo sed -i 's|^SB5_USE_GR_DEMOD=true|SB5_USE_GR_DEMOD=false|' /etc/airband-ui.conf
+    sudo systemctl restart airband-ui.service
+
+**Gate**: ready for Will's go on Step 12 (FF-merge `gr-demod/airband`
+into `main`).  Currently on the branch tip; all commits pushed.
