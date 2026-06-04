@@ -39,6 +39,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import statistics
 import subprocess
 import threading
 import time
@@ -113,6 +114,24 @@ SQUELCH_TRACKER_MIN_REAPPLY_SEC: float = float(
     os.getenv("SQUELCH_TRACKER_MIN_REAPPLY_SEC", "60.0")
 )
 
+# Poison-noise-floor rejection ceilings.  rtl-airband's NFM noise
+# estimator returns its init constant (linear 0.283, ~-10.964 dBFS)
+# before audio samples buffer post-restart.  Tracker reading that
+# stale init applies threshold ~-5 dBFS, silencing the entire band
+# until the next 30s cycle reads a real value.  Reject medians above
+# these ceilings as poison.
+#
+# Real NFM hiss baseline floats around -32 to -38 dBFS; real AM
+# quiescent around -70 to -75 dBFS.  The 35-40 dB gap leaves room
+# for genuine RF anomalies (strong nearby signal raising the median)
+# without catching them as poison.
+SQUELCH_TRACKER_POISON_CEILING_AM_DBFS: float = float(
+    os.getenv("SQUELCH_TRACKER_POISON_CEILING_AM_DBFS", "-55.0")
+)
+SQUELCH_TRACKER_POISON_CEILING_NFM_DBFS: float = float(
+    os.getenv("SQUELCH_TRACKER_POISON_CEILING_NFM_DBFS", "-20.0")
+)
+
 # Audit log — rolling JSONL, one event per line.  Mirrors the existing
 # dongle-events.jsonl pattern under ~/.cache/airband-ui/.
 SQUELCH_TRACKER_AUDIT_LOG_PATH: str = os.getenv(
@@ -131,6 +150,19 @@ _BAND_TO_UNIT = {
     "airband": "rtl-airband-airband.service",
     "ground":  "rtl-airband-ground.service",
 }
+
+
+def _poison_ceiling_for_band(band: str) -> float:
+    """Per-band noise-floor ceiling above which a sample is "poison".
+
+    airband uses AM modulation, ground uses NFM; rtl-airband uses a
+    different noise estimator per modulation and the stale init values
+    differ.  Real-world hiss baselines also differ, so we use a
+    different ceiling per band.
+    """
+    if band == "airband":
+        return SQUELCH_TRACKER_POISON_CEILING_AM_DBFS
+    return SQUELCH_TRACKER_POISON_CEILING_NFM_DBFS
 
 
 # --- runtime state ----------------------------------------------------------
@@ -269,7 +301,65 @@ def _run_cycle_for_band(band: str, *, force: bool = False) -> dict[str, Any]:
         return {"band": band, "skipped": "no_freqs", "preset": preset}
 
     new_thresholds, noise_used = compute_threshold_list(freqs, noise_map, margin)
+
+    # --- poison noise-floor rejection ----------------------------------
+    # See SQUELCH_TRACKER_POISON_CEILING_* docs above.  Catches the
+    # rtl-airband pre-buffer init constant that would otherwise
+    # collapse thresholds to ~-5 dBFS and silence the band.
+    ceiling = _poison_ceiling_for_band(band)
+    median_noise_used = (
+        float(statistics.median(noise_used)) if noise_used else None
+    )
+    if median_noise_used is not None and median_noise_used > ceiling:
+        would_threshold_median = (
+            int(statistics.median(new_thresholds))
+            if new_thresholds else None
+        )
+        return {
+            "band": band,
+            "preset": preset,
+            "margin_db": margin,
+            "freqs_count": len(freqs),
+            "noise_floor_median": median_noise_used,
+            "skipped": "poison_noise_floor",
+            "poison_ceiling_dbfs": float(ceiling),
+            "would_threshold_median": would_threshold_median,
+            "reason": "noise_floor_median above poison ceiling",
+        }
+
     cur_thresholds = read_current_thresholds(conf_path)
+
+    # --- per-channel poison sanity -------------------------------------
+    # Even when the band median is sane, a single-channel race could
+    # still hand us a poison sample for one freq.  Fall back to that
+    # channel's prior threshold so we never write a poison-derived
+    # value into the on-disk profile.
+    sanitized_channels: list[dict[str, Any]] = []
+    if noise_used:
+        for i, n in enumerate(noise_used):
+            try:
+                n_f = float(n)
+            except (TypeError, ValueError):
+                continue
+            if n_f <= ceiling:
+                continue
+            if cur_thresholds and i < len(cur_thresholds):
+                fallback = int(cur_thresholds[i])
+                src_label = "prior_threshold"
+            else:
+                # No prior threshold on disk yet — clamp to the safe
+                # floor rather than a poison-derived value.
+                fallback = -100
+                src_label = "floor"
+            sanitized_channels.append({
+                "i": i,
+                "noise_used_dbfs": n_f,
+                "poisoned_threshold": int(new_thresholds[i]),
+                "fallback": fallback,
+                "fallback_source": src_label,
+            })
+            new_thresholds[i] = fallback
+
     delta = _max_abs_delta(new_thresholds, cur_thresholds) if cur_thresholds else 0
 
     cooldown_active = (not force) and (now_ms < cooldown)
@@ -287,6 +377,9 @@ def _run_cycle_for_band(band: str, *, force: bool = False) -> dict[str, Any]:
         "noise_floor_median": (
             float(sorted(noise_used)[len(noise_used) // 2]) if noise_used else None
         ),
+        "poison_ceiling_dbfs": float(ceiling),
+        "sanitized_channels": sanitized_channels,
+        "sanitized_count": len(sanitized_channels),
         "max_delta_db": int(delta),
         "hysteresis_db": SQUELCH_TRACKER_HYSTERESIS_DB,
         "current_thresholds_present": bool(cur_thresholds),
@@ -409,7 +502,7 @@ def _tracker_loop() -> None:
                 result = _run_cycle_for_band(band)
                 # Always log applies; log skips only when they carry
                 # an unusual signal (no_stats / error / restart_failed).
-                if result.get("applied") or result.get("error") or result.get("skipped") in ("no_stats", "no_profile", "no_freqs", "band_disabled"):
+                if result.get("applied") or result.get("error") or result.get("skipped") in ("no_stats", "no_profile", "no_freqs", "band_disabled", "poison_noise_floor") or result.get("sanitized_count"):
                     event = {
                         "ts_ms": int(time.time() * 1000),
                         "event": (
