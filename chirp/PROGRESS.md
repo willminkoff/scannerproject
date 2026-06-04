@@ -2455,3 +2455,68 @@ Anomalies + watch items:
   - **Production mounts unchanged.**  `/ANALOG.mp3` still falling
     back to `keepalive-analog.mp3` (1 listener riding the fallback);
     `/ANALOG_GROUND.mp3` similar.  DIGITAL + VFO untouched.
+
+### Step 6b — sample rate retune (complete)
+
+At the 5-min gate Will picked option B: tune sample rate up to lift the
+LO duty cycle, accepting whatever production-audio downtime the work
+needs.
+
+**SDR cap probe** (`/tmp/probe_ranges.py` — osmosdr open + set_sample_rate
+across 1/2/2.048/3/4/6/8/10 Msps):
+
+  - **RSPduo MA mode tuner 1**: requests above 2 Msps silently clamp to
+    2 Msps with `"invalid sample rate. Sample rate unchanged."` warning.
+    Hard cap = 2 Msps.
+  - **RSPduo ST mode tuner 1**: passes 1, 2, 2.048, 3, 4, 6, 8, 10 Msps
+    cleanly.  But ST is single-tuner — gives up the MA/SL split, so
+    cannot do airband + ground simultaneously on one RSPduo.
+
+Phase 4c-planning's 2 Msps prediction was correct.  Sticking with
+MA/SL at 2 Msps for v1 of the cutover.
+
+**Replan at 2 Msps** (`/tmp/plan_clusters_replan.py`):
+
+  - **Airband full 20-channel favorite list** → 6 clusters at 2 Msps
+    (vs 9 at 1 Msps).  Duty cycle per channel: 1/6 = 17 % (vs 11 %).
+    Span 121.025-134.325 MHz.  Centers: 121.4625, 124.3625, 126.3125,
+    128.0, 133.0375, 134.2875 MHz.
+  - **Ground full 27-channel list** → 13 clusters at 2 Msps (vs 15 at
+    1 Msps) — marginal improvement.  Duty cycle 1/13 = 7.7 %.
+
+**v1 ground trim.**  To get to "near parity with rtl-airband on ground"
+(Will's note), trimmed `/var/lib/chirp/ground.state.json` to the 12
+channels in 138-141 MHz (177th FW + 119th FS).  Result: 2 clusters →
+50 % duty cycle per ground channel.  The 15 deferred channels:
+
+  239.000, 255.000, 255.400, 261.000, 284.600, 285.400, 316.150,
+  327.125, 353.775, 382.200, 385.500, 172.812, 173.838, 155.355,
+  155.565 MHz.
+
+These are mostly UHF military air-to-air (the 177th/119th UHF
+counterparts), the EMS/PD VHF block, and tower/ATIS UHF.  Deferred to
+Phase 5 — needs either ST-mode time-share or a smarter LO scheduler
+that weights dwell by priority.
+
+Note: this trim lives in `/var/lib/chirp/ground.state.json` only — the
+operator's hp_state.json favorites are untouched.  If Will runs
+`migrate_state.py --apply` later, all 27 ground channels come back.
+The chirp_adapter's batch `add_channel` from the dashboard will also
+re-add them when SB5_USE_GR_DEMOD goes live — accept that for v1.
+
+**Config commits**: `chirp/config/{airband,ground}.json` →
+`source_samp_rate: 2000000.0`.
+
+**Drop-in tweaks**: `CHIRP_LO_MAX_CLUSTERS` 20 → 8 (covers 6 airband +
+2 ground with headroom; less wasteful state).
+
+**Verified live at 13:32:30 (airband) / 13:32:38 (ground):**
+
+  - airband: `sdr source: args=...mode=MA,tuner=1 rate=2000000`,
+    `state_restored count=20`, `cluster_hop ... n_clusters=6`.
+  - ground:  `sdr source: args=...mode=SL,tuner=2 rate=2000000`,
+    `state_restored count=12`, `cluster_hop ... n_clusters=2`.
+  - both icecast mounts publishing MP3 32 kbps; clean ffprobe.
+  - **CPU doubled vs 1 Msps as expected**: per-daemon ~400 % (4
+    cores) × 2 daemons = ~8 cores out of 20.  Load avg 9.86/20.
+    Comfortable margin for soak.

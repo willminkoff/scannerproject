@@ -5,7 +5,7 @@
   "pool_mode": "am",
   "cmd_host": "127.0.0.1",
   "cmd_port": 7400,
-  "source_samp_rate": 1000000.0,
+  "source_samp_rate": 2000000.0,
   "audio_rate": 16000.0,
   "max_channels": 32,
   "icecast_bitrate_kbps": 32,
