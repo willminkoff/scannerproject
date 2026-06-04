@@ -850,7 +850,7 @@ chirp/tests/test_phase1.py         (replaced rejects_nfm with accepts_nfm +
 - `cb6a7f1` — chirp(phase4a): systemd template + ground test-mount scripts
 - *(this section)* — chirp(phase4a): PROGRESS.md Phase 4a entry
 
-**Branch tip:** `<sha>`
+**Branch tip:** `dad41ca`
 
 ### Deferred
 
