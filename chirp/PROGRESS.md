@@ -1508,3 +1508,213 @@ deliberately-freed RSPduo. ICEcast `ANALOG.mp3` resumed at 10:32:29,
 `gr-demod/airband` — diagnostic-only commit, no code change to
 `chirp/dsp/source_sdr.py`. Per Phase 4b-diag plan: code change happens
 only when there is a hang to fix.
+
+---
+
+## Phase 4c-planning (2026-06-04) — IQ-window coverage analysis & strategy
+
+Read-only planning pass to resolve how chirp will cover production
+airband + ground freq lists in IQ bandwidth, prompted by Phase
+4b-final's discovery that 1 Msps @ 127.5 MHz catches only 2 of the
+top-4 hot airband channels.
+
+### How rtl-airband solves the wide-span problem today
+
+`mode = "scan"`. Both production rtl-airband instances
+(`rtl-airband-airband` and `rtl-airband-ground`) run at **1 Msps with
+`mode = "scan"`**, which means rtl-airband **retunes the SDR LO across
+the channel list** rather than parallel-demodulating channels within a
+single IQ window. That is why 1 Msps "covers" a 121-385 MHz airband
+list and a 138-173 MHz ground list — it never has them all in the
+passband at once. From `/run/rtl_airband_airband_runtime.conf` and
+`/run/rtl_airband_ground_runtime.conf`:
+
+| service | RSPduo serial | mode/tuner | sample_rate | mode | channels | freq span |
+|---|---|---|---|---|---|---|
+| rtl-airband-airband | 1809063632 | MA / tuner=1 | 1.0 Msps | `scan` | 31 (AM) | 121.025-385.5 MHz (264 MHz) |
+| rtl-airband-ground  | 1809063632 | SL / tuner=2 | 1.0 Msps | `scan` | 16 (NFM) | 138.05-173.84 MHz (35.8 MHz) |
+
+OP25 follows a similar pattern (different physical RSPduo, serial
+180903EF32, ST mode, 2.4 Msps centered on the NJICS control-channel
+list). Its in-window decoding spans ~5.2 MHz of control channels at
+769-775 MHz; voice channels are followed by retuning via `tk_p25.py`.
+
+### Hardware ceiling — SDRplay RSPduo sample-rate / BW per mode
+
+`SoapySDRUtil --probe='driver=sdrplay,serial=1809063632,mode={M},tuner=1'`:
+
+| mode | sample rates (MSps) | analog filter BW (MHz) |
+|---|---|---|
+| ST (single tuner) | 0.0625-1, **2-10.66** | 0.2, 0.3, 0.6, 1.536, **5, 6, 7, 8** |
+| MA (master)       | 0.0625, 0.125, 0.25, 0.5, 1, **2 (max)** | 0.2, 0.3, 0.6, **1.536 (max)** |
+| SL (slave attach) | same as MA (slaved to master) | same as MA |
+| DT (dual tuner)   | 0.0625-2 (max), shared | 1.536 (max) |
+
+**Operative ceiling:** chirp must coexist with the production
+master/slave split (MA tuner=1 for airband, SL tuner=2 for ground)
+because Phase 4d cutover replaces rtl-airband on the SAME physical
+RSPduo. That means **2 Msps is the maximum sample rate available** to
+chirp on this device; ST mode (the only path to higher rates) is
+incompatible with using both tuners of the RSPduo at once. The other
+RSPduo (180903EF32) is held by op25 and is not on the table.
+
+### Coverage gap — analyzed
+
+Activity from `/run/rtl_airband_airband_stats.txt` (recent window):
+
+| freq (MHz) | hits | label |
+|---|---|---|
+| 125.325 | 18 | ZNY 56 Kennedy High |
+| 125.450 | 30 | ZNY 19 Woodstown |
+| 127.700 | 24 | ZNY 51 CASINO Low |
+| 133.125 | 34 | ZDC 59 Sea Isle High |
+| 134.025 |  9 | ZDC spare |
+| 134.325 | 34 | ZDC 9 Westminster High |
+| (all others) | 0 | — |
+
+The six hot channels span **125.325-134.325 MHz = 9.0 MHz** — far
+wider than the 2 Msps ceiling. **No single 2 Msps window can capture
+even all six hot airband channels.** Best-case static 2 Msps centers:
+
+- airband: center **133.5 MHz** → catches 5 of 31 channels (133.125,
+  133.5, 134.025, 134.25, 134.325) = 3 of 6 hot, **77 of 149 recent
+  hits = 52% of activity.** The 125.x / 127.7 cluster is OUT.
+- ground:  center **138.25 MHz** → catches 8 of 16 channels (all
+  138.x + 139.15). 140.x cluster + 155.x + 172.x / 173.x are OUT.
+
+A wider sample rate (10 Msps, ST mode) WOULD cover all hot airband
+channels (center 129.4 MHz, 15 of 31 chans, 100% of hits), but only
+at the cost of giving up master/slave sharing and either disabling
+ground or moving it to a second RSPduo.
+
+### CPU cost ballpark
+
+chirp.dsp.Channel decimation chain is `xlating(decim 5) -> fir(decim
+5) -> fir(decim round(samp_rate/1e6))`. Moving from 1 Msps to 2 Msps
+doubles only the first-stage xlating-filter input rate; later stages
+(80 ksps -> 40 ksps audio) are identical. Per-channel front-end CPU
+roughly doubles, but later stages dominate, so total per-channel CPU
+is ~1.3-1.5x. With 32-channel pool already validated at 1 Msps on
+Micro (Intel x86, plenty of headroom), 2 Msps stays well inside
+budget. 8/10 Msps (ST mode) would push per-channel front-end ~5-8x
+but remain feasible on Micro; the bigger cost is the architectural
+disruption, not CPU.
+
+### Recommendation
+
+**Strategy: 2 Msps per tuner, MA/SL split, narrow static coverage of
+the busiest cluster, with explicit Phase 5 follow-on for LO
+retuning.** This is the path that matches the existing hardware
+sharing and requires only config edits.
+
+- **airband:** `sample_rate=2_000_000`, `center_freq_hz=133_500_000`.
+  Catches 5 of 31 channels representing ~52% of recent hits. Hot
+  channels OUTSIDE this window (125.325, 125.450, 127.7) are
+  explicitly deferred to Phase 5.
+- **ground:**  `sample_rate=2_000_000`, `center_freq_hz=138_250_000`.
+  Catches 8 of 16 channels (all 177th FW NFM in 138-139 + 139.15).
+  140.x + 155.x + 172.x / 173.x deferred to Phase 5.
+
+**Implementation impact:** config-only.
+`chirp/config/airband.json` and `chirp/config/ground.json` need
+`source_samp_rate` raised from 1_000_000 to 2_000_000 and
+`sdr.center_freq_hz` retargeted (133_500_000 / 138_250_000).
+`SdrSourceConfig` already enforces `sample_rate >= 1e6` and
+`sample_rate % 1e6 == 0` — 2 Msps satisfies both. `Channel`'s
+`decim_stage2 = round(samp_rate/1e6)` goes from 1 to 2 automatically,
+taking the chain from 25x to 50x decim while preserving the 40 ksps
+post-decim audio path. **No code changes to `chirp/dsp/source_sdr.py`,
+`chirp/dsp/channel.py`, or `chirp/daemon.py` are required to ship
+Phase 4d.**
+
+### Coverage table (production channels @ chirp Phase 4d, 2 Msps)
+
+Airband (center 133.5 MHz, window 132.5-134.5 MHz):
+
+| freq (MHz) | covered | hits | label |
+|---|---|---|---|
+| 121.025 | ✗ | 0  | ZNY 58 Coyle |
+| 121.125 | ✗ | 0  | ZNY 85 Atlantic Oceanic |
+| 121.500 | ✗ | 0  | Guard / 121.5 |
+| 121.900 | ✗ | 0  | Ground Control |
+| 123.400 | ✗ | 0  | FAA Ops |
+| 124.600 | ✗ | 0  | Approach/Departure |
+| 125.125 | ✗ | 0  | PHL Approach South High |
+| 125.325 | ✗ | 18 | ZNY 56 Kennedy High |
+| 125.450 | ✗ | 30 | ZNY 19 Woodstown |
+| 126.075 | ✗ | 0  | PHL Approach North High |
+| 127.175 | ✗ | 0  | ZNY 42 East Texas High |
+| 127.700 | ✗ | 24 | ZNY 51 CASINO Low |
+| 127.850 | ✗ | 0  | Clearance Delivery |
+| 128.300 | ✗ | 0  | ZNY 66 MANTA Low |
+| 132.050 | ✗ | 0  | ZDC 53 Kenton-Low |
+| 133.125 | ✓ | 34 | ZDC 59 Sea Isle High |
+| 133.500 | ✓ | 0  | ZNY 86 Atlantic Oceanic |
+| 134.025 | ✓ | 9  | ZDC spare |
+| 134.250 | ✓ | 0  | Approach/Departure |
+| 134.325 | ✓ | 34 | ZDC 9 Westminster High |
+| 239.000 | ✗ | 0  | Tower (UHF mil) |
+| 255.000 | ✗ | 0  | 177FW Giant Killer |
+| 255.400 | ✗ | 0  | FSS / 119FS Ch U-12 |
+| 261.000 | ✗ | 0  | 177FW SoF |
+| 284.600 | ✗ | 0  | Ground Control |
+| 285.400 | ✗ | 0  | 177FW Wash Center |
+| 316.150 | ✗ | 0  | ATIS |
+| 327.125 | ✗ | 0  | Approach/Departure 177FW U-6 |
+| 353.775 | ✗ | 0  | Clearance Delivery |
+| 382.200 | ✗ | 0  | 119FS |
+| 385.500 | ✗ | 0  | Approach/Departure |
+
+Covered: 5/31 channels, 77/149 recent hits (52%).
+
+Ground (center 138.25 MHz, window 137.25-139.25 MHz):
+
+| freq (MHz) | covered | label |
+|---|---|---|
+| 138.050 | ✓ | 177FW |
+| 138.100 | ✓ | 177FW Tactical |
+| 138.125 | ✓ | 177FW SoF |
+| 138.200 | ✓ | 177FW Tactical |
+| 138.300 | ✓ | 177FW Tactical |
+| 138.425 | ✓ | 177FW Tactical |
+| 138.875 | ✓ | 177FW Tactical |
+| 139.150 | ✓ | 119FS |
+| 140.100 | ✗ | 119FS |
+| 140.175 | ✗ | 119FS |
+| 140.200 | ✗ | 119FS |
+| 140.700 | ✗ | 119FS |
+| 155.355 | ✗ | EMS Ops |
+| 155.565 | ✗ | Police Dispatch |
+| 172.8125 | ✗ | Ground Control (linked to ACY 121.9) |
+| 173.8375 | ✗ | Fire/Crash/Rescue |
+
+Covered: 8/16 channels.
+
+### Comparison to rtl-airband
+
+rtl-airband today retunes the LO through every channel in the list at
+~50 ms dwell; it never sees more than one channel at a time, but it
+sees them all. chirp Phase 4d will be the opposite: continuously demod
+several channels in parallel inside a narrow window. For the channels
+that ARE in the window, chirp gives true continuous coverage (no
+miss-on-overlap, no dwell skip); for channels OUTSIDE the window, it
+provides nothing until Phase 5 adds an LO-retuning scheduler that
+duty-cycles between cluster centers. The two designs are not
+substitutable on a per-channel basis — Phase 4d is a deliberately
+narrower-but-deeper deployment that we plan to widen in Phase 5.
+
+### Phase 5 follow-on (out of scope here)
+
+Add an LO-retuning scheduler to the chirp daemon that periodically
+calls `SdrIQSource.set_center_freq(hz)` and reconfigures every
+channel's `set_center_freq_offset(hz)` accordingly. With ~250 ms
+dwell per cluster and 2-3 clusters per band, all production channels
+become reachable. This is the equivalent of rtl-airband's `mode =
+"scan"` but at the cluster (multi-channel) granularity rather than
+single-channel.
+
+### Branch tip
+
+Phase 4c-planning is doc-only — no code or config edits in this
+window. Per design rule for planning passes: no behaviour change,
+no service touch.
