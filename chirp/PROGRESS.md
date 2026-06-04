@@ -104,9 +104,11 @@ architectural primitives end-to-end.
 - `6b5a683` — chirp(phase1): unit + integration tests (27 new, all passing)
 - `5075d0e` — chirp(phase1): make_test_iq fixture for smoke testing
 - `51deb00` — chirp(phase1): PROGRESS.md Phase 1 entry
-- _this commit_ — chirp(phase1): fill in final SHA + branch tip
+- `08b4cfa` — chirp(phase1): fill in final SHA + branch tip in PROGRESS.md
 
-**Branch tip:** `08b4cfadd4ffb8e78c3f5c5c4acd982fa136493a` (set after this commit lands; see `git rev-parse HEAD`).
+**Branch tip at push time:** `08b4cfadd4ffb8e78c3f5c5c4acd982fa136493a`. A
+trailing PROGRESS-fix commit may sit on top (the SHA self-reference forces a
+one-commit chase); `git log --oneline gr-demod/airband` is canonical.
 
 **Deferred / surfaces for Will:**
 
