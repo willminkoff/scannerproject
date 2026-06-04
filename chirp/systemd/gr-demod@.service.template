@@ -1,26 +1,67 @@
 # chirp / gr-demod@.service template
 #
-# Placeholder — finalized in Phase 1 (one-channel proof) and Phase 4 (cutover).
-# Unit name stays gr-demod@ for continuity with the branch and existing internal language;
-# the Python package it execs is chirp. See SDR_DEMOD_DESIGN_2026-06-03.md Section 2.
+# Phase 4a — fleshed out, NOT YET INSTALLED on Micro. Installation + enable
+# is Phase 4d cutover work (after Phase 4b live-shadow signoff).
 #
-# TEMPLATE — install as /etc/systemd/system/gr-demod@.service after Phase 1.
-# Do NOT install on production until Phase 3 shadow signoff.
+# Unit name keeps the gr-demod@ prefix for continuity with the branch and
+# existing internal language; the Python package it execs is `chirp`. The
+# `%i` instance specifier selects the band (one of: airband, ground).
+#
+# Install (Phase 4d only):
+#   sudo cp chirp/systemd/gr-demod@.service.template \
+#           /etc/systemd/system/gr-demod@.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gr-demod@airband.service
+#   sudo systemctl enable --now gr-demod@ground.service
+#
+# DO NOT enable on production until Phase 4d.
 
 [Unit]
 Description=chirp analog demod daemon (%i band)
+Documentation=file:///home/ubuntu/scannerproject/SDR_DEMOD_DESIGN_2026-06-03.md
 After=network-online.target icecast2.service
+Wants=network-online.target
 Requires=icecast2.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -m chirp.daemon --band %i --config /etc/chirp/%i.yaml
+User=ubuntu
+Group=ubuntu
+
+# CHIRP_BAND drives every per-band path: config file
+# (chirp/config/<band>.json), state file (/var/lib/chirp/<band>.state.json),
+# hit log (/var/log/chirp/<band>_hits.jsonl) and default UDP port
+# (7400 airband / 7401 ground).
+Environment="CHIRP_BAND=%i"
+Environment="PYTHONUNBUFFERED=1"
+
+# Defaults that production cutover (Phase 4d) will override via a drop-in:
+#   - CHIRP_SOURCE=sdr:rspduo:...   (Phase 4b introduces the SDR adapter)
+#   - CHIRP_AUDIO_OUT=icecast:127.0.0.1:8000:/CHIRP_<BAND>.mp3:source:<pw>
+# Until then, the unit boots with whatever the per-band JSON config provides.
+
+ExecStart=/usr/bin/python3 -m chirp.daemon
+
 Restart=on-failure
 RestartSec=2
 TimeoutStopSec=5
 KillSignal=SIGTERM
+KillMode=mixed
+
+# rtl-airband-style hardening: bound the restart loop so a wedged hardware
+# state doesn't burn CPU forever.
 StartLimitBurst=10
 StartLimitIntervalSec=60
+
+# Make state + log dirs available without manual mkdir. ReadWritePaths keeps
+# the daemon out of unrelated parts of the filesystem.
+ReadWritePaths=/var/lib/chirp /var/log/chirp /tmp
+StateDirectory=chirp
+LogsDirectory=chirp
+
+# Resource guard rails (loose; tuned after Phase 4b telemetry lands).
+LimitNOFILE=4096
+MemoryMax=1G
 
 [Install]
 WantedBy=multi-user.target
