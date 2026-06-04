@@ -226,7 +226,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--id", required=True)
     sp.add_argument("--freq", type=float, required=True,
                     help="freq in MHz (file source: offset from center in MHz)")
-    sp.add_argument("--mode", default="am", choices=("am",))
+    sp.add_argument("--mode", default="am", choices=("am", "nfm"))
     sp.add_argument("--squelch", type=float, required=True,
                     help="squelch threshold dBFS in [-120, 0]")
     sp.add_argument("--gain", type=float, default=0.0,

@@ -134,7 +134,7 @@ class ChannelArgs(_ArgsBase):
 
     id: str
     freq_mhz: float
-    mode: Literal["am"]  # Phase 1/2: AM only; NFM is Phase 4.
+    mode: Literal["am", "nfm"]  # Phase 4a: NFM added for ground band.
     squelch_dbfs: float
     gain_db: float = 0.0
     label: Optional[str] = None
