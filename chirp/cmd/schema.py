@@ -1,29 +1,30 @@
 """chirp.cmd.schema — UDP JSON command/response validators (Pydantic v2).
 
-Phase 1 schema. See SDR_DEMOD_DESIGN_2026-06-03.md Section 5 for the canonical
-command list and event stream definitions. Phase 1 implements a subset:
+Phase 1 schema, extended in Phase 2. See SDR_DEMOD_DESIGN_2026-06-03.md
+Section 5 for the canonical command list.
 
-    add_channel, remove_channel, set_squelch, set_freq, set_gain, get_status
+Phase 1 commands (kept): add_channel, remove_channel, set_squelch, set_freq,
+set_gain, get_status.
 
-Reject `mode != "am"` in Phase 1 (NFM is Phase 2/4). The `set_mode` runtime
-command is reserved by the design doc but not implemented in Phase 1.
+Phase 2 additions:
+  - `add_channel` now accepts a BATCH: either the legacy single-channel arg
+    shape OR `{"channels": [ChannelArgs, ...]}`. Both wire through a
+    `channels: list[...]` field of length >= 1 internally.
+  - `set_master_gain { db }` — adjusts post-mixer trim.
+  - `reset { }` — clears all channels + resets state.
 
-Response envelope intentionally differs from the design doc's `{ok, result|error}`
-shape: Will's Phase-1 prompt specified `{status, data, error}` with a tri-state
-status field (`"ok" | "rejected" | "error"`). Both shapes carry the same
-information; the reconciliation is flagged in PROGRESS.md for Will to resolve
-before Phase 4 cutover (clients are required by spec to ignore unknown fields,
-so a forward-compat bridge is cheap).
+Response envelope keeps the `{status, data, error}` tri-state shape from
+Phase 1.
 """
 
 from __future__ import annotations
 
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Protocol version. Daemon advertises this via get_status.
-# Breaking changes bump this; non-breaking additions do not.
+# Phase 1 = 1. Phase 2 ADDS commands (non-breaking), so version stays at 1.
 PROTOCOL_VERSION = 1
 
 
@@ -37,7 +38,7 @@ class Envelope(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    v: int = Field(..., description="Protocol version (1 in Phase 1).")
+    v: int = Field(..., description="Protocol version (1).")
     id: str = Field(..., min_length=1, description="Client-chosen correlation id.")
     cmd: str = Field(..., min_length=1, description="Command name.")
     args: dict[str, Any] = Field(default_factory=dict)
@@ -127,10 +128,13 @@ def _check_freq_mhz(mhz: float) -> float:
     return float(mhz)
 
 
-class AddChannelArgs(_ArgsBase):
+class ChannelArgs(_ArgsBase):
+    """One channel description. Used both as a standalone request body and
+    as an element of an `add_channel` batch."""
+
     id: str
     freq_mhz: float
-    mode: Literal["am"]  # Phase 1: AM only; NFM is Phase 2/4.
+    mode: Literal["am"]  # Phase 1/2: AM only; NFM is Phase 4.
     squelch_dbfs: float
     gain_db: float = 0.0
     label: Optional[str] = None
@@ -154,6 +158,46 @@ class AddChannelArgs(_ArgsBase):
     @classmethod
     def _v_gain(cls, v: float) -> float:
         return _check_gain(v)
+
+
+class AddChannelArgs(_ArgsBase):
+    """Phase 2 batched form. Wire shape is one of:
+
+        {"id": "...", "freq_mhz": ..., "mode": "am", ...}   # legacy single
+        {"channels": [ {ChannelArgs}, ... ]}                # batch
+
+    Both normalise to `self.channels` of length >= 1.
+    """
+
+    channels: list[ChannelArgs] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _wrap_single(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if "channels" in data:
+            # Batch form. Forbid mixing batch + legacy keys.
+            other_keys = set(data.keys()) - {"channels"}
+            if other_keys:
+                raise ValueError(
+                    f"add_channel batch form must not mix with single-channel "
+                    f"keys: extra={sorted(other_keys)}"
+                )
+            return data
+        # Legacy single-channel form: wrap it.
+        return {"channels": [data]}
+
+    @model_validator(mode="after")
+    def _non_empty(self) -> "AddChannelArgs":
+        if not self.channels:
+            raise ValueError("add_channel: channels list must be non-empty")
+        # Disallow duplicate ids within a single batch.
+        ids = [c.id for c in self.channels]
+        if len(set(ids)) != len(ids):
+            dups = sorted({x for x in ids if ids.count(x) > 1})
+            raise ValueError(f"add_channel batch contains duplicate ids: {dups}")
+        return self
 
 
 class RemoveChannelArgs(_ArgsBase):
@@ -210,6 +254,22 @@ class SetGainArgs(_ArgsBase):
         return _check_gain(v)
 
 
+class SetMasterGainArgs(_ArgsBase):
+    """Phase 2. Post-mixer master gain trim, in dB."""
+
+    db: float
+
+    @field_validator("db")
+    @classmethod
+    def _v_gain(cls, v: float) -> float:
+        return _check_gain(v)
+
+
+class ResetArgs(_ArgsBase):
+    """Phase 2. Clears all channels + zeros master_gain + resets state file."""
+    pass
+
+
 class GetStatusArgs(_ArgsBase):
     pass
 
@@ -222,6 +282,8 @@ COMMAND_ARGS: dict[str, type[_ArgsBase]] = {
     "set_squelch": SetSquelchArgs,
     "set_freq": SetFreqArgs,
     "set_gain": SetGainArgs,
+    "set_master_gain": SetMasterGainArgs,
+    "reset": ResetArgs,
     "get_status": GetStatusArgs,
 }
 
@@ -268,11 +330,14 @@ __all__ = [
     "Envelope",
     "Response",
     "ResponseStatus",
+    "ChannelArgs",
     "AddChannelArgs",
     "RemoveChannelArgs",
     "SetSquelchArgs",
     "SetFreqArgs",
     "SetGainArgs",
+    "SetMasterGainArgs",
+    "ResetArgs",
     "GetStatusArgs",
     "COMMAND_ARGS",
     "Event",

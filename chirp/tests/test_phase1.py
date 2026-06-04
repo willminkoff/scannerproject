@@ -68,12 +68,16 @@ class TestSchema:
             parse_envelope(b'{"v":1,"id":"x","cmd":"get_status","args":{},"junk":1}')
 
     def test_add_channel_args_ok(self):
+        # Phase 2: AddChannelArgs is now a batch wrapper. The legacy
+        # single-channel wire form is still accepted and normalises to
+        # a 1-element `channels` list.
         a = parse_args("add_channel", {
             "id": "ch01", "freq_mhz": 121.025, "mode": "am",
             "squelch_dbfs": -68.0, "gain_db": 0.0, "label": "TWR",
         })
         assert isinstance(a, AddChannelArgs)
-        assert a.freq_mhz == 121.025
+        assert len(a.channels) == 1
+        assert a.channels[0].freq_mhz == 121.025
 
     def test_add_channel_rejects_nfm(self):
         with pytest.raises(ValidationError):
@@ -100,11 +104,13 @@ class TestSchema:
         with pytest.raises(ValidationError):
             parse_args("set_squelch", {"id": "ch01", "dbfs": -130.0})
 
-    def test_command_set_includes_phase1_only(self):
-        assert set(COMMAND_ARGS.keys()) == {
+    def test_command_set_includes_phase1_commands(self):
+        # Phase 1 commands must still be there; Phase 2 ADDS to the set.
+        phase1 = {
             "add_channel", "remove_channel", "set_squelch",
             "set_freq", "set_gain", "get_status",
         }
+        assert phase1.issubset(set(COMMAND_ARGS.keys()))
 
     def test_response_factories(self):
         assert Response.make_ok("x", {"a": 1}).status == "ok"
@@ -143,7 +149,9 @@ def mock_server():
     def dispatch(env, args):
         calls.append((env.cmd, args.model_dump()))
         if env.cmd == "add_channel":
-            state[args.id] = args.model_dump()
+            # Phase 2: args is a batch (channels: list[ChannelArgs]).
+            for ch in args.channels:
+                state[ch.id] = ch.model_dump()
             return Response.make_ok(env.id, {"slot": 0})
         if env.cmd == "remove_channel":
             state.pop(args.id, None)
