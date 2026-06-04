@@ -4942,6 +4942,11 @@ _SITREP_ACTIONS: dict[str, dict] = {
     },
     "reset_radios": {
         "label": "Reset Radios",
+        # NOTE: this raw cmd vector is NOT executed for ``reset_radios``
+        # anymore — see _run_sitrep_action's special-case below, which
+        # routes through ``safe_restart_rtl_airband`` to get SDRplay
+        # daemon recovery + idempotency.  The vector is retained as
+        # documentation of the underlying sudoers grant.
         "cmd": [
             "sudo", "-n", "/bin/systemctl", "restart",
             "rtl-airband-airband.service",
@@ -4984,12 +4989,70 @@ _SITREP_ACTION_SUDOERS_HINT = (
 def _run_sitrep_action(action: str) -> tuple[bool, str, str]:
     """Execute the command vector mapped to ``action`` and return
     (ok, message, error).  Sudo-password failures are surfaced with a
-    visudo hint so the operator can self-serve the fix."""
+    visudo hint so the operator can self-serve the fix.
+
+    Special case: ``reset_radios`` does NOT run the raw 4-service
+    ``systemctl restart`` command vector anymore.  That path was the
+    direct cause of the SDRplay-wedge cascade Will hit repeatedly on
+    2026-06-03 — a bare ``systemctl restart rtl-airband-*`` lets the
+    stop-sigterm timeout escalate to SIGKILL mid-SDRplay-teardown,
+    corrupts ``/dev/shm/Glbl*sdrSrv*`` semaphores, and the next
+    ``sdrplay_api_Open`` hangs indefinitely with no recovery.
+    Instead we delegate to ``safe_restart_rtl_airband`` which wraps
+    the existing sequenced ``restart_rtl_airband`` /
+    ``restart_rtl_ground`` helpers with a module-level idempotency
+    lock + automatic sdrplay-daemon recovery on probe failure.
+    """
     spec = _SITREP_ACTIONS.get(action)
     if not spec:
         return False, "", f"unknown action: {action}"
-    cmd = list(spec["cmd"])
     label = spec["label"]
+
+    # ------------------------------------------------------------------
+    # Safe path: reset_radios routes through the safe wrapper.
+    # ------------------------------------------------------------------
+    if action == "reset_radios":
+        try:
+            try:
+                from .airband_restart import safe_restart_rtl_airband
+            except ImportError:
+                from ui.airband_restart import safe_restart_rtl_airband  # type: ignore
+        except Exception as exc:
+            return False, "", f"{label}: safe_restart import failed: {exc}"
+        try:
+            result = safe_restart_rtl_airband(
+                bands=("airband", "ground"),
+                reason="sitrep_reset_radios",
+                also_restart_op25=True,
+                also_restart_vfo=True,
+            )
+        except Exception as exc:
+            return False, "", f"{label}: safe_restart raised: {exc}"
+        status = str(result.get("status") or "")
+        elapsed = result.get("elapsed_s", 0.0)
+        if status == "ok":
+            recovered = " (sdrplay recovered)" if result.get("restarted_sdrplay") else ""
+            return True, f"{label} triggered{recovered} in {elapsed}s", ""
+        if status == "in_flight_skipped":
+            # A prior restart is still running — surface as success
+            # (the in-flight one will complete on its own) so the UI
+            # doesn't show a false error to the operator who clicked
+            # twice or who clicked while squelch tracker was applying.
+            return True, f"{label}: already in progress, skipped duplicate", ""
+        per_band = result.get("results") or {}
+        details = "; ".join(
+            f"{b}: {('ok' if r.get('ok') else (r.get('error') or 'fail'))}"
+            for b, r in per_band.items()
+        ) or "(no per-band detail)"
+        return False, "", f"{label}: {status} after {elapsed}s — {details}"
+
+    # ------------------------------------------------------------------
+    # Default path: raw systemctl command for the other sitrep actions
+    # (reboot, reset_live_iq, reset_disco, reset_ui).  These don't
+    # touch the SDRplay master/slave handle so the wedge cascade
+    # doesn't apply.
+    # ------------------------------------------------------------------
+    cmd = list(spec["cmd"])
     try:
         # 20s is enough for `systemctl restart` of any of these units;
         # reboot returns immediately (the actual reboot is async).

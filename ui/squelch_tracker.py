@@ -19,12 +19,21 @@ fires once an hour or less in steady state, not every cycle.
 
 SDRplay master/slave race
 -------------------------
-We intentionally do NOT call ``restart_rtl_airband`` / ``restart_rtl_ground``
-because those helpers escalate to bouncing the SDRplay daemon if the
-gentle path fails — and the autopilot must never bounce SDRplay as a
-"fix".  Instead we invoke a single ``sudo -n /bin/systemctl restart
-rtl-airband-<band>.service`` and, if that returns non-zero, log a warning
-and stop adjusting that band until the operator clears it.
+We delegate restarts to ``safe_restart_rtl_airband`` so the tracker
+shares the same idempotency lock + sdrplay-daemon recovery path as
+the operator's Sitrep → Reset Radios button.
+
+Older versions of this module ran a bare ``sudo -n /bin/systemctl
+restart`` and explicitly avoided the escalating helper, on the
+reasoning that "the autopilot must never bounce SDRplay as a fix."
+That stance turned out to be a footgun: on 2026-06-03 the bare-restart
+path SIGKILLed rtl-airband mid-SDRplay-teardown, corrupted the
+shared-memory semaphores, and wedged every subsequent open.  Routing
+through the safe wrapper means (a) the tracker no-ops if another
+restart is already in flight (no stacking with operator chip clicks),
+and (b) if the gentle restart probe-fails, the wrapper transparently
+performs the sdrplay daemon recovery rather than leaving a wedged
+mount behind.
 
 Failure modes (rock-solid pillar)
 ---------------------------------
@@ -231,27 +240,50 @@ def write_audit_event(event: dict[str, Any]) -> None:
 # --- restart helper ---------------------------------------------------------
 
 def _restart_band_unit(band: str) -> tuple[bool, str]:
-    """sudo -n /bin/systemctl restart rtl-airband-<band>.service.
+    """Restart the rtl-airband-<band> service via the safe wrapper.
 
-    Returns (ok, err).  We do NOT call the escalating helper in
-    ui.systemd; if this fails, the operator decides what to do.
+    Delegates to ``ui.airband_restart.safe_restart_rtl_airband`` so
+    the tracker:
+      * shares the module-level idempotency lock with the operator's
+        Sitrep → Reset Radios path (no overlapping restarts),
+      * gets sdrplay-daemon recovery on probe failure (the bare
+        ``systemctl restart`` path silently leaves a wedged mount),
+      * never restarts OP25 / VFO from the tracker (those are not
+        the tracker's job — only the operator-initiated path touches
+        them).
+
+    Returns ``(ok, err)`` to keep the existing caller contract.
     """
-    unit = _BAND_TO_UNIT.get(band)
-    if not unit:
+    if band not in _BAND_TO_UNIT:
         return False, f"unknown band: {band}"
-    cmd = ["sudo", "-n", "/bin/systemctl", "restart", unit]
     try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=25
+        try:
+            from .airband_restart import safe_restart_rtl_airband
+        except ImportError:
+            from ui.airband_restart import safe_restart_rtl_airband  # type: ignore
+    except Exception as exc:
+        return False, f"safe_restart import failed: {exc}"
+    try:
+        result = safe_restart_rtl_airband(
+            bands=(band,),
+            reason=f"squelch_tracker:{band}",
+            also_restart_op25=False,
+            also_restart_vfo=False,
         )
-    except subprocess.TimeoutExpired:
-        return False, f"timed out after 25s restarting {unit}"
-    except FileNotFoundError as exc:
-        return False, f"binary not found: {exc}"
-    if proc.returncode != 0:
-        stderr = (proc.stderr or "").strip() or (proc.stdout or "").strip()
-        return False, f"rc={proc.returncode} {stderr}"
-    return True, ""
+    except Exception as exc:
+        return False, f"safe_restart raised: {exc}"
+    status = str(result.get("status") or "")
+    if status == "ok":
+        return True, ""
+    if status == "in_flight_skipped":
+        # Another restart (likely the operator's) is in flight — the
+        # tracker should not stack on top.  Treat as a soft success so
+        # we don't disable the band; the in-flight restart will apply
+        # the freshly-written thresholds when it brings the unit back.
+        return True, ""
+    per_band = result.get("results") or {}
+    err_detail = (per_band.get(band) or {}).get("error") or status
+    return False, f"safe_restart {status}: {err_detail}"
 
 
 # --- one tracker cycle for one band -----------------------------------------
