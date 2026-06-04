@@ -67,6 +67,7 @@ from chirp.dsp.channel import Channel
 from chirp.dsp.icecast_sink import IcecastSink, IcecastSinkConfig, STATE_NOT_CONFIGURED
 from chirp.dsp.mixer import AudioMixer
 from chirp.dsp.source_file import FileIQSource
+from chirp.dsp.source_sdr import SdrIQSource, SdrSourceConfig
 from chirp.hit_detector import HitDetector
 from chirp.state import ChannelState, ChirpState, StateStore, default_state_path
 
@@ -93,9 +94,18 @@ class DaemonConfig:
     pool_mode: str = "am"  # Phase 4a: per-band pool demod mode ("am" or "nfm")
     cmd_host: str = "127.0.0.1"
     cmd_port: int = 7400
-    source_kind: str = "file"  # Phase 1/2/3: only "file"
+    source_kind: str = "file"  # Phase 1/2/3: only "file"; Phase 4b adds "sdr"
     source_path: Optional[str] = None
     source_samp_rate: float = 1e6
+    # Phase 4b SDR source fields (used when source_kind == "sdr").
+    sdr_device_args: Optional[str] = None
+    sdr_center_freq_hz: float = 0.0
+    sdr_gain_db: float = 30.0
+    sdr_gain_mode_auto: bool = False
+    sdr_bandwidth_hz: float = 0.0
+    sdr_ppm: float = 0.0
+    sdr_antenna: Optional[str] = None
+    sdr_element_gains: dict = field(default_factory=dict)
     audio_out_kind: str = "file"  # Phase 1/2: "file"; Phase 3 adds "icecast"
     audio_out_path: Optional[str] = None
     audio_rate: float = 16000.0
@@ -256,6 +266,35 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
             "CHIRP_ICECAST_FALLBACK_FILE",
             raw.get("icecast_fallback_file", "/tmp/chirp_audio_fallback.f32"),
         ),
+        sdr_device_args=os.environ.get(
+            "CHIRP_SDR_DEVICE_ARGS",
+            (raw.get("sdr") or {}).get("device_args"),
+        ),
+        sdr_center_freq_hz=float(os.environ.get(
+            "CHIRP_SDR_CENTER_FREQ_HZ",
+            (raw.get("sdr") or {}).get("center_freq_hz", 0.0),
+        )),
+        sdr_gain_db=float(os.environ.get(
+            "CHIRP_SDR_GAIN_DB",
+            (raw.get("sdr") or {}).get("gain_db", 30.0),
+        )),
+        sdr_gain_mode_auto=str(os.environ.get(
+            "CHIRP_SDR_GAIN_MODE_AUTO",
+            str((raw.get("sdr") or {}).get("gain_mode_auto", "false")),
+        )).strip().lower() in ("1", "true", "yes"),
+        sdr_bandwidth_hz=float(os.environ.get(
+            "CHIRP_SDR_BANDWIDTH_HZ",
+            (raw.get("sdr") or {}).get("bandwidth_hz", 0.0),
+        )),
+        sdr_ppm=float(os.environ.get(
+            "CHIRP_SDR_PPM",
+            (raw.get("sdr") or {}).get("ppm", 0.0),
+        )),
+        sdr_antenna=os.environ.get(
+            "CHIRP_SDR_ANTENNA",
+            (raw.get("sdr") or {}).get("antenna"),
+        ),
+        sdr_element_gains=(raw.get("sdr") or {}).get("element_gains", {}) or {},
     )
 
 
@@ -305,11 +344,38 @@ class ChirpFlowgraph(gr.top_block):
         # ---- Source ------------------------------------------------------
         if cfg.source_kind == "file":
             if not cfg.source_path:
-                raise ValueError("CHIRP_SOURCE=file:/path required in Phase 1/2")
+                raise ValueError("CHIRP_SOURCE=file:/path required for file source")
             self.source = FileIQSource(cfg.source_path, cfg.source_samp_rate, repeat=True)
+        elif cfg.source_kind == "sdr":
+            if not cfg.sdr_device_args:
+                raise ValueError(
+                    "sdr source requires sdr.device_args "
+                    "(or CHIRP_SDR_DEVICE_ARGS env)"
+                )
+            if cfg.sdr_center_freq_hz <= 0:
+                raise ValueError(
+                    "sdr source requires sdr.center_freq_hz > 0"
+                )
+            sdr_cfg = SdrSourceConfig(
+                device_args=cfg.sdr_device_args,
+                sample_rate=cfg.source_samp_rate,
+                center_freq_hz=cfg.sdr_center_freq_hz,
+                gain_db=cfg.sdr_gain_db,
+                gain_mode_auto=cfg.sdr_gain_mode_auto,
+                bandwidth_hz=cfg.sdr_bandwidth_hz,
+                ppm=cfg.sdr_ppm,
+                antenna=cfg.sdr_antenna,
+                element_gains=cfg.sdr_element_gains or {},
+            )
+            self.source = SdrIQSource(sdr_cfg)
+            log.info(
+                "sdr source: args=%r rate=%.0f sps center=%.6f MHz gain=%.1f dB",
+                cfg.sdr_device_args, cfg.source_samp_rate,
+                cfg.sdr_center_freq_hz / 1e6, cfg.sdr_gain_db,
+            )
         else:
             raise NotImplementedError(
-                f"source_kind={cfg.source_kind!r} not in Phase 1/2 (file only)"
+                f"source_kind={cfg.source_kind!r} not supported (want 'file' or 'sdr')"
             )
 
         # ---- Channel pool + mixer ----------------------------------------
@@ -433,10 +499,20 @@ class ChirpFlowgraph(gr.top_block):
         return Response.make_rejected(env.id, f"unknown command: {cmd}")
 
     def _freq_to_offset_hz(self, freq_mhz: float) -> float:
-        """File source has no LO concept; treat freq_mhz directly as an offset
-        from the source's logical center (0 Hz). The smoke-test generator
-        places the carrier at +200 kHz, so add_channel with freq_mhz=0.2 hits.
+        """Convert an absolute channel frequency (MHz) to the per-channel
+        xlating offset (Hz) expected by chirp.dsp.Channel.
+
+        File source: the synthesized fixtures place their carrier as a raw
+        offset in MHz from logical 0 Hz (the smoke-test fixture has its
+        carrier at +200 kHz, so add_channel --freq 0.2 hits). We pass the
+        value through.
+
+        SDR source: the LO is real and centered at sdr_center_freq_hz.
+        Channels are at absolute RF; the xlating filter needs the delta
+        from the LO.
         """
+        if self._cfg.source_kind == "sdr":
+            return (freq_mhz * 1e6) - float(self._cfg.sdr_center_freq_hz)
         return freq_mhz * 1e6
 
     # -- state persistence helper ------------------------------------------
@@ -684,6 +760,9 @@ class ChirpFlowgraph(gr.top_block):
                     "kind": self._cfg.source_kind,
                     "path": self._cfg.source_path,
                     "samp_rate": self._cfg.source_samp_rate,
+                    "sdr_device_args": self._cfg.sdr_device_args,
+                    "sdr_center_freq_hz": self._cfg.sdr_center_freq_hz,
+                    "sdr_gain_db": self._cfg.sdr_gain_db,
                 },
                 "max_channels": self._cfg.max_channels,
                 "master_gain_db": self._master_gain_db,

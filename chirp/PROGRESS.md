@@ -997,3 +997,225 @@ runs. Once a path is chosen, the deliverables list (SdrIQSource adapter,
 config schema, daemon source switching, unit tests) carries over
 unchanged; only the live-validation step changes.
 
+
+---
+
+## Phase 4b-retry (2026-06-04) — digital-RSPduo shadow test
+
+**Why retried.** Will authorised commandeering the *digital* RSPduo
+(currently held by `scanner-digital-op25` — serial `180903EF32`) as a
+hardware-equivalent test plane. Plan: stop op25 ~3 min, run chirp's new
+`SdrIQSource` against the freed RSPduo, validate end-to-end, restart op25.
+Production analog audio (rtl-airband on the *other* RSPduo, serial
+`1809063632`) must stay up the entire time.
+
+**HARD RULES observed.** `sdrplay.service` was never touched.
+`rtl-airband-airband` + `rtl-airband-ground` stayed `active` through the
+entire window. Analog `stream_start` timestamps unchanged at the end. No
+prod analog interruption.
+
+### Step 1 — identify the digital RSPduo (✓)
+
+`systemctl cat scanner-digital-op25` → `multi_rx.py -c /run/scannerproject/op25/multi_rx.json`. The op25 config pins:
+
+```json
+"devices": [{
+  "name": "sdr0",
+  "args": "soapy=,driver=sdrplay,serial=180903EF32,mode=ST,tuner=1",
+  "rate": 2400000, "frequency": 769531250,
+  "ppm": 0.5, "gains": "IFGR:20,RFGR:0", "gain_mode": false
+}]
+```
+
+`/run/rtl_airband_airband_runtime.conf` and `_ground_runtime.conf` both
+pin serial `1809063632` — airband on `mode=MA,tuner=1`, ground on
+`mode=SL,tuner=2`. Same physical RSPduo, master+slave on its two
+tuners. Serials confirmed **different** from the digital RSPduo.
+
+`SoapySDRUtil --find` timed out while op25 was still up (already-claimed
+USB endpoints).
+
+### Step 2 — free the digital RSPduo (✓ ⇒ ✗ on probe)
+
+- **T0 = 2026-06-04T09:18:47-04:00** — `sudo systemctl stop
+  scanner-digital-op25-audio scanner-digital-op25`. Clean exit per
+  journal (no SIGKILL).
+- Post-stop service state (`systemctl is-active …`):
+  - scanner-digital-op25 → `inactive` ✓
+  - scanner-digital-op25-audio → `failed` (expected; PartOf cascade)
+  - rtl-airband-airband → **`active`** ✓
+  - rtl-airband-ground → **`active`** ✓
+  - sdrplay → `active` ✓
+- `lsusb` confirmed both RSPduos still enumerated (devices 019 + 020).
+  `sdrplay_apiService` fd-list showed only `/dev/bus/usb/001/020` open
+  (analog RSPduo). The digital RSPduo `/dev/bus/usb/001/019` was free at
+  the USB layer.
+
+**SoapySDR probe — IDENTICAL HANG to Phase 4b first pass.**
+
+| Probe | Call | Result |
+|-------|------|--------|
+| 1 | `timeout 15 SoapySDRUtil --find=driver=sdrplay` | **HANG → timeout** (rc=124) |
+| 2 | `SoapySDR.Device(dict(driver='sdrplay', serial='180903EF32', mode='ST', tuner='1'))` | **HANG → timeout** |
+| 3 | `SoapySDR.Device.enumerate(dict(driver='sdrplay'))` | **HANG → timeout** |
+| 4 | `osmosdr.source(args='soapy=,driver=sdrplay,serial=180903EF32,mode=ST,tuner=1')` | **HANG → timeout** (chirp's actual call path) |
+
+All four issued from fresh Python interpreters with hard `timeout`
+wrappers. Each call sat there silently — no exception, no driver log
+output beyond the gr-osmosdr banner ("opening: …" then nothing).
+
+### Step 3 — diagnosis: same blocker, broader than we thought
+
+Phase 4b first-pass hypothesis was "RSPduo has 2 tuners, both already
+taken by rtl-airband MA+SL, so a 3rd client can't open *that device*."
+
+Phase 4b-retry **falsifies the per-device interpretation**:
+
+- The digital RSPduo (`180903EF32`) is a *different physical USB device*
+  from the analog one (`1809063632`). After op25 stopped, **no client
+  held the digital RSPduo at any level** — confirmed by `sdrplay_apiService`'s
+  fd list (only `/dev/bus/usb/001/020`, i.e. the analog RSPduo).
+- Yet a brand-new SoapySDR client still hung — not just on `open(serial=…)`
+  but on bare `enumerate()`. The gate is at the **api-service client
+  connection layer**, not the per-device slot layer.
+
+**Revised finding.** `sdrplay_apiService`, as configured on Micro today,
+gates **all new client connections wholesale** once both rtl-airband
+clients are connected. The total client slot count appears to be 2 —
+not 2-per-device. Op25 only succeeds in opening the digital RSPduo
+because it *was already attached* at apiService boot time (rtl-airband
++ op25 race for those 2 slots at startup; once won, they hold them).
+Disconnecting op25 *frees* a slot — but the apiService doesn't appear
+to expose / re-advertise that slot to fresh clients without some
+trigger we haven't identified.
+
+This is consistent with what the SDRplay api-service is known to do
+under certain `sdrplay_apiService` versions: a fixed in-process client
+table with hard-wired entries. We did not restart the api-service to
+investigate (HARD RULE — rtl-airband stays up).
+
+### Step 4 — restore digital (✓)
+
+- **T1 = 2026-06-04T09:22:21-04:00** — `sudo systemctl start
+  scanner-digital-op25`. op25-audio auto-started via `Wants=`.
+- op25 log: `multi_rx.py` re-acquired `serial=180903EF32, mode=ST,
+  tuner=1` and re-attached to the NJICS P25 system. CC lock back
+  inside the wait window.
+- DIGITAL.mp3 streaming valid MP3 again — `ffprobe` reports
+  `format=mp3, duration=7.5s, bit_rate=64150` from a fresh pull at
+  T1+8 min.
+- **Digital downtime ≈ 3 min 35 s** (T0 → T1). Well under the 30-min
+  budget.
+
+### Step 5 — production analog UNAFFECTED (✓)
+
+Icecast `stream_start` diff, baseline (pre-T0) vs. recovery (post-T1):
+
+| Mount               | Baseline                       | Post-test                      | Verdict |
+|---------------------|--------------------------------|--------------------------------|---------|
+| `/ANALOG.mp3`       | 2026-06-04T07:30:08-0400       | 2026-06-04T07:30:08-0400       | **UNCHANGED** ✓ |
+| `/ANALOG_GROUND.mp3`| 2026-06-04T07:30:19-0400       | 2026-06-04T07:30:19-0400       | **UNCHANGED** ✓ |
+| `/DIGITAL.mp3`      | 2026-06-04T07:30:49-0400       | 2026-06-04T09:22:24-0400       | New (expected — op25 restarted) |
+| `/VFO.mp3`          | 2026-06-04T07:30:33-0400       | 2026-06-04T07:30:33-0400       | UNCHANGED |
+
+Analog production audio was not interrupted at any point.
+
+### Code shipped (live shadow gates didn't run — the adapter is code-complete)
+
+Even though the live A/B was blocked by the api-service gate, the SDR
+adapter itself is fully written, tested with mocks, and ready for the
+moment we can get a third client slot. Deliverables:
+
+- **`chirp/dsp/source_sdr.py`** — `SdrIQSource(gr.hier_block2)` wrapping
+  `osmosdr.source` with a `SdrSourceConfig` dataclass. Validates sample
+  rate (≥1 Msps, multiple-of-1 Msps to match the channel pool's
+  decimation chain). Sets rate → bandwidth → center freq → freq corr →
+  gain mode → overall gain → antenna → per-element gains, in that
+  order. Hot setters: `set_center_freq(hz)`, `set_gain(db)`. Handles
+  driver `set_antenna()` rejection gracefully.
+- **`chirp/daemon.py`** — `DaemonConfig` gains SDR fields
+  (`sdr_device_args`, `sdr_center_freq_hz`, `sdr_gain_db`,
+  `sdr_gain_mode_auto`, `sdr_bandwidth_hz`, `sdr_ppm`, `sdr_antenna`,
+  `sdr_element_gains`). `load_config` reads them from the new `"sdr"`
+  block in the config JSON and from `CHIRP_SDR_*` env overrides.
+  `ChirpFlowgraph.__init__` now branches on `source_kind`: `"file"`
+  (unchanged Phase 1/2 path) or `"sdr"` (instantiates `SdrIQSource`).
+  `_freq_to_offset_hz` now subtracts the LO when running an SDR source
+  — pure helper, unit-tested both modes.
+- **`chirp/config/airband.json`** + **`chirp/config/ground.json`**
+  gain an `"sdr"` block pointing at the analog RSPduo serial
+  `1809063632` (production cutover target, *not* the digital one — the
+  retry's choice of digital was a shadow-test specific decision, the
+  config records the Phase 4d cutover target). Airband mode=MA tuner=1,
+  ground mode=SL tuner=2.
+- **`chirp/tests/test_phase4b.py`** — 11 new unit tests covering
+  `SdrSourceConfig` defaults, `SdrIQSource` validation + setter order +
+  hot retune + antenna-rejection fallback, daemon config JSON loading
+  + env override, `_freq_to_offset_hz` SDR vs file mode, and the
+  missing-args error path. All hardware-free (mocked via a real
+  `gr.hier_block2` proxy so `connect()` lines up).
+
+### Test count
+
+`python3 -m pytest chirp/tests -q` → **132 passed in 151.66s**
+(121 existing + 11 new). No regressions.
+
+### Branch tip
+
+`d6a9f29 → <new SHA after this commit>`. (See git log post-commit.)
+
+### What did and did not happen at each gate (the report card)
+
+| Gate                                    | Verdict |
+|-----------------------------------------|---------|
+| 1. Digital serial confirmed different   | ✓ digital `180903EF32` ≠ analog `1809063632` |
+| 2. SoapySDR probe of digital RSPduo     | ✗ **HANG** (timeout) — identical signature to Phase 4b first pass |
+| 3. Chirp daemon startup (live RF)       | n/a — never reached. Adapter import + config schema validated via unit tests. |
+| 4. 10-min shadow window                 | n/a — could not open the device |
+| 5. A/B numbers vs rtl-airband           | n/a — no chirp hits to compare |
+| 6. op25 restart                         | ✓ clean. CC lock + NJICS attach in first log entries; DIGITAL.mp3 streaming valid MP3. |
+| 7. Production analog UNAFFECTED         | ✓ `stream_start` for `/ANALOG.mp3` + `/ANALOG_GROUND.mp3` UNCHANGED from baseline. |
+| 8. Branch tip + test count              | 132 tests passing on `gr-demod/airband` (was 121). |
+| 9. SDR adapter ready for Phase 4d?      | **Yes for code; no for live cutover.** Adapter is feature-complete and unit-tested. The hardware path to a live test is *still* blocked. |
+
+### Verdict
+
+**Hardware path is the gating issue, not the code.** The SDR adapter is
+done and merged on `gr-demod/airband`. What we have NOT been able to
+do — in either Phase 4b attempt — is open an SDRplay RSPduo from a
+third Python process while rtl-airband holds its 2 client slots,
+regardless of which physical RSPduo we target.
+
+### Recommended next steps for Will
+
+The original PROGRESS.md fallback A–D list still applies, with these
+updated weights given the retry data:
+
+- **A — Pre-recorded IQ capture** (recommended). Stop rtl-airband once
+  briefly, capture 30–60 min of raw IQ from the analog RSPduo at 1
+  Msps centered on a busy sub-band, restart rtl-airband, then point
+  `CHIRP_SOURCE=file:/path/to/capture.fc32` at the capture. Loses
+  real-time but exercises the entire demod chain on real RF and
+  produces real A/B numbers vs the rtl-airband stats snapshot from the
+  same window. **Smallest production risk.**
+
+- **B — Cutover-as-first-RF-test (skip shadow)**. Build the rollback
+  script, then do the Phase 4d swap as the live test. Higher risk —
+  first live RF run is also the prod swap — but unblocks the
+  remaining work.
+
+- **C — Investigate the sdrplay_apiService client cap directly**. We
+  did not look into `/etc/sdrplay/*.conf` or the api-service startup
+  flags. There may be a `max_clients` knob. Touching this is high
+  risk (requires the service to restart, which knocks rtl-airband out).
+  Worth a careful pass in a separate window.
+
+- **D — Hardware split**. Add a third SDR (RSP1A or an RTL-SDR) on
+  Micro with an antenna splitter so chirp gets its own dongle and the
+  client-cap question becomes moot.
+
+Will's call. The code is ready either way.
+
+**Total wall-clock for this slot:** ~30 min. Digital downtime: ~3 min 35 s.
+Production analog: 0 s of interruption.
+

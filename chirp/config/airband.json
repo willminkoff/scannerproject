@@ -1,5 +1,5 @@
 {
-  "_comment": "chirp airband daemon defaults (Phase 4a). All keys are optional and can be overridden by the matching CHIRP_* env var. See chirp/config/README.md.",
+  "_comment": "chirp airband daemon defaults. Phase 4a defaults + Phase 4b 'sdr' block. 'sdr' is consulted only when CHIRP_SOURCE=sdr (or source='sdr' here). All keys are optional and can be overridden by the matching CHIRP_* env var. See chirp/config/README.md.",
   "version": 1,
   "band": "airband",
   "pool_mode": "am",
@@ -10,5 +10,16 @@
   "max_channels": 32,
   "icecast_bitrate_kbps": 32,
   "icecast_fallback_file": "/tmp/chirp_airband_fallback.f32",
-  "log_level": "INFO"
+  "log_level": "INFO",
+  "sdr": {
+    "_comment": "SDR source defaults for airband. Production cutover (Phase 4d) targets the analog RSPduo serial 1809063632 with mode=MA tuner=1, matching rtl-airband-airband. center_freq_hz must be set to whichever sub-band chirp is currently scanning; with 1 Msps the LO must be retuned by an external scheduler to cover the full 121-385 MHz airband list.",
+    "device_args": "soapy=,driver=sdrplay,serial=1809063632,mode=MA,tuner=1",
+    "center_freq_hz": 127500000.0,
+    "gain_db": 32.8,
+    "gain_mode_auto": false,
+    "bandwidth_hz": 0.0,
+    "ppm": 0.0,
+    "antenna": null,
+    "element_gains": {}
+  }
 }
