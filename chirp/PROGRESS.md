@@ -2352,3 +2352,106 @@ the cutover; downtime budget ~10-15 min for swap + ~30 min soak.
   `/etc/icecast2/icecast.xml` via the chirp scripts.  Icecast
   reloaded (not restarted) — all 6 production sources stayed up
   across the reload.
+
+### Step 2 — State migration (complete)
+
+- `migrate_state.py --dry-run` previewed 20 airband + 27 ground from
+  `fav-sic` (matching baseline).
+- `--apply` wrote `/var/lib/chirp/{airband,ground}.state.json` with
+  `balanced` @ -30 dBFS (airband) and `sensitive` @ -33 dBFS (ground),
+  gain 32.8 dB.
+- **Important:** the migrated state survives daemon starts but is
+  clobbered by the pytest suite — `chirp/tests/` write to
+  `/var/lib/chirp/airband.state.json` directly (not a tmp fixture).
+  Re-applied migrate_state in Step 5 after a pytest run during 3b
+  overwrote the file.  Follow-up: tests should be sandboxed with a
+  `CHIRP_STATE_DIR` override or `tmp_path` fixture.
+
+### Step 3 — Systemd units installed (complete)
+
+- Installed `gr-demod@.service` from `chirp/systemd/...template`.
+- `systemctl enable gr-demod@airband.service gr-demod@ground.service`
+  → both loaded + enabled + inactive.
+- `StartLimitIntervalSec` belongs in `[Unit]`, not `[Service]`, on
+  systemd 256+ — non-fatal warning, ignored.
+
+### Step 3b — `CHIRP_ALLOW_PROD_MOUNT` opt-in (complete, `42bc683`)
+
+- `_parse_icecast_spec` in `chirp/daemon.py` previously hard-refused
+  publishing to `/ANALOG.mp3`, `/ANALOG_GROUND.mp3`, `/DIGITAL.mp3`,
+  `/VFO.mp3` (Phase 3 safety).  Step 7 of the cutover requires
+  publishing to those mounts, so added an opt-in env
+  `CHIRP_ALLOW_PROD_MOUNT=1` that lifts the guard.
+- Test suite updated for both branches: default refuses, env-set
+  allows (5 flag values × 4 mounts × 1 case).
+- **266 → 286 tests passed** (20 new from the parametrized matrix).
+
+### Step 4 — rtl-airband stopped (complete, t=12:53:33)
+
+- `systemctl stop rtl-airband-airband rtl-airband-ground` —
+  TimeoutStopSec=30 from drop-in.  Ground hit SIGKILL before clean
+  exit; both end up `failed` (manual stop, `Restart=on-failure` so
+  no auto-restart).  `systemctl reset-failed` to clear.
+- `sdrplay.service` had to be restarted: stale `SoapySDRUtil --find`
+  probes from prior debug sessions (2h+) had wedged the API and
+  `osmosdr.source(...)` was hanging at open.  After
+  `systemctl restart sdrplay`: airband open in 70 ms.
+
+### Step 5 — chirp on test mounts (complete, t=13:04:59 airband, 13:06:16 ground)
+
+systemd drop-ins at
+`/etc/systemd/system/gr-demod@{airband,ground}.service.d/cutover.conf`
+set:
+
+  - `CHIRP_AUDIO_OUT=icecast:127.0.0.1:8000:/CHIRP_TEST.mp3:062352`
+    (and `/CHIRP_GROUND_TEST.mp3`).  **Note:** the original runbook
+    spec `…:source:062352` is 5 fields; the parser splits on the
+    first three colons and treats everything after as the password,
+    so `source:062352` became the password and Icecast rejected the
+    auth.  The 4-field spec uses the default user `source` (set in
+    `IcecastSinkConfig.user`).
+  - `CHIRP_SOURCE=sdr`
+  - `WorkingDirectory=/home/ubuntu/scannerproject` +
+    `PYTHONPATH=/home/ubuntu/scannerproject` — the base unit runs
+    `python3 -m chirp.daemon` from `/`, which can't import the
+    package without one of these.
+  - `CHIRP_LO_MAX_CLUSTERS=20` — the migrated state's 20 airband +
+    27 ground favorites need 9 + 15 clusters respectively at 1 Msps.
+    Default of 3 wouldn't fit, scheduler reported `plan_failed`
+    until the env was raised.
+
+Verified live:
+
+  - both daemons `active`, no auto-restarts, no exceptions in journal.
+  - `/CHIRP_TEST.mp3` and `/CHIRP_GROUND_TEST.mp3` publishing as
+    `audio/mpeg`, 32 kbps CBR, 16 kHz mono.  Mid-stream `curl` pull
+    → 8 s sample, ffprobe clean.
+  - chirp UDP cmd servers up on 7400 (airband) + 7401 (ground); both
+    answer `get_status` with `icecast_state=connected`.
+  - State restored: 20 airband / 27 ground channels (matches
+    migration).
+  - LO scheduler firing on schedule: dwell_actual_sec ≈ 60.04 s,
+    cluster_idx cycling 0..n-1, 12 cluster_hop events in 6 min.
+  - **Airband hits:** 3 `hit_start` events on 127.7 MHz
+    (`freq:artcc:sic:127.7000`) at -27.7, -29.8, -29.9 dBFS, 0.2 s
+    duration each, all during cluster 4 dwell (127.5125 MHz center,
+    13:09:01-13:10:01).  When the LO hopped to cluster 5 at 13:10:01,
+    127.7 channel parked and hits paused for that channel.
+  - **Ground hits:** 0 hits in 6 min.  138 MHz cluster spent its
+    60 s dwell and moved on; ground traffic is sparse.  With 15
+    clusters at 60 s each, every ground channel sees ~7 % airtime.
+
+Anomalies + watch items:
+
+  - **Load average climbing.**  uptime 13:12:50 shows 18.75 / 14.41 /
+    8.77 (1/5/15 min).  Per-daemon CPU ~210 % (2.1 cores each).
+    With airband + ground = ~4.2 cores; system has 20 cores so we're
+    well under nproc, but the climbing trend is worth tracking
+    through the soak.
+  - **Duty-cycle trade-off.**  9-cluster airband cycle = 540 s per
+    channel; rtl-airband sees every channel continuously.  Hits per
+    channel will drop ~9x in steady state.  This is by design per
+    `SDR_DEMOD_DESIGN_2026-06-03.md` but worth flagging at the gate.
+  - **Production mounts unchanged.**  `/ANALOG.mp3` still falling
+    back to `keepalive-analog.mp3` (1 listener riding the fallback);
+    `/ANALOG_GROUND.mp3` similar.  DIGITAL + VFO untouched.
