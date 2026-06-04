@@ -96,7 +96,7 @@ Under the new code's frontend gate, dashboard chip-clicks no longer
 fire the POST at all, so the airband-timeout-under-load case is
 effectively dead-coded for the only path that used to hit it.
 
-**Deploy SHA on `main`** — ``2c37c16`` (pushed to `origin/main`).
+**Deploy SHA on `main`** — `a4bdc2f` (pushed to `origin/main`).  A trailing PROGRESS-fill commit sits on top to record the final self-referential SHA — same pattern Phase 1/4d used.  `git log --oneline main` is canonical.
 
 ---
 
