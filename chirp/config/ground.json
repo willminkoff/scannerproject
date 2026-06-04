@@ -1,0 +1,14 @@
+{
+  "_comment": "chirp ground (NFM) daemon defaults (Phase 4a). Separate UDP port + state path + hit log + icecast fallback from airband so the two daemons can coexist. See chirp/config/README.md.",
+  "version": 1,
+  "band": "ground",
+  "pool_mode": "nfm",
+  "cmd_host": "127.0.0.1",
+  "cmd_port": 7401,
+  "source_samp_rate": 1000000.0,
+  "audio_rate": 16000.0,
+  "max_channels": 32,
+  "icecast_bitrate_kbps": 32,
+  "icecast_fallback_file": "/tmp/chirp_ground_fallback.f32",
+  "log_level": "INFO"
+}

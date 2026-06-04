@@ -1,0 +1,14 @@
+{
+  "_comment": "chirp airband daemon defaults (Phase 4a). All keys are optional and can be overridden by the matching CHIRP_* env var. See chirp/config/README.md.",
+  "version": 1,
+  "band": "airband",
+  "pool_mode": "am",
+  "cmd_host": "127.0.0.1",
+  "cmd_port": 7400,
+  "source_samp_rate": 1000000.0,
+  "audio_rate": 16000.0,
+  "max_channels": 32,
+  "icecast_bitrate_kbps": 32,
+  "icecast_fallback_file": "/tmp/chirp_airband_fallback.f32",
+  "log_level": "INFO"
+}

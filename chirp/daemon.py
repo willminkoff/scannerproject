@@ -90,6 +90,7 @@ DEFAULT_MAX_CHANNELS = 32
 @dataclass
 class DaemonConfig:
     band: str = "airband"
+    pool_mode: str = "am"  # Phase 4a: per-band pool demod mode ("am" or "nfm")
     cmd_host: str = "127.0.0.1"
     cmd_port: int = 7400
     source_kind: str = "file"  # Phase 1/2/3: only "file"
@@ -177,17 +178,37 @@ def _parse_icecast_spec(rem: str) -> tuple[str, int, str, str]:
 
 
 def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
+    """Resolve daemon config from JSON file + env overrides.
+
+    Phase 4a: when defaults_path is not given, we pick the per-band file
+    chirp/config/<CHIRP_BAND>.json (airband / ground) instead of the old
+    one-size defaults.json. Falls back to defaults.json for backward compat
+    if no per-band file exists.
+    """
     here = Path(__file__).resolve().parent
-    dp = defaults_path or (here / "config" / "defaults.json")
+    band_env = os.environ.get("CHIRP_BAND")
+    if defaults_path is None:
+        candidates = []
+        if band_env:
+            candidates.append(here / "config" / f"{band_env}.json")
+        candidates.append(here / "config" / "airband.json")
+        candidates.append(here / "config" / "defaults.json")
+        dp = next((c for c in candidates if c.is_file()), candidates[0])
+    else:
+        dp = defaults_path
     raw: dict[str, Any] = {}
     if dp.is_file():
         try:
             with dp.open("r", encoding="utf-8") as f:
                 raw = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"invalid JSON in chirp config {dp}: {e}"
+            ) from e
         except Exception as e:
             log.warning("could not read %s: %s", dp, e)
 
-    band = os.environ.get("CHIRP_BAND", raw.get("band", "airband"))
+    band = band_env or raw.get("band", "airband")
     default_port = 7400 if band == "airband" else 7401
     cmd_port = int(os.environ.get("CHIRP_CMD_PORT", raw.get("cmd_port", default_port)))
 
@@ -202,8 +223,13 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         icecast_host, icecast_port, icecast_mount, icecast_password = \
             _parse_icecast_spec(audio_path or "")
 
+    default_mode = "nfm" if band == "ground" else "am"
+    pool_mode = os.environ.get("CHIRP_POOL_MODE", raw.get("pool_mode", default_mode))
+    if pool_mode not in ("am", "nfm"):
+        raise ValueError(f"invalid pool_mode: {pool_mode!r} (want am|nfm)")
     return DaemonConfig(
         band=band,
+        pool_mode=pool_mode,
         cmd_host=os.environ.get("CHIRP_CMD_HOST", raw.get("cmd_host", "127.0.0.1")),
         cmd_port=cmd_port,
         source_kind=src_kind,
@@ -216,7 +242,10 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
         log_level=os.environ.get("CHIRP_LOG_LEVEL", raw.get("log_level", "INFO")).upper(),
         state_path=os.environ.get("CHIRP_STATE_PATH", raw.get("state_path")),
-        hit_log_path=os.environ.get("CHIRP_HIT_LOG", raw.get("hit_log_path")),
+        hit_log_path=os.environ.get(
+            "CHIRP_HIT_LOG",
+            raw.get("hit_log_path") or f"/var/log/chirp/{band}_hits.jsonl",
+        ),
         icecast_host=icecast_host,
         icecast_port=icecast_port,
         icecast_mount=icecast_mount,
@@ -346,6 +375,7 @@ class ChirpFlowgraph(gr.top_block):
                 center_freq_offset=0.0,
                 squelch_dbfs=PARKED_SQUELCH_DBFS,
                 gain_db=0.0,
+                mode=cfg.pool_mode,
             )
             # Wire: source -> channel -> mixer:port_i
             self.connect(self.source, channel)
@@ -492,6 +522,15 @@ class ChirpFlowgraph(gr.top_block):
             if existing_dup:
                 return Response.make_rejected(
                     env.id, f"channel already exists: {existing_dup}"
+                )
+            # Phase 4a: pool is mode-homogeneous; reject channels whose mode
+            # doesn't match the pool. Two-daemon coexistence relies on this.
+            wrong_mode = [c.id for c in requested if c.mode != self._cfg.pool_mode]
+            if wrong_mode:
+                return Response.make_rejected(
+                    env.id,
+                    f"channel mode mismatch: pool={self._cfg.pool_mode}, "
+                    f"requested {wrong_mode} != pool mode",
                 )
             free = sum(1 for s in self.slots if s.user_id is None)
             if free < len(requested):
@@ -640,6 +679,7 @@ class ChirpFlowgraph(gr.top_block):
             data = {
                 "version": PROTOCOL_VERSION,
                 "band": self._cfg.band,
+                "pool_mode": self._cfg.pool_mode,
                 "source": {
                     "kind": self._cfg.source_kind,
                     "path": self._cfg.source_path,
