@@ -2633,3 +2633,89 @@ Notes:
     failed-open attempt before sdrplay restart — pre-cutover.
 
 ### Step 10 gate — ready for Will's go on Step 11
+
+### Step 10b — RF gain vs audio gain separation (complete, `f27d70a`)
+
+**Bug found during post-soak audio RMS verification.**
+
+After the 30-min soak Will asked for an RMS check before testing by ear.
+First pull: /ANALOG.mp3 mean -91 dB (silent) or -6.8 dB (clipping
+during transmissions); /ANALOG_GROUND.mp3 pegged at -2.5 dB mean with
+~50 % of samples at 0 dBFS full-scale.
+
+**Root cause** (`chirp/dsp/channel.py`):
+
+  `set_gain(db)` was scaling the AM AGC reference
+  (`agc.set_reference(_AGC_REF_0DB * 10**(db/20))`) and the NFM
+  post-discriminator multiplier (`nfm_audio_gain.set_k(10**(db/20))`).
+  The Phase-4c `migrate_state.py` copied the operator's RF
+  front-end gain (32.8 dB from `managed_analog_controls.json.override.gain`)
+  into per-channel `state.gain_db`.  Daemon startup ran
+  `_apply_gain(32.8)` → AM AGC ref = `0.1 * 43.7 = 4.37` (4.4x full
+  scale) and NFM multiplier = `43.7` → audio sink clipped on every
+  squelch-open burst.
+
+**Patch** (`f27d70a`, `gr-demod/airband`):
+
+  - AM: AGC always uses `_AGC_REF_0DB` (0.1); `gain_db` no longer
+    touches the AGC reference.
+  - NFM: `nfm_audio_gain` block stays at 1.0 statically; `gain_db`
+    no longer touches it.
+  - New `audio_trim = blocks.multiply_const_ff(1.0)` placed after
+    `audio_resamp` and before the channel's output.  `set_gain(db)`
+    drives this block only.  Both AM and NFM share the same trim.
+  - `set_gain` clamps to `[_GAIN_DB_MIN, _GAIN_DB_MAX]` = ±20 dB so a
+    stale 32.8 dB value cannot reach the audio sink even if it slipped
+    back into a state file.
+  - `migrate_state.py` writes `gain_db: 0.0` per channel; the
+    `override.gain` (operator's RF gain) is intentionally ignored —
+    that value belongs in the per-band `sdr.gain_db` config.
+  - Cutover state files reset on disk: 20 airband channels +
+    12 ground channels, all `gain_db: 0.0`.
+
+**Tests**: `chirp/tests/test_phase4a.py::TestPhase4dGainSeparation`
+adds 5 regression tests pinning the contract:
+
+  1. `test_am_audio_no_clip_at_unity_gain` — synthetic AM IQ in,
+     assert peak |output| < 0.95 (steady-state, post-startup window).
+  2. `test_nfm_audio_unity_at_unity_gain` — synthetic NFM IQ in,
+     assert peak |output| < 1.1.
+  3. `test_set_gain_does_not_scale_demod_amplitude` — `set_gain(±6)`
+     leaves AGC reference and NFM multiplier untouched; only
+     `audio_trim` changes.
+  4. `test_gain_clamps_to_plus_minus_20_db` — out-of-range requests
+     clamp.
+  5. `test_constructor_clamps_gain_db` — `Channel(gain_db=32.8)` also
+     clamps so the bug can't reappear through the constructor.
+
+Full suite: **286 → 291** passed (4 deselected, no regressions).
+
+**Production audio gap during patch**: ~3 min (chirp daemons stopped
+at 14:44:07, restarted at 14:47:06; sdrplay also restarted because
+the device handle didn't free cleanly).
+
+**Post-fix RMS** (30-second samples):
+
+  - `/ANALOG.mp3`        mean = **-34.0 dB**, max = **-19.9 dB**,
+    no clipping.  Healthy production audio.
+  - `/ANALOG_GROUND.mp3` mean = **-12.6 dB**, max = **0.0 dB**, 1.9 %
+    of samples at full scale.  Vastly improved from pre-patch
+    -2.5 dB / 50 %+ clipping, but still hot.
+
+**Residual ground hotness explained**: the operator's ground squelch
+preset is `sensitive` (3 dB margin above the squelch tracker's noise
+floor estimate).  Squelch thresholds end up at -37 to -40 dBFS while
+the noise floor sits at -41 to -43 dBFS, so the gate bounces open on
+random noise bursts.  NFM's `quadrature_demod` of noise can briefly
+spike above unity, which the audio_trim at 1.0 passes through.
+Voice transmissions on top of that ride at the rail.
+
+This is an **operator-tunable** problem, not a code one — switch the
+ground preset to `balanced` (6 dB margin → squelch at ~-35 dBFS) or
+`conservative` (10 dB → ~-31 dBFS) and the gate stays closed except
+on real signals.  Phase 5 candidate: an `audio_trim` master gain knob
+on the daemon UDP API so the operator can tame a hot band without
+restarting.
+
+**Gate**: ready for Will to test the mounts by ear.  Hold here until
+he says go on Step 11.
