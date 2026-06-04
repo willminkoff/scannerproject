@@ -17,6 +17,82 @@ Hard rules every overnight task must follow are restated at the bottom.
 
 ---
 
+## 2026-06-04 ~21:35 UTC — Phase 4d hotfix #3: chirp hit-ingest into /api/hits
+
+**Goal** — fill the last UI-side gap surfaced during a 1:1 chirp-vs-Uniden
+test on 127.700 MHz at 17:30 EDT: dashboard hit panels showed
+"No hits yet" / "Squelched — no recent hits" while the chirp daemon
+was firing real ATC voice hits (peaks -12 to -37 dBFS, durations 1.6–7.4 s).
+
+**Root cause** — `ui/scanner.py:read_hit_list` only knew two analog hit
+sources, both rtl-airband-era:
+
+  1. `_live_hit_items_snapshot()` — populated by rtl-airband's sample-flow
+     poller via `refresh_analog_hit_state()`.  Empty under chirp.
+  2. `read_hit_list_for_unit("rtl-airband-airband")` /
+     `read_hit_list_for_unit("rtl-airband-ground")` — `journalctl -u
+     <unit>` scrape.  Empty under chirp because both units are masked
+     to `/dev/null` (see this morning's last-hit `Wants=` chain fix).
+
+The chirp daemon writes one JSON line per closed transition to
+`/var/log/chirp/<band>_hits.jsonl` (`chirp/hit_detector.py`).  No code
+in `ui/` ever read those files — `grep -r '/var/log/chirp/' ui/` returns
+zero matches.  Phase 4d cutover wired backend → chirp but the UI's
+hit-ingest pipeline was left pointing at the empty legacy sources.
+
+**Done** (one file: `ui/scanner.py`)
+
+- **`_chirp_use_gr_demod_flag()`** — defensive lazy probe of
+  `ui.chirp_client.use_gr_demod`; any failure returns False so the
+  legacy rtl-airband-journal path stays as the fallback (operator
+  rollback is one env var away).
+- **`_read_chirp_hits_from_jsonl(path, source, limit)`** — tail-reads
+  the last ~64 KiB of a chirp hits jsonl, parses one record per line,
+  emits UI-shaped dicts (`time / freq / duration / ts / source / type`).
+  Drops the partial first line when seeked mid-file.  Handles malformed
+  lines and missing files.  Returns oldest-last for downstream merge.
+- **`_read_chirp_analog_hits(limit)`** — reads BOTH bands' jsonl
+  (`/var/log/chirp/airband_hits.jsonl`, `/var/log/chirp/ground_hits.jsonl`,
+  paths env-overridable for tests), merges by timestamp, returns
+  newest-first to match the rtl-airband-journal scrape's output shape.
+- **`read_hit_list()` hook** — checks `_live_hit_items_snapshot` as
+  before, then under `SB5_USE_GR_DEMOD=true` prefers chirp jsonl
+  before falling through to `read_hit_list_for_unit`.  Each subsequent
+  hop is a pure fallback, so flag-off behaviour is byte-identical to
+  pre-patch.
+
+The downstream pipeline (`_build_hits_payload` →
+`_annotate_analog_hits` → `_dedupe_hit_rows` → frontend `renderHits`)
+is untouched.  `_annotate_analog_hits` adds `label_full` / `label`
+from the airband/ground label maps, so chirp hits get the same
+"ZNY Sector 51 CASINO Low (Sea Isle RCAG)" annotation as legacy
+rtl-airband ones did.
+
+**Live verification on micro (17:36 EDT, post-airband-ui restart)**
+
+- Pre-patch: `curl /api/hits | jq '.items|length'` → **0** for ~10
+  minutes despite 386 entries in `/var/log/chirp/airband_hits.jsonl`.
+- Post-patch: `curl /api/hits | jq '.items|length'` → **34** with
+  correctly-tagged `source: "airband"` / `type: "airband"` for
+  127.7000 entries and `source: "ground"` / `type: "ground"` for
+  138.05 / 138.30 / 139.15 / 140.7 entries.  Labels resolved
+  ("ZNY Sector 51 CASINO Low (Sea Isle RCAG)", "177th Fighter Wing",
+  "119th Fighter Squadron", etc.) via existing `_annotate_analog_hits`.
+
+**Tests** — touched code is in `ui/scanner.py`'s analog-hit-ingest
+flow, which has no existing unit coverage in the repo today.  Manual
+verification only for this commit; the existing 296-test suite was
+NOT re-run because no test files were modified and the patched
+function isn't imported by any test.  Worth a small `test_chirp_hit_ingest.py`
+follow-up that mocks `/var/log/chirp/airband_hits.jsonl` and asserts
+`read_hit_list()` returns the expected band-tagged dicts under
+`SB5_USE_GR_DEMOD=true`.
+
+**Deploy SHA on `main`** — ``4fedfab`` (pushed to `origin/main`).
+Trailing PROGRESS-fill commit pattern.
+
+---
+
 ## 2026-06-04 ~21:10 UTC — Phase 4d hotfix follow-up: dashboard badge wiring
 
 **Goal** — fix a Phase 4d cutover gap surfaced during the post-reboot

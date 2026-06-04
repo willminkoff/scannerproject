@@ -762,12 +762,155 @@ def read_hit_list_for_unit(unit: str, limit: int = 20, scan_lines: int = 200) ->
     return entries
 
 
+def _chirp_use_gr_demod_flag() -> bool:
+    """Probe SB5_USE_GR_DEMOD via ui.chirp_client.  Lazy + defensive:
+    any failure becomes False so the legacy rtl-airband-journal hit
+    path stays available as the fallback.
+    """
+    try:
+        try:
+            from .chirp_client import use_gr_demod as _ugd
+        except ImportError:
+            from ui.chirp_client import use_gr_demod as _ugd  # type: ignore
+        return bool(_ugd())
+    except Exception:
+        return False
+
+
+def _read_chirp_hits_from_jsonl(path: str, source: str, limit: int = 50,
+                                 tail_bytes: int = 65536) -> list:
+    """Parse the last `limit` complete hits out of a chirp hit JSONL
+    file.  Each line is one hit_end record (see chirp/hit_detector.py)
+    with fields ``start_ts_ms / end_ts_ms / duration_s / freq_mhz /
+    peak_dbfs / ch / warmup / cluster_center_hz``.
+
+    Returns a list of UI-shaped dicts identical to
+    ``read_hit_list_for_unit``'s output, plus an explicit
+    ``source``/``type`` of the supplied band so the dashboard's
+    ``recentHitForBand("airband"|"ground")`` matches and so the panel
+    cards' per-band hit filter routes them to the right list.
+    """
+    out: list = []
+    try:
+        with open(path, "rb") as f:
+            try:
+                f.seek(0, os.SEEK_END)
+                end = f.tell()
+                read_from = max(0, end - int(tail_bytes))
+                f.seek(read_from)
+                raw = f.read().decode("utf-8", errors="replace")
+            except Exception:
+                f.seek(0)
+                raw = f.read().decode("utf-8", errors="replace")
+    except FileNotFoundError:
+        return out
+    except OSError:
+        logger.debug("scanner: failed to read chirp hits at %s", path, exc_info=True)
+        return out
+    # If we seeked into the middle of a line, drop the partial first line.
+    lines = raw.splitlines()
+    if read_from > 0 and lines:
+        lines = lines[1:]
+    # JSONL is one record per line.  Keep the last `limit` valid hit_end
+    # records; if `warmup` is true we keep them too (the hit detector
+    # already gates real-world hits by setting warmup=False once the
+    # channel age is >1s, and the dashboard renders age-based freshness
+    # anyway).
+    for raw_line in lines[-int(limit) * 2:]:  # 2x buffer for malformed lines
+        raw_line = raw_line.strip()
+        if not raw_line:
+            continue
+        try:
+            rec = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(rec, dict):
+            continue
+        # Only consume completed-hit records (chirp writes hit_end per
+        # closed transition).  start_ts_ms is required to fix the
+        # display time; duration_s comes from the daemon directly.
+        try:
+            end_ts_ms = float(rec.get("end_ts_ms") or 0.0)
+            start_ts_ms = float(rec.get("start_ts_ms") or end_ts_ms)
+            freq_mhz = float(rec.get("freq_mhz") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if end_ts_ms <= 0 or freq_mhz <= 0:
+            continue
+        ts_s = end_ts_ms / 1000.0
+        try:
+            duration_s = float(rec.get("duration_s") or max(0.0, (end_ts_ms - start_ts_ms) / 1000.0))
+        except (TypeError, ValueError):
+            duration_s = 0.0
+        try:
+            freq_text = f"{freq_mhz:.4f}"
+        except Exception:
+            freq_text = str(freq_mhz)
+        out.append({
+            "time": time.strftime("%H:%M:%S", time.localtime(ts_s)),
+            "freq": freq_text,
+            "duration": max(0, int(round(duration_s))),
+            "ts": ts_s,
+            "source": source,
+            "type": source,
+        })
+    # Newest-last for the downstream merge; truncate to `limit`
+    out.sort(key=lambda item: float(item.get("ts") or 0.0))
+    return out[-int(limit):]
+
+
+# Canonical chirp hit log paths.  Hardcoded to match chirp/hit_detector.py
+# defaults (CHIRP_HIT_LOG env var overrides on the daemon side; the
+# production deploys use /var/log/chirp/<band>_hits.jsonl).
+_CHIRP_AIRBAND_HITS_PATH = os.environ.get(
+    "CHIRP_AIRBAND_HITS_PATH", "/var/log/chirp/airband_hits.jsonl"
+)
+_CHIRP_GROUND_HITS_PATH = os.environ.get(
+    "CHIRP_GROUND_HITS_PATH", "/var/log/chirp/ground_hits.jsonl"
+)
+
+
+def _read_chirp_analog_hits(limit: int = 50) -> list:
+    """Read recent analog hits from BOTH chirp jsonl files, merge by
+    timestamp, and return a UI-shaped list with proper source tagging.
+
+    Used by ``read_hit_list`` when SB5_USE_GR_DEMOD is on so the
+    dashboard's hit panel populates from the live chirp emitter
+    instead of the rtl-airband journals (which are inactive under
+    the flag).
+    """
+    per_band = max(1, int(limit))
+    air = _read_chirp_hits_from_jsonl(_CHIRP_AIRBAND_HITS_PATH, "airband", per_band)
+    gnd = _read_chirp_hits_from_jsonl(_CHIRP_GROUND_HITS_PATH, "ground", per_band)
+    merged = air + gnd
+    if not merged:
+        return []
+    merged.sort(key=lambda item: float(item.get("ts") or 0.0))
+    merged = merged[-int(limit):]
+    merged.reverse()  # newest first, matches read_hit_list_for_unit
+    return merged
+
+
 def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
-    """Read combined hit list from all units."""
+    """Read combined analog hit list.
+
+    Phase 4d follow-up: when ``SB5_USE_GR_DEMOD=true``, the legacy
+    rtl-airband journalctl scrape returns nothing (units are masked),
+    so the dashboard hit panel was permanently empty even while the
+    chirp daemon was firing real hits to ``/var/log/chirp/*_hits.jsonl``.
+    Prefer the chirp jsonl source when the flag is on; fall back to
+    the rtl-airband journal scrape so a runtime rollback (flag off,
+    rtl-airband re-enabled) just works.
+    """
     refresh_analog_hit_state()
     live_entries = _live_hit_items_snapshot(limit=limit)
     if live_entries:
         return live_entries
+    # Phase 4d analog source: chirp jsonl when the flag is on.
+    if _chirp_use_gr_demod_flag():
+        chirp_entries = _read_chirp_analog_hits(limit=limit)
+        if chirp_entries:
+            return chirp_entries
     entries = []
     entries.extend(read_hit_list_for_unit(UNITS["rtl"], limit=limit, scan_lines=scan_lines))
     entries.extend(read_hit_list_for_unit(UNITS["ground"], limit=limit, scan_lines=scan_lines))
