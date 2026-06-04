@@ -124,7 +124,7 @@ Regression tests for the four rtl-airband radio bugs Will hit on 2026-06-03.
 - `9844ddb` — chirp(phase2): 31-channel stress test (4 tests, ~3 min @ 2 Msps)
 - (this commit) — chirp(phase2): requirements.txt + PROGRESS.md Phase 2 entry
 
-**Branch tip:** filled in at commit time (see latest commit on `gr-demod/airband`).
+**Branch tip:** `6332d37f2c3647d0205bf268ad63bef8301c00ce` (preceded the PROGRESS-fill commit; final Phase 2 tip is the next commit on `gr-demod/airband`).
 
 **Deferred / surfaces for Will**
 
