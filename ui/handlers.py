@@ -3338,44 +3338,67 @@ def _compute_heartbeat_payload() -> dict:
     wedged_reasons: list[str] = []
     recovery: str | None = None
 
-    # 1) rtl-airband stats file freshness — the contractual heartbeat of
-    #    the RF→audio sample path. Stale ⇒ pipeline stuck.
+    # Phase 4d (2026-06-04): when chirp is the analog demod, rtl-airband
+    # is intentionally stopped and its stats file is intentionally stale.
+    # Skip the rtl-airband-side checks under the flag and let the chirp
+    # heartbeat rows (added later in this function) carry the contract.
     try:
-        stats = rtl_airband_sample_flow_state(
-            RTL_AIRBAND_AIRBAND_STATS_PATH,
-            _HEARTBEAT_STATS_STALE_SEC,
-        )
-    except Exception as exc:
-        stats = {
-            "sample_flow_ok": False,
-            "stats_age_sec": None,
-            "reason": f"probe error: {exc}",
-        }
-    stats_age = stats.get("stats_age_sec")
-    if stats_age is None:
-        evidence.append({"label": "stats file", "value": "missing", "status": "bad"})
-        wedged_reasons.append("rtl-airband stats file missing")
-        recovery = recovery or f"systemctl restart {UNITS.get('rtl_airband','rtl-airband-airband')}"
-    else:
-        ok_flag = bool(stats.get("sample_flow_ok"))
-        evidence.append({
-            "label": "stats file",
-            "value": (f"fresh ({_heartbeat_format_age(stats_age)})" if ok_flag
-                      else f"stale ({_heartbeat_format_age(stats_age)})"),
-            "status": "ok" if ok_flag else "bad",
-        })
-        if not ok_flag:
-            wedged_reasons.append(stats.get("reason") or "rtl-airband stats stale")
+        _chirp_on = bool(_chirp_use_gr_demod())
+    except Exception:
+        _chirp_on = False
+
+    if not _chirp_on:
+        # 1) rtl-airband stats file freshness — the contractual heartbeat
+        #    of the RF→audio sample path. Stale ⇒ pipeline stuck.
+        try:
+            stats = rtl_airband_sample_flow_state(
+                RTL_AIRBAND_AIRBAND_STATS_PATH,
+                _HEARTBEAT_STATS_STALE_SEC,
+            )
+        except Exception as exc:
+            stats = {
+                "sample_flow_ok": False,
+                "stats_age_sec": None,
+                "reason": f"probe error: {exc}",
+            }
+        stats_age = stats.get("stats_age_sec")
+        if stats_age is None:
+            evidence.append({"label": "stats file", "value": "missing", "status": "bad"})
+            wedged_reasons.append("rtl-airband stats file missing")
             recovery = recovery or f"systemctl restart {UNITS.get('rtl_airband','rtl-airband-airband')}"
+        else:
+            ok_flag = bool(stats.get("sample_flow_ok"))
+            evidence.append({
+                "label": "stats file",
+                "value": (f"fresh ({_heartbeat_format_age(stats_age)})" if ok_flag
+                          else f"stale ({_heartbeat_format_age(stats_age)})"),
+                "status": "ok" if ok_flag else "bad",
+            })
+            if not ok_flag:
+                wedged_reasons.append(stats.get("reason") or "rtl-airband stats stale")
+                recovery = recovery or f"systemctl restart {UNITS.get('rtl_airband','rtl-airband-airband')}"
 
     # 2) Service active state for the 5 core units.
-    service_units = [
-        ("airband-ui",          UNITS.get("ui", "airband-ui")),
-        ("rtl-airband-airband", UNITS.get("rtl_airband", "rtl-airband-airband")),
-        ("rtl-airband-ground",  UNITS.get("rtl_ground", "rtl-airband-ground")),
-        ("icecast2",            UNITS.get("icecast", "icecast2")),
-        ("scanner-vlc-digital", "scanner-vlc-digital.service"),
-    ]
+    if _chirp_on:
+        # Phase 4d: chirp gr-demod replaces rtl-airband.  The 5-core
+        # block becomes airband-ui + gr-demod@airband + gr-demod@ground
+        # + icecast2 + scanner-vlc-digital so the operator sees the
+        # actual analog pipeline.
+        service_units = [
+            ("airband-ui",          UNITS.get("ui", "airband-ui")),
+            ("gr-demod@airband",    "gr-demod@airband.service"),
+            ("gr-demod@ground",     "gr-demod@ground.service"),
+            ("icecast2",            UNITS.get("icecast", "icecast2")),
+            ("scanner-vlc-digital", "scanner-vlc-digital.service"),
+        ]
+    else:
+        service_units = [
+            ("airband-ui",          UNITS.get("ui", "airband-ui")),
+            ("rtl-airband-airband", UNITS.get("rtl_airband", "rtl-airband-airband")),
+            ("rtl-airband-ground",  UNITS.get("rtl_ground", "rtl-airband-ground")),
+            ("icecast2",            UNITS.get("icecast", "icecast2")),
+            ("scanner-vlc-digital", "scanner-vlc-digital.service"),
+        ]
     for label, unit in service_units:
         try:
             active = _unit_active_cached(unit)
@@ -4703,10 +4726,14 @@ def _broker_aware_dongle_rows() -> list[dict]:
 # Services the operator cares about for "is the scanner alive" — these
 # are the units whose state lights up the service-health grid in the
 # Sitrep modal.  Order matters: it's the painting order in the modal.
-_SITREP_SERVICE_UNITS: tuple[tuple[str, str], ...] = (
+# Static "always-listed" Sitrep services.  The analog demod rows (rtl-
+# airband vs gr-demod) are computed at request time by
+# ``_sitrep_active_service_units`` below so the SB5_USE_GR_DEMOD flag
+# can swap them in/out without an app restart.
+_SITREP_SERVICE_UNITS_STATIC_HEAD: tuple[tuple[str, str], ...] = (
     ("airband-ui",                  "airband-ui.service"),
-    ("rtl-airband-airband",         "rtl-airband-airband.service"),
-    ("rtl-airband-ground",          "rtl-airband-ground.service"),
+)
+_SITREP_SERVICE_UNITS_STATIC_TAIL: tuple[tuple[str, str], ...] = (
     ("scanner-digital-op25",        "scanner-digital-op25.service"),
     ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service"),
     ("scanner-waterfall",           "scanner-waterfall.service"),
@@ -4724,6 +4751,48 @@ _SITREP_SERVICE_UNITS: tuple[tuple[str, str], ...] = (
 )
 
 
+def _sitrep_active_service_units() -> tuple[tuple[str, str], ...]:
+    """Return the per-request Sitrep service list.
+
+    Phase 4d: under ``SB5_USE_GR_DEMOD=true`` we swap the rtl-airband
+    rows for the chirp ``gr-demod@{airband,ground}`` rows.  When the
+    flag is off (the legacy production path), the list is identical to
+    the pre-Phase-4d static tuple so nothing changes for that audience.
+    """
+    try:
+        chirp_on = bool(_chirp_use_gr_demod())
+    except Exception:
+        chirp_on = False
+    if chirp_on:
+        analog_rows = (
+            ("gr-demod@airband", "gr-demod@airband.service"),
+            ("gr-demod@ground",  "gr-demod@ground.service"),
+        )
+    else:
+        analog_rows = (
+            ("rtl-airband-airband", "rtl-airband-airband.service"),
+            ("rtl-airband-ground",  "rtl-airband-ground.service"),
+        )
+    return (
+        _SITREP_SERVICE_UNITS_STATIC_HEAD
+        + analog_rows
+        + _SITREP_SERVICE_UNITS_STATIC_TAIL
+    )
+
+
+# Back-compat alias preserved for any callers (tests, other ui modules)
+# that import the constant directly.  Snapshot of the *flag-off* layout
+# — matches the pre-Phase-4d ordering exactly.
+_SITREP_SERVICE_UNITS: tuple[tuple[str, str], ...] = (
+    _SITREP_SERVICE_UNITS_STATIC_HEAD
+    + (
+        ("rtl-airband-airband", "rtl-airband-airband.service"),
+        ("rtl-airband-ground",  "rtl-airband-ground.service"),
+    )
+    + _SITREP_SERVICE_UNITS_STATIC_TAIL
+)
+
+
 def _sitrep_services() -> list[dict]:
     """Active-state for each operator-relevant service.
 
@@ -4732,7 +4801,7 @@ def _sitrep_services() -> list[dict]:
     as "not configured" rather than red-flagging the grid.
     """
     rows = []
-    for label, unit in _SITREP_SERVICE_UNITS:
+    for label, unit in _sitrep_active_service_units():
         try:
             exists = _unit_exists_cached(unit)
         except Exception:
@@ -4835,19 +4904,56 @@ def _sitrep_dongles() -> list[dict]:
                 break
         _push(serial, "vfo", str(vfo_row.get("status") or "ok"), val)
 
-    # rtl-airband combined config — analog + ground share the chain.
+    # Analog + ground RSPduo dongle status.  Under SB5_USE_GR_DEMOD=true
+    # the source of truth is the chirp daemons' own ``get_status`` (one
+    # row per band, both sharing the same physical RSPduo serial).
+    # Under the flag-off legacy path, read from the rtl-airband combined
+    # config — unchanged behaviour.
     try:
-        combined = combined_device_summary()
+        _chirp_on = bool(_chirp_use_gr_demod())
     except Exception:
-        combined = {}
-    airband = combined.get("airband") if isinstance(combined, dict) else None
-    ground = combined.get("ground") if isinstance(combined, dict) else None
-    if isinstance(airband, dict):
-        _push(str(airband.get("serial") or ""), "airband",
-              "ok" if airband.get("active") else "bad", "rtl-airband-airband")
-    if isinstance(ground, dict):
-        _push(str(ground.get("serial") or ""), "ground",
-              "ok" if ground.get("active") else "bad", "rtl-airband-ground")
+        _chirp_on = False
+    if _chirp_on:
+        # Hit each chirp daemon's UDP get_status and emit rows keyed on
+        # the SDR serial advertised by the daemon (sdr_device_args
+        # contains 'serial=<n>').  Active iff the daemon's icecast_state
+        # is connected.
+        for _label, _factory in (
+            ("airband", _chirp_airband_client),
+            ("ground",  _chirp_ground_client),
+        ):
+            try:
+                _client = _factory()
+                _snap = _client.get_status() if _client is not None else {}
+            except Exception:
+                _snap = {}
+            # Extract serial from sdr_device_args; fall back to "?".
+            _serial = ""
+            _args = str(_snap.get("sdr_device_args") or "")
+            for _tok in _args.split(","):
+                _tok = _tok.strip()
+                if _tok.startswith("serial="):
+                    _serial = _tok[len("serial="):]
+                    break
+            _ic_ok = (str(_snap.get("icecast_state") or "")
+                      == "connected")
+            _push(_serial, _label,
+                  "ok" if _ic_ok else "bad",
+                  f"chirp gr-demod@{_label}")
+    else:
+        # Legacy rtl-airband path.  Untouched behaviour.
+        try:
+            combined = combined_device_summary()
+        except Exception:
+            combined = {}
+        airband = combined.get("airband") if isinstance(combined, dict) else None
+        ground = combined.get("ground") if isinstance(combined, dict) else None
+        if isinstance(airband, dict):
+            _push(str(airband.get("serial") or ""), "airband",
+                  "ok" if airband.get("active") else "bad", "rtl-airband-airband")
+        if isinstance(ground, dict):
+            _push(str(ground.get("serial") or ""), "ground",
+                  "ok" if ground.get("active") else "bad", "rtl-airband-ground")
 
     # VDL2 dedicated dongle from env (does not flow through broker).
     vdl2_serial = ""
