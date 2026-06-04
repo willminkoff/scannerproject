@@ -274,6 +274,23 @@ class GetStatusArgs(_ArgsBase):
     pass
 
 
+class SubscribeArgs(_ArgsBase):
+    """Phase 3. Subscribe the source address to async event datagrams.
+
+    `events` filters which event types to receive (empty list = all).
+    Subscription persists until the client sends `unsubscribe` or the daemon
+    restarts. There is no auto-expiry — short-lived clients should call
+    `unsubscribe` before closing.
+    """
+
+    events: list[str] = Field(default_factory=list)
+
+
+class UnsubscribeArgs(_ArgsBase):
+    """Phase 3. Removes the source address from the event subscriber set."""
+    pass
+
+
 # Dispatch table: cmd-name → args model. The server uses this to parse args
 # defensively before invoking flowgraph callbacks.
 COMMAND_ARGS: dict[str, type[_ArgsBase]] = {
@@ -285,6 +302,8 @@ COMMAND_ARGS: dict[str, type[_ArgsBase]] = {
     "set_master_gain": SetMasterGainArgs,
     "reset": ResetArgs,
     "get_status": GetStatusArgs,
+    "subscribe": SubscribeArgs,
+    "unsubscribe": UnsubscribeArgs,
 }
 
 
@@ -339,6 +358,8 @@ __all__ = [
     "SetMasterGainArgs",
     "ResetArgs",
     "GetStatusArgs",
+    "SubscribeArgs",
+    "UnsubscribeArgs",
     "COMMAND_ARGS",
     "Event",
     "parse_envelope",

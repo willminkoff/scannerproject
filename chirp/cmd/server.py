@@ -118,7 +118,26 @@ class _CommandProtocol(asyncio.DatagramProtocol):
             self._reply(resp, addr)
             return
 
-        # 4) Dispatch to flowgraph
+        # 4a) Phase 3: subscribe/unsubscribe are server-state commands; handle
+        # them directly (no flowgraph dispatch) so we have the source addr.
+        if env.cmd == "subscribe":
+            self.server.add_subscriber(addr, list(getattr(args, "events", []) or []))
+            self._reply(Response.make_ok(env.id, {
+                "subscribed": True,
+                "events": list(getattr(args, "events", []) or []),
+                "count": self.server.subscriber_count(),
+            }), addr)
+            return
+        if env.cmd == "unsubscribe":
+            removed = self.server.remove_subscriber(addr)
+            self._reply(Response.make_ok(env.id, {
+                "subscribed": False,
+                "removed": removed,
+                "count": self.server.subscriber_count(),
+            }), addr)
+            return
+
+        # 4b) Dispatch to flowgraph
         try:
             resp = self.dispatch(env, args)
             if not isinstance(resp, Response):
@@ -166,6 +185,32 @@ class CommandServer:
         self._event_sock: Optional[socket.socket] = None
         self._started = threading.Event()
         self._stop = threading.Event()
+        # Phase 3: dynamic event subscribers.
+        # Map (host, port) → set of event-name strings ('' set ⇒ all events).
+        self._subscribers: dict[tuple[str, int], set[str]] = {}
+        self._sub_lock = threading.Lock()
+
+    # -- Phase 3: dynamic event subscriber registry -------------------------
+
+    def add_subscriber(self, addr: tuple[str, int], events: list[str]) -> None:
+        """Register an addr to receive future emit_event() pushes. Empty
+        `events` list means 'all events'."""
+        with self._sub_lock:
+            self._subscribers[(addr[0], int(addr[1]))] = set(events)
+        log.info("subscriber added %s events=%s", addr, events)
+
+    def remove_subscriber(self, addr: tuple[str, int]) -> bool:
+        with self._sub_lock:
+            return self._subscribers.pop((addr[0], int(addr[1])), None) is not None
+
+    def subscriber_count(self) -> int:
+        with self._sub_lock:
+            return len(self._subscribers)
+
+    def subscribers_for(self, evt: str) -> list[tuple[str, int]]:
+        """Return addrs whose filter matches `evt` (empty filter = all)."""
+        with self._sub_lock:
+            return [a for a, f in self._subscribers.items() if not f or evt in f]
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -227,20 +272,42 @@ class CommandServer:
     # -- events -------------------------------------------------------------
 
     def emit_event(self, evt: str, **fields: Any) -> None:
-        """Push an async event to the subscriber sink (or stdout if none).
+        """Push an async event to subscribers.
 
-        Always emits a structured JSON line to stdout for log capture; if a
-        sink is configured, also fires-and-forgets a UDP datagram to it.
+        Always emits a structured JSON line to stdout for log capture. If a
+        static sink is configured (CHIRP_EVENT_SINK), fires-and-forgets a UDP
+        datagram to it. Phase 3: additionally fan-out to any dynamic
+        subscribers registered via the `subscribe` command, filtered by their
+        event-type set.
         """
         ev = Event(v=PROTOCOL_VERSION, evt=evt, ts=time.time(), **fields)
         payload = ev.model_dump_json()
+        encoded = payload.encode("utf-8")
         # Stdout (one line per event — easy to grep, easy to forward to journald).
         print(payload, flush=True)
+        # Static event sink.
         if self._event_sock is not None and self.cfg.event_sink is not None:
             try:
-                self._event_sock.sendto(payload.encode("utf-8"), self.cfg.event_sink)
+                self._event_sock.sendto(encoded, self.cfg.event_sink)
             except Exception:
                 log.warning("event sink send failed: %s", self.cfg.event_sink)
+        # Phase 3 dynamic subscribers.
+        targets = self.subscribers_for(evt)
+        if targets:
+            sock = self._event_sock
+            if sock is None:
+                # Create a one-shot socket if no static sink was configured.
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    self._event_sock = sock
+                except Exception:
+                    log.exception("could not open subscriber send socket")
+                    return
+            for addr in targets:
+                try:
+                    sock.sendto(encoded, addr)
+                except Exception:
+                    log.warning("subscriber send failed: %s", addr)
 
 
 __all__ = ["CommandServer", "ServerConfig", "Dispatch"]

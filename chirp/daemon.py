@@ -1,27 +1,31 @@
-"""chirp.daemon — Phase 2 daemon entrypoint.
+"""chirp.daemon — Phase 3 daemon entrypoint.
 
-Runs as ``python3 -m chirp.daemon``. Phase 2 scope:
+Runs as ``python3 -m chirp.daemon``. Phase 3 adds end-to-end audio publish:
 
   - File-backed IQ source (no SDR — production rtl-airband stays untouched).
   - Pre-allocated 32-slot channel pool wired through an AudioMixer + master
-    gain into ONE float-32 file sink. Each slot has its own Channel hier_block;
-    unused slots are parked with squelch=0 dBFS so they emit zero through the
-    mixer.
+    gain into either a file sink OR a libshout-backed Icecast publisher.
   - UDP JSON command bus on 127.0.0.1:CHIRP_CMD_PORT (default 7400 airband /
     7401 ground), dispatching add/remove/set_*/get_status/set_master_gain/
-    reset + batched add_channel.
+    reset + batched add_channel + subscribe/unsubscribe.
   - State persistence: on boot read /var/lib/chirp/<band>.state.json
     (env CHIRP_STATE_PATH overrides); on every mutation, atomically rewrite.
   - Hit detection: per-channel squelch-transition probe emits hit_start /
     hit_end events through the UDP event stream + appends to a JSONL hit log.
+  - Icecast publish (Phase 3): CHIRP_AUDIO_OUT=icecast:host:port:/mount:pass
+    spins up an IcecastSink that encodes via lame and pushes to the
+    given mountpoint with exponential-backoff reconnect. Fallback to file
+    output if the initial connection fails (logged loudly).
   - SIGTERM / SIGINT → graceful shutdown of flowgraph + UDP server.
 
 Recognised env vars (all optional):
     CHIRP_BAND            airband | ground  (default airband)
     CHIRP_CMD_PORT        UDP port for command bus  (default 7400/7401)
-    CHIRP_SOURCE          file:/abs/path  (Phase 1/2: file only)
+    CHIRP_SOURCE          file:/abs/path  (Phase 1/2/3: file only)
     CHIRP_SOURCE_SAMP_RATE  sps as float  (default 1e6)
-    CHIRP_AUDIO_OUT       file:/abs/path  (Phase 1/2: file only)
+    CHIRP_AUDIO_OUT       file:/abs/path  OR  icecast:host:port:/mount:pass
+    CHIRP_AUDIO_RATE      audio sample rate (default 16000)
+    CHIRP_ICECAST_BITRATE_KBPS  MP3 bitrate (default 32)
     CHIRP_MAX_CHANNELS    int  (default 32 in Phase 2)
     CHIRP_EVENT_SINK      host:port  (optional async-event UDP listener)
     CHIRP_LOG_LEVEL       DEBUG | INFO | WARN | ERROR  (default INFO)
@@ -60,6 +64,7 @@ from chirp.cmd.schema import (
 )
 from chirp.cmd.server import CommandServer, ServerConfig
 from chirp.dsp.channel import Channel
+from chirp.dsp.icecast_sink import IcecastSink, IcecastSinkConfig, STATE_NOT_CONFIGURED
 from chirp.dsp.mixer import AudioMixer
 from chirp.dsp.source_file import FileIQSource
 from chirp.hit_detector import HitDetector
@@ -87,10 +92,10 @@ class DaemonConfig:
     band: str = "airband"
     cmd_host: str = "127.0.0.1"
     cmd_port: int = 7400
-    source_kind: str = "file"  # Phase 1/2: only "file"
+    source_kind: str = "file"  # Phase 1/2/3: only "file"
     source_path: Optional[str] = None
     source_samp_rate: float = 1e6
-    audio_out_kind: str = "file"  # Phase 1/2: only "file"
+    audio_out_kind: str = "file"  # Phase 1/2: "file"; Phase 3 adds "icecast"
     audio_out_path: Optional[str] = None
     audio_rate: float = 16000.0
     max_channels: int = DEFAULT_MAX_CHANNELS
@@ -98,6 +103,14 @@ class DaemonConfig:
     log_level: str = "INFO"
     state_path: Optional[str] = None
     hit_log_path: Optional[str] = None
+    # Phase 3 icecast publish fields (populated when audio_out_kind == "icecast").
+    icecast_host: Optional[str] = None
+    icecast_port: Optional[int] = None
+    icecast_mount: Optional[str] = None
+    icecast_password: Optional[str] = None
+    icecast_bitrate_kbps: int = 32
+    # File fallback path when icecast init fails. Defaults to a tmp file.
+    icecast_fallback_file: str = "/tmp/chirp_audio_fallback.f32"
 
 
 def _parse_event_sink(spec: Optional[str]) -> Optional[tuple[str, int]]:
@@ -126,7 +139,41 @@ def _parse_audio_out(spec: Optional[str]) -> tuple[str, Optional[str]]:
         return ("file", spec[len("file:"):])
     if spec.startswith("fifo:"):
         return ("fifo", spec[len("fifo:"):])
+    if spec.startswith("icecast:"):
+        # Phase 3: keep the raw remainder; caller will parse fields.
+        return ("icecast", spec[len("icecast:"):])
     raise ValueError(f"unsupported CHIRP_AUDIO_OUT: {spec!r}")
+
+
+def _parse_icecast_spec(rem: str) -> tuple[str, int, str, str]:
+    """Parse host:port:/mount:password.
+
+    The mount always starts with '/'. Password may itself contain ':' chars, so
+    we split from the LEFT for host/port/mount and treat the remainder as the
+    password.
+    """
+    # host:port:/mount:password
+    # Split into at most 4 parts using the FIRST 3 colons, then the password
+    # gets whatever's left.
+    parts = rem.split(":", 3)
+    if len(parts) < 4:
+        raise ValueError(
+            f"bad icecast spec (need host:port:/mount:password): {rem!r}"
+        )
+    host, port_str, mount, password = parts
+    if not mount.startswith("/"):
+        raise ValueError(f"icecast mount must start with '/': {mount!r}")
+    if mount == "/ANALOG.mp3" or mount == "/ANALOG_GROUND.mp3" \
+            or mount == "/DIGITAL.mp3" or mount == "/VFO.mp3":
+        raise ValueError(
+            f"chirp Phase 3 refuses to publish to production mount {mount!r}; "
+            f"use /CHIRP_TEST.mp3 or a unique test mount"
+        )
+    try:
+        port = int(port_str)
+    except ValueError as e:
+        raise ValueError(f"bad icecast port {port_str!r}: {e}") from e
+    return host, port, mount, password
 
 
 def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
@@ -147,6 +194,14 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
     src_kind, src_path = _parse_source(os.environ.get("CHIRP_SOURCE", raw.get("source")))
     audio_kind, audio_path = _parse_audio_out(os.environ.get("CHIRP_AUDIO_OUT", raw.get("audio_out")))
 
+    icecast_host: Optional[str] = None
+    icecast_port: Optional[int] = None
+    icecast_mount: Optional[str] = None
+    icecast_password: Optional[str] = None
+    if audio_kind == "icecast":
+        icecast_host, icecast_port, icecast_mount, icecast_password = \
+            _parse_icecast_spec(audio_path or "")
+
     return DaemonConfig(
         band=band,
         cmd_host=os.environ.get("CHIRP_CMD_HOST", raw.get("cmd_host", "127.0.0.1")),
@@ -162,6 +217,16 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         log_level=os.environ.get("CHIRP_LOG_LEVEL", raw.get("log_level", "INFO")).upper(),
         state_path=os.environ.get("CHIRP_STATE_PATH", raw.get("state_path")),
         hit_log_path=os.environ.get("CHIRP_HIT_LOG", raw.get("hit_log_path")),
+        icecast_host=icecast_host,
+        icecast_port=icecast_port,
+        icecast_mount=icecast_mount,
+        icecast_password=icecast_password,
+        icecast_bitrate_kbps=int(os.environ.get("CHIRP_ICECAST_BITRATE_KBPS",
+                                                raw.get("icecast_bitrate_kbps", 32))),
+        icecast_fallback_file=os.environ.get(
+            "CHIRP_ICECAST_FALLBACK_FILE",
+            raw.get("icecast_fallback_file", "/tmp/chirp_audio_fallback.f32"),
+        ),
     )
 
 
@@ -221,17 +286,57 @@ class ChirpFlowgraph(gr.top_block):
         # ---- Channel pool + mixer ----------------------------------------
         if cfg.max_channels < 1:
             raise ValueError("max_channels must be >= 1")
-        if cfg.audio_out_kind != "file" or not cfg.audio_out_path:
-            raise ValueError(
-                "Phase 1/2 requires CHIRP_AUDIO_OUT=file:/abs/path"
-            )
-
-        audio_path = Path(cfg.audio_out_path)
-        audio_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.mixer = AudioMixer(n_inputs=cfg.max_channels, master_gain_db=0.0)
-        self.audio_sink = blocks.file_sink(gr.sizeof_float, str(audio_path), False)
-        self.audio_sink.set_unbuffered(True)
+
+        # Audio sink wiring.
+        #   file     → blocks.file_sink (Phase 1/2 behaviour, smoke tests)
+        #   icecast  → IcecastSink (Phase 3). Falls back to file_sink at
+        #              icecast_fallback_file if initial connect fails.
+        self.icecast_sink: Optional[IcecastSink] = None
+        if cfg.audio_out_kind == "icecast":
+            if not (cfg.icecast_host and cfg.icecast_port
+                    and cfg.icecast_mount and cfg.icecast_password):
+                raise ValueError("icecast mode requires host/port/mount/password")
+            sink_cfg = IcecastSinkConfig(
+                host=cfg.icecast_host,
+                port=int(cfg.icecast_port),
+                mount=cfg.icecast_mount,
+                password=cfg.icecast_password,
+                bitrate_kbps=int(cfg.icecast_bitrate_kbps),
+                sample_rate=int(cfg.audio_rate),
+            )
+            ice_ok = False
+            try:
+                self.icecast_sink = IcecastSink(sink_cfg)
+                ice_ok = True
+            except Exception:
+                log.exception("IcecastSink instantiation failed — falling back to file output")
+                self.icecast_sink = None
+
+            if ice_ok and self.icecast_sink is not None:
+                self.audio_sink = self.icecast_sink
+                audio_path = Path(cfg.icecast_mount)  # for snapshotting
+                log.info("audio sink: icecast %s:%d%s @ %d kbps",
+                         cfg.icecast_host, cfg.icecast_port,
+                         cfg.icecast_mount, cfg.icecast_bitrate_kbps)
+            else:
+                fallback = Path(cfg.icecast_fallback_file)
+                fallback.parent.mkdir(parents=True, exist_ok=True)
+                self.audio_sink = blocks.file_sink(gr.sizeof_float, str(fallback), False)
+                self.audio_sink.set_unbuffered(True)
+                audio_path = fallback
+                log.warning("audio sink fallback active: file=%s", fallback)
+        else:
+            if not cfg.audio_out_path:
+                raise ValueError(
+                    "file audio sink requires CHIRP_AUDIO_OUT=file:/abs/path"
+                )
+            audio_path = Path(cfg.audio_out_path)
+            audio_path.parent.mkdir(parents=True, exist_ok=True)
+            self.audio_sink = blocks.file_sink(gr.sizeof_float, str(audio_path), False)
+            self.audio_sink.set_unbuffered(True)
+
         self.connect(self.mixer, self.audio_sink)
 
         for i in range(cfg.max_channels):
@@ -532,7 +637,7 @@ class ChirpFlowgraph(gr.top_block):
                     "signal_level_dbfs": snap["signal_level_dbfs"],
                     "squelch_open": snap["squelch_open"],
                 })
-            return Response.make_ok(env.id, {
+            data = {
                 "version": PROTOCOL_VERSION,
                 "band": self._cfg.band,
                 "source": {
@@ -545,7 +650,26 @@ class ChirpFlowgraph(gr.top_block):
                 "audio_path": str(self._audio_out_path),
                 "channels": channels,
                 "pool_free": sum(1 for s in self.slots if s.user_id is None),
-            })
+            }
+            # Phase 3: surface icecast publisher state.
+            if self.icecast_sink is not None:
+                snap = self.icecast_sink.snapshot()
+                data.update({
+                    "icecast_state": snap["icecast_state"],
+                    "icecast_bytes_sent": snap["icecast_bytes_sent"],
+                    "icecast_reconnect_count": snap["icecast_reconnect_count"],
+                    "icecast_drop_count": snap["icecast_drop_count"],
+                    "icecast_mount": snap["icecast_mount"],
+                    "icecast_bitrate_kbps": snap["icecast_bitrate_kbps"],
+                })
+            else:
+                data.update({
+                    "icecast_state": STATE_NOT_CONFIGURED,
+                    "icecast_bytes_sent": 0,
+                    "icecast_reconnect_count": 0,
+                    "icecast_drop_count": 0,
+                })
+            return Response.make_ok(env.id, data)
 
     # -- health / hit-event probe (delegates to HitDetector) ---------------
 
