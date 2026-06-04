@@ -877,3 +877,123 @@ SDR source adapter + parallel-with-rtl-airband live test. Specifically:
    `hit_start` events fire when a real Nashville Tower transmission lands.
 4. Phase 4b ends with chirp confirmed working on real RF with rtl-airband
    still owning production. No cutover yet.
+
+---
+
+## 2026-06-04 12:55 UTC — Phase 4b gating test (BLOCKED — Path B)
+
+**Goal** — answer the gating question for Phase 4b: can chirp open the
+RSPduo as a second client (via SoapySDR / osmocom_source) while
+rtl-airband-airband is already holding `mode=MA,tuner=1` and
+rtl-airband-ground is holding `mode=SL,tuner=2`? The shadow-test
+architecture only works under Path A (multi-client OK). Under Path B
+(exclusive hold), the rest of Phase 4b cannot proceed as designed.
+
+**Done — gating probes only. No code changes shipped.**
+
+- Captured production baseline from icecast `status-json.xsl`:
+  - `ANALOG.mp3`        listeners=1, `stream_start=2026-06-04T07:30:08-0400`
+  - `ANALOG_GROUND.mp3` listeners=1, `stream_start=2026-06-04T07:30:19-0400`
+- Read both rtl-airband runtime configs so any future chirp SDR adapter
+  matches today's production exactly (record only — no chirp code yet):
+  - `airband`: `driver=sdrplay,serial=1809063632,mode=MA,tuner=1`,
+    `sample_rate=1_000_000`, `gain=32.800`, 31 AM freqs @ 8 kHz BW,
+    `squelch_threshold=-30` (uniform), `squelch_delay=0.2`.
+    Note: prompt suggested 2 Msps for airband, but production is 1 Msps.
+    Adapter should default to 1 Msps to match.
+  - `ground`:  `driver=sdrplay,serial=1809063632,mode=SL,tuner=2`,
+    `sample_rate=1_000_000`, `gain=32.800`, 16 NFM freqs @ 12 kHz BW,
+    per-channel squelch -32…-39, `squelch_delay=0.8`.
+- Verified env on Micro: `SoapySDR`, `gnuradio.gr`, `osmosdr` all import
+  cleanly while rtl-airband is running.
+- Ran four concurrent-open probes from a fresh Python process, each
+  under a 12–20 s hard `timeout`:
+
+  | # | Call                                                                       | Result                                |
+  |---|----------------------------------------------------------------------------|---------------------------------------|
+  | 1 | `SoapySDR.Device.enumerate()`                                              | logs `usb_claim_interface error -6` then **HANG → timeout** |
+  | 2 | `SoapySDR.Device.enumerate(dict(driver='sdrplay'))`                        | **HANG → timeout** (no output at all) |
+  | 3 | `SoapySDR.Device(dict(driver='sdrplay', serial='1809063632', mode='MA', tuner='1'))` | **HANG → timeout** |
+  | 4 | `SoapySDR.Device(dict(driver='sdrplay', serial='DEADBEEF', …))`            | **HANG → timeout** (no fast-fail even on bogus serial) |
+
+  Probes returned no exception. `sdrplay_apiService` journal was silent
+  during all four — the block is at the API-service IPC layer, not in
+  the SoapySDR driver.
+
+- After each probe: re-checked `systemctl is-active rtl-airband-airband
+  rtl-airband-ground` → both still `active`, icecast `stream_start`
+  timestamps for `ANALOG.mp3` / `ANALOG_GROUND.mp3` **unchanged from
+  baseline**, listener counts unchanged. No hung Python processes left
+  behind.
+
+**Finding — Path B confirmed.**
+
+The SDRplay API service serializes new client connections. While
+rtl-airband-airband (MA, tuner 1) + rtl-airband-ground (SL, tuner 2)
+hold both RSPduo tuners through `sdrplay_apiService`, a third client
+(chirp's `osmocom_source` / `SoapySDR.Device`) blocks indefinitely on
+open — even for a bogus serial. Probe #4 (bogus serial) is the
+decisive evidence: a healthy multi-client API would fast-fail on an
+unknown serial; ours hangs, meaning the API connection itself is
+gated, not the per-device slot.
+
+Architecturally this is consistent with how the RSPduo is wired today:
+2 tuners, 2 client slots, both already taken. There is no third slot
+for chirp to occupy concurrently.
+
+**Production status — unaffected.**
+
+- rtl-airband-airband, rtl-airband-ground, sdrplay, icecast2 all
+  `active` before, during, and after probes.
+- `ANALOG.mp3` `stream_start` = `2026-06-04T07:30:08-0400` (unchanged).
+- `ANALOG_GROUND.mp3` `stream_start` = `2026-06-04T07:30:19-0400`
+  (unchanged).
+- Listeners stayed at 1/1 throughout.
+- No restart of `sdrplay`, `rtl-airband-*`, or `icecast2` was issued.
+
+**Blocker — shadow architecture is not viable on this hardware.**
+
+The Phase 4b plan (chirp opens RSPduo as a 3rd client, publishes to
+`/CHIRP_TEST.mp3` / `/CHIRP_GROUND_TEST.mp3`, A/B against rtl-airband)
+requires multi-client SDR access. The RSPduo + sdrplay_apiService stack
+does not support a 3rd client. **No code changes shipped this slot.**
+
+**Surfaces for Will — pick a fallback, then re-cut Phase 4b.**
+
+A. **Pre-recorded IQ capture for the SDR path.** Tap rtl-airband's
+   running session indirectly: capture 30–60 min of raw IQ from the
+   RSPduo while rtl-airband is briefly stopped during a maintenance
+   window (or use a separate RSPduo / RTL-SDR if available), then point
+   chirp at the capture file. Loses real-time, but A/B-tests the demod
+   chain on real RF. Smallest production risk.
+
+B. **Skip 4b shadow, go straight to 4c+4d cutover.** Build the SDR
+   adapter, then do the first real-RF test as the production swap
+   itself: stop rtl-airband-airband + rtl-airband-ground, start chirp
+   pointed at the same `/ANALOG.mp3` + `/ANALOG_GROUND.mp3` mounts,
+   rollback script ready. Higher risk: first real RF test is also the
+   prod swap.
+
+C. **Add a second RSP** (or repurpose another SDR — RTL-SDR / SDRplay
+   RSP1) on Micro so chirp gets its own dongle. Antenna-split needed.
+   Most faithful shadow, but hardware spend + cabling.
+
+D. **Brief rtl-airband pause window for chirp shadow.** Stop
+   rtl-airband-airband + rtl-airband-ground for the duration of the
+   shadow test (e.g., a 10-min window late-night), let chirp open the
+   device, verify, then restart rtl-airband. Defeats the "production
+   stays up" requirement of 4b. Discouraged.
+
+Recommended: **A** for a clean 4b shadow, then **B** for the cutover.
+
+**Commits** — none. PROGRESS.md only.
+
+**Branch tip** — `63e8633` (unchanged; same as Phase 4a end).
+
+**Tests** — 121 still passing (no code touched).
+
+**Next task** — Will picks a fallback above, then a re-cut Phase 4b
+runs. Once a path is chosen, the deliverables list (SdrIQSource adapter,
+config schema, daemon source switching, unit tests) carries over
+unchanged; only the live-validation step changes.
+
