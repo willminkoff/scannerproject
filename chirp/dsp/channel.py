@@ -99,6 +99,26 @@ class Channel(gr.hier_block2):
         self._gain_db = float(gain_db)
         self._nfm_max_deviation_hz = float(nfm_max_deviation_hz)
 
+        # Phase 4-pre: LO scheduler parks channels that are NOT in the
+        # currently-tuned cluster.  A parked channel:
+        #   * has its pwr_squelch slammed to PARKED_SQUELCH_DBFS (0.0 dBFS),
+        #     which closes the gate hard so audio output ≈ 0 (mixer
+        #     contribution is silent — no audio contamination);
+        #   * remembers the operator's intended squelch threshold so
+        #     ``set_parked(False)`` can restore it;
+        #   * accepts ``set_squelch(x)`` from the operator while parked —
+        #     the new value is stashed (will be applied on unpark) and is
+        #     NOT written to the live pwr_squelch (which would un-silence
+        #     a parked channel).
+        # ``set_center_freq_offset`` and ``set_gain`` ARE applied even while
+        # parked: they don't break silencing, and they let the operator
+        # retune a channel while its cluster is dormant.
+        self._is_parked: bool = False
+        # Squelch value to restore on unpark. Starts as the constructor's
+        # squelch_dbfs so the channel can be parked-then-unparked at any
+        # time without losing the configured threshold.
+        self._parked_saved_squelch_dbfs: float = self._squelch_dbfs
+
         if samp_rate < 1e6:
             raise ValueError("Channel requires samp_rate >= 1 Msps")
         decim_stage2 = max(1, int(round(samp_rate / 1e6)))
@@ -209,8 +229,51 @@ class Channel(gr.hier_block2):
         self.freq_xlating.set_center_freq(self._center_freq_offset)
 
     def set_squelch(self, dbfs: float) -> None:
-        self._squelch_dbfs = float(dbfs)
-        self.pwr_squelch.set_threshold(self._squelch_dbfs)
+        """Set squelch threshold (dBFS).
+
+        Phase 4-pre: when the channel is parked, the operator's value is
+        stashed in ``_parked_saved_squelch_dbfs`` so it's applied on
+        :py:meth:`set_parked(False)`, but the live pwr_squelch stays
+        slammed at PARKED_SQUELCH_DBFS so audio remains silent.
+        """
+        new_val = float(dbfs)
+        self._squelch_dbfs = new_val
+        if self._is_parked:
+            # Stash for restore-on-unpark; do NOT touch the live gate.
+            self._parked_saved_squelch_dbfs = new_val
+            return
+        self.pwr_squelch.set_threshold(new_val)
+
+    # -- Phase 4-pre: park/unpark for LO scheduler --------------------------
+
+    # Squelch threshold used to slam the gate shut while parked.  0 dBFS =
+    # the gate is closed unless input exceeds full-scale (i.e. never).
+    _PARKED_SQUELCH_DBFS = 0.0
+
+    def set_parked(self, parked: bool) -> None:
+        """Park or unpark this channel.
+
+        While parked the pwr_squelch threshold is forced to
+        :data:`_PARKED_SQUELCH_DBFS` (0 dBFS), so the gate stays closed
+        and the channel contributes silence to the mixer.  The operator's
+        previously-configured squelch threshold is preserved and restored
+        on unpark.
+
+        Idempotent: calling ``set_parked(True)`` twice does nothing.
+        """
+        parked = bool(parked)
+        if parked == self._is_parked:
+            return
+        if parked:
+            # Save current operator-intended threshold, slam gate shut.
+            self._parked_saved_squelch_dbfs = self._squelch_dbfs
+            self._is_parked = True
+            self.pwr_squelch.set_threshold(self._PARKED_SQUELCH_DBFS)
+        else:
+            # Restore operator-intended threshold.
+            self._is_parked = False
+            self._squelch_dbfs = self._parked_saved_squelch_dbfs
+            self.pwr_squelch.set_threshold(self._parked_saved_squelch_dbfs)
 
     def set_gain(self, db: float) -> None:
         self._gain_db = float(db)
@@ -271,6 +334,17 @@ class Channel(gr.hier_block2):
     def nfm_max_deviation_hz(self) -> float:
         return self._nfm_max_deviation_hz
 
+    @property
+    def is_parked(self) -> bool:
+        """True if this channel is in the LO scheduler's parked state.
+
+        Phase 4-pre.  Parked channels have their pwr_squelch slammed shut
+        and contribute silence to the mixer.  The hit detector skips
+        parked channels entirely — no hit_start / hit_end events fire
+        while parked.
+        """
+        return self._is_parked
+
     def snapshot(self) -> dict:
         """Return a JSON-serializable snapshot of this channel's state."""
         return {
@@ -285,6 +359,7 @@ class Channel(gr.hier_block2):
             "nfm_max_deviation_hz": self._nfm_max_deviation_hz,
             "signal_level_dbfs": self.get_signal_level_dbfs(),
             "squelch_open": self.get_squelch_open(),
+            "is_parked": self._is_parked,
         }
 
 

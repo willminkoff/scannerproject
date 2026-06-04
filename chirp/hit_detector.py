@@ -64,13 +64,26 @@ class HitDetector:
         hit_log_path: Optional[str] = None,
         poll_s: float = DEFAULT_POLL_S,
         warmup_s: float = 1.0,
+        get_cluster_center_hz: Optional[Any] = None,
     ) -> None:
+        """Construct a hit detector.
+
+        Phase 4-pre adds ``get_cluster_center_hz``: an optional zero-arg
+        callable returning the current LO cluster center in Hz (or None
+        if no scheduler is active).  When provided, every hit_start /
+        hit_end event AND every JSONL log record gains a
+        ``cluster_center_hz`` field correlating the hit to the LO state
+        at the moment of detection.  The field is BACKWARD-COMPATIBLE —
+        old consumers that don't look at it stay green.
+        """
         self._slots = slots
         self._server = server
         self._poll_s = float(poll_s)
         self._warmup_s = float(warmup_s)
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
+        # zero-arg callable -> Optional[float]
+        self._get_cluster_center_hz = get_cluster_center_hz
 
         # Per-slot in-flight hit state.
         # key = slot.index, value = dict(open_ts, peak_dbfs, ch_id, freq_mhz, warmup)
@@ -120,12 +133,23 @@ class HitDetector:
 
     def _tick(self) -> None:
         now = time.time()
+        cluster_center_hz = self._read_cluster_center()
         for s in self._slots:
             if s.user_id is None:
                 # Slot empty: clean up any stale in-flight state.
                 if s.index in self._in_flight:
                     self._in_flight.pop(s.index, None)
                     self._last_open.pop(s.index, None)
+                continue
+            # Phase 4-pre: parked channels MUST NOT fire hit events.  Drop
+            # any in-flight state silently (no hit_end emit) — the LO
+            # scheduler is responsible for the parked transition and emits
+            # its own cluster_hop event.  Reset last_open=False so the
+            # next unpark + RF activity establishes a clean transition.
+            if getattr(s.channel, "is_parked", False):
+                if s.index in self._in_flight:
+                    self._in_flight.pop(s.index, None)
+                self._last_open[s.index] = False
                 continue
             try:
                 is_open = bool(s.channel.get_squelch_open())
@@ -144,14 +168,17 @@ class HitDetector:
                     "start_ts": now,
                     "peak_dbfs": lvl,
                     "warmup": in_warmup,
+                    "cluster_center_hz": cluster_center_hz,
                 }
-                self._server.emit_event(
-                    "hit_start",
-                    ch=s.user_id,
-                    freq_mhz=s.last_freq_mhz,
-                    level_dbfs=lvl,
-                    warmup=in_warmup,
-                )
+                hs_kwargs = {
+                    "ch": s.user_id,
+                    "freq_mhz": s.last_freq_mhz,
+                    "level_dbfs": lvl,
+                    "warmup": in_warmup,
+                }
+                if cluster_center_hz is not None:
+                    hs_kwargs["cluster_center_hz"] = cluster_center_hz
+                self._server.emit_event("hit_start", **hs_kwargs)
             elif is_open and prev:
                 # ongoing: update peak
                 hit = self._in_flight.get(s.index)
@@ -171,9 +198,33 @@ class HitDetector:
                         "peak_dbfs": round(hit["peak_dbfs"], 2),
                         "warmup": hit["warmup"],
                     }
+                    # Tag with cluster center from hit_start time — the LO
+                    # might have hopped during the hit, but the start was
+                    # observed on the original cluster.  Backward-compat:
+                    # only emit when scheduler is wired and produced a
+                    # non-None center.
+                    if hit.get("cluster_center_hz") is not None:
+                        record["cluster_center_hz"] = hit["cluster_center_hz"]
                     self._server.emit_event("hit_end", **record)
                     self._append_log(record)
             self._last_open[s.index] = is_open
+
+    # -- Phase 4-pre helper -------------------------------------------------
+
+    def _read_cluster_center(self) -> Optional[float]:
+        """Read the current LO cluster center from the scheduler callback.
+
+        Defensive: any exception from the callback returns None so the
+        hit detector keeps working even if the scheduler is mid-recompute.
+        """
+        cb = self._get_cluster_center_hz
+        if cb is None:
+            return None
+        try:
+            v = cb()
+            return None if v is None else float(v)
+        except Exception:
+            return None
 
     # -- log writer --------------------------------------------------------
 
