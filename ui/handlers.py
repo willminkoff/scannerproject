@@ -3507,6 +3507,92 @@ def _compute_heartbeat_payload() -> dict:
             "status": _hb_result.get("status", "warn"),
         })
 
+    # ----- Phase 4c — chirp daemon awareness (ONLY when flag on).
+    # When SB5_USE_GR_DEMOD=false (the default) these rows are absent
+    # so the current heartbeat schema is unchanged.  When the flag is
+    # on, three rows are appended:
+    #   chirp-airband : ok if daemon answers get_status, fail otherwise
+    #   chirp-ground  : same probe on port 7401
+    #   chirp icecast : surfaces the daemon's own icecast_state field
+    # ``fail`` here counts as a wedged_reason so a downed chirp daemon
+    # rolls the badge up to WEDGED, which matches operator expectation
+    # under the chirp regime.
+    try:
+        _chirp_on = bool(_chirp_use_gr_demod())
+    except Exception:
+        _chirp_on = False
+    if _chirp_on:
+        try:
+            _chirp_air = _chirp_airband_client()
+            _chirp_gnd = _chirp_ground_client()
+        except Exception:
+            _chirp_air = None
+            _chirp_gnd = None
+        for _label, _client in (("chirp-airband", _chirp_air),
+                                ("chirp-ground", _chirp_gnd)):
+            if _client is None:
+                evidence.append({
+                    "label": _label,
+                    "value": "client init failed",
+                    "status": "bad",
+                })
+                wedged_reasons.append(f"{_label} client init failed")
+                continue
+            try:
+                _snap = _client.get_status()
+                evidence.append({
+                    "label": _label,
+                    "value": (
+                        f"active "
+                        f"({len(_snap.get('channels') or [])} chan, "
+                        f"{_snap.get('pool_free', '?')} free)"
+                    ),
+                    "status": "ok",
+                })
+                # Surface the daemon's view of its own icecast publisher.
+                _ic_state = _snap.get("icecast_state")
+                if _ic_state:
+                    _ic_drops = int(_snap.get("icecast_drop_count") or 0)
+                    _ic_bytes = int(_snap.get("icecast_bytes_sent") or 0)
+                    _ic_status = "ok"
+                    if _ic_state == "not_configured":
+                        _ic_status = "ok"
+                    elif _ic_state == "disconnected":
+                        _ic_status = "warn"
+                    elif _ic_state == "failed":
+                        _ic_status = "bad"
+                    evidence.append({
+                        "label": f"{_label} icecast",
+                        "value": (
+                            f"{_ic_state} "
+                            f"(bytes={_ic_bytes}, drops={_ic_drops})"
+                        ),
+                        "status": _ic_status,
+                    })
+            except _ChirpDaemonDown as _exc:
+                evidence.append({
+                    "label": _label,
+                    "value": f"daemon down ({_exc})",
+                    "status": "bad",
+                })
+                wedged_reasons.append(f"{_label} daemon down")
+                if not recovery:
+                    recovery = (
+                        f"systemctl restart chirp-{_label.split('-', 1)[1]}.service"
+                    )
+            except _ChirpClientError as _exc:
+                evidence.append({
+                    "label": _label,
+                    "value": f"daemon error ({_exc})",
+                    "status": "warn",
+                })
+            except Exception as _exc:  # noqa: BLE001
+                evidence.append({
+                    "label": _label,
+                    "value": f"probe exception ({_exc})",
+                    "status": "warn",
+                })
+
     # Phase 6a — live evidence rows for the two waterfall RTL-SDRs.
     # Backed by /run/scannerproject/waterfall/state.json which the
     # scanner-waterfall.service writes once a frame is in hand.
