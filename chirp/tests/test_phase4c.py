@@ -168,6 +168,14 @@ def two_daemons(monkeypatch, tmp_path):
 
 
 def test_reset_radios_via_chirp_hits_both_daemons(two_daemons):
+    """Phase 4c contract: reset_radios_via_chirp must hit BOTH daemons
+    and empty their pools.  We pass unconditional_repopulate=False here
+    to preserve the original "does reset wipe?" semantics — Phase 4d
+    flipped the default to True (auto-repopulate from HPState) so the
+    dashboard auto-apply countdown no longer silently nukes the pool.
+    Repopulate behaviour gets its own coverage further down in this
+    file (test_reset_radios_via_chirp_repopulates_both_bands_by_default
+    and friends)."""
     air, gnd, cc = two_daemons
     air.channels["X"] = {"id": "X", "freq_mhz": 121.5, "mode": "am",
                           "squelch_dbfs": -60, "gain_db": 0,
@@ -177,7 +185,7 @@ def test_reset_radios_via_chirp_hits_both_daemons(two_daemons):
                           "label": None, "signal_level_dbfs": -68.0}
     import ui.chirp_adapter as ca
     importlib.reload(ca)
-    ok, msg, err = ca.reset_radios_via_chirp()
+    ok, msg, err = ca.reset_radios_via_chirp(unconditional_repopulate=False)
     assert ok is True
     assert err == ""
     assert "triggered" in msg
@@ -374,3 +382,253 @@ def test_flag_off_no_chirp_traffic(monkeypatch, tmp_path):
     finally:
         air.stop()
         gnd.stop()
+
+
+# ---------------------------------------------------------------------------
+# Phase 4d additions — reset_radios_via_chirp must repopulate the pool by
+# default so a dashboard auto-apply chip-click no longer silently wipes the
+# channel inventory and leaves the operator at "0 hits".
+# ---------------------------------------------------------------------------
+
+from types import SimpleNamespace
+
+
+def _stub_hp_state(*, fav_id: str, enabled_air: bool, enabled_ground: bool,
+                   airband_freqs=(121.0, 122.5, 130.5),
+                   ground_freqs=(138.05, 138.3, 139.15)):
+    """Build a minimal HPState-shaped stub with one favorite + custom
+    channels.  Used by the Phase 4d repopulate tests so we don't need
+    a real /home/ubuntu/scannerproject/data/hp_state.json on disk.
+    """
+    custom = []
+    for f in airband_freqs:
+        custom.append({
+            "id": f"freq:test:air:{f:.4f}", "frequency": float(f),
+            "alpha_tag": f"AIR {f}", "department_name": "TEST",
+            "kind": "conventional",
+        })
+    for f in ground_freqs:
+        custom.append({
+            "id": f"freq:test:ground:{f:.4f}", "frequency": float(f),
+            "alpha_tag": f"GND {f}", "department_name": "TEST",
+            "kind": "conventional",
+        })
+    favorites = [{
+        "id": fav_id, "label": fav_id.upper(),
+        "enabled": True,
+        "enabled_air": bool(enabled_air),
+        "enabled_ground": bool(enabled_ground),
+        "enabled_digital": False,
+        "custom_favorites": [],
+        "profile_id": "", "target": "favorites", "type": "list",
+    }]
+    return SimpleNamespace(favorites=favorites, custom_favorites=custom)
+
+
+@pytest.fixture()
+def stub_hp_state(monkeypatch):
+    """Yield a callable that installs a stub HPState.load() returning
+    the SimpleNamespace from ``_stub_hp_state``.  Also stubs out the
+    post-add preset apply path so the test doesn't depend on
+    /etc/scannerproject configs.
+    """
+    import ui.chirp_adapter as ca
+    importlib.reload(ca)
+    import ui.hp_state as hps
+
+    installed: dict[str, object] = {}
+
+    def install(**kwargs):
+        state = _stub_hp_state(**kwargs)
+        monkeypatch.setattr(hps.HPState, "load",
+                            classmethod(lambda cls, *a, **kw: state))
+        # Re-import chirp_adapter so it picks up the patched HPState
+        # via its lazy import path.
+        installed["state"] = state
+
+        # Neutralise the post-add preset re-apply step: it tries to
+        # read /home/ubuntu/scannerproject/profiles/* which doesn't
+        # exist in the test sandbox.  Pretend "no preset configured"
+        # so _populate_after_reset's Step B is a no-op.
+        try:
+            import ui.managed_analog_controls as mac
+            monkeypatch.setattr(mac, "recommended_managed_controls",
+                                lambda *a, **kw: {})
+        except Exception:
+            pass
+        try:
+            import ui.profile_config as pc
+            monkeypatch.setattr(pc, "resolve_controls_path",
+                                lambda *a, **kw: "/tmp/nonexistent.conf")
+        except Exception:
+            pass
+        return state
+
+    return install
+
+
+def test_reset_radios_via_chirp_repopulates_both_bands_by_default(
+    two_daemons, stub_hp_state,
+):
+    """Default reset_radios_via_chirp() should reset both daemons AND
+    immediately push the enabled favorite's channel list back, so the
+    pool stays populated end-to-end (no UI-visible "0 hits" gap)."""
+    air, gnd, cc = two_daemons
+    # Pre-populate the daemons to prove the reset clears them.
+    air.channels["X"] = {"id": "X", "freq_mhz": 121.5, "mode": "am",
+                          "squelch_dbfs": -60, "gain_db": 0,
+                          "label": None, "signal_level_dbfs": -70.0}
+    gnd.channels["Y"] = {"id": "Y", "freq_mhz": 138.05, "mode": "nfm",
+                          "squelch_dbfs": -50, "gain_db": 0,
+                          "label": None, "signal_level_dbfs": -68.0}
+
+    stub_hp_state(fav_id="fav-test", enabled_air=True, enabled_ground=True)
+    import ui.chirp_adapter as ca
+    importlib.reload(ca)
+
+    ok, msg, err = ca.reset_radios_via_chirp()
+
+    assert ok is True, f"expected ok=True, got msg={msg!r} err={err!r}"
+    assert err == ""
+    # Per-band repop counts surface in the message body so a forensic
+    # pass on /var/log can see "we repopulated 3+3" without parsing
+    # chirp_client.jsonl.
+    assert "repop=3" in msg, msg
+    # Both daemons received reset.
+    air_cmds = [r["cmd"] for r in air.received]
+    gnd_cmds = [r["cmd"] for r in gnd.received]
+    assert "reset" in air_cmds and "reset" in gnd_cmds
+    # Both daemons received exactly one add_channel after the reset
+    # (no double-reset — reset_radios_via_chirp goes through
+    # _populate_after_reset, not the full activate_favorite_via_chirp).
+    assert air_cmds.count("reset") == 1, f"airband resets: {air_cmds}"
+    assert gnd_cmds.count("reset") == 1, f"ground resets: {gnd_cmds}"
+    assert air_cmds.count("add_channel") == 1, f"airband adds: {air_cmds}"
+    assert gnd_cmds.count("add_channel") == 1, f"ground adds: {gnd_cmds}"
+    # Order: reset BEFORE add_channel.
+    assert air_cmds.index("reset") < air_cmds.index("add_channel")
+    assert gnd_cmds.index("reset") < gnd_cmds.index("add_channel")
+    # Daemon state reflects the repopulate.
+    assert len(air.channels) == 3
+    assert len(gnd.channels) == 3
+    # Channels are band-filtered (<137 for air, >=137 for ground).
+    for c in air.channels.values():
+        assert c["freq_mhz"] < 137.0
+    for c in gnd.channels.values():
+        assert c["freq_mhz"] >= 137.0
+
+
+def test_reset_radios_via_chirp_opt_out_keeps_pool_empty(
+    two_daemons, stub_hp_state,
+):
+    """unconditional_repopulate=False must skip the repopulate step
+    entirely so the CLI / test harness / future callers can ask for a
+    really-empty pool when they need to."""
+    air, gnd, cc = two_daemons
+    air.channels["X"] = {"id": "X", "freq_mhz": 121.5, "mode": "am",
+                          "squelch_dbfs": -60, "gain_db": 0,
+                          "label": None, "signal_level_dbfs": -70.0}
+    gnd.channels["Y"] = {"id": "Y", "freq_mhz": 138.05, "mode": "nfm",
+                          "squelch_dbfs": -50, "gain_db": 0,
+                          "label": None, "signal_level_dbfs": -68.0}
+
+    stub_hp_state(fav_id="fav-test", enabled_air=True, enabled_ground=True)
+    import ui.chirp_adapter as ca
+    importlib.reload(ca)
+
+    ok, msg, err = ca.reset_radios_via_chirp(unconditional_repopulate=False)
+
+    assert ok is True
+    assert err == ""
+    # Message must signal no repopulate happened.
+    assert "no-repop" in msg, msg
+    # No add_channel went out to either daemon.
+    air_cmds = [r["cmd"] for r in air.received]
+    gnd_cmds = [r["cmd"] for r in gnd.received]
+    assert "reset" in air_cmds and "reset" in gnd_cmds
+    assert "add_channel" not in air_cmds
+    assert "add_channel" not in gnd_cmds
+    # Pools really empty.
+    assert air.channels == {}
+    assert gnd.channels == {}
+
+
+def test_reset_radios_via_chirp_no_enabled_favorite_skips_repopulate(
+    two_daemons, stub_hp_state,
+):
+    """When the HP state has NO favorite enabled for a band, repop is
+    skipped for that band — clean operational signal, not a failure."""
+    air, gnd, cc = two_daemons
+    # enabled_air=True, enabled_ground=False → only airband repopulates.
+    stub_hp_state(fav_id="fav-air-only",
+                  enabled_air=True, enabled_ground=False)
+    import ui.chirp_adapter as ca
+    importlib.reload(ca)
+
+    ok, msg, err = ca.reset_radios_via_chirp()
+
+    assert ok is True
+    # Airband repopulated, ground skipped.
+    assert "repop=3" in msg
+    assert "no-repop(no_enabled_favorite)" in msg, msg
+    air_cmds = [r["cmd"] for r in air.received]
+    gnd_cmds = [r["cmd"] for r in gnd.received]
+    assert "add_channel" in air_cmds
+    assert "add_channel" not in gnd_cmds
+
+
+def test_reset_radios_via_chirp_repopulate_failure_logged_not_fatal(
+    two_daemons, stub_hp_state, monkeypatch, caplog,
+):
+    """If _populate_after_reset raises (e.g. corrupt config, downstream
+    bug), the overall reset_radios_via_chirp call still reports ok=True
+    because the reset itself succeeded.  The per-band repop error
+    surfaces in the message so the operator sees it."""
+    air, gnd, cc = two_daemons
+    stub_hp_state(fav_id="fav-test", enabled_air=True, enabled_ground=True)
+    import ui.chirp_adapter as ca
+    importlib.reload(ca)
+
+    boom_calls = {"n": 0}
+
+    def _boom(band, fav_id):
+        boom_calls["n"] += 1
+        raise RuntimeError(f"synthetic boom for {band}")
+
+    monkeypatch.setattr(ca, "_populate_after_reset", _boom)
+
+    with caplog.at_level("ERROR", logger="ui.chirp_adapter"):
+        ok, msg, err = ca.reset_radios_via_chirp()
+
+    # Reset succeeded → overall ok.  Per-band repop errors live in msg.
+    assert ok is True
+    assert err == ""
+    assert "repop-fail" in msg, msg
+    # Helper was invoked for both bands (no early-exit after first
+    # band's failure).
+    assert boom_calls["n"] == 2
+
+
+def test_activate_favorite_via_chirp_still_works_post_refactor(
+    two_daemons, stub_hp_state,
+):
+    """Regression: the refactor that extracted _populate_after_reset out
+    of activate_favorite_via_chirp must not have broken its existing
+    end-to-end contract (reset → add_channel for one band)."""
+    air, _gnd, cc = two_daemons
+    stub_hp_state(fav_id="fav-test", enabled_air=True, enabled_ground=False)
+    import ui.chirp_adapter as ca
+    importlib.reload(ca)
+
+    result = ca.activate_favorite_via_chirp("airband", "fav-test")
+
+    assert result["ok"] is True
+    assert result["target"] == "airband"
+    assert result["fav_id"] == "fav-test"
+    assert result["added_count"] == 3
+    # Exactly one reset + one add_channel against the airband daemon.
+    air_cmds = [r["cmd"] for r in air.received]
+    assert air_cmds.count("reset") == 1
+    assert air_cmds.count("add_channel") == 1
+    assert air_cmds.index("reset") < air_cmds.index("add_channel")
+    assert len(air.channels) == 3

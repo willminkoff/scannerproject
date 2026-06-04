@@ -17,6 +17,147 @@ Hard rules every overnight task must follow are restated at the bottom.
 
 ---
 
+## 2026-06-04 ~20:00 UTC — Phase 4d hotfix: reset_radios pool-wipe regression
+
+**Goal** — kill a regression discovered in production triage right after
+the Phase 4d merge to `main` (a005029): under `SB5_USE_GR_DEMOD=true`,
+ANY squelch-chip click / AUTO toggle / gain-slider commit on the
+dashboard silently wiped both chirp daemons' channel pools 6 seconds
+later, leaving the operator at "0 hits".
+
+**Root cause** — the legacy rtl-airband world used the dashboard's
+6-second "auto-apply" countdown (`_scheduleAutoApply` →
+`_autoApplyFire` → `POST /api/sitrep/action {action:"reset_radios"}`)
+to pick up squelch/gain changes by restarting rtl-airband services.
+In the chirp world, `handlers.py:5246` short-circuits the same POST to
+`reset_radios_via_chirp()`, which sent `reset` to both daemons and DID
+NOT repopulate.  Result: every chip-click wiped the pool.  Forensic
+trail in `~/.cache/airband-ui/chirp_client.jsonl` lines 3798–3799 at
+15:46:36.750/.752 EDT — two consecutive `reset` calls, no follow-up
+`add_channel`.
+
+**Done**
+
+- **A — Backend repopulate** (`ui/chirp_adapter.py`):
+  - `reset_radios_via_chirp(*, unconditional_repopulate: bool = True)`
+    — after each daemon's reset succeeds, look up the band's enabled
+    favorite from `HPState.favorites[*].enabled_air` /
+    `.enabled_ground` and push the channel list back via the new
+    `_populate_after_reset(band, fav_id)` helper.  Pool refills in
+    <50 ms per band; dashboard never sees an "empty pool" state.
+  - `unconditional_repopulate=False` opt-out for CLI / tests / any
+    caller that really wants an empty pool (e.g. tests asserting
+    "does reset wipe?").
+  - Extracted `_populate_after_reset(band, fav_id)` from
+    `activate_favorite_via_chirp`'s Steps 2+3 so the favorite-swap
+    path and the reset+repopulate path share their post-reset
+    behaviour.  `chirp_client.jsonl` now shows clean back-to-back
+    `reset` + `add_channel` + `set_squelch ×N` per band — easy to
+    correlate in forensic passes.
+  - Added `_enabled_fav_id_for_band(band) -> Optional[str]` — pure
+    HPState lookup, defensive (never raises).
+  - Per-band repopulate failures land in the response message
+    (`repop=N` / `no-repop(reason)` / `repop-fail(err)`) without
+    failing the overall reset.  Operator can re-activate from the
+    dashboard if the auto-repop bombs.
+- **B — Frontend gate** (`ui/sb5.html`):
+  - New module-level `let USE_GR_DEMOD = false;` mirrored from
+    `/api/heartbeat`'s new `use_gr_demod` field every time
+    `STATE.heartbeat` is refreshed.
+  - `_scheduleAutoApply()` early-returns when `USE_GR_DEMOD` is true
+    (cancels any in-flight countdown, hides the badge).
+  - `_autoApplyFire()` re-checks the gate at fire time so a flag flip
+    mid-countdown still does the right thing.
+  - Behaviour with `SB5_USE_GR_DEMOD=false` is unchanged — the legacy
+    rtl-airband countdown survives for any future rollback.
+- **Heartbeat exposure** (`ui/handlers.py:_compute_heartbeat_payload`):
+  added `use_gr_demod: bool` to the payload so the JS gate has a
+  reliable source.  Defensive probe; any failure becomes `False` so
+  the legacy countdown is the fallback.
+- **Tests** (`chirp/tests/test_phase4c.py`):
+  - 5 new tests for the repopulate behaviour: default repopulates both
+    bands; opt-out keeps pools empty; no-enabled-favorite skips repop
+    cleanly; repop failures log without failing overall; existing
+    `activate_favorite_via_chirp` still works after the refactor.
+  - 1 existing test updated to pass `unconditional_repopulate=False`
+    (preserves its "does reset wipe?" intent).
+  - Suite: **296 passed, 4 deselected** (was 291 — net +5 new tests).
+
+**Live verification on micro (16:25 EDT)** —
+`POST /api/sitrep/action {action:"reset_radios"}` produced exactly
+what the design promised on the band whose daemon was responsive
+(ground): `chirp_client.jsonl` ln 5024–5054 shows
+`reset` → `add_channel n=27` → `set_squelch ×27` back-to-back at
+`16:25:31.860–32.056`.  Forensic lockstep visible.  The airband
+daemon was at 628% CPU and timed out the UDP reset within the 2 s
+client window — pre-existing constraint, handled correctly by the
+partial-fail path (`ok=False` for airband, `ok=True` for ground).
+Under the new code's frontend gate, dashboard chip-clicks no longer
+fire the POST at all, so the airband-timeout-under-load case is
+effectively dead-coded for the only path that used to hit it.
+
+**Deploy SHA on `main`** — ``2c37c16`` (pushed to `origin/main`).
+
+---
+
+## TODO — follow-ups from the 2026-06-04 incident
+
+Low-priority cleanups noticed during triage / verification.  All
+separate concerns from the hotfix above; each gets its own commit
+when picked up.
+
+- **`StateStore.clear()` writes wrong `band` field for non-airband
+  daemons.** `chirp/state.py:189` does `self.save(ChirpState())`
+  which uses the `ChirpState.band: str = "airband"` default
+  (`state.py:89`).  After a `reset` on the ground daemon, its state
+  file (`/var/lib/chirp/ground.state.json`) contains
+  `"band": "airband"` until the next channel add overwrites it.
+  Observed live 2026-06-04 15:46:36 EDT after the production reset
+  event.  Impact: cosmetic / debugging-confusing only — the daemon
+  uses its own `_cfg.band` everywhere at runtime; the persisted
+  field isn't consulted on load (load just round-trips the model).
+  Fix sketch (~5 LOC): give `StateStore.clear()` a `band` parameter
+  (or capture it in `__init__` from the path) and call
+  `self.save(ChirpState(band=band))`.  Same treatment for the
+  `ChirpState()` returns inside `load()`.  Add a tiny unit test
+  asserting `clear()` on a `ground.state.json` path produces
+  `"band": "ground"`.  Priority: **low**.
+
+- **`_read_favorite_freqs_for_band("ground", ...)` over-includes
+  UHF / VHF-county channels.** `ui/chirp_adapter.py` filters with
+  `if target == "ground" and freq < 137.0: continue` — only a LOWER
+  bound.  The ground SDRplay window is ~138.6 MHz ± 1 MHz (2 Msps
+  IQ), so UHF mil-air (239–385 MHz), VHF P25 (172–173 MHz) and VHF
+  county (155 MHz) entries from `hp_state.custom_favorites` all get
+  pushed into the ground daemon.  The cluster planner then refuses
+  to plan (`needs 13 clusters but max_clusters=8`) and parks the LO
+  → 0 hits despite a populated pool.  Triggered live on
+  2026-06-04 16:01 EDT and again at 16:25 after the repopulate
+  fired.  Operational mitigation: trim out-of-band channels via
+  `remove_channel`.  Fix sketch: add an upper-bound filter mirroring
+  the daemon's IQ window (something like
+  `if target == "ground" and (freq < 137.0 or freq > 141.0): continue`,
+  with the exact bounds taken from `CHIRP_GROUND_SDR_CENTER_HZ ± SAMP_RATE/2`
+  so the filter tracks any future re-tuning).  Add unit coverage in
+  `chirp/tests/test_phase4c.py` for an HPState with mixed in/out-of-band
+  channels.  Priority: **medium** (silent 0-hits failure mode).
+
+- **chirp daemon UDP cmd server starved at high CPU.** Both
+  `gr-demod@airband` and `gr-demod@ground` were observed at >600%
+  CPU on micro 2026-06-04 16:25 EDT (DSP threads pinning 6+ cores
+  each); under that load the asyncio command server occasionally
+  failed to answer `reset` within the chirp_client default 2 s
+  timeout.  Not a regression — same behaviour pre-merge — but
+  `reset_radios_via_chirp`'s partial-fail path now handles it
+  gracefully and the frontend gate stops the most common trigger.
+  Worth investigating: pin the cmd-server thread at a higher OS
+  priority (`SCHED_RR`?) so it preempts DSP; or simply bump the
+  client's default `CHIRP_CLIENT_TIMEOUT_SEC` env from 2 s to ~5 s
+  for the production deploy.  Priority: **low** (operational, not
+  user-facing).
+
+---
+
 ## 2026-06-04 11:18 UTC — Phase 2 (task 3 of 4+)
 
 **Goal** — multi-channel scanner. 32-slot pool feeding a single audio mixer +

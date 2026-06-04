@@ -364,16 +364,57 @@ def _read_favorite_freqs_for_band(band: str, fav_id: str) -> list[dict]:
     return []
 
 
-def activate_favorite_via_chirp(band: str, fav_id: str) -> dict:
-    """Push the favorite's channel list to the relevant chirp daemon.
+def _enabled_fav_id_for_band(band: str) -> Optional[str]:
+    """Return the ``fav_id`` of the favorite currently enabled for the
+    given band (``enabled_air`` for airband, ``enabled_ground`` for
+    ground), or ``None`` if no favorite is enabled, the HP state can't
+    be loaded, or the state contains no favorites list.
 
-    Strategy: reset the daemon (parks all channels in sub-second), then
-    batch add_channel for the new list.  Atomically replaces the
-    daemon's channel inventory.
+    Used by ``reset_radios_via_chirp`` to decide which favorite to
+    re-push after the reset.  Defensive: never raises — any failure
+    becomes "no enabled fav" and the caller treats the band as a
+    no-op for repopulate.
+    """
+    try:
+        try:
+            from .hp_state import HPState
+        except ImportError:
+            from ui.hp_state import HPState  # type: ignore
+        state = HPState.load()
+    except Exception:
+        logger.debug(
+            "chirp_adapter: HPState.load failed in _enabled_fav_id_for_band",
+            exc_info=True,
+        )
+        return None
+    target = _normalize_band(band)
+    flag_key = f"enabled_{'air' if target == 'airband' else 'ground'}"
+    for f in (getattr(state, "favorites", []) or []):
+        if not isinstance(f, dict):
+            continue
+        if bool(f.get(flag_key)):
+            fav_id = str(f.get("id") or "").strip()
+            if fav_id:
+                return fav_id
+    return None
 
-    Returns ``{ok, target, fav_id, added_count, error}`` so the handler
-    can synthesize the same JSON shape as the legacy path (which just
-    saves the HPState and returns the saved payload).
+
+def _populate_after_reset(band: str, fav_id: str) -> dict:
+    """Push the favorite's channel list + re-apply preset to a daemon
+    whose pool was JUST emptied (by ``reset_radios_via_chirp`` or
+    ``activate_favorite_via_chirp``).
+
+    Assumes the caller has already issued ``client.reset()`` — this
+    helper does NOT reset, so it can be reused by both the "single-band
+    favorite swap" and "both-bands reset+repopulate" flows without
+    double-resetting the daemon.  That keeps ``chirp_client.jsonl``
+    showing each band's reset+add as a clean back-to-back pair (no
+    spurious second reset) so forensic passes can correlate the events
+    cleanly.
+
+    Returns the same dict shape as ``activate_favorite_via_chirp`` so
+    the two callers can plumb the result into their respective response
+    bodies.
     """
     target = _normalize_band(band)
     channels = _read_favorite_freqs_for_band(target, fav_id)
@@ -389,19 +430,7 @@ def activate_favorite_via_chirp(band: str, fav_id: str) -> dict:
 
     client = _chirp_client_for(target)
 
-    # Step 1: reset (parks every slot, zeros master gain).  Sub-second.
-    try:
-        client.reset()
-    except Exception as exc:
-        return {
-            "ok": False,
-            "target": target,
-            "fav_id": fav_id,
-            "error": f"reset_failed: {exc}",
-            "via": "chirp",
-        }
-
-    # Step 2: batch add_channel.  The daemon validates the batch
+    # Step A: batch add_channel.  The daemon validates the batch
     # transactionally — partial failure is impossible (pool overflow
     # rejects the whole batch).
     try:
@@ -416,8 +445,8 @@ def activate_favorite_via_chirp(band: str, fav_id: str) -> dict:
             "via": "chirp",
         }
 
-    # Step 3: re-apply the current preset's thresholds.  We do this so
-    # the operator's chip selection is honored after a favorite swap;
+    # Step B: re-apply the current preset's thresholds.  We do this so
+    # the operator's chip selection is honored after the wipe;
     # without this, the newly added channels keep their default -60 dBFS
     # threshold from the add_channel call.
     try:
@@ -445,20 +474,102 @@ def activate_favorite_via_chirp(band: str, fav_id: str) -> dict:
     }
 
 
+def activate_favorite_via_chirp(band: str, fav_id: str) -> dict:
+    """Push the favorite's channel list to the relevant chirp daemon.
+
+    Strategy: reset the daemon (parks all channels in sub-second), then
+    batch add_channel for the new list.  Atomically replaces the
+    daemon's channel inventory.
+
+    Returns ``{ok, target, fav_id, added_count, error}`` so the handler
+    can synthesize the same JSON shape as the legacy path (which just
+    saves the HPState and returns the saved payload).
+    """
+    target = _normalize_band(band)
+    # Probe the favorite up-front so a "no channels for this band"
+    # favorite swap doesn't even bother resetting the daemon — that
+    # matches the legacy behavior of the rtl-airband path and keeps
+    # chirp_client.jsonl from logging a "reset that did nothing".
+    channels_preview = _read_favorite_freqs_for_band(target, fav_id)
+    if not channels_preview:
+        return {
+            "ok": True,  # No-op is not an error — favorite has no channels for this band.
+            "target": target,
+            "fav_id": fav_id,
+            "added_count": 0,
+            "via": "chirp",
+            "note": "no channels for this band",
+        }
+
+    client = _chirp_client_for(target)
+
+    # Step 1: reset (parks every slot, zeros master gain).  Sub-second.
+    try:
+        client.reset()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "target": target,
+            "fav_id": fav_id,
+            "error": f"reset_failed: {exc}",
+            "via": "chirp",
+        }
+
+    # Steps 2 + 3: add channels + re-apply preset.  Shared with
+    # reset_radios_via_chirp via _populate_after_reset so the two flows
+    # behave identically post-reset.
+    return _populate_after_reset(target, fav_id)
+
+
 # ---------------------------------------------------------------------------
 # 4) /api/sitrep/action reset_radios (chirp-on)
 # ---------------------------------------------------------------------------
 
 
-def reset_radios_via_chirp() -> tuple[bool, str, str]:
-    """Send ``reset`` to BOTH chirp daemons.
+def reset_radios_via_chirp(*, unconditional_repopulate: bool = True) -> tuple[bool, str, str]:
+    """Send ``reset`` to BOTH chirp daemons, then immediately re-push
+    each band's currently-enabled favorite so the channel pool stays
+    populated.
 
-    Sub-second op; no SDR restart cascade.  Returns the same
-    ``(ok, msg, err)`` tuple shape as ``_run_sitrep_action``.
+    Why the repopulate?  In the rtl-airband world, ``reset_radios``
+    meant "restart the rtl-airband services"; the next start re-read
+    rtl_airband.conf and the channel list came back automatically.  In
+    the chirp world the daemons hold their inventory in RAM (persisted
+    to ``state.json`` per change), and an explicit ``reset`` wipes that
+    inventory — without a follow-up ``add_channel`` the operator's pool
+    stays empty and the dashboard shows "0 hits" until a favorite is
+    re-activated manually.  We mirror the legacy behavior by reading
+    the per-band ``enabled_air`` / ``enabled_ground`` flag from
+    ``HPState`` and re-pushing whichever favorite is currently active.
 
-    Failure semantics: if either daemon is down, we report failure but
-    continue with the other so the operator gets useful partial-success
-    info.  Matches the rtl-airband path's "per-band detail" rollup.
+    Sub-second op (typical: ~25 ms reset + ~30 ms add per band).
+    Returns the same ``(ok, msg, err)`` tuple shape as
+    ``_run_sitrep_action``.
+
+    Args:
+        unconditional_repopulate: when True (the default), repopulate
+            each band after reset by re-pushing its enabled favorite.
+            Pass False for CLI / tests / any caller that genuinely
+            wants the pool empty (e.g. ``activate_favorite_via_chirp``
+            handles its own re-add and a double-add would be a bug).
+
+    Failure semantics:
+      - If a daemon's *reset* fails (timeout, daemon down), we report
+        failure for that band and skip its repopulate, but continue
+        with the other band.  Matches the legacy "per-band detail"
+        rollup.
+      - If a band's *repopulate* fails (HPState corrupt, add_channels
+        rejected mid-batch, preset apply raises), we log and surface
+        the per-band repopulate error in the message but DO NOT undo
+        the reset.  The pool stays empty for that band; the operator
+        can re-activate from the dashboard.  Overall ``ok`` is still
+        True iff every band's reset succeeded — the repopulate state
+        is informational, not a contract guarantee.
+
+    Logging contract: every send goes through ``chirp_client``, which
+    appends one JSON line per call to ``chirp_client.jsonl``.  When the
+    repopulate path fires, the log will show the reset+add pair for
+    each band back-to-back, making forensic correlation easy.
     """
     try:
         from .chirp_client import (
@@ -475,18 +586,81 @@ def reset_radios_via_chirp() -> tuple[bool, str, str]:
         client = getter()
         try:
             data = client.reset()
-            results[name] = {"ok": True, "pool_free": data.get("pool_free")}
+            results[name] = {
+                "ok": True,
+                "pool_free": data.get("pool_free"),
+                "repopulate": None,
+            }
         except ChirpClientError as exc:
-            results[name] = {"ok": False, "error": str(exc)}
+            results[name] = {"ok": False, "error": str(exc), "repopulate": None}
         except Exception as exc:  # noqa: BLE001
-            results[name] = {"ok": False, "error": f"unexpected: {exc}"}
+            results[name] = {
+                "ok": False,
+                "error": f"unexpected: {exc}",
+                "repopulate": None,
+            }
+
+    # ----- Repopulate phase (only when requested) ---------------------------
+    # Each band is independent — one band's repopulate failure must not
+    # block the other.  We use the enabled_air/enabled_ground flag on
+    # HPState as the source of truth (mirrors what
+    # /api/hp/state/activate writes).
+    if unconditional_repopulate:
+        for name in ("airband", "ground"):
+            band_result = results[name]
+            if not band_result.get("ok"):
+                # Reset itself failed — skip repopulate; no daemon to
+                # talk to anyway.
+                band_result["repopulate"] = {"skipped": "reset_failed"}
+                continue
+            fav_id = _enabled_fav_id_for_band(name)
+            if not fav_id:
+                band_result["repopulate"] = {"skipped": "no_enabled_favorite"}
+                continue
+            try:
+                rp = _populate_after_reset(name, fav_id)
+            except Exception as exc:  # noqa: BLE001
+                # Defensive — _populate_after_reset is designed to
+                # swallow internal failures, but if a bug or upstream
+                # change ever lets one through, log and continue.  The
+                # operator can re-activate from the dashboard.
+                logger.exception(
+                    "chirp_adapter: repopulate band=%s fav_id=%s raised",
+                    name, fav_id,
+                )
+                band_result["repopulate"] = {
+                    "ok": False,
+                    "fav_id": fav_id,
+                    "error": f"unexpected: {exc}",
+                }
+                continue
+            band_result["repopulate"] = {
+                "ok": bool(rp.get("ok")),
+                "fav_id": fav_id,
+                "added_count": rp.get("added_count"),
+                "error": rp.get("error"),
+            }
+
     elapsed = time.monotonic() - t0
     all_ok = all(r.get("ok") for r in results.values())
+
+    def _repop_summary(b: str) -> str:
+        rp = results[b].get("repopulate")
+        if rp is None:
+            return "no-repop"
+        if "skipped" in rp:
+            return f"no-repop({rp['skipped']})"
+        if rp.get("ok"):
+            return f"repop={rp.get('added_count')}"
+        return f"repop-fail({rp.get('error') or 'unknown'})"
+
     if all_ok:
         msg = (
             f"Reset Radios (chirp) triggered in {elapsed:.2f}s "
-            f"(airband pool_free={results['airband'].get('pool_free')}, "
-            f"ground pool_free={results['ground'].get('pool_free')})"
+            f"(airband pool_free={results['airband'].get('pool_free')} "
+            f"{_repop_summary('airband')}, "
+            f"ground pool_free={results['ground'].get('pool_free')} "
+            f"{_repop_summary('ground')})"
         )
         return True, msg, ""
     detail = "; ".join(

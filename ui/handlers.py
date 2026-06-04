@@ -3681,6 +3681,19 @@ def _compute_heartbeat_payload() -> dict:
         datetime.utcfromtimestamp(since_ts).replace(microsecond=0).isoformat() + "Z"
     )
 
+    # Phase 4d — expose the chirp-on flag to the frontend.  sb5.html's
+    # auto-apply countdown (which POSTs /api/sitrep/action reset_radios
+    # under the rtl-airband world) needs to know to NO-OP when chirp is
+    # the analog backend, because in the chirp world that POST just
+    # wipes the channel pool (and reset_radios_via_chirp's
+    # repopulate-by-default is belt for the suspenders).  Probed
+    # defensively — any failure becomes False so the legacy countdown
+    # behaviour is preserved on probe error.
+    try:
+        _use_gr_demod_flag = bool(_chirp_use_gr_demod())
+    except Exception:
+        _use_gr_demod_flag = False
+
     payload = {
         "state": state,
         "since": since_iso,
@@ -3691,6 +3704,7 @@ def _compute_heartbeat_payload() -> dict:
         "evidence": evidence,
         "server_time": now_wall,
         "cached": False,
+        "use_gr_demod": _use_gr_demod_flag,
     }
 
     with _HEARTBEAT_LOCK:

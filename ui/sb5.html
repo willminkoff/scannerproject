@@ -4085,6 +4085,12 @@ function applyWedged(wedged) {
 
 function renderHeartbeat(hb) {
   STATE.heartbeat = hb;
+  // Phase 4d: cache the chirp-backend flag for the auto-apply gate.
+  // When true, /api/sitrep/action reset_radios wipes the chirp pool
+  // (and reset_radios_via_chirp's repopulate is belt-and-suspenders);
+  // so the dashboard auto-apply countdown becomes a no-op — squelch
+  // and gain are pushed live by chirp anyway, nothing to 'apply'.
+  USE_GR_DEMOD = !!(hb && hb.use_gr_demod);
   const state = String((hb && hb.state) || "loading").toLowerCase();
   const category = categorizeState(state, hb);
   applyStateCategory(category);
@@ -6779,6 +6785,14 @@ function _bandCommit(band, kind) {
   }, 120);
 }
 
+// Phase 4d — chirp backend flag, mirrored from /api/heartbeat.use_gr_demod.
+// Read by the gates inside _scheduleAutoApply / _autoApplyFire so the
+// auto-apply countdown is a no-op when chirp is the analog backend.
+// Updated by the heartbeat consumer (search 'STATE.heartbeat = hb' in this
+// file).  Defaults false so legacy rtl-airband behaviour is the fallback
+// when the heartbeat probe hasn't run yet or fails.
+let USE_GR_DEMOD = false;
+
 // ============ Auto-apply countdown (Phase 7h) ============
 // Shared 6-second debounced restart trigger for AIR + GROUND.  After
 // the user commits any squelch/gain slider or hits Auto/Default the
@@ -6853,6 +6867,14 @@ function _clearBandPendingAfterApply() {
 
 function _autoApplyFire() {
   _autoApplyStopTimer();
+  // Phase 4d gate (fire-time check — a flag flip between schedule and
+  // fire still takes effect).  When chirp is the backend, don't POST
+  // /api/sitrep/action reset_radios; just hide the badge.
+  if (USE_GR_DEMOD) {
+    _autoApply.applying = false;
+    _autoApplyHide();
+    return;
+  }
   _autoApply.applying = true;
   _autoApplyRender("Applying…", "applying");
   fetch("/api/sitrep/action", {
@@ -6884,6 +6906,15 @@ function _autoApplyFire() {
 }
 
 function _scheduleAutoApply() {
+  // Phase 4d gate: when chirp is the analog backend, squelch / gain /
+  // AUTO already apply live via /api/airband/* — there's nothing to
+  // 'auto-apply' on a 6-second debounce, and firing reset_radios would
+  // wipe the chirp pool.  Skip the countdown entirely.  Cancel any
+  // pending countdown so the badge disappears.
+  if (USE_GR_DEMOD) {
+    _autoApplyCancel();
+    return;
+  }
   _autoApplyStopTimer();
   _autoApply.applying = false;
   _autoApply.remaining = AUTO_APPLY_DELAY_SEC;
