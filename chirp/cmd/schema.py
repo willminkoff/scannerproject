@@ -76,16 +76,18 @@ class Response(BaseModel):
     data: Optional[dict[str, Any]] = None
     error: Optional[str] = None
 
+    # NOTE: classmethod names intentionally avoid colliding with the `error`
+    # field — pydantic v2 reserves field names on the class namespace.
     @classmethod
-    def ok(cls, req_id: str, data: Optional[dict[str, Any]] = None) -> "Response":
+    def make_ok(cls, req_id: str, data: Optional[dict[str, Any]] = None) -> "Response":
         return cls(v=PROTOCOL_VERSION, id=req_id, status="ok", data=data, error=None)
 
     @classmethod
-    def rejected(cls, req_id: str, reason: str) -> "Response":
+    def make_rejected(cls, req_id: str, reason: str) -> "Response":
         return cls(v=PROTOCOL_VERSION, id=req_id, status="rejected", data=None, error=reason)
 
     @classmethod
-    def error(cls, req_id: str, reason: str) -> "Response":
+    def make_error(cls, req_id: str, reason: str) -> "Response":
         return cls(v=PROTOCOL_VERSION, id=req_id, status="error", data=None, error=reason)
 
 
