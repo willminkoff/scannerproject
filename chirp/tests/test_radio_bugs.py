@@ -49,6 +49,9 @@ import pytest
 from chirp.cmd.server import CommandServer, ServerConfig
 from chirp.daemon import ChirpFlowgraph, DaemonConfig, PARKED_SQUELCH_DBFS
 from chirp.dsp.channel import Channel
+# Phase 3: the canonical IcecastReconnector now lives in chirp.dsp.icecast_sink.
+# These tests exercise the production class to prove the contract is preserved.
+from chirp.dsp.icecast_sink import IcecastReconnector
 from chirp.hit_detector import HitDetector
 from chirp.state import StateStore
 
@@ -290,54 +293,6 @@ class _FakeShoutSink:
         self.connected = True
         self.sent = 0
         return True
-
-
-class IcecastReconnector:
-    """Phase 3 contract: any libshout-style sink we ship must wrap raw
-    `send()` calls so a ConnectionError triggers logged backoff-reconnect.
-
-    Backoff schedule: 0.25, 0.5, 1.0, 2.0, 4.0, capped at 4.0 s. Resets to
-    0.25 on the first successful reconnect.
-
-    This class is the reference implementation; Phase 3 will replace its
-    `sink` attribute with a real `python-shout` handle. The contract under
-    test is: when `feed()` is called and the underlying sink raises a
-    ConnectionError, the reconnector logs, sleeps the next backoff, calls
-    reconnect(), and retries — and does NOT silently swallow the drop.
-    """
-
-    BACKOFF_SCHEDULE = (0.25, 0.5, 1.0, 2.0, 4.0)
-
-    def __init__(self, sink, log=None, sleep=time.sleep):
-        self.sink = sink
-        self.log = log or logging.getLogger("chirp.icecast")
-        self._sleep = sleep
-        self._backoff_idx = 0
-        self.drops = 0
-        self.reconnects = 0
-
-    def feed(self, payload: bytes, max_attempts: int = 5) -> bool:
-        for attempt in range(max_attempts):
-            try:
-                self.sink.send(payload)
-                # On success, reset backoff.
-                self._backoff_idx = 0
-                return True
-            except ConnectionError as e:
-                self.drops += 1
-                self.log.warning("icecast drop (attempt %d): %s", attempt, e)
-                wait = self.BACKOFF_SCHEDULE[
-                    min(self._backoff_idx, len(self.BACKOFF_SCHEDULE) - 1)
-                ]
-                self._backoff_idx += 1
-                self._sleep(wait)
-                try:
-                    if self.sink.reconnect():
-                        self.reconnects += 1
-                except Exception:
-                    self.log.exception("reconnect raised")
-                    continue
-        return False
 
 
 class TestBug3LibshoutReconnectsAfterDrop:
