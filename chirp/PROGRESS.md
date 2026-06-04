@@ -648,7 +648,7 @@ mount-name list in `icecast.xml`, same active sources, same listener counts.
 - `e667485` — test_phase3.py (17 tests)
 - *(this section's commit)* — PROGRESS.md Phase 3 entry
 
-**Branch tip:** (filled at push time)
+**Branch tip:** `540554f`
 
 ### Next task — Phase 4
 
