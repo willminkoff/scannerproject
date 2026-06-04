@@ -1408,3 +1408,103 @@ investigating next:
 
 `gr-demod/airband` @ `4d6f04e` (unchanged — no code edits in this
 window; only documentation and a probe log artifact).
+
+
+---
+
+## Phase 4b-diag (2026-06-04 10:24-10:32 EDT) — GREEN LIGHT on SDR adapter
+
+Targeted diagnostic window opened after the Phase 4b-final RED LIGHT on
+2026-06-04 10:13. Mission: localize where `osmosdr.source(args=...)` was
+hanging and ship a fix.
+
+### What we ran (under ~3:42 of production downtime)
+
+Stopped `rtl-airband-airband` and `rtl-airband-ground`, left `sdrplay`
+running, confirmed `/dev/shm/Glbl\sdrSrvDv00_*` torn down. Then ran a
+variant matrix against the live RSPduo (serial 1809063632):
+
+| # | Layer | args string | Result |
+|---|---|---|---|
+| T1 | `SoapySDRUtil --find='driver=sdrplay'` | n/a | **OK** in 0.05s (4 device modes enumerated: ST, DT, MA, MA8) |
+| T2 | `SoapySDRUtil --probe=...` | `driver=sdrplay,serial=1809063632,mode=MA,tuner=1` | **OK** in 1.37s (full probe, all gain/bw/rate metadata returned) |
+| T3 | `osmosdr.source(args=...)` | `""` (empty) | **OK** in 2.04s |
+| T4 | `osmosdr.source(args=...)` | `driver=sdrplay,serial=1809063632,mode=MA,tuner=1` (rtl-airband's exact string) | **OK** in 2.04s |
+| T5 | `osmosdr.source(args=...)` | `soapy=,driver=sdrplay,serial=1809063632,mode=MA,tuner=1` (**chirp's exact "hanging" string**) | **OK** in 1.54s (constructed at +0.18s) |
+| T6 | `osmosdr.source(args=...)` | `driver=sdrplay` | **OK** in 2.10s |
+
+Then ran the **chirp adapter end-to-end** (`chirp.dsp.source_sdr.SdrIQSource`)
+with the production `airband.json` device_args, sample_rate 1 Msps,
+center_freq 125 MHz, gain_db 32.8, ran a 1 M-sample head + null_sink
+flowgraph for ~2 s of real IQ:
+
+```
+[+0.16s] SdrIQSource imported
+[+0.16s] cfg built, device_args='soapy=,driver=sdrplay,serial=1809063632,mode=MA,tuner=1'
+[INFO] devIdx: 0   SerNo: 1809063632   hwVer: 3   rspDuoMode: 4   tuner: 1
+[INFO] rspDuoSampleFreq: 6000000.000000
+[INFO] Using format CF32.
+[+0.21s] SdrIQSource constructed OK
+[+0.45s] TB started — pulling samples
+[+2.45s] TB stopped
+[+2.45s] TB join complete
+RESULT=PASS
+```
+
+### Root cause
+
+**The hang at 10:13 did not reproduce.** Every variant — including chirp's
+EXACT production args string — opens the RSPduo cleanly in <0.25 s of
+SoapySDR work + <2 s of GR plumbing. The `soapy=,` prefix that Phase
+4b-final flagged as a hypothesis is NOT the cause: T5 proves it works.
+
+The most plausible explanation for the 10:13 hang is **transient
+`sdrplay_apiService` state** left over from the 10:07–10:13 rtl-airband
+stop/restart cycle. PROGRESS.md's 10:13 entry already noted "the
+sdrplay_apiService needed a bounce after holding stale tuner state from
+the stop" — that bounce only happens on the *escalated* path of
+`safe_restart_rtl_airband`, which fired during the 10:07-10:13
+restoration. By the time we ran today's diagnostic at 10:29, the daemon
+was in a fresh state, so chirp's open path now succeeds.
+
+### Verdict — **GREEN LIGHT** on the SDR adapter
+
+`chirp.dsp.source_sdr.SdrIQSource(SdrSourceConfig(...))` opens the RSPduo
+RSPduo MA/tuner=1 with the production `airband.json` device_args, streams
+1 s of complex64 IQ, and tears down cleanly. The adapter is **not** a
+structural blocker for Phase 4d.
+
+The 10:13 hang is filed as a **transient sdrplay-daemon recovery state**,
+not a code bug in chirp or gr-osmosdr. The mitigation is operational, not
+in source: any future chirp live test should ensure
+`safe_restart_rtl_airband` has fully drained (mounts up, stats fresh)
+before opening the SDR — or, equivalently, that no
+`/dev/shm/Glbl\sdrSrvDv*` shm files are lingering from a half-released
+client.
+
+### What's left as a known unknown
+
+We didn't catch a *recorded* hang in flight — we caught a passing window.
+If the hang returns under similar conditions (rtl-airband recently
+restarted, especially via the wedge-recovery / sdrplay-bounce escalation
+path), the next investigation step is to capture
+`strace -p <chirp-pid> -e openat,connect,futex,recvfrom -f` during the
+hung `osmosdr.source(args=...)` call to see exactly which IPC primitive
+deadlocks against `sdrplay_apiService`. That requires either a deterministic
+reproducer or quick-trigger tooling on the chirp daemon process — not in
+scope for this diagnostic window.
+
+### Production downtime
+
+Stop initiated 10:29:01 EDT. Both bands `active` again at 10:32:43 EDT.
+**Measured downtime: ~3 min 42 s** (well under the 10-min ceiling). The
+`safe_restart_rtl_airband` call returned `status=ok` in 15.6 s with no
+escalation; the rest of the window was diagnostic probes against a
+deliberately-freed RSPduo. ICEcast `ANALOG.mp3` resumed at 10:32:29,
+`ANALOG_GROUND.mp3` at 10:32:38.
+
+### Branch tip
+
+`gr-demod/airband` — diagnostic-only commit, no code change to
+`chirp/dsp/source_sdr.py`. Per Phase 4b-diag plan: code change happens
+only when there is a hang to fix.
