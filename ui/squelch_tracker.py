@@ -296,6 +296,42 @@ def _max_abs_delta(new: list[int], old: list[int]) -> int:
     return max((abs(int(new[i]) - int(old[i])) for i in range(n)), default=0)
 
 
+# --- Phase 4c: feature-flag probe ------------------------------------------
+#
+# The tracker reads this on every cycle to pick which back end to use.
+# Default OFF — production keeps writing rtl_airband.conf + restarting.
+#
+# Lazy import: if ui.chirp_client isn't importable for any reason, we
+# treat the flag as off (the tracker MUST NOT crash because of a flag
+# probe — that would silence the band).
+
+
+def _chirp_flag() -> bool:
+    """True iff SB5_USE_GR_DEMOD is on AND chirp_client is importable.
+
+    Never raises; on any import failure returns False so the legacy
+    rtl-airband path stays active.
+    """
+    try:
+        try:
+            from .chirp_client import use_gr_demod
+        except ImportError:
+            from ui.chirp_client import use_gr_demod  # type: ignore
+        return bool(use_gr_demod())
+    except Exception:
+        logger.debug("squelch_tracker: chirp_flag probe failed", exc_info=True)
+        return False
+
+
+def _chirp_client_for(band: str):
+    """Lazy import + lookup of the per-band ChirpClient singleton."""
+    try:
+        from .chirp_client import client_for_band
+    except ImportError:
+        from ui.chirp_client import client_for_band  # type: ignore
+    return client_for_band(band)
+
+
 def _run_cycle_for_band(band: str, *, force: bool = False) -> dict[str, Any]:
     """One sample-and-maybe-apply pass for a single band.
 
@@ -311,6 +347,15 @@ def _run_cycle_for_band(band: str, *, force: bool = False) -> dict[str, Any]:
 
     if disabled_until and disabled_until > now_ms and not force:
         return {"band": band, "skipped": "band_disabled", "until_ms": disabled_until}
+
+    # ----- Phase 4c feature-flag branch (single, top of helper).
+    # When SB5_USE_GR_DEMOD=true, the tracker reads noise floor from
+    # chirp.get_status and applies via chirp.set_squelch — no
+    # rtl_airband.conf writes, no service restart.
+    if _chirp_flag():
+        return _run_cycle_for_band_via_chirp(
+            band, force=force, now_ms=now_ms, cooldown=cooldown,
+        )
 
     try:
         conf_path = resolve_controls_path(band)
@@ -497,6 +542,227 @@ def _run_cycle_for_band(band: str, *, force: bool = False) -> dict[str, Any]:
         record_tracker_apply(band, now_ms)
     except Exception:
         logger.debug("squelch_tracker: record_tracker_apply skipped", exc_info=True)
+
+    result["applied"] = True
+    return result
+
+
+# --- Phase 4c: chirp-on cycle implementation --------------------------------
+#
+# Mirror of _run_cycle_for_band but:
+#   - Reads per-channel noise floor from chirp.get_status (channel
+#     snapshot's signal_level_dbfs) instead of the rtl-airband stats
+#     file.  No on-disk source of truth.
+#   - Applies via chirp.set_squelch(id, dbfs) per channel.  No
+#     rtl_airband.conf write.  No service restart.  Sub-second op.
+#   - Same algorithm: poison-noise-floor rejection, per-channel poison
+#     sanity, hysteresis, cooldown.  Same persist-override + audit-log
+#     hooks at the end.
+
+
+def _run_cycle_for_band_via_chirp(
+    band: str,
+    *,
+    force: bool,
+    now_ms: int,
+    cooldown: int,
+) -> dict[str, Any]:
+    """Chirp-on equivalent of one tracker cycle for one band."""
+    try:
+        client = _chirp_client_for(band)
+    except Exception as exc:
+        return {"band": band, "skipped": "no_chirp_client",
+                "error": str(exc), "via": "chirp"}
+
+    try:
+        conf_path = resolve_controls_path(band)
+    except Exception:
+        # Profile resolution is only needed for the override-persist hook.
+        # If it fails we can still do the apply; just skip the persist.
+        conf_path = None
+
+    rec = (
+        recommended_managed_controls(band, conf_path) if conf_path else None
+    ) or {}
+    preset = normalize_preset(rec.get("squelch_preset") or DEFAULT_PRESET)
+    margin = margin_for(preset)
+
+    try:
+        status = client.get_status()
+    except Exception as exc:
+        return {"band": band, "skipped": "chirp_down",
+                "error": str(exc), "preset": preset, "via": "chirp"}
+
+    channels = status.get("channels") or []
+    if not channels:
+        return {"band": band, "skipped": "no_chirp_channels",
+                "preset": preset, "via": "chirp"}
+
+    # Build aligned lists by chirp's channel order.
+    ids: list[str] = []
+    freqs: list[float] = []
+    noise_used: list[float] = []
+    cur_thresholds: list[int] = []
+    for ch in channels:
+        try:
+            cid = str(ch["id"])
+            freq = float(ch.get("freq_mhz") or 0.0)
+            nf = float(ch.get("signal_level_dbfs"))
+            cur = int(round(float(ch.get("squelch_dbfs"))))
+        except (TypeError, ValueError, KeyError):
+            continue
+        if not cid or freq <= 0.0:
+            continue
+        ids.append(cid)
+        freqs.append(freq)
+        noise_used.append(nf)
+        cur_thresholds.append(cur)
+
+    if not freqs:
+        return {"band": band, "skipped": "no_chirp_channels",
+                "preset": preset, "via": "chirp"}
+
+    new_thresholds = [int(round(n + margin)) for n in noise_used]
+
+    # --- poison noise-floor rejection (band median) --------------------
+    ceiling = _poison_ceiling_for_band(band)
+    median_noise_used = float(statistics.median(noise_used))
+    if median_noise_used > ceiling:
+        return {
+            "band": band,
+            "preset": preset,
+            "margin_db": margin,
+            "freqs_count": len(freqs),
+            "noise_floor_median": median_noise_used,
+            "skipped": "poison_noise_floor",
+            "poison_ceiling_dbfs": float(ceiling),
+            "would_threshold_median": (
+                int(statistics.median(new_thresholds))
+                if new_thresholds else None
+            ),
+            "reason": "noise_floor_median above poison ceiling",
+            "via": "chirp",
+        }
+
+    # --- per-channel poison sanity --------------------------------------
+    sanitized_channels: list[dict[str, Any]] = []
+    for i, n in enumerate(noise_used):
+        if n <= ceiling:
+            continue
+        fallback = int(cur_thresholds[i]) if i < len(cur_thresholds) else -100
+        src_label = "prior_threshold" if i < len(cur_thresholds) else "floor"
+        sanitized_channels.append({
+            "i": i,
+            "id": ids[i],
+            "noise_used_dbfs": n,
+            "poisoned_threshold": int(new_thresholds[i]),
+            "fallback": fallback,
+            "fallback_source": src_label,
+        })
+        new_thresholds[i] = fallback
+
+    delta = _max_abs_delta(new_thresholds, cur_thresholds) if cur_thresholds else 0
+    cooldown_active = (not force) and (now_ms < cooldown)
+    triggered = bool(new_thresholds) and (
+        force
+        or not cur_thresholds
+        or (delta >= SQUELCH_TRACKER_HYSTERESIS_DB and not cooldown_active)
+    )
+
+    result: dict[str, Any] = {
+        "band": band,
+        "preset": preset,
+        "margin_db": margin,
+        "freqs_count": len(freqs),
+        "noise_floor_median": median_noise_used,
+        "poison_ceiling_dbfs": float(ceiling),
+        "sanitized_channels": sanitized_channels,
+        "sanitized_count": len(sanitized_channels),
+        "max_delta_db": int(delta),
+        "hysteresis_db": SQUELCH_TRACKER_HYSTERESIS_DB,
+        "current_thresholds_present": bool(cur_thresholds),
+        "applied": False,
+        "via": "chirp",
+    }
+
+    if not triggered:
+        result["skipped"] = "cooldown" if cooldown_active else "below_hysteresis"
+        return result
+
+    # Identify which channels actually moved (audit log "what changed").
+    touched: list[dict[str, Any]] = []
+    for i, (new_v, freq_mhz) in enumerate(zip(new_thresholds, freqs)):
+        old_v = cur_thresholds[i] if i < len(cur_thresholds) else None
+        if old_v is None or abs(int(new_v) - int(old_v)) >= 1:
+            touched.append({
+                "i": i, "id": ids[i],
+                "freq_mhz": float(freq_mhz),
+                "old": (int(old_v) if old_v is not None else None),
+                "new": int(new_v),
+            })
+
+    # Push set_squelch per channel.  Best-effort: a single channel
+    # failing does NOT abort the rest (chirp's set_squelch is per-id).
+    applied_count = 0
+    rejected: list[dict[str, Any]] = []
+    for cid, dbfs in zip(ids, new_thresholds):
+        try:
+            client.set_squelch(cid, float(dbfs))
+            applied_count += 1
+        except Exception as exc:
+            rejected.append({"id": cid, "dbfs": int(dbfs), "error": str(exc)})
+
+    result["touched"] = touched
+    result["touched_count"] = len(touched)
+    result["applied_count"] = applied_count
+    result["rejected"] = rejected
+    result["rejected_count"] = len(rejected)
+    result["write_changed"] = bool(applied_count)
+    # No restart on the chirp path — set_squelch is hot.
+    result["restart_ok"] = True
+
+    if applied_count == 0:
+        # Everything rejected — likely the daemon went away mid-cycle.
+        # Disable for the same cooldown the legacy path uses.
+        with _state_lock:
+            _band_disabled_until_ms[band] = (
+                now_ms + int(SQUELCH_TRACKER_MIN_REAPPLY_SEC * 4 * 1000)
+            )
+        result["error"] = "all_set_squelch_rejected"
+        return result
+
+    with _state_lock:
+        _last_apply_ms[band] = now_ms
+
+    # Persist override metadata (shared with the rtl-airband path).
+    try:
+        if conf_path:
+            try:
+                cur_gain, cur_snr, _cur_dbfs, _cur_mode = parse_controls(conf_path)
+            except Exception:
+                cur_gain, cur_snr = 32.8, 10.0
+            median_threshold = int(statistics.median(new_thresholds))
+            persist_managed_controls_override(
+                band,
+                conf_path,
+                gain=float(cur_gain),
+                squelch_mode="dbfs",
+                squelch_snr=float(cur_snr),
+                squelch_dbfs=float(median_threshold),
+                squelch_preset=preset,
+                squelch_preset_margin_db=float(margin),
+                squelch_preset_noise_floor_dbfs=median_noise_used,
+                squelch_preset_computed_at_ms=now_ms,
+            )
+    except Exception:
+        logger.debug("squelch_tracker(chirp): persist override skipped",
+                     exc_info=True)
+
+    try:
+        record_tracker_apply(band, now_ms)
+    except Exception:
+        logger.debug("squelch_tracker(chirp): record_tracker_apply skipped",
+                     exc_info=True)
 
     result["applied"] = True
     return result
