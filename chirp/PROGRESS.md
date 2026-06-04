@@ -17,6 +17,157 @@ Hard rules every overnight task must follow are restated at the bottom.
 
 ---
 
+## 2026-06-04 06:35 UTC — Phase 1 (task 2 of 4+)
+
+**Goal:** A single-channel AM demod prototype that runs as a Python daemon, has
+a UDP JSON command bus per the design doc spec, accepts runtime
+freq/squelch/gain changes, sources IQ from a file (no SDR contention), demods
+AM, applies squelch, writes audio to a file. Demonstrate the core
+architectural primitives end-to-end.
+
+**Done:**
+
+- **Pydantic v2 command/response schemas** (`chirp/cmd/schema.py`). Envelope
+  validates `{v, id, cmd, args}` with `extra="forbid"` at every level; the
+  protocol version is pinned (v=2 is rejected). Per-command arg models for
+  `add_channel`, `remove_channel`, `set_squelch`, `set_freq`, `set_gain`,
+  `get_status`. Validation rules per the Phase-1 prompt: `freq_mhz > 0`,
+  `squelch_dbfs ∈ [-120, 0]`, `gain_db ∈ [-20, 40]`, non-empty id. `mode != "am"`
+  is rejected (NFM is Phase 2/4 per design doc Section 5).
+
+- **UDP JSON command server** (`chirp/cmd/server.py`). Async (`asyncio`) UDP
+  server runs in a dedicated background thread. Parses + validates each
+  datagram, dispatches to a caller-supplied callback, replies on the same
+  socket. `emit_event(...)` always writes structured JSON to stdout (Phase-1
+  minimum) and optionally fires a UDP datagram to `CHIRP_EVENT_SINK=host:port`.
+  Reply path is fault-tolerant: malformed JSON, unknown command, invalid args,
+  internal dispatch exceptions all return a typed error response without
+  killing the server.
+
+- **`Channel` hier_block** (`chirp/dsp/channel.py`). Single-channel AM demod
+  modeled on ham2mon's `TunerDemodAM` but stripped of the integrated wav-file
+  sink (the daemon owns audio routing). Pipeline matches the design doc:
+  `freq_xlating_fir_filter_ccc → fir_filter_ccc → fir_filter_ccc → pwr_squelch_cc`
+  (non-blocking; design intent — keeps parallel channels stream-synced for the
+  future adder) `→ agc3_cc → complex_to_mag (AM env detector) → audio LPF →
+  pfb.arb_resampler_fff` to 16 kHz mono float32. Hot setters
+  `set_center_freq_offset / set_squelch / set_gain` plus
+  `get_signal_level_dbfs()` / `get_squelch_open()` probes.
+
+- **File IQ source** (`chirp/dsp/source_file.py`). Looped, throttled fc32 file
+  source; replaces the SDR for Phase 1 dev/test without touching production.
+
+- **Daemon** (`chirp/daemon.py`). Config loader (`chirp/config/defaults.json` +
+  `CHIRP_*` env overrides), pre-allocated channel pool (default size 1 per
+  design doc Section 4 strategy 1), sync dispatch callback called from the
+  asyncio thread under an `RLock`, background health thread emitting
+  `hit_start` / `hit_end` events on squelch transitions, SIGTERM/SIGINT
+  graceful shutdown. Phase 1 source is file-only; SDR path raises
+  `NotImplementedError` on purpose (no production contention).
+
+- **Unit + integration tests** (`chirp/tests/test_phase1.py`). 27 new tests,
+  all green:
+  ```
+  $ python3 -m pytest chirp/tests/ -v
+  ...
+  ============================== 31 passed in 4.91s ==============================
+  ```
+  The integration tests synthesize 4 s of AM IQ at +200 kHz with a 1 kHz tone,
+  spin up a real `ChirpFlowgraph` + `CommandServer`, fire UDP commands, and
+  assert behavior — including the subtle point that closing the (non-blocking)
+  squelch must drop **amplitude** by 40 dB+ rather than stop the byte stream.
+
+- **Smoke test on Micro.** `/tmp/chirp_smoke.sh` ran end-to-end:
+  1. Generated 30 s of AM IQ at 1 Msps, carrier +200 kHz, 1 kHz tone (240 MB).
+  2. Booted the daemon on port 17777 with that file as the source.
+  3. `add_channel ch01 freq_mhz=0.2 mode=am squelch_dbfs=-90`
+     → audio file RMS = **0.0640** (tone audible).
+  4. `get_status` returned `channels=[ch01], pool_free=0,
+     signal_level_dbfs=-4.45, squelch_open=true`.
+  5. `set_squelch dbfs=0` (slam shut) → audio file RMS = **0.000000**.
+  6. `set_squelch dbfs=-90` (re-open) → audio file RMS = **0.0640** (recovered).
+  7. Rejection paths: duplicate `add_channel`, pool-exhausted `add_channel`,
+     out-of-range `set_squelch` — all returned `status=rejected` with reasons.
+  8. `remove_channel` → `pool_free=1`.
+  9. Daemon shut down cleanly on SIGTERM.
+
+  **FFT on the recovered audio** (last 1 s of the file, DC-removed):
+  dominant peak at **1000.00 Hz** — the demodulated voice tone is exactly the
+  one we modulated onto the carrier. The chain works.
+
+**Commits on `gr-demod/airband` (in order):**
+
+- `956e0fb` — chirp(phase1): Pydantic v2 command + response schemas
+- `f4f85a8` — chirp(phase1): asyncio UDP command server + events
+- `12ec707` — chirp(phase1): Channel hier_block (AM) + FileIQSource
+- `a368793` — chirp(phase1): daemon entrypoint with pre-allocated channel pool
+- `6b5a683` — chirp(phase1): unit + integration tests (27 new, all passing)
+- `5075d0e` — chirp(phase1): make_test_iq fixture for smoke testing
+- _this commit_ — chirp(phase1): PROGRESS.md Phase 1 entry
+
+**Branch tip:** _filled in by the next commit; current pre-PROGRESS tip is
+`5075d0ed92ae3cba9fd6b170a618606615f3aa71`._
+
+**Deferred / surfaces for Will:**
+
+- **Response shape diverges from design doc.** Will's Phase-1 prompt specified
+  `Response = { v, id, status: "ok"|"rejected"|"error", data, error }`, while
+  design doc Section 5 specifies
+  `{ v, id, ok: bool, result | error: {code, message} }`. Both shapes encode the
+  same information; the Phase-1 prompt was treated as authoritative for this
+  task. A forward-compat bridge is cheap (additive fields per the design doc's
+  "clients must ignore unknown fields" rule), or the design doc can be amended
+  to match. **Recommend resolving before Phase 4 cutover** so the dashboard
+  and CLI land on a stable contract.
+
+- **Pydantic v2 field/method collision.** `Response` initially had `ok()`,
+  `rejected()`, and `error()` classmethods. Pydantic v2 reserves field names
+  on the class namespace, so `Response.error(...)` actually got swallowed by
+  the `error` field. Renamed factories to `make_ok / make_rejected / make_error`.
+  Worth knowing for the future schemas in Phase 2.
+
+- **`pwr_squelch_cc` is non-blocking by design.** When the squelch closes, the
+  output stream keeps flowing as zeros (design doc Section 4: "non-blocking
+  since samples will be added with other demods"). This means audio sinks
+  written per-channel will grow byte-wise even when muted — the silence is
+  amplitude-only. Will's existing rtl-airband sample-flow heuristic in
+  `ui/sample_flow.py` relies on the post-mix `pwr_squelch_ff` for byte gating;
+  chirp will need the same final stage at the mixer in Phase 2.
+
+- **`audio_out=file:` writes raw float32, not WAV.** The smoke test uses
+  `np.fromfile(..., dtype=np.float32)`; play with `aplay -t raw -f FLOAT_LE -c 1
+  -r 16000 audio.f32` or convert via `sox`. A `wavfile_sink` writer with a
+  single fixed path could be added if you want one-step playback in Phase 2.
+
+- **No live SDR path in Phase 1.** `source_kind="sdr"` raises
+  `NotImplementedError` on purpose. Production rtl-airband on Micro is
+  untouched — no service starts/stops, no config edits. The Phase 0 spike
+  already validated the SoapySDR path; Phase 2/3 wires it back in.
+
+- **Pre-allocated pool size = 1 in Phase 1.** The pool architecture is in
+  place (matches design doc Section 4 strategy 1), but the default
+  `CHIRP_MAX_CHANNELS=1` keeps Phase 1 single-channel. Bumping it to N at
+  daemon start works today — Phase 2 will wire the per-channel outputs into
+  the adder + mixer.
+
+- **Pydantic + pytest installed via pip on Micro.** They were not present at
+  task start; installed with `pip3 install --break-system-packages pydantic
+  pytest`. Versions pinned in this run: pydantic 2.13.4, pytest 9.0.3. Add to
+  a chirp requirements file in Phase 2 once we know what else we need.
+
+**Next task:** Phase 2 — multi-channel scanner. Lift `CHIRP_MAX_CHANNELS` to
+the design-doc default (32), wire the per-channel outputs into an `add_ff`
+mixer and a single audio sink, port the FFT/estimate path so `pwr_squelch`
+events translate cleanly to `hit_start` / `hit_end` JSONL matching the
+existing rtl-airband hit log format, and start the JSON-state persistence at
+`/var/lib/chirp/<band>.state.json` (design doc Section 6). Smoke test goal:
+8+ concurrent AM channels from a synthesized multi-carrier IQ fixture, each
+demuxing to its own slot, mixer producing a single audio stream where multiple
+channels are audible when their carriers are present.
+
+---
+
+
 ## 2026-06-03 23:49 EDT — Foundation (task 1 of 4+)
 
 **Goal:** Lock in operator decisions in the design + plan docs, create the
