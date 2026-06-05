@@ -237,9 +237,23 @@ def test_apply_squelch_preset_pushes_per_channel(two_daemons):
     assert air.channels["C"]["squelch_dbfs"] == -64.0
 
 
-def test_apply_squelch_preset_rejects_poison_noise_floor(two_daemons):
+def test_apply_squelch_preset_applies_under_high_signal_level(two_daemons):
+    """Updated spec: the chirp path no longer runs the poison-ceiling
+    rejection that the rtl-airband path runs. signal_level_dbfs above
+    the old AM ceiling (-55 dBFS) is NOT an error condition — the
+    operator's chip click applies unconditionally. See
+    chirp/tests/test_chirp_poison_guard_removed.py for the regression
+    suite that anchors this contract.
+
+    Pre-removal this test asserted the opposite (error ==
+    noise_floor_not_warm, status == rejected, no set_squelch). The
+    rejection broke EVERY operator chip click under chirp because the
+    airband's busy-time signal_level_dbfs (~-44) routinely sat above
+    the ceiling.
+    """
     air, gnd, cc = two_daemons
-    # Set the stub's signal_level_dbfs above the AM poison ceiling (-55).
+    # signal_level above old AM poison ceiling — would have rejected
+    # the entire apply pre-removal.
     air.signal_level_dbfs = -10.0
     for cid, freq in [("A", 121.0), ("B", 122.0)]:
         air.channels[cid] = {
@@ -250,12 +264,17 @@ def test_apply_squelch_preset_rejects_poison_noise_floor(two_daemons):
     import ui.chirp_adapter as ca
     importlib.reload(ca)
     plan = ca.apply_squelch_preset_via_chirp("airband", "balanced")
-    assert plan["error"] == "noise_floor_not_warm"
-    assert plan["status"] == "rejected"
-    assert plan["retry_after_sec"] == 30
-    # NO set_squelch was sent
+    assert plan.get("error", "") == ""
+    assert plan.get("status") != "rejected"
+    assert plan["applied_count"] == 2
+    assert plan["rejected_count"] == 0
+    # Threshold = -10 + 6 (balanced) = -4. NOT clamped.
+    assert plan["threshold_median"] == -4
+    # set_squelch WAS sent for both channels.
     set_squelch_calls = [r for r in air.received if r["cmd"] == "set_squelch"]
-    assert set_squelch_calls == []
+    assert len(set_squelch_calls) == 2
+    for r in set_squelch_calls:
+        assert r["args"]["dbfs"] == -4.0
 
 
 def test_apply_squelch_preset_daemon_down(two_daemons):

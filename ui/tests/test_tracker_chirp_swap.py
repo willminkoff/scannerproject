@@ -131,41 +131,23 @@ def test_flag_on_chirp_down_returns_skip(monkeypatch, tmp_path):
     assert result["via"] == "chirp"
 
 
-def test_flag_on_poison_noise_floor_rejected(monkeypatch, tmp_path):
-    """Same poison-noise gate applies on the chirp path."""
+def test_flag_on_high_signal_level_no_longer_skips(monkeypatch, tmp_path):
+    """Updated spec: the chirp tracker path no longer runs the
+    poison-noise-floor skip. High signal_level_dbfs (e.g., -10 dBFS,
+    above the old AM ceiling of -55) must NOT short-circuit the cycle.
+    Pre-removal this test asserted result["skipped"] ==
+    "poison_noise_floor" and that set_squelch was never called — the
+    opposite of the new contract. See
+    chirp/tests/test_chirp_poison_guard_removed.py for the regression
+    coverage that anchors this.
+    """
     monkeypatch.setenv("SB5_USE_GR_DEMOD", "true")
     monkeypatch.setenv("SQUELCH_TRACKER_AUDIT_LOG_PATH", str(tmp_path / "t.jsonl"))
-    # AM ceiling = -55 dBFS by default; -10 dBFS is well above (poison).
     st, _cc = _reload_tracker()
     fake_client = MagicMock()
     fake_client.get_status.return_value = _mock_chirp_status([
         {"id": "T1", "freq_mhz": 121.5, "signal_level_dbfs": -10.0,
          "squelch_dbfs": -50, "mode": "am"},
-    ])
-
-    with patch.object(st, "_chirp_client_for", return_value=fake_client), \
-         patch.object(st, "resolve_controls_path", return_value="/tmp/x.conf"), \
-         patch.object(st, "recommended_managed_controls",
-                      return_value={"squelch_preset": "balanced"}):
-        result = st._run_cycle_for_band("airband", force=True)
-
-    assert result["skipped"] == "poison_noise_floor"
-    fake_client.set_squelch.assert_not_called()
-
-
-def test_flag_on_per_channel_poison_falls_back(monkeypatch, tmp_path):
-    """Single-channel poison: that channel keeps its prior threshold."""
-    monkeypatch.setenv("SB5_USE_GR_DEMOD", "true")
-    monkeypatch.setenv("SQUELCH_TRACKER_AUDIT_LOG_PATH", str(tmp_path / "t.jsonl"))
-    st, _cc = _reload_tracker()
-    fake_client = MagicMock()
-    fake_client.get_status.return_value = _mock_chirp_status([
-        {"id": "T1", "freq_mhz": 121.5, "signal_level_dbfs": -70.0,
-         "squelch_dbfs": -50, "mode": "am"},   # healthy
-        {"id": "T2", "freq_mhz": 122.0, "signal_level_dbfs": -10.0,
-         "squelch_dbfs": -50, "mode": "am"},   # poison
-        {"id": "T3", "freq_mhz": 123.0, "signal_level_dbfs": -65.0,
-         "squelch_dbfs": -50, "mode": "am"},   # healthy
     ])
 
     with patch.object(st, "_chirp_client_for", return_value=fake_client), \
@@ -178,14 +160,52 @@ def test_flag_on_per_channel_poison_falls_back(monkeypatch, tmp_path):
                       return_value=(32.8, 10.0, -60.0, "dbfs")):
         result = st._run_cycle_for_band("airband", force=True)
 
-    # Both healthy channels get noise+6; T2 keeps prior (-50).
+    assert result.get("skipped") != "poison_noise_floor"
+    assert result["applied"] is True
+    assert result["applied_count"] == 1
+    # Threshold = -10 + 6 = -4. NOT clamped.
+    fake_client.set_squelch.assert_called_once_with("T1", -4.0)
+
+
+def test_flag_on_per_channel_no_longer_falls_back(monkeypatch, tmp_path):
+    """Updated spec: the chirp tracker path no longer runs the
+    per-channel poison-sanity fallback. A channel whose
+    signal_level_dbfs is above the old per-band ceiling now gets
+    noise+margin like every other channel, not the prior threshold.
+    Pre-removal this test asserted T2 kept its prior -50 dBFS — the
+    opposite of the new contract.
+    """
+    monkeypatch.setenv("SB5_USE_GR_DEMOD", "true")
+    monkeypatch.setenv("SQUELCH_TRACKER_AUDIT_LOG_PATH", str(tmp_path / "t.jsonl"))
+    st, _cc = _reload_tracker()
+    fake_client = MagicMock()
+    fake_client.get_status.return_value = _mock_chirp_status([
+        {"id": "T1", "freq_mhz": 121.5, "signal_level_dbfs": -70.0,
+         "squelch_dbfs": -50, "mode": "am"},
+        {"id": "T2", "freq_mhz": 122.0, "signal_level_dbfs": -10.0,
+         "squelch_dbfs": -50, "mode": "am"},   # would have been "poison"
+        {"id": "T3", "freq_mhz": 123.0, "signal_level_dbfs": -65.0,
+         "squelch_dbfs": -50, "mode": "am"},
+    ])
+
+    with patch.object(st, "_chirp_client_for", return_value=fake_client), \
+         patch.object(st, "resolve_controls_path", return_value="/tmp/x.conf"), \
+         patch.object(st, "recommended_managed_controls",
+                      return_value={"squelch_preset": "balanced"}), \
+         patch.object(st, "persist_managed_controls_override"), \
+         patch.object(st, "record_tracker_apply"), \
+         patch.object(st, "parse_controls",
+                      return_value=(32.8, 10.0, -60.0, "dbfs")):
+        result = st._run_cycle_for_band("airband", force=True)
+
     by_id = {call.args[0]: call.args[1]
              for call in fake_client.set_squelch.call_args_list}
-    assert by_id["T1"] == -64.0
-    assert by_id["T2"] == -50.0  # fallback to prior threshold
-    assert by_id["T3"] == -59.0
-    assert result["sanitized_count"] == 1
-    assert result["sanitized_channels"][0]["id"] == "T2"
+    assert by_id["T1"] == -64.0          # -70 + 6
+    assert by_id["T2"] == -4.0           # -10 + 6, NOT clamped to prior -50
+    assert by_id["T3"] == -59.0          # -65 + 6
+    assert result["sanitized_count"] == 0
+    assert result["sanitized_channels"] == []
+    assert result["applied"] is True
 
 
 def test_flag_on_hysteresis_skips_below_threshold(monkeypatch, tmp_path):

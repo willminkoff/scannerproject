@@ -109,7 +109,15 @@ def apply_squelch_preset_via_chirp(band: str, preset: str) -> dict:
     target = _normalize_band(band)
     norm_preset = sp.normalize_preset(preset)
     margin_db = sp.margin_for(norm_preset)
-    ceiling = sp.poison_ceiling_for_band(target)
+    # NOTE: no poison-ceiling guard on the chirp path. The guard was a
+    # rtl-airband-era safeguard against the pre-buffer init constant
+    # poisoning the squelch estimator across a restart. Chirp's
+    # ``set_squelch`` is a hot UDP call on the active demod block — no
+    # initialization quirk, no post-restart estimator settle window. The
+    # tracker re-runs every cycle, so even if a single instantaneous
+    # signal_level_dbfs is high (because a channel is mid-transmission),
+    # the next cycle will refine. Applying the operator's preset chip
+    # unconditionally is the whole point of a hot-config-reload backend.
 
     client = _chirp_client_for(target)
 
@@ -169,43 +177,15 @@ def apply_squelch_preset_via_chirp(band: str, preset: str) -> dict:
             "via": "chirp",
         }
 
-    # Poison-noise-floor rejection — mirror ui.squelch_preset.apply_preset
-    # so the 409 contract is preserved.
+    # Compute thresholds: noise + margin. No poison clamp (see comment
+    # at the top of this function for the architectural reason). The
+    # ``sanitized_channels`` field in the response is retained as an
+    # empty list to preserve the response shape consumed by handlers.py
+    # and the audit-log JSON; it just never has entries on the chirp
+    # path.
     noise_median = float(statistics.median(noise_used))
-    if noise_median > ceiling:
-        return {
-            "target": target,
-            "preset": norm_preset,
-            "margin_db": margin_db,
-            "freqs": freqs,
-            "thresholds": [],
-            "noise_floor_median": noise_median,
-            "stats_available": True,
-            "changed": False,
-            "error": "noise_floor_not_warm",
-            "status": "rejected",
-            "reason": "noise_floor_median above poison ceiling",
-            "poison_ceiling_dbfs": float(ceiling),
-            "retry_after_sec": 30,
-            "via": "chirp",
-        }
-
-    # Compute thresholds: noise + margin, clamped to the same ceiling as
-    # the rtl-airband path.
     thresholds = [int(round(n + margin_db)) for n in noise_used]
-    # Per-channel poison sanity (single-channel race) — fall back to a
-    # safe floor (-100 dBFS) for the offending channel.
     sanitized: list[dict] = []
-    for i, n in enumerate(noise_used):
-        if n > ceiling:
-            sanitized.append({
-                "i": i,
-                "noise_used_dbfs": n,
-                "poisoned_threshold": thresholds[i],
-                "fallback": -100,
-                "fallback_source": "floor",
-            })
-            thresholds[i] = -100
 
     # Push per-channel set_squelch.  Best-effort: a single rejection
     # does NOT abort the rest — chirp's set_squelch is idempotent and

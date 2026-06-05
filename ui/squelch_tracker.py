@@ -555,9 +555,12 @@ def _run_cycle_for_band(band: str, *, force: bool = False) -> dict[str, Any]:
 #     file.  No on-disk source of truth.
 #   - Applies via chirp.set_squelch(id, dbfs) per channel.  No
 #     rtl_airband.conf write.  No service restart.  Sub-second op.
-#   - Same algorithm: poison-noise-floor rejection, per-channel poison
-#     sanity, hysteresis, cooldown.  Same persist-override + audit-log
-#     hooks at the end.
+#   - Same algorithm MINUS the poison-noise-floor rejection (band median
+#     and per-channel sanity).  The rtl-airband poison guard caught the
+#     pre-buffer init constant across service restarts; chirp's
+#     set_squelch is a hot UDP call with no equivalent settle window, so
+#     the guard does not apply.  Hysteresis + cooldown still gate
+#     thrash.  Same persist-override + audit-log hooks at the end.
 
 
 def _run_cycle_for_band_via_chirp(
@@ -624,42 +627,16 @@ def _run_cycle_for_band_via_chirp(
 
     new_thresholds = [int(round(n + margin)) for n in noise_used]
 
-    # --- poison noise-floor rejection (band median) --------------------
-    ceiling = _poison_ceiling_for_band(band)
+    # NOTE: no poison-ceiling guard on the chirp path. See the matching
+    # comment in ui/chirp_adapter.apply_squelch_preset_via_chirp for the
+    # architectural reason — chirp's set_squelch has no post-restart
+    # estimator settle window that the guard was designed to catch.
+    # Each cycle re-reads signal_level_dbfs and recomputes; hysteresis +
+    # cooldown still prevent thrash. ``sanitized_channels`` is kept as
+    # an empty list to preserve the result shape consumed by the audit
+    # log writer below at line ~803.
     median_noise_used = float(statistics.median(noise_used))
-    if median_noise_used > ceiling:
-        return {
-            "band": band,
-            "preset": preset,
-            "margin_db": margin,
-            "freqs_count": len(freqs),
-            "noise_floor_median": median_noise_used,
-            "skipped": "poison_noise_floor",
-            "poison_ceiling_dbfs": float(ceiling),
-            "would_threshold_median": (
-                int(statistics.median(new_thresholds))
-                if new_thresholds else None
-            ),
-            "reason": "noise_floor_median above poison ceiling",
-            "via": "chirp",
-        }
-
-    # --- per-channel poison sanity --------------------------------------
     sanitized_channels: list[dict[str, Any]] = []
-    for i, n in enumerate(noise_used):
-        if n <= ceiling:
-            continue
-        fallback = int(cur_thresholds[i]) if i < len(cur_thresholds) else -100
-        src_label = "prior_threshold" if i < len(cur_thresholds) else "floor"
-        sanitized_channels.append({
-            "i": i,
-            "id": ids[i],
-            "noise_used_dbfs": n,
-            "poisoned_threshold": int(new_thresholds[i]),
-            "fallback": fallback,
-            "fallback_source": src_label,
-        })
-        new_thresholds[i] = fallback
 
     delta = _max_abs_delta(new_thresholds, cur_thresholds) if cur_thresholds else 0
     cooldown_active = (not force) and (now_ms < cooldown)
@@ -675,7 +652,6 @@ def _run_cycle_for_band_via_chirp(
         "margin_db": margin,
         "freqs_count": len(freqs),
         "noise_floor_median": median_noise_used,
-        "poison_ceiling_dbfs": float(ceiling),
         "sanitized_channels": sanitized_channels,
         "sanitized_count": len(sanitized_channels),
         "max_delta_db": int(delta),
