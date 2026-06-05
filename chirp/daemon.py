@@ -343,28 +343,7 @@ class _Slot:
 
 
 class ChirpFlowgraph(gr.top_block):
-    """Top-level GR flowgraph with a 32-slot channel pool feeding one mixer.
-
-    Threading / lock-order discipline
-    ---------------------------------
-    Two reentrant locks are involved in the daemon's hot paths:
-
-    - ``D-lock`` = ``ChirpFlowgraph._lock`` (this class).
-    - ``S-lock`` = ``LoScheduler._lock`` (the cluster-rotation state machine).
-
-    Canonical order: **any thread that takes both MUST acquire D-lock
-    first**.  The cmd-server thread already does so (``_cmd_get_status``
-    acquires D, then calls ``lo_scheduler.snapshot()`` which acquires S;
-    ``_cmd_add_channel`` / ``_cmd_remove_channel`` / ``_cmd_set_freq`` /
-    ``_cmd_reset`` acquire D, then call ``_invalidate_and_apply_now`` →
-    ``lo_scheduler.step()`` which acquires S).  The scheduler's own
-    thread previously violated this — ``step()`` took S, then its
-    callbacks (``_scheduler_park_channels`` etc.) reacquired D — which
-    produced the 2026-06-04 21:26:21 EDT wedge.  The fix lives in
-    ``LoScheduler.step()`` itself: it now acquires the injected daemon
-    lock BEFORE its internal S-lock.  See
-    ``DESIGN_lo_scheduler_lockfix.md``.
-    """
+    """Top-level GR flowgraph with a 32-slot channel pool feeding one mixer."""
 
     def __init__(
         self,
@@ -513,12 +492,6 @@ class ChirpFlowgraph(gr.top_block):
             iq_bw_hz=cfg.source_samp_rate,
             dwell_s=cfg.lo_dwell_sec,
             max_clusters=cfg.lo_max_clusters,
-            # Canonical lock order: the scheduler acquires THIS daemon
-            # lock before its own internal lock inside step(), eliminating
-            # the D↔S inversion that caused the 2026-06-04 21:26 EDT
-            # wedge.  See chirp/dsp/lo_scheduler.py module docstring +
-            # DESIGN_lo_scheduler_lockfix.md.
-            daemon_lock=self._lock,
         )
 
         # Hit detector / health probe.  Phase 4-pre: pass the scheduler's
