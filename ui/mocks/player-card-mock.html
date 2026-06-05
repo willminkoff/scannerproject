@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SB5 · Player card mock (multi-select)</title>
+<!--
+  Standalone visual mock of the redesigned #pane-player — MULTI-SELECT.
+  Design brief (2026-06-05):
+    · Pills are TOGGLES, not radios. Any subset on (0..4). Multi-select is
+      the canonical "what's playing in the browser."
+    · One <audio> per active mount, mounted on activate / torn down on
+      deactivate. Browser mixes natively.
+    · One play/pause button drives ALL active mounts together. Pressing
+      play fires every .play() inside the same click handler, so the
+      autoplay gesture covers them all (Chrome/Safari).
+    · Per-PILL state dot (Idle/Ready/Buffering/Live) — no single global dot.
+    · One MASTER volume slider scales every active <audio> proportionally.
+      (Per-stream volume = future iteration.)
+    · Room-speaker path (icecast + VLC services + per-card BT mute) is
+      INDEPENDENT and untouched — this is browser listening only.
+
+  Tokens copied verbatim from ui/sb5.html :root + ui/static/sb5_theme.css
+  so this renders identically to a live SB5 pane. Audio targets the live
+  host mounts (micro.local:8000); failures are swallowed so the visual
+  states still demo. MOCK — not wired into sb5.html, not deployed.
+-->
+<style>
+  :root {
+    /* ---- colors (from sb5.html :root) ---- */
+    --bg-1: #050a16;  --bg-2: #0a1220;
+    --card: rgba(28, 46, 74, 0.62);
+    --card-elev: rgba(34, 54, 86, 0.78);
+    --line: rgba(138, 155, 181, 0.14);
+    --line-2: rgba(138, 155, 181, 0.22);
+    --text: #f0f4fa; --text-2: #b9c5d8; --text-3: #8a9bb5; --text-4: #5a6b85;
+    --sky: #5ab8ff; --sky-2: #7ed3ff; --sky-dim: #3a7fbd;
+    --green: #34c759; --amber: #ff9f0a; --red: #ff453a;
+    /* ---- type + space scale (from sb5_theme.css) ---- */
+    --type-display: 22px; --type-title: 18px; --type-body: 16px;
+    --type-body-sm: 14px; --type-meta: 13px; --type-micro: 11px; --type-mono: 14px;
+    --space-sm: 6px; --space-md: 10px; --space-lg: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #04081a; color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", system-ui, sans-serif;
+    font-size: var(--type-body);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    letter-spacing: -0.005em;
+  }
+  body {
+    background:
+      radial-gradient(700px 380px at 80% -20%, rgba(90, 184, 255, 0.18), transparent 65%),
+      radial-gradient(600px 400px at -10% 12%, rgba(126, 211, 255, 0.10), transparent 60%),
+      linear-gradient(180deg, #0c1a36 0%, #06101f 50%, #04091a 100%);
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 20px; padding: 40px 20px;
+  }
+
+  /* ============ Player card — redesigned (multi-select) ============ */
+  .pane {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .pane-player {
+    width: 360px;
+    background: rgba(0, 0, 0, 0.40);   /* quiet "controls" ground tone */
+  }
+  .pane-hd {
+    padding: 12px 16px 8px;
+    display: flex; align-items: baseline; gap: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .pane-hd-titles { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+  .pane-hd-titles .title {
+    font-size: var(--type-display); font-weight: 700; color: var(--text);
+    letter-spacing: -0.012em; line-height: 1.1;
+  }
+  .pane-hd-titles .subtitle {
+    font-size: var(--type-body-sm); color: var(--text-2);
+    font-family: ui-monospace, monospace; line-height: 1.2;
+  }
+  .pane-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ---- multi-select pill toggles (4-up grid) ---- */
+  .pl-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .pl-pill {
+    appearance: none; cursor: pointer;
+    border: 1px solid var(--line-2);
+    background: rgba(138, 155, 181, 0.06);
+    border-radius: 11px; padding: 9px 4px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    color: var(--text-3); font-family: inherit;
+    font-size: var(--type-meta); font-weight: 600; letter-spacing: -0.005em;
+    transition: background .14s, border-color .14s, color .14s, box-shadow .14s, transform .08s;
+  }
+  .pl-pill:hover { color: var(--text); border-color: rgba(90, 184, 255, 0.30); }
+  .pl-pill:active { transform: scale(0.97); }
+  .pl-pill .pdot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-4); transition: background .2s, box-shadow .2s;
+  }
+  .pl-pill .plabel { line-height: 1; }
+  /* ON = selected (filled sky, unmistakable vs idle) */
+  .pl-pill.on {
+    background: linear-gradient(165deg, rgba(90,184,255,0.32), rgba(58,127,189,0.22));
+    border-color: rgba(126, 211, 255, 0.55);
+    color: #eaf6ff;
+    box-shadow: inset 0 0 0 1px rgba(126, 211, 255, 0.22);
+  }
+  .pl-pill.on .pdot { background: var(--sky-2); }                 /* Ready */
+  .pl-pill.on.buffering .pdot {
+    background: var(--amber); box-shadow: 0 0 7px rgba(255,159,10,0.85);
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  /* LIVE = selected AND playing — green ring + glow, clearly different */
+  .pl-pill.on.live {
+    box-shadow: inset 0 0 0 1px rgba(52,199,89,0.45), 0 0 14px rgba(52,199,89,0.20);
+  }
+  .pl-pill.on.live .pdot { background: var(--green); box-shadow: 0 0 8px rgba(52,199,89,0.9); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+  /* ---- transport: one play/pause for ALL active + now-playing ---- */
+  .pl-transport { display: flex; align-items: center; gap: 14px; }
+  .pl-play {
+    flex-shrink: 0;
+    width: 60px; height: 60px; border-radius: 999px;
+    appearance: none; border: 1px solid var(--line-2); cursor: pointer;
+    background: rgba(138, 155, 181, 0.07); color: var(--text-4);
+    font-size: 20px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .14s, border-color .14s, color .14s, box-shadow .14s, transform .08s;
+  }
+  .pl-play .glyph { transform: translateX(1px); }
+  .pl-play.playing .glyph { transform: none; }
+  .pl-play:active { transform: scale(0.96); }
+  .pl-play:disabled { cursor: default; opacity: 0.6; }
+  .pl-play.armed {
+    background: rgba(90, 184, 255, 0.14);
+    border-color: rgba(90, 184, 255, 0.45); color: var(--sky-2);
+  }
+  .pl-play.armed:hover { background: rgba(90, 184, 255, 0.22); }
+  .pl-play.playing {
+    background: linear-gradient(160deg, var(--sky-2), var(--sky-dim));
+    border-color: transparent; color: #04081a;
+    box-shadow: 0 0 0 4px rgba(90,184,255,0.12), 0 4px 16px rgba(90,184,255,0.30);
+  }
+
+  .pl-now { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .pl-now .name {
+    font-size: var(--type-body); font-weight: 600; color: var(--text);
+    letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pl-now.empty .name { color: var(--text-3); font-weight: 500; }
+  .pl-now .meta { display: flex; align-items: center; gap: 7px; font-size: var(--type-micro); }
+  .pl-now .state { color: var(--text-4); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .pl-now.playing .state { color: var(--green); }
+  .pl-now .count { color: var(--text-4); font-family: ui-monospace, monospace; letter-spacing: 0.02em; }
+
+  /* ---- master volume ---- */
+  .pl-vol { display: flex; align-items: center; gap: 10px; }
+  .pl-vol .spk { font-size: 14px; color: var(--text-3); width: 18px; text-align: center; flex-shrink: 0; }
+  .pl-vol .vlab { font-size: var(--type-micro); color: var(--text-4); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; flex-shrink: 0; }
+  .pl-vol input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; height: 4px; border-radius: 999px; cursor: pointer;
+    background: linear-gradient(to right, var(--sky) 0%, var(--sky) 72%, rgba(138,155,181,0.22) 72%);
+  }
+  .pl-vol input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--sky-2); border: 2px solid #0a1220;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5); cursor: pointer;
+  }
+  .pl-vol input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--sky-2); border: 2px solid #0a1220; cursor: pointer;
+  }
+
+  .pl-note { font-size: var(--type-micro); color: var(--text-4); line-height: 1.4; }
+
+  .mock-caption { max-width: 360px; text-align: center; font-size: var(--type-micro); color: var(--text-4); line-height: 1.5; }
+  .mock-caption b { color: var(--text-3); font-weight: 600; }
+</style>
+</head>
+<body>
+
+  <section class="pane pane-player" id="pane-player">
+    <div class="pane-hd">
+      <div class="pane-hd-titles">
+        <div class="title">Player</div>
+        <div class="subtitle">Live icecast mounts · browser mix</div>
+      </div>
+    </div>
+    <div class="pane-body">
+
+      <!-- multi-select toggles: any subset on (0..4) -->
+      <div class="pl-pills" id="pl-pills" role="group" aria-label="Streams (multi-select)">
+        <button type="button" class="pl-pill" aria-pressed="false" data-mount="ANALOG.mp3"        data-name="Airband">
+          <span class="pdot"></span><span class="plabel">Airband</span>
+        </button>
+        <button type="button" class="pl-pill" aria-pressed="false" data-mount="ANALOG_GROUND.mp3" data-name="Ground">
+          <span class="pdot"></span><span class="plabel">Ground</span>
+        </button>
+        <button type="button" class="pl-pill" aria-pressed="false" data-mount="DIGITAL.mp3"       data-name="Digital">
+          <span class="pdot"></span><span class="plabel">Digital</span>
+        </button>
+        <button type="button" class="pl-pill" aria-pressed="false" data-mount="VFO.mp3"           data-name="VFO">
+          <span class="pdot"></span><span class="plabel">VFO</span>
+        </button>
+      </div>
+
+      <!-- one transport drives ALL active mounts together -->
+      <div class="pl-transport">
+        <button type="button" class="pl-play" id="pl-play" aria-label="Play" disabled>
+          <span class="glyph" id="pl-glyph">&#9654;</span>
+        </button>
+        <div class="pl-now empty" id="pl-now">
+          <div class="name" id="pl-name">No streams armed</div>
+          <div class="meta">
+            <span class="state" id="pl-state">Idle</span>
+            <span class="count" id="pl-count"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- master volume: scales every active <audio> proportionally -->
+      <div class="pl-vol">
+        <span class="spk" id="pl-spk">&#128266;</span>
+        <span class="vlab">Master</span>
+        <input type="range" id="pl-vol" min="0" max="100" value="72" aria-label="Master volume">
+      </div>
+      <div class="pl-note">Master scales all active streams. Per-stream volume is a future iteration.</div>
+
+      <!-- one <audio> per active mount is created here on the fly -->
+      <div id="pl-audio-host" hidden></div>
+    </div>
+  </section>
+
+  <p class="mock-caption">
+    <b>Mock</b> &mdash; multi-select <code>#pane-player</code>. Toggle any subset of mounts;
+    the browser mixes them. One play/pause drives all. Room-speaker path
+    (icecast + VLC + per-card BT mute) is independent. Audio targets
+    <code>micro.local:8000</code> if reachable.
+  </p>
+
+<script>
+  (function () {
+    var HOST = location.protocol + "//micro.local:8000/";
+    var pillsWrap = document.getElementById("pl-pills");
+    var pills = Array.prototype.slice.call(pillsWrap.querySelectorAll(".pl-pill"));
+    var playBtn = document.getElementById("pl-play");
+    var glyph = document.getElementById("pl-glyph");
+    var now = document.getElementById("pl-now");
+    var nameEl = document.getElementById("pl-name");
+    var stateEl = document.getElementById("pl-state");
+    var countEl = document.getElementById("pl-count");
+    var volEl = document.getElementById("pl-vol");
+    var audioHost = document.getElementById("pl-audio-host");
+
+    var PLAY = "▶", PAUSE = "❚❚";
+    var isPlaying = false;            // global transport intent
+    var streams = {};                 // mount -> { pill, audio, name, src, calGain, analyser }
+
+    // ---- Web Audio graph (phase 3) ------------------------------------
+    // Per active stream:  <audio>(crossOrigin) -> MediaElementSource
+    //   -> calibration GainNode -> AnalyserNode -> masterGain
+    // Bus: masterGain -> DynamicsCompressor -> destination.
+    // AudioContext is created on first play (autoplay-gesture safe).
+    var ctx = null, masterGain = null, compressor = null, meterRAF = 0;
+
+    // Calibration gains (linear, per mount key WITHOUT .mp3). Seeded with the
+    // phase-2b measured values; overwritten by /api/audio/mount_gains when the
+    // page is served same-origin (sb5). In this standalone mock the relative
+    // fetch 404s and the SEED stands.
+    var SEED = { ANALOG: 4.0, ANALOG_GROUND: 0.14, DIGITAL: 1.0, VFO: 1.91 };
+    var calibration = {}; for (var sk in SEED) calibration[sk] = SEED[sk];
+    function calFor(mount) {
+      var key = mount.replace(/\.mp3$/, "");
+      return (key in calibration) ? calibration[key] : 1.0;
+    }
+    fetch("/api/audio/mount_gains").then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.gains) { for (var m in d.gains) calibration[m] = d.gains[m]; }
+        activeMounts().forEach(function (m) {            // push to live nodes
+          var s = streams[m]; if (s && s.calGain) s.calGain.gain.value = calFor(m);
+        });
+      }).catch(function () {});
+
+    function master() { return volEl.value / 100; }
+
+    function activeMounts() {
+      return Object.keys(streams);
+    }
+    function activeNames() {
+      // preserve pill order
+      return pills.filter(function (p) { return streams[p.dataset.mount]; })
+                  .map(function (p) { return p.dataset.name; });
+    }
+
+    function setPillState(mount, cls) {
+      var s = streams[mount];
+      if (!s) return;
+      s.pill.classList.remove("buffering", "live");
+      if (cls) s.pill.classList.add(cls);
+    }
+
+    function refreshTransport() {
+      var names = activeNames();
+      var n = names.length;
+      // play button enable + look
+      playBtn.disabled = (n === 0);
+      if (n === 0) {
+        isPlaying = false;
+        playBtn.classList.remove("armed", "playing");
+        glyph.textContent = PLAY;
+        now.className = "pl-now empty";
+        nameEl.textContent = "No streams armed";
+        stateEl.textContent = "Idle";
+        countEl.textContent = "";
+        return;
+      }
+      // now-playing label
+      if (n === 1) nameEl.textContent = names[0];
+      else nameEl.textContent = n + " streams · " + names.join(", ");
+      countEl.textContent = n + " active";
+      if (isPlaying) {
+        now.className = "pl-now playing";
+        stateEl.textContent = "Live";
+        glyph.textContent = PAUSE;
+        playBtn.classList.remove("armed"); playBtn.classList.add("playing");
+      } else {
+        now.className = "pl-now";
+        stateEl.textContent = "Ready";
+        glyph.textContent = PLAY;
+        playBtn.classList.remove("playing"); playBtn.classList.add("armed");
+      }
+    }
+
+    // create a fresh <audio> for a mount and wire its state -> pill dot
+    function mountAudio(mount, pill) {
+      var a = document.createElement("audio");
+      a.preload = "none";
+      a.crossOrigin = "anonymous";   // required for cross-origin Web Audio (icecast CORS)
+      a.src = HOST + mount;
+      // 'playing' just clears buffering; the meter loop drives the live/green
+      // dot off real RMS so a pill lights only when its channel transmits.
+      a.addEventListener("playing", function () { setPillState(mount, null); refreshTransport(); });
+      a.addEventListener("waiting", function () { setPillState(mount, "buffering"); });
+      a.addEventListener("pause",   function () { setPillState(mount, null); });
+      a.addEventListener("error",   function () { setPillState(mount, null); });
+      audioHost.appendChild(a);
+      return a;
+    }
+
+    function activate(pill) {
+      var mount = pill.dataset.mount;
+      var a = mountAudio(mount, pill);
+      streams[mount] = { pill: pill, audio: a, name: pill.dataset.name, src: null, calGain: null, analyser: null };
+      pill.classList.add("on");                 // Ready (sky dot)
+      pill.setAttribute("aria-pressed", "true");
+      // if the transport is already running, this stream joins immediately
+      // (this click is a user gesture, so AudioContext + .play() are allowed)
+      if (isPlaying) {
+        ensureCtx();
+        wireNode(mount);
+        setPillState(mount, "buffering");
+        var p = a.play(); if (p && p.catch) p.catch(function(){ setPillState(mount, null); });
+      }
+      refreshTransport();
+    }
+
+    function deactivate(pill) {
+      var mount = pill.dataset.mount;
+      var s = streams[mount];
+      if (s) {
+        try { s.audio.pause(); } catch (e) {}
+        try { if (s.src) s.src.disconnect(); } catch (e) {}
+        try { if (s.calGain) s.calGain.disconnect(); } catch (e) {}
+        try { if (s.analyser) s.analyser.disconnect(); } catch (e) {}
+        s.audio.removeAttribute("src");
+        try { s.audio.load(); } catch (e) {}
+        if (s.audio.parentNode) s.audio.parentNode.removeChild(s.audio);
+        delete streams[mount];
+      }
+      pill.classList.remove("on", "buffering", "live");
+      pill.setAttribute("aria-pressed", "false");
+      refreshTransport();
+    }
+
+    pills.forEach(function (pill) {
+      pill.addEventListener("click", function () {
+        if (streams[pill.dataset.mount]) deactivate(pill);
+        else activate(pill);
+      });
+    });
+
+    // one button: play -> start ALL active (same gesture covers every .play())
+    playBtn.addEventListener("click", function () {
+      var mounts = activeMounts();
+      if (mounts.length === 0) return;
+      if (isPlaying) {
+        isPlaying = false;
+        mounts.forEach(function (m) { try { streams[m].audio.pause(); } catch (e) {} });
+      } else {
+        isPlaying = true;
+        ensureCtx();
+        if (ctx && ctx.state === "suspended") ctx.resume();
+        mounts.forEach(function (m) {
+          wireNode(m);
+          setPillState(m, "buffering");
+          var p = streams[m].audio.play();
+          if (p && p.catch) p.catch(function () { setPillState(m, null); });
+        });
+        startMeters();
+      }
+      refreshTransport();
+    });
+
+    // master volume scales every active <audio> proportionally
+    function applyVol() {
+      var v = master();
+      if (masterGain) masterGain.gain.value = v;   // Web Audio bus controls level
+      var pct = volEl.value + "%";
+      volEl.style.background =
+        "linear-gradient(to right, var(--sky) 0%, var(--sky) " + pct +
+        ", rgba(138,155,181,0.22) " + pct + ")";
+      document.getElementById("pl-spk").innerHTML = v === 0 ? "&#128263;" : "&#128266;";
+    }
+    volEl.addEventListener("input", applyVol);
+
+    // ---- graph construction + metering -------------------------------
+    function ensureCtx() {
+      if (ctx) return;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      masterGain = ctx.createGain();
+      masterGain.gain.value = master();
+      compressor = ctx.createDynamicsCompressor();   // bus limiter for coincident peaks
+      compressor.threshold.value = -10;
+      compressor.knee.value = 20;
+      compressor.ratio.value = 4;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.25;
+      masterGain.connect(compressor);
+      compressor.connect(ctx.destination);
+    }
+
+    function wireNode(mount) {
+      var s = streams[mount];
+      if (!s || s.src || !ctx) return;               // wire once per stream
+      try {
+        s.src = ctx.createMediaElementSource(s.audio);
+      } catch (e) { return; }                        // already bound / tainted
+      s.calGain = ctx.createGain();
+      s.calGain.gain.value = calFor(mount);
+      s.analyser = ctx.createAnalyser();
+      s.analyser.fftSize = 256;
+      s.src.connect(s.calGain);
+      s.calGain.connect(s.analyser);
+      s.analyser.connect(masterGain);
+    }
+
+    // Per-pill meter: green glow scales with each stream's live RMS, so a
+    // pill lights up exactly when its channel is actually transmitting.
+    function startMeters() { if (!meterRAF) meterRAF = requestAnimationFrame(meters); }
+    function meters() {
+      activeMounts().forEach(function (m) {
+        var s = streams[m];
+        var dot = s.pill.querySelector(".pdot");
+        if (!s.analyser || !isPlaying) { s.pill.classList.remove("live"); if (dot) dot.style.boxShadow = ""; return; }
+        var buf = s._buf || (s._buf = new Uint8Array(s.analyser.fftSize));
+        s.analyser.getByteTimeDomainData(buf);
+        var sum = 0;
+        for (var i = 0; i < buf.length; i++) { var x = (buf[i] - 128) / 128; sum += x * x; }
+        var rms = Math.sqrt(sum / buf.length);
+        if (rms > 0.012) {
+          s.pill.classList.add("live");
+          if (dot) dot.style.boxShadow = "0 0 " + (6 + rms * 40).toFixed(0) + "px rgba(52,199,89," + Math.min(1, 0.5 + rms * 4).toFixed(2) + ")";
+        } else {
+          s.pill.classList.remove("live");
+          if (dot) dot.style.boxShadow = "";
+        }
+      });
+      meterRAF = isPlaying ? requestAnimationFrame(meters) : 0;
+    }
+
+    refreshTransport();
+    applyVol();
+  })();
+</script>
+</body>
+</html>
