@@ -5162,7 +5162,7 @@ function wireAudioBar() {
     });
   });
 
-  playBtn.addEventListener("click", () => {
+  playBtn.addEventListener("click", async () => {
     const mounts = activeMounts();
     if (mounts.length === 0) return;
     if (isPlaying) {
@@ -5171,7 +5171,11 @@ function wireAudioBar() {
     } else {
       isPlaying = true;
       ensureCtx();
-      if (ctx && ctx.state === "suspended") ctx.resume();
+      // AWAIT resume before wiring/playing: a context created/left in the
+      // "suspended" state (Safari especially) yields a fully silent graph even
+      // though the chain is wired. resume() is kicked off inside the click so
+      // the user-gesture requirement still holds.
+      try { if (ctx && ctx.state !== "running") await ctx.resume(); } catch (e) {}
       mounts.forEach((m) => {
         wireNode(m);
         setPillState(m, "buffering");
@@ -8283,7 +8287,11 @@ function _wsOnMessage(ev) {
   const nBins = dv.getUint16(9, true);
   const expected = WS_HEADER_BYTES + 4 * nBins;
   if (buf.byteLength !== expected) return;
-  const bins = new Float32Array(buf, WS_HEADER_BYTES, nBins);
+  // WS_HEADER_BYTES (11) is not 4-byte aligned, so a direct typed-array VIEW
+  // — new Float32Array(buf, 11, nBins) — throws "start offset ... should be a
+  // multiple of 4/8" (strict on Safari/WebKit) every frame. Copy the bin bytes
+  // into a fresh offset-0 buffer, which is always aligned.
+  const bins = new Float32Array(buf.slice(WS_HEADER_BYTES, WS_HEADER_BYTES + 4 * nBins));
   _wsDispatch(paneId, centerMhz, spanMhz, bins);
 }
 
