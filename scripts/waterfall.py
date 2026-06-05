@@ -69,23 +69,25 @@ SERIAL_A = os.environ.get("WATERFALL_SERIAL_A", "70613472")
 SERIAL_B = os.environ.get("WATERFALL_SERIAL_B", "83241970")
 
 # Default center frequencies — stitched window covers roughly
-# 121.3 .. 126.1 MHz (most of civilian airband + a margin).
+# 121.7 .. 125.7 MHz (most of civilian airband + a margin).
 DEFAULT_CENTER_MHZ = 123.7
-DEFAULT_BW_MHZ = 4.8     # default stitched window width (2x 2.4 MS/s dongles)
+DEFAULT_BW_MHZ = 4.0     # default stitched window width (2x 2.0 MS/s dongles)
 
-# Tunable bandwidth (Phase R2).  The stitched window width is
+# Tunable bandwidth.  The stitched window width is
 #   total_bw = per_dongle_rate + 2 * half_spacing
 # so for a requested bw we pick a per-dongle sample rate near bw/2 (with a
 # little overlap headroom) and set the half-spacing to fill the rest.  The
 # per-dongle rate is clamped to the RTL-SDR's usable high band so we never
-# command an unsupported rate; 4.8 MHz (2 x 2.4 MS/s, half-spacing 1.2)
-# remains the gap-free maximum and is the unchanged default.
+# command an unsupported rate; 4.0 MHz (2 x 2.0 MS/s, half-spacing 1.0)
+# is the gap-free maximum and the default.  This SB5 redesign dropped the
+# per-dongle rate from 2.4 -> 2.0 MS/s (and total BW 4.8 -> 4.0 MHz) so the
+# stitch seam is less prominent in the operator-facing Live IQ display.
 MIN_BW_MHZ = 1.0
-MAX_BW_MHZ = 4.8
+MAX_BW_MHZ = 4.0
 RTL_RATE_MIN_HZ = 960_000      # stay above the RTL-SDR ~900 kHz low-band edge
-RTL_RATE_MAX_HZ = 2_400_000    # 2.4 MS/s — proven-good per-dongle rate
+RTL_RATE_MAX_HZ = 2_000_000    # 2.0 MS/s — current per-dongle rate (SB5 redesign)
 
-SAMPLE_RATE_HZ = 2_400_000   # default/max per-dongle rate (2.4 MS/s)
+SAMPLE_RATE_HZ = 2_000_000   # default/max per-dongle rate (2.0 MS/s)
 FFT_SIZE = 1024
 # Phase 6a.1: 100ms per-dongle FFT pacing (10 Hz).  readStream + window
 # + FFT(1024) typically runs well under 50ms on the Pi-class host, so

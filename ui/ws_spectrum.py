@@ -144,7 +144,7 @@ WS_PANES = (
 # Default center/span fallbacks if the waterfall state file omits them.
 # Matches the values the HTTP pass-through and the JS client use today.
 WATERFALL_DEFAULT_CENTER_MHZ = 123.7
-WATERFALL_DEFAULT_BW_MHZ = 4.8
+WATERFALL_DEFAULT_BW_MHZ = 4.0
 
 
 # ---------------------------------------------------------------------------

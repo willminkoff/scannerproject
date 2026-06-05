@@ -897,6 +897,251 @@
     border-radius: 4px;
   }
 
+  /* ============ Live IQ SB5 redesign — minimap / side sliders / needle / fullscreen ============
+     Desktop-only chrome (hidden under @media (max-width: 700px) — see the
+     mobile block further down for the legacy compact view rules). */
+
+  /* --- minimap strip (full hardware BW, draggable viewport box) --- */
+  .wf-minimap-wrap {
+    position: relative;
+    height: 38px;
+    margin-bottom: 6px;
+    background: #03060e;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    touch-action: none;
+  }
+  .wf-minimap-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .wf-minimap-viewport {
+    position: absolute;
+    top: 0; bottom: 0;
+    background: rgba(126, 211, 255, 0.13);
+    border: 1px solid rgba(126, 211, 255, 0.65);
+    border-radius: 3px;
+    pointer-events: auto;
+    cursor: grab;
+    box-shadow: 0 0 0 1px rgba(8, 14, 28, 0.55) inset;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .wf-minimap-viewport:hover {
+    background: rgba(126, 211, 255, 0.22);
+    border-color: var(--sky-2);
+  }
+  .wf-minimap-viewport.dragging {
+    cursor: grabbing;
+    background: rgba(126, 211, 255, 0.28);
+    border-color: var(--sky-2);
+  }
+  .wf-minimap-viewport::before {
+    content: ""; position: absolute;
+    left: 50%; top: 0; bottom: 0;
+    width: 1px;
+    background: rgba(126, 211, 255, 0.55);
+    transform: translateX(-0.5px);
+  }
+
+  /* --- main display row: spectrum/waterfall + side-controls --- */
+  .wf-display-row {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .wf-display-region {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* Override default spec/wf heights inside the new display region to
+     give the operator a real "studio" view — taller spectrum + waterfall. */
+  .wf-display-region .spec-canvas-wrap { height: 140px; }
+  .wf-display-region .wf-canvas-wrap   { height: 260px; }
+
+  /* --- right-side vertical sliders (zoom + contrast) --- */
+  .wf-side-controls {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    padding: 6px 6px 4px;
+    background: rgba(6, 10, 20, 0.55);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 8px;
+  }
+  .wf-slider-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 56px;
+    gap: 4px;
+  }
+  .wf-slider-label {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-micro);
+    letter-spacing: 0.06em;
+    color: var(--text-4);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  /* The track wrap rotates a horizontal range input so it appears vertical
+     with consistent cross-browser geometry. The native -webkit-slider
+     vertical orientation is broken in Chromium; rotate(-90) is rock-solid. */
+  .wf-slider-track {
+    position: relative;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .wf-slider-vert {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 220px;
+    height: 4px;
+    background: linear-gradient(90deg,
+                rgba(126,211,255,0.5),
+                rgba(126,211,255,0.18));
+    border-radius: 4px;
+    outline: none;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    cursor: pointer;
+    margin: 0;
+  }
+  .wf-slider-vert::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--sky-2);
+    border: 2px solid rgba(8,14,28,0.85);
+    box-shadow: 0 0 0 1px rgba(126,211,255,0.55), 0 0 10px rgba(126,211,255,0.45);
+    cursor: pointer;
+  }
+  .wf-slider-vert::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--sky-2);
+    border: 2px solid rgba(8,14,28,0.85);
+    box-shadow: 0 0 0 1px rgba(126,211,255,0.55), 0 0 10px rgba(126,211,255,0.45);
+    cursor: pointer;
+  }
+  .wf-slider-val {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta);
+    color: var(--sky-2);
+    font-weight: 600;
+    min-width: 36px;
+    text-align: center;
+  }
+
+  /* --- big red draggable tuning needle (desktop only) --- */
+  .wf-needle {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: #ff3a4e;
+    transform: translateX(-1px);
+    z-index: 8;
+    box-shadow: 0 0 8px rgba(255, 58, 78, 0.7), 0 0 1px rgba(255,255,255,0.4);
+    cursor: ew-resize;
+    pointer-events: auto;
+    touch-action: none;
+  }
+  .wf-needle.dragging { background: #ff5566; box-shadow: 0 0 12px rgba(255, 80, 96, 0.95); }
+  .wf-needle-grip {
+    position: absolute;
+    left: -7px; top: 0;
+    width: 16px; height: 14px;
+    background: #ff3a4e;
+    border-radius: 3px 3px 8px 8px;
+    box-shadow: 0 0 6px rgba(255, 58, 78, 0.6);
+  }
+  .wf-needle.dragging .wf-needle-grip { background: #ff5566; }
+  .wf-needle-label {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: var(--type-meta);
+    color: #ffd0d4;
+    background: rgba(40, 4, 8, 0.88);
+    border: 1px solid rgba(255, 58, 78, 0.7);
+    border-radius: 4px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 9;
+  }
+
+  /* --- fullscreen toggle button (in pane header) --- */
+  .wf-fs-btn {
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line);
+    color: var(--text-2);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    margin-left: 8px;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .wf-fs-btn:hover {
+    background: rgba(126,211,255,0.16);
+    border-color: rgba(126,211,255,0.55);
+    color: var(--sky-2);
+  }
+  .wf-fs-btn .wf-fs-icon { font-family: ui-monospace, monospace; font-weight: 600; }
+
+  /* --- full-screen mode: pane covers the viewport --- */
+  body.wf-fs-active .pane-waterfall {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 9000;
+    border-radius: 0;
+    margin: 0;
+    padding: 14px 18px 12px;
+    background: #02030a;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  body.wf-fs-active .pane-waterfall .pane-body { flex: 1 1 auto; display: flex; flex-direction: column; }
+  body.wf-fs-active .pane-waterfall .wf-display-row { flex: 1 1 auto; }
+  body.wf-fs-active .pane-waterfall .wf-display-region { display: flex; flex-direction: column; }
+  body.wf-fs-active .pane-waterfall .wf-display-region .spec-canvas-wrap { height: 28%; min-height: 140px; }
+  body.wf-fs-active .pane-waterfall .wf-display-region .wf-canvas-wrap   { flex: 1 1 auto; height: auto; min-height: 200px; }
+  body.wf-fs-active .pane-waterfall .wf-side-controls .wf-slider-track   { min-height: 320px; }
+  body.wf-fs-active .pane-waterfall .wf-side-controls .wf-slider-vert    { width: 320px; }
+  body.wf-fs-active { overflow: hidden; }
+
+  /* --- desktop hides the mystery box + bw input; mobile hides desktop chrome --- */
+  @media (min-width: 701px) {
+    /* Desktop: needle replaces the legacy center marker (freq-window). */
+    #wf-window { display: none !important; }
+    /* Desktop: bw input is meaningless (BW is fixed at 4.0 MHz). */
+    .wf-mobile-only { display: none !important; }
+  }
+  @media (max-width: 700px) {
+    /* Mobile keeps the legacy compact view — no minimap, no side sliders,
+       no needle, no fullscreen button. The freq-window center marker and
+       drag-to-pan on the waterfall remain the tuning UX on mobile. */
+    .wf-minimap-wrap,
+    .wf-side-controls,
+    .wf-needle,
+    .wf-fs-btn { display: none !important; }
+    .wf-display-row { display: block; }
+    .wf-display-region .spec-canvas-wrap { height: 60px; }
+    .wf-display-region .wf-canvas-wrap   { height: 200px; }
+  }
+
   /* ============ VFO pane internals ============ */
   .vfo-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
   .vfo-row {
@@ -2691,35 +2936,87 @@
     </div>
   </section>
 
-  <!-- ============ WATERFALL pane (2 RTL-SDRs stitched) ============ -->
+  <!-- ============ WATERFALL pane (2 RTL-SDRs stitched, SB5 redesign) ============
+       Desktop layout matches the SDR# studio model:
+         - thin minimap strip (full 4.0 MHz) with a draggable viewport box
+         - tall spectrum + waterfall stack inside .wf-display-region
+         - right-side vertical zoom + contrast sliders (.wf-side-controls)
+         - red draggable tuning needle (.wf-needle) inside the main display
+         - fullscreen button (.wf-fs-btn) expands the pane to fill the viewport
+       Mobile (<= 700px) hides the minimap, side sliders, needle, and FS button
+       and falls back to the legacy compact view (drag-to-pan on the waterfall,
+       .freq-window center marker, bw input). All pills / jump chips / step
+       buttons / center input remain shared across both layouts. -->
   <section class="pane pane-waterfall" id="pane-waterfall" tabindex="0">
     <div class="pane-hd">
       <div class="pane-hd-titles">
         <span class="title">LIVE IQ</span>
         <span class="subtitle" id="wf-title">125 — 130 MHz · stitched</span>
       </div>
-      <span class="live-tag" id="wf-live-tag">Live · 2 dongles · 4.8 MHz</span>
+      <span class="live-tag" id="wf-live-tag">Live · 2 dongles · 4.0 MHz</span>
+      <button type="button" class="wf-fs-btn" id="wf-fs-btn"
+              title="Toggle full-screen Live IQ"
+              aria-label="Toggle full-screen Live IQ">
+        <span class="wf-fs-icon" aria-hidden="true">⛶</span>
+      </button>
       <span class="sub" id="wf-sub">2 × RTL-SDR</span>
     </div>
     <div class="pane-body">
-      <div class="spec-canvas-wrap">
-        <canvas id="wf-spec" class="spec-canvas"></canvas>
-        <div class="wf-marker" id="wf-spec-marker" style="left: 50%; display: none;"></div>
-        <div class="wf-marker-label mono" id="wf-spec-marker-label" style="left: 50%; display: none;">—</div>
+      <!-- ===== Minimap: full hardware BW with viewport box (desktop only) ===== -->
+      <div class="wf-minimap-wrap" id="wf-minimap-wrap"
+           title="Minimap — full 4.0 MHz; drag the box to pan, click to snap">
+        <canvas id="wf-minimap" class="wf-minimap-canvas"></canvas>
+        <div class="wf-minimap-viewport" id="wf-minimap-viewport"></div>
       </div>
-      <div class="wf-canvas-wrap">
-        <canvas id="wf-canvas"></canvas>
-        <div class="freq-window" id="wf-window" style="left: 39%;">
-          <div class="center-mark"></div>
-          <div class="label mono" id="wf-window-label">127.500 MHz</div>
+      <!-- ===== Main display + right-side vertical sliders ===== -->
+      <div class="wf-display-row">
+        <div class="wf-display-region" id="wf-display-region">
+          <div class="spec-canvas-wrap">
+            <canvas id="wf-spec" class="spec-canvas"></canvas>
+            <div class="wf-marker" id="wf-spec-marker" style="left: 50%; display: none;"></div>
+            <div class="wf-marker-label mono" id="wf-spec-marker-label" style="left: 50%; display: none;">—</div>
+          </div>
+          <div class="wf-canvas-wrap">
+            <canvas id="wf-canvas"></canvas>
+            <!-- legacy mobile center marker (hidden on desktop) -->
+            <div class="freq-window" id="wf-window" style="left: 39%;">
+              <div class="center-mark"></div>
+              <div class="label mono" id="wf-window-label">127.500 MHz</div>
+            </div>
+            <!-- desktop draggable red tuning needle -->
+            <div class="wf-needle" id="wf-needle" style="left: 50%;">
+              <div class="wf-needle-grip" aria-hidden="true"></div>
+              <div class="wf-needle-label mono" id="wf-needle-label">123.700 MHz</div>
+            </div>
+            <div class="wf-cursor-chip mono" id="wf-cursor-chip">—</div>
+            <div class="wf-marker" id="wf-canvas-marker" style="left: 50%; display: none;"></div>
+          </div>
+          <div class="wf-axis mono">
+            <span id="wf-axis-min">—</span>
+            <span id="wf-axis-mid">—</span>
+            <span id="wf-axis-max">—</span>
+          </div>
         </div>
-        <div class="wf-cursor-chip mono" id="wf-cursor-chip">—</div>
-        <div class="wf-marker" id="wf-canvas-marker" style="left: 50%; display: none;"></div>
-      </div>
-      <div class="wf-axis mono">
-        <span id="wf-axis-min">—</span>
-        <span id="wf-axis-mid">—</span>
-        <span id="wf-axis-max">—</span>
+        <div class="wf-side-controls" id="wf-side-controls" aria-label="Live IQ display controls">
+          <div class="wf-slider-group">
+            <span class="wf-slider-label">ZOOM</span>
+            <div class="wf-slider-track">
+              <input type="range" class="wf-slider-vert" id="wf-zoom-slider"
+                     min="100" max="400" value="100" step="5"
+                     aria-label="Zoom (1x – 4x)">
+            </div>
+            <span class="wf-slider-val mono" id="wf-zoom-val">1.0×</span>
+          </div>
+          <div class="wf-slider-group">
+            <span class="wf-slider-label">CONTRAST</span>
+            <div class="wf-slider-track">
+              <input type="range" class="wf-slider-vert" id="wf-contrast-slider"
+                     min="40" max="220" value="100" step="5"
+                     aria-label="Contrast (0.4x – 2.2x)">
+            </div>
+            <span class="wf-slider-val mono" id="wf-contrast-val">1.0×</span>
+          </div>
+        </div>
       </div>
       <div class="wf-meta">
         <span class="pill mono" id="wf-pill-center">center —</span>
@@ -2728,29 +3025,30 @@
         <span class="pill" id="wf-pill-age">last frame —</span>
       </div>
       <div class="wf-tune-row">
-        <div class="wf-tune-caption">Tunable 24 MHz – 1.7 GHz · drag window, type a center, or jump to a band</div>
+        <div class="wf-tune-caption">Tunable 24 MHz – 1.7 GHz · drag the red needle, type a freq, or jump to a band</div>
         <div class="wf-tune-input-wrap">
           <label class="wf-tune-label" for="wf-center-input">Center freq</label>
           <input type="number" id="wf-center-input" class="wf-tune-input mono"
-                 step="0.1" min="24" max="1700" placeholder="MHz" inputmode="decimal">
+                 step="0.001" min="24" max="1700" placeholder="MHz" inputmode="decimal">
           <span class="wf-tune-unit">MHz</span>
         </div>
-        <div class="wf-tune-input-wrap">
+        <!-- bw input retained for mobile fallback (hidden on desktop) -->
+        <div class="wf-tune-input-wrap wf-mobile-only">
           <label class="wf-tune-label" for="wf-bw-input">Bandwidth</label>
           <input type="number" id="wf-bw-input" class="wf-tune-input mono"
-                 step="0.2" min="1" max="4.8" placeholder="MHz" inputmode="decimal"
+                 step="0.2" min="1" max="4.0" placeholder="MHz" inputmode="decimal"
                  style="width:56px;">
           <span class="wf-tune-unit">MHz</span>
         </div>
         <button type="button" id="wf-apply-btn" class="wf-apply-btn">Apply</button>
       </div>
       <div class="wf-jump-row" id="wf-jump-row">
-        <button type="button" class="wf-jump" data-center="124.0" data-bw="4.8">Airband 118–137</button>
-        <button type="button" class="wf-jump" data-center="133.5" data-bw="4.8">AIR 133.5</button>
-        <button type="button" class="wf-jump" data-center="159.0" data-bw="4.8">VHF Marine 156–162</button>
-        <button type="button" class="wf-jump" data-center="157.0" data-bw="4.8">VHF Public 154–160</button>
-        <button type="button" class="wf-jump" data-center="300.0" data-bw="4.8">UHF Mil-air 225–400</button>
-        <button type="button" class="wf-jump" data-center="855.0" data-bw="4.8">800 MHz</button>
+        <button type="button" class="wf-jump" data-center="124.0" data-bw="4.0">Airband 118–137</button>
+        <button type="button" class="wf-jump" data-center="133.5" data-bw="4.0">AIR 133.5</button>
+        <button type="button" class="wf-jump" data-center="159.0" data-bw="4.0">VHF Marine 156–162</button>
+        <button type="button" class="wf-jump" data-center="157.0" data-bw="4.0">VHF Public 154–160</button>
+        <button type="button" class="wf-jump" data-center="300.0" data-bw="4.0">UHF Mil-air 225–400</button>
+        <button type="button" class="wf-jump" data-center="855.0" data-bw="4.0">800 MHz</button>
       </div>
       <div class="wf-step-row" id="wf-step-row" aria-label="Tune step buttons">
         <button type="button" class="wf-step" data-step-mhz="-10">-10 MHz</button>
@@ -2760,7 +3058,7 @@
         <button type="button" class="wf-step" data-step-mhz="1">+1 MHz</button>
         <button type="button" class="wf-step" data-step-mhz="10">+10 MHz</button>
         <button type="button" class="wf-step wf-vfo-btn" id="wf-to-vfo-btn"
-                title="Tune VFO to current Live IQ center, auto-pick mode by band">&rarr; VFO</button>
+                title="Tune VFO to current Live IQ needle freq, auto-pick mode by band">&rarr; VFO</button>
       </div>
       <div class="dongle-overlay" id="wf-down-overlay">
         <div class="icon">⚠</div>
@@ -4524,12 +4822,37 @@ function renderWaterfall(data) {
   gmid = (min + max) / 2;
   center = Number(data.center_mhz);
   if (!Number.isFinite(center)) center = gmid;
-  WF_VIEW.min = min; WF_VIEW.max = max;
+  // SB5 redesign: keep hardware band state in sync. WF_HW always reflects
+  // the FULL stitched window the dongles produce; the desktop viewport
+  // (WF_VP) zooms into it.
+  WF_HW.center_mhz = center;
+  WF_HW.full_bw = bw;
+  // On desktop, clamp the viewport center inside the new hw band and
+  // surface the zoomed visible window as WF_VIEW (consumed by the marker
+  // + drag chip). On mobile, the legacy behavior is preserved: viewport
+  // == full hw band.
+  const _wfDesktop = wfIsDesktop();
+  if (_wfDesktop) {
+    if (!Number.isFinite(WF_VP.center_mhz)) WF_VP.center_mhz = center;
+    WF_VP.center_mhz = clampViewportCenter(WF_VP.center_mhz);
+    WF_VIEW.min = wfVisibleMin();
+    WF_VIEW.max = wfVisibleMax();
+  } else {
+    WF_VIEW.min = min; WF_VIEW.max = max;
+  }
   updateWfMarker(center);
-  $("wf-axis-min").textContent = min.toFixed(2);
-  $("wf-axis-mid").textContent = gmid.toFixed(2);
-  $("wf-axis-max").textContent = max.toFixed(2);
-  slideAxis(gmid);
+  if (_wfDesktop) {
+    const vmid = (WF_VIEW.min + WF_VIEW.max) / 2;
+    $("wf-axis-min").textContent = WF_VIEW.min.toFixed(2);
+    $("wf-axis-mid").textContent = vmid.toFixed(2);
+    $("wf-axis-max").textContent = WF_VIEW.max.toFixed(2);
+    slideAxis(vmid);
+  } else {
+    $("wf-axis-min").textContent = min.toFixed(2);
+    $("wf-axis-mid").textContent = gmid.toFixed(2);
+    $("wf-axis-max").textContent = max.toFixed(2);
+    slideAxis(gmid);
+  }
   // Park the center marker on the tuned freq within the displayed span (not
   // mid-drag — the drag handler owns the marker label then).
   const wfWin = $("wf-window");
@@ -4585,9 +4908,26 @@ function renderWaterfall(data) {
   setDongleBadge("ev-wf-badge", wfAlive, wfTotal);
 
   if (!wsBinsFresh(WS_PANE_WATERFALL)) {
-    const intensity = autoStretchIntensity(data.bins, "wf-canvas");
-    pushWaterfallRow("wf-canvas", intensity, wfColormap);
-    specSubmitFrame($("wf-spec"), data.bins, min, max, "wf-canvas");
+    // Compute intensity on the FULL hw band so autoStretch's half-stitch
+    // boundary stays correct. Stash the full intensity for the minimap,
+    // then slice to viewport + apply contrast for the main display.
+    const fullIntensity = autoStretchIntensity(data.bins, "wf-canvas");
+    WF_LAST_FULL_INTENSITY = fullIntensity;
+    let renderIntensity = fullIntensity;
+    let renderBins = data.bins;
+    let renderMin = min, renderMax = max;
+    if (_wfDesktop) {
+      renderIntensity = applyContrastToIntensity(sliceArrayForZoom(fullIntensity));
+      renderBins = sliceArrayForZoom(data.bins);
+      renderMin = WF_VIEW.min; renderMax = WF_VIEW.max;
+    }
+    pushWaterfallRow("wf-canvas", renderIntensity, wfColormap);
+    specSubmitFrame($("wf-spec"), renderBins, renderMin, renderMax, "wf-canvas");
+    if (_wfDesktop) {
+      renderWfMinimap();
+      updateWfMinimapViewport();
+      updateWfNeedle();
+    }
   }
 }
 
@@ -4903,6 +5243,408 @@ function setWfCenterFromMhz(mhz) {
   updateWfMarker(m);
 }
 
+// ============================================================
+// ===== SB5 Live IQ redesign: state, helpers, wires      =====
+// SDR#-inspired layout. Desktop only — mobile keeps the legacy
+// drag-to-pan / freq-window flow above. The data flow is:
+//   backend WS frames push intensity[N] covering the full hw BW
+//   (WF_HW.full_bw, centered on WF_HW.center_mhz). The desktop
+//   viewport (WF_VP) is a zoom-scaled subset of that. The needle
+//   (WF_NEEDLE) is the operator's selected tune freq, free to roam
+//   inside the viewport. Typed freq snaps the needle and recenters
+//   the viewport (and retunes the hw band if the freq falls
+//   outside [hw_min, hw_max]).
+// ============================================================
+const WF_DESKTOP_MQ = "(min-width: 701px)";
+function wfIsDesktop() {
+  try { return window.matchMedia(WF_DESKTOP_MQ).matches; }
+  catch (_) { return true; }
+}
+// Hardware band — mirrors what the dongles are tuned to.
+// full_bw stays at MAX_BW_MHZ (4.0) but is sourced from each frame.
+const WF_HW = { center_mhz: 123.7, full_bw: 4.0 };
+// Desktop viewport — a digital-zoom subset of the hw band.
+// zoom: 1.0 = full BW visible, 4.0 = 1/4 BW visible.
+const WF_VP = { center_mhz: 123.7, zoom: 1.0 };
+// Operator's tune freq (red draggable needle).
+const WF_NEEDLE = { mhz: 123.7 };
+// Display effects.
+const WF_FX = { contrast: 1.0, fullscreen: false };
+// Latest full-band intensity (for minimap rendering).
+let WF_LAST_FULL_INTENSITY = null;
+const WF_ZOOM_MIN = 1.0;
+const WF_ZOOM_MAX = 4.0;
+const WF_CONTRAST_MIN = 0.4;
+const WF_CONTRAST_MAX = 2.2;
+
+function wfVisibleBw() {
+  const z = Math.max(WF_ZOOM_MIN, Math.min(WF_ZOOM_MAX, Number(WF_VP.zoom) || 1));
+  return WF_HW.full_bw / z;
+}
+function wfVisibleMin() { return WF_VP.center_mhz - wfVisibleBw() / 2; }
+function wfVisibleMax() { return WF_VP.center_mhz + wfVisibleBw() / 2; }
+function wfHwMin() { return WF_HW.center_mhz - WF_HW.full_bw / 2; }
+function wfHwMax() { return WF_HW.center_mhz + WF_HW.full_bw / 2; }
+
+// Clamp the viewport center so the zoomed window stays inside the hw band.
+function clampViewportCenter(mhz) {
+  const half = wfVisibleBw() / 2;
+  const lo = wfHwMin() + half;
+  const hi = wfHwMax() - half;
+  if (hi < lo) return WF_HW.center_mhz;
+  if (mhz < lo) return lo;
+  if (mhz > hi) return hi;
+  return mhz;
+}
+
+// Apply contrast scaling around 0.5 (matches SDR# contrast slider feel).
+function applyContrastToIntensity(intensity) {
+  const c = Number(WF_FX.contrast) || 1.0;
+  if (Math.abs(c - 1.0) < 0.01) return intensity;
+  const out = new Float32Array(intensity.length);
+  for (let i = 0; i < intensity.length; i++) {
+    let v = (intensity[i] - 0.5) * c + 0.5;
+    if (v < 0) v = 0; else if (v > 1) v = 1;
+    out[i] = v;
+  }
+  return out;
+}
+
+// Slice the full-band array down to the zoom-scaled viewport.
+function sliceArrayForZoom(arr) {
+  const N = arr.length;
+  if (!N) return arr;
+  if (WF_VP.zoom <= 1.001) return arr;
+  const visBw = wfVisibleBw();
+  const hwLo = wfHwMin();
+  const hwHi = wfHwMax();
+  const hwBw = hwHi - hwLo;
+  if (hwBw <= 0) return arr;
+  const visLo = wfVisibleMin();
+  const visHi = wfVisibleMax();
+  let lo = Math.floor(((visLo - hwLo) / hwBw) * N);
+  let hi = Math.ceil(((visHi - hwLo) / hwBw) * N);
+  lo = Math.max(0, Math.min(N - 1, lo));
+  hi = Math.max(lo + 1, Math.min(N, hi));
+  return arr.subarray ? arr.subarray(lo, hi) : arr.slice(lo, hi);
+}
+
+// Render the latest full-band intensity into the minimap canvas.
+// One row, painted directly. Cheap.
+function renderWfMinimap() {
+  const cv = document.getElementById("wf-minimap");
+  if (!cv) return;
+  const cssW = cv.clientWidth, cssH = cv.clientHeight;
+  if (cssW < 4 || cssH < 4) return;
+  if (cv.width !== cssW) cv.width = cssW;
+  if (cv.height !== cssH) cv.height = cssH;
+  const ctx = cv.getContext("2d");
+  const intensity = WF_LAST_FULL_INTENSITY;
+  if (!intensity || !intensity.length) {
+    ctx.fillStyle = "#03060e";
+    ctx.fillRect(0, 0, cssW, cssH);
+    return;
+  }
+  const N = intensity.length;
+  const img = ctx.createImageData(cssW, cssH);
+  const data = img.data;
+  // Paint one column per pixel, repeated down the height (vertical bar look).
+  for (let x = 0; x < cssW; x++) {
+    const xi = Math.floor((x / cssW) * N);
+    const v = intensity[Math.min(N - 1, xi)];
+    const rgb = wfColormap(v);
+    for (let y = 0; y < cssH; y++) {
+      const i = (y * cssW + x) * 4;
+      data[i]   = rgb[0];
+      data[i+1] = rgb[1];
+      data[i+2] = rgb[2];
+      data[i+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// Position the minimap viewport box to reflect the current visible window.
+function updateWfMinimapViewport() {
+  const box = document.getElementById("wf-minimap-viewport");
+  if (!box) return;
+  const lo = wfHwMin(), hi = wfHwMax();
+  const span = hi - lo;
+  if (span <= 0) { box.style.display = "none"; return; }
+  const vlo = wfVisibleMin(), vhi = wfVisibleMax();
+  const leftPct = Math.max(0, Math.min(100, ((vlo - lo) / span) * 100));
+  const widthPct = Math.max(0.5, Math.min(100, ((vhi - vlo) / span) * 100));
+  box.style.display = "block";
+  box.style.left = leftPct.toFixed(3) + "%";
+  box.style.width = widthPct.toFixed(3) + "%";
+}
+
+// Position the red needle. Clamp at viewport edges if needle is outside.
+function updateWfNeedle() {
+  const n = document.getElementById("wf-needle");
+  const lab = document.getElementById("wf-needle-label");
+  if (!n) return;
+  const vlo = wfVisibleMin(), vhi = wfVisibleMax();
+  const span = vhi - vlo;
+  if (span <= 0) { n.style.display = "none"; if (lab) lab.style.display = "none"; return; }
+  let f = Number(WF_NEEDLE.mhz);
+  if (!Number.isFinite(f)) f = WF_VP.center_mhz;
+  let frac = (f - vlo) / span;
+  let clamped = false;
+  if (frac < 0) { frac = 0; clamped = true; }
+  else if (frac > 1) { frac = 1; clamped = true; }
+  n.style.display = "block";
+  n.style.left = (frac * 100).toFixed(3) + "%";
+  n.style.opacity = clamped ? "0.55" : "1";
+  if (lab) {
+    lab.style.display = "block";
+    lab.textContent = f.toFixed(3) + " MHz";
+  }
+}
+
+// Set the needle freq. If freq is outside the hw band, retune the hw
+// center (POST /api/waterfall) so the operator's tune lands inside the
+// new visible window. If inside hw band but outside viewport, recenter
+// the viewport.
+function setWfNeedleFreq(mhz, opts) {
+  const m = Number(mhz);
+  if (!Number.isFinite(m)) return;
+  opts = opts || {};
+  WF_NEEDLE.mhz = m;
+  // Refresh the input field (unless the user is mid-typing).
+  const input = document.getElementById("wf-center-input");
+  if (input && document.activeElement !== input && !opts.skipInput) {
+    input.value = m.toFixed(3);
+  }
+  // Hw band coverage check.
+  const hwLo = wfHwMin(), hwHi = wfHwMax();
+  if (m < hwLo || m > hwHi) {
+    // Out of hw band — POST a retune (centers on m). Viewport follows.
+    WF_VP.center_mhz = m;
+    WF_HW.center_mhz = m;  // optimistic; backend confirms on next frame
+    if (!opts.skipPost) postWaterfallCenter(m, WF_HW.full_bw);
+  } else {
+    // Inside hw band: recenter viewport if needle would fall outside.
+    const vlo = wfVisibleMin(), vhi = wfVisibleMax();
+    if (m < vlo || m > vhi) {
+      WF_VP.center_mhz = clampViewportCenter(m);
+    }
+  }
+  // Mirror to legacy mobile state so peak-click + VFO + arrow keys stay consistent.
+  WF_CENTER_LOCAL.mhz = m;
+  updateWfNeedle();
+  updateWfMinimapViewport();
+  updateWfMarker(m);
+}
+
+// Refresh axis labels + spec/wf rendering window after a viewport change.
+function refreshWfViewport() {
+  WF_VIEW.min = wfVisibleMin();
+  WF_VIEW.max = wfVisibleMax();
+  const ax_lo = document.getElementById("wf-axis-min");
+  const ax_md = document.getElementById("wf-axis-mid");
+  const ax_hi = document.getElementById("wf-axis-max");
+  if (ax_lo) ax_lo.textContent = WF_VIEW.min.toFixed(2);
+  if (ax_md) ax_md.textContent = ((WF_VIEW.min + WF_VIEW.max) / 2).toFixed(2);
+  if (ax_hi) ax_hi.textContent = WF_VIEW.max.toFixed(2);
+  updateWfNeedle();
+  updateWfMinimapViewport();
+  // Reset spec peak-hold so it tracks the new visible window.
+  try { SPEC_PEAK_HOLD.delete("wf-canvas"); } catch (_) {}
+}
+
+// ----- desktop needle drag -----
+function wireWfNeedleDrag() {
+  const needle = document.getElementById("wf-needle");
+  const wrap = document.querySelector(".wf-canvas-wrap");
+  if (!needle || !wrap) return;
+  let dragging = false;
+  function onMove(e) {
+    if (!dragging) return;
+    if (e.cancelable) e.preventDefault();
+    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width || 1;
+    let frac = (clientX - rect.left) / w;
+    if (frac < 0) frac = 0; else if (frac > 1) frac = 1;
+    const f = wfVisibleMin() + frac * (wfVisibleMax() - wfVisibleMin());
+    WF_NEEDLE.mhz = f;
+    WF_CENTER_LOCAL.mhz = f;
+    updateWfNeedle();
+    updateWfMarker(f);
+    const input = document.getElementById("wf-center-input");
+    if (input && document.activeElement !== input) input.value = f.toFixed(3);
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    needle.classList.remove("dragging");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onUp);
+  }
+  function onDown(e) {
+    if (!wfIsDesktop()) return;
+    dragging = true;
+    needle.classList.add("dragging");
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+    if (e.cancelable) e.preventDefault();
+    onMove(e);
+  }
+  needle.addEventListener("mousedown", onDown);
+  needle.addEventListener("touchstart", onDown, { passive: false });
+  // Click anywhere on the main waterfall (away from needle) snaps the
+  // needle to that column.
+  wrap.addEventListener("click", (e) => {
+    if (!wfIsDesktop()) return;
+    if (e.target === needle || (needle.contains && needle.contains(e.target))) return;
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width || 1;
+    let frac = (e.clientX - rect.left) / w;
+    if (frac < 0) frac = 0; else if (frac > 1) frac = 1;
+    const f = wfVisibleMin() + frac * (wfVisibleMax() - wfVisibleMin());
+    setWfNeedleFreq(f);
+  });
+}
+
+// ----- minimap drag (pans the desktop viewport) -----
+function wireWfMinimapDrag() {
+  const mm = document.getElementById("wf-minimap-wrap");
+  const box = document.getElementById("wf-minimap-viewport");
+  if (!mm || !box) return;
+  let dragging = false;
+  let dragOffsetFrac = 0;  // where inside the box the user clicked
+  function frameSpan() {
+    return { lo: wfHwMin(), hi: wfHwMax() };
+  }
+  function setViewportFromClientX(clientX, useOffset) {
+    const rect = mm.getBoundingClientRect();
+    const w = rect.width || 1;
+    let frac = (clientX - rect.left) / w;
+    if (frac < 0) frac = 0; else if (frac > 1) frac = 1;
+    const { lo, hi } = frameSpan();
+    const span = hi - lo;
+    const visBw = wfVisibleBw();
+    let centerFrac = frac;
+    if (useOffset) centerFrac = frac - dragOffsetFrac + (visBw / span) / 2;
+    const center = lo + centerFrac * span;
+    WF_VP.center_mhz = clampViewportCenter(center);
+    refreshWfViewport();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    if (e.cancelable) e.preventDefault();
+    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    setViewportFromClientX(clientX, true);
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    box.classList.remove("dragging");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onUp);
+  }
+  function onDown(e) {
+    if (!wfIsDesktop()) return;
+    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    const target = e.target;
+    if (target === box || (box.contains && box.contains(target))) {
+      // Drag the box: track the offset inside it so the box follows the cursor.
+      const boxRect = box.getBoundingClientRect();
+      const bw = boxRect.width || 1;
+      dragOffsetFrac = (clientX - boxRect.left) / bw *
+                       ((boxRect.width || 1) / (mm.getBoundingClientRect().width || 1));
+    } else {
+      // Click-snap: viewport center jumps to clicked point.
+      dragOffsetFrac = 0;
+      setViewportFromClientX(clientX, false);
+    }
+    dragging = true;
+    box.classList.add("dragging");
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+    if (e.cancelable) e.preventDefault();
+  }
+  mm.addEventListener("mousedown", onDown);
+  mm.addEventListener("touchstart", onDown, { passive: false });
+}
+
+// ----- zoom + contrast sliders -----
+function wireWfZoomSlider() {
+  const s = document.getElementById("wf-zoom-slider");
+  const v = document.getElementById("wf-zoom-val");
+  if (!s) return;
+  function apply() {
+    const z = Math.max(WF_ZOOM_MIN, Math.min(WF_ZOOM_MAX, (Number(s.value) || 100) / 100));
+    WF_VP.zoom = z;
+    // Recenter viewport on the needle when zooming in, so the needle stays
+    // visible (this matches SDR# "zoom toward the tuned freq" UX).
+    if (z > 1.001) {
+      WF_VP.center_mhz = clampViewportCenter(WF_NEEDLE.mhz || WF_VP.center_mhz);
+    } else {
+      WF_VP.center_mhz = WF_HW.center_mhz;
+    }
+    if (v) v.textContent = z.toFixed(1) + "×";
+    refreshWfViewport();
+  }
+  s.addEventListener("input", apply);
+  s.addEventListener("change", apply);
+  apply();
+}
+function wireWfContrastSlider() {
+  const s = document.getElementById("wf-contrast-slider");
+  const v = document.getElementById("wf-contrast-val");
+  if (!s) return;
+  function apply() {
+    const c = Math.max(WF_CONTRAST_MIN, Math.min(WF_CONTRAST_MAX, (Number(s.value) || 100) / 100));
+    WF_FX.contrast = c;
+    if (v) v.textContent = c.toFixed(1) + "×";
+  }
+  s.addEventListener("input", apply);
+  s.addEventListener("change", apply);
+  apply();
+}
+// ----- fullscreen toggle -----
+function wireWfFullscreen() {
+  const btn = document.getElementById("wf-fs-btn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    WF_FX.fullscreen = !WF_FX.fullscreen;
+    document.body.classList.toggle("wf-fs-active", WF_FX.fullscreen);
+    btn.setAttribute("aria-pressed", WF_FX.fullscreen ? "true" : "false");
+    // Force a re-measure on the next animation frame so canvases pick up the
+    // new dimensions.
+    requestAnimationFrame(() => {
+      try {
+        const c1 = document.getElementById("wf-spec");
+        const c2 = document.getElementById("wf-canvas");
+        if (c1) { c1.width = c1.clientWidth; c1.height = c1.clientHeight; }
+        if (c2) { c2.width = c2.clientWidth; c2.height = c2.clientHeight; }
+        WF_HIST.delete("wf-canvas");
+        renderWfMinimap();
+        updateWfMinimapViewport();
+        updateWfNeedle();
+      } catch (_) {}
+    });
+  });
+  // ESC exits fullscreen.
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && WF_FX.fullscreen) {
+      WF_FX.fullscreen = false;
+      document.body.classList.remove("wf-fs-active");
+      btn.setAttribute("aria-pressed", "false");
+    }
+  });
+}
+
 // ----- Live IQ drag-to-pan (SDR#/GQRX-style) -----
 // Click/touch-drag the waterfall body to shift center freq: drag right ->
 // lower freq, drag left -> higher freq (panning the spectrum like a map).
@@ -4973,17 +5715,22 @@ function updateWfMarker(centerMhz) {
   if (lab)   { lab.style.left = pct; lab.style.display = "block"; lab.textContent = c.toFixed(3) + " MHz"; }
 }
 
-// Apply an additive MHz step to the current center freq, soft-clamped to
-// the RTL-SDR R820T2 range and snapped to the same 50 kHz grid the
-// drag-to-pan handler uses.  Updates local state, the marker, the input
-// field, and POSTs to /api/waterfall.
+// Apply an additive MHz step. On desktop the step moves the red needle;
+// the needle can roam inside the visible viewport without retuning the
+// hw band, and setWfNeedleFreq handles auto-retune when the operator
+// steps outside [hw_min, hw_max]. On mobile the legacy flow stays:
+// every step POSTs a hw retune.
 function applyWfStep(deltaMhz) {
-  const cur = Number(WF_CENTER_LOCAL.mhz);
-  if (!Number.isFinite(cur)) return;
-  let next = wfSnap(cur + Number(deltaMhz));
+  const base = wfIsDesktop() ? Number(WF_NEEDLE.mhz) : Number(WF_CENTER_LOCAL.mhz);
+  if (!Number.isFinite(base)) return;
+  let next = wfSnap(base + Number(deltaMhz));
   if (!Number.isFinite(next)) return;
   if (next < FREQ_MIN_MHZ) next = FREQ_MIN_MHZ;
   if (next > FREQ_MAX_MHZ) next = FREQ_MAX_MHZ;
+  if (wfIsDesktop()) {
+    setWfNeedleFreq(next);
+    return;
+  }
   setWfCenterFromMhz(next);
   updateWfMarker(next);
   const input = document.getElementById("wf-center-input");
@@ -5037,6 +5784,10 @@ function wfEdgeHint(side) {
   }, 450);
 }
 function wireWfPan() {
+  // SB5 redesign: on desktop the needle + minimap take over panning, so
+  // drag-on-waterfall must NOT retune the hw band any more. Mobile keeps
+  // the legacy drag-to-pan flow (no needle, no minimap, no sliders).
+  if (wfIsDesktop()) return;
   const wrap = document.querySelector(".wf-canvas-wrap");
   if (!wrap) return;
   let startX = 0, startCenter = 0, postTimer = null;
@@ -5263,12 +6014,17 @@ function wireSpecPeakClicks() {
 function wireWfCenterInput() {
   const input = $("wf-center-input");
   const bwInput = $("wf-bw-input");
-  // commit(): read center (+ optional bw) from the inputs and POST both.
-  // A blank bw box preserves the current bandwidth (backend treats a
-  // missing bw_mhz as "keep current").
+  // commit(): read center (+ optional bw) from the inputs.
+  //  - Desktop: route through setWfNeedleFreq (snaps needle, recenters
+  //    viewport, retunes hw band only if freq falls outside [hw_min, hw_max]).
+  //  - Mobile: legacy flow — POST hw retune with optional bw.
   function commit() {
     const v = parseFloat(input && input.value);
     if (!Number.isFinite(v)) return;
+    if (wfIsDesktop()) {
+      setWfNeedleFreq(v);
+      return;
+    }
     const b = parseFloat(bwInput && bwInput.value);
     const bw = Number.isFinite(b) && b > 0 ? b : undefined;
     setWfCenterFromMhz(v);
@@ -5288,7 +6044,11 @@ function wireWfCenterInput() {
   const applyBtn = $("wf-apply-btn");
   if (applyBtn) applyBtn.addEventListener("click", commit);
 
-  // Quick-jump chips: jump center + bw to a common band in one click.
+  // Quick-jump chips: jump to a common band in one click. On desktop the
+  // jump always retunes the hw band (the typed freq is well outside the
+  // current ±2 MHz viewport in most cases) — setWfNeedleFreq handles
+  // detection + POST. On mobile, keep the legacy explicit bw POST so the
+  // bw input behavior is unchanged.
   const jumpRow = $("wf-jump-row");
   if (jumpRow) {
     jumpRow.addEventListener("click", (e) => {
@@ -5300,6 +6060,17 @@ function wireWfCenterInput() {
       const bw = Number.isFinite(w) && w > 0 ? w : undefined;
       if (input) input.value = c.toFixed(3);
       if (bwInput && bw !== undefined) bwInput.value = String(bw);
+      if (wfIsDesktop()) {
+        // Force a hw retune by writing WF_HW first so setWfNeedleFreq
+        // sees the new band as the operator's target.
+        WF_HW.center_mhz = c;
+        if (Number.isFinite(bw)) WF_HW.full_bw = bw;
+        WF_VP.center_mhz = c;
+        postWaterfallCenter(c, bw);
+        setWfNeedleFreq(c, { skipPost: true });
+        syncWfJumpActive(c, bw === undefined ? WF_HW.full_bw : bw);
+        return;
+      }
       setWfCenterFromMhz(c);
       postWaterfallCenter(c, bw);
       syncWfJumpActive(c, bw === undefined ? WF_CENTER_LOCAL.bw : bw);
@@ -7221,9 +7992,39 @@ function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
   if (paneId === WS_PANE_WATERFALL) {
     const min = centerMhz - spanMhz / 2;
     const max = centerMhz + spanMhz / 2;
-    const intensity = autoStretchIntensity(bins, "wf-canvas");
-    pushWaterfallRow("wf-canvas", intensity, wfColormap);
-    specSubmitFrame($("wf-spec"), bins, min, max, "wf-canvas");
+    // Keep WF_HW + viewport state in sync from the WS hot path.
+    WF_HW.center_mhz = centerMhz;
+    WF_HW.full_bw = spanMhz;
+    const _wfDesktop = wfIsDesktop();
+    const fullIntensity = autoStretchIntensity(bins, "wf-canvas");
+    WF_LAST_FULL_INTENSITY = fullIntensity;
+    let renderIntensity = fullIntensity;
+    let renderBins = bins;
+    let renderMin = min, renderMax = max;
+    if (_wfDesktop) {
+      if (!Number.isFinite(WF_VP.center_mhz)) WF_VP.center_mhz = centerMhz;
+      WF_VP.center_mhz = clampViewportCenter(WF_VP.center_mhz);
+      WF_VIEW.min = wfVisibleMin();
+      WF_VIEW.max = wfVisibleMax();
+      // Refresh axis labels at WS frame rate so hw retunes (quick-jump,
+      // typed-freq-outside-band) move the labels promptly.
+      const _ax_lo = $("wf-axis-min"), _ax_md = $("wf-axis-mid"), _ax_hi = $("wf-axis-max");
+      if (_ax_lo) _ax_lo.textContent = WF_VIEW.min.toFixed(2);
+      if (_ax_md) _ax_md.textContent = ((WF_VIEW.min + WF_VIEW.max) / 2).toFixed(2);
+      if (_ax_hi) _ax_hi.textContent = WF_VIEW.max.toFixed(2);
+      renderIntensity = applyContrastToIntensity(sliceArrayForZoom(fullIntensity));
+      renderBins = sliceArrayForZoom(bins);
+      renderMin = WF_VIEW.min; renderMax = WF_VIEW.max;
+    } else {
+      WF_VIEW.min = min; WF_VIEW.max = max;
+    }
+    pushWaterfallRow("wf-canvas", renderIntensity, wfColormap);
+    specSubmitFrame($("wf-spec"), renderBins, renderMin, renderMax, "wf-canvas");
+    if (_wfDesktop) {
+      renderWfMinimap();
+      updateWfMinimapViewport();
+      updateWfNeedle();
+    }
   }
 }
 
@@ -7537,8 +8338,17 @@ function boot() {
   // requested context type becomes permanent.
   _initLiveIQGL();
 
-  // Live IQ: drag the waterfall body to pan center freq (SDR#/GQRX-style).
+  // Live IQ: on mobile this attaches drag-to-pan (legacy hw retune on
+  // drag). On desktop the function early-returns and the SB5 needle +
+  // minimap take over.
   wireWfPan();
+  // SB5 desktop redesign wires (no-ops on mobile — they just bind to
+  // DOM nodes that media queries have set to display:none).
+  wireWfNeedleDrag();
+  wireWfMinimapDrag();
+  wireWfZoomSlider();
+  wireWfContrastSlider();
+  wireWfFullscreen();
 
   wireVFOControls();
   wireVFOSliders();
