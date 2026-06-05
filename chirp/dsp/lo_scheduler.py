@@ -26,6 +26,18 @@ Design notes
   daemon's main loop).  Each wake checks dwell expiry / invalidation and
   steps the state machine.  All mutations are guarded by ``self._lock``.
 
+* **Canonical lock order (CRITICAL).** When a thread takes BOTH the
+  daemon's ``ChirpFlowgraph._lock`` (the "D-lock") AND this scheduler's
+  ``self._lock`` (the "S-lock"), it MUST acquire **D-lock before S-lock**.
+  The scheduler's ``step()`` enforces this internally by acquiring the
+  injected ``daemon_lock`` before the S-lock.  Callers that already hold
+  the daemon lock (the cmd-server path via
+  ``ChirpFlowgraph._invalidate_and_apply_now``) pay only an RLock-reentry
+  on D.  Threads that take only S (``current_cluster_center_hz`` from
+  the hit-detector) are unaffected.  See ``DESIGN_lo_scheduler_lockfix.md``
+  for the historical wedge (2026-06-04 21:26:21 EDT) this invariant
+  prevents.
+
 * **Single-cluster degenerate case.** If the planner returns exactly one
   cluster, the scheduler tunes there once, unparks its channels, and stops
   rotating.  This is the "small channel list" case — no LO retuning
@@ -99,6 +111,13 @@ class LoScheduler:
         tick_s: scheduler wake interval (seconds).  Default 0.25.
         clock: injectable monotonic-ish clock (defaults to ``time.time``).
             Tests pass a fake clock.
+        daemon_lock: optional reentrant lock (the daemon's ``D-lock``)
+            that ``step()`` will acquire BEFORE its internal S-lock to
+            honour the canonical lock order (see module docstring).
+            Production wires ``ChirpFlowgraph._lock`` here.  Tests that
+            do not exercise the cross-lock path may pass ``None``; a
+            private RLock is created so the acquire-D-first code path
+            still runs (no real serialisation, just uniform shape).
     """
 
     def __init__(
@@ -114,6 +133,7 @@ class LoScheduler:
         max_clusters: int = DEFAULT_MAX_CLUSTERS,
         tick_s: float = DEFAULT_TICK_S,
         clock: Callable[[], float] = time.time,
+        daemon_lock: Optional[threading.RLock] = None,
     ) -> None:
         if iq_bw_hz <= 0:
             raise ValueError(f"iq_bw_hz must be > 0, got {iq_bw_hz!r}")
@@ -136,6 +156,14 @@ class LoScheduler:
         self._clock = clock
 
         self._lock = threading.RLock()
+        # See canonical-lock-order note in module docstring.  When the
+        # caller does not provide a daemon lock (unit tests, primarily)
+        # we still create a private RLock so ``step()`` exercises the
+        # acquire-D-before-S code path uniformly — there is no other
+        # contender for the private lock, so it serialises nothing.
+        self._daemon_lock: threading.RLock = (
+            daemon_lock if daemon_lock is not None else threading.RLock()
+        )
         self._stop = threading.Event()
         self._invalidate_evt = threading.Event()
         # Force initial plan compute on the first step.
@@ -270,10 +298,19 @@ class LoScheduler:
         a background thread.  Holds ``self._lock`` for the duration of
         the step so callbacks (``retune_to``, ``park_channels``,
         ``unpark_channels``, ``emit_event``) see a consistent state.
+
+        Lock-order discipline: acquires ``self._daemon_lock`` BEFORE
+        ``self._lock`` to honour the canonical D-before-S order.  When the
+        caller is the cmd-server thread already holding the daemon lock
+        (``_invalidate_and_apply_now`` path), this is a free RLock reentry
+        on D.  When the caller is the scheduler's own ``_loop``, this
+        acquires D fresh — possibly briefly blocking on an in-flight cmd
+        handler, which is the intended serialisation.  See the
+        "Canonical lock order" note in the module docstring.
         """
         if now is None:
             now = self._clock()
-        with self._lock:
+        with self._daemon_lock, self._lock:
             # 1) Recompute plan if needed.
             if self._invalidate_evt.is_set():
                 self._invalidate_evt.clear()
