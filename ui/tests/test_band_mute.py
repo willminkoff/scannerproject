@@ -318,6 +318,103 @@ class BandMuteTests(unittest.TestCase):
     def test_band_keys_cover_all_three(self) -> None:
         self.assertEqual(set(self.bm.BAND_KEYS), {"airband", "ground", "digital"})
 
+    # ---- wpctl-native path (pactl absent, e.g. micro) ---------------------
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_wpctl_native_path_resolves_via_status_and_inspect(
+        self,
+        run_mock: mock.Mock,
+        which_mock: mock.Mock,
+    ) -> None:
+        """On a PipeWire-only host (no pactl), the module must walk
+        ``wpctl status`` for stream IDs, ``wpctl inspect`` each to
+        match pid, then ``wpctl set-mute`` the matched stream."""
+        def which_side(prog):
+            return None if prog == "pactl" else "/usr/bin/" + prog
+        which_mock.side_effect = which_side
+
+        wpctl_status = (
+            "PipeWire 'pipewire-0' [1.0.5]\n"
+            " \xe2\x94\x94\xe2\x94\x80 Clients:\n"
+            "       68. VLC media player (LibVLC 3.0.20)    [pid:8391]\n"
+            "Audio\n"
+            " \xe2\x94\x9c\xe2\x94\x80 Sinks:\n"
+            " \xe2\x94\x82  *   48. Built-in Audio Analog Stereo\n"
+            " \xe2\x94\x82  \n"
+            " \xe2\x94\x9c\xe2\x94\x80 Sink endpoints:\n"
+            " \xe2\x94\x82  \n"
+            " \xe2\x94\x94\xe2\x94\x80 Streams:\n"
+            "        69. VLC media player (LibVLC 3.0.20)\n"
+            "             70. output_FL\n"
+            "             71. output_FR\n"
+            "Video\n"
+        )
+        # Note: \xe2\x94 are utf-8 bytes for the tree-drawing glyphs that
+        # wpctl emits; reproducing them keeps the regex paths under test.
+        wpctl_status = wpctl_status.encode("latin-1").decode("utf-8")
+        wpctl_inspect_69 = (
+            'id 69, type PipeWire:Interface:Node\n'
+            '    application.process.binary = "vlc"\n'
+            '    application.process.id = "8391"\n'
+            '  * media.class = "Stream/Output/Audio"\n'
+        )
+
+        wpctl_calls: list[list[str]] = []
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "systemctl":
+                return _fake_completed(rc=0, stdout="8391\n")
+            if cmd[:2] == ["wpctl", "status"]:
+                return _fake_completed(rc=0, stdout=wpctl_status)
+            if cmd[:2] == ["wpctl", "inspect"]:
+                if cmd[2] == "69":
+                    return _fake_completed(rc=0, stdout=wpctl_inspect_69)
+                return _fake_completed(rc=0, stdout="")
+            if cmd[:2] == ["wpctl", "set-mute"]:
+                wpctl_calls.append(list(cmd))
+                return _fake_completed(rc=0, stdout="")
+            return _fake_completed(rc=0, stdout="")
+
+        run_mock.side_effect = fake_run
+        ok, msg = self.bm.set_band("airband", True)
+        self.assertTrue(ok, msg=msg)
+        self.assertEqual(wpctl_calls, [["wpctl", "set-mute", "69", "1"]])
+
+    @mock.patch("shutil.which")
+    @mock.patch("subprocess.run")
+    def test_no_live_stream_persists_intent_and_returns_ok(
+        self,
+        run_mock: mock.Mock,
+        which_mock: mock.Mock,
+    ) -> None:
+        """When the VLC service IS running but no audio stream is live
+        right now (squelched), set_band should:
+          - persist intent (so watcher applies on next stream creation)
+          - return ok=True (not an error from the operator's POV)
+          - message should hint at squelched state for diagnostics."""
+        def which_side(prog):
+            return None if prog == "pactl" else "/usr/bin/" + prog
+        which_mock.side_effect = which_side
+
+        empty_status_no_streams = (
+            "PipeWire 'pipewire-0' [1.0.5]\n"
+            "Audio\n"
+            " └─ Streams:\n"
+            "Video\n"
+        )
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "systemctl":
+                return _fake_completed(rc=0, stdout="8391\n")
+            if cmd[:2] == ["wpctl", "status"]:
+                return _fake_completed(rc=0, stdout=empty_status_no_streams)
+            return _fake_completed(rc=0, stdout="")
+        run_mock.side_effect = fake_run
+
+        ok, msg = self.bm.set_band("ground", True)
+        self.assertTrue(ok, msg=msg)
+        self.assertIn("squelched", msg)
+        self.assertTrue(self.bm.get_state()["ground"])
+
     # ---- start_watcher is idempotent ---------------------------------------
 
     def test_start_watcher_is_idempotent(self) -> None:

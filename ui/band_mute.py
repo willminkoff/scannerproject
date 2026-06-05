@@ -87,6 +87,35 @@ _watcher_started_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
+# Subprocess environment — required when running under systemd (no user
+# session env inherited).  wpctl talks to PipeWire via
+# $XDG_RUNTIME_DIR/pipewire-0; without it set, every wpctl call dies with
+# "Could not connect to PipeWire" and silently returns empty output.  The
+# same uid-1000 runtime dir is used by ui/vlc.py:_vlc_launch_env() — we
+# keep the contracts aligned so the audio chain is reachable from either
+# module under the same systemd unit.
+# ---------------------------------------------------------------------------
+
+def _audio_subprocess_env() -> dict[str, str]:
+    env = os.environ.copy()
+    try:
+        uid_text = os.getenv("BAND_MUTE_AUDIO_UID")
+        uid = int(uid_text) if uid_text else os.getuid()
+    except (ValueError, TypeError):
+        uid = os.getuid()
+    runtime_dir = os.getenv("BAND_MUTE_XDG_RUNTIME_DIR", f"/run/user/{uid}")
+    if runtime_dir and os.path.isdir(runtime_dir):
+        env["XDG_RUNTIME_DIR"] = runtime_dir
+        # Both wpctl AND pactl benefit from PULSE_SERVER pointing at the
+        # pipewire-pulse shim socket; PipeWire itself just needs the
+        # runtime dir to find pipewire-0.
+        pulse_native = os.path.join(runtime_dir, "pulse", "native")
+        if os.path.exists(pulse_native):
+            env.setdefault("PULSE_SERVER", f"unix:{pulse_native}")
+    return env
+
+
+# ---------------------------------------------------------------------------
 # State file IO
 # ---------------------------------------------------------------------------
 
@@ -162,6 +191,10 @@ def _service_main_pid(unit: str) -> Optional[int]:
 
 
 _PACTL_SINK_INPUT_RE = re.compile(r"^Sink Input #(\d+)\b")
+_WPCTL_NODE_LINE_RE = re.compile(r"^[\s│├└─*]*(\d+)\.\s+")
+_INSPECT_PID_RE = re.compile(r'application\.process\.id\s*=\s*"(\d+)"')
+_INSPECT_MUTE_RE = re.compile(r'mute\s*=\s*(true|false)', re.IGNORECASE)
+_GET_VOLUME_MUTED_RE = re.compile(r"\[MUTED\]")
 
 
 def _descendant_pids(root: int) -> set[int]:
@@ -203,6 +236,10 @@ def _descendant_pids(root: int) -> set[int]:
 
 
 def _pactl_sink_inputs_text() -> str:
+    """Legacy pulse-shim sink-input listing.  Kept for backward compat
+    with hosts that still have ``pactl`` installed; on PipeWire-only
+    hosts (e.g. micro post-2026-06-05) this returns empty and we fall
+    through to the native wpctl path below."""
     if not shutil.which("pactl"):
         return ""
     try:
@@ -210,36 +247,149 @@ def _pactl_sink_inputs_text() -> str:
             ["pactl", "list", "sink-inputs"],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, timeout=3.0, check=False,
+            env=_audio_subprocess_env(),
         )
     except Exception:  # noqa: BLE001
         return ""
     return res.stdout or ""
 
 
-def _sink_input_id_for_pid(pid: int) -> Optional[str]:
-    """Find the pulse / pipewire sink-input owned by a process PID
-    (or any descendant)."""
-    if not pid or pid <= 1:
-        return None
-    text = _pactl_sink_inputs_text()
+def _wpctl_status_text() -> str:
+    if not shutil.which("wpctl"):
+        return ""
+    try:
+        res = subprocess.run(
+            ["wpctl", "status"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, timeout=3.0, check=False,
+            env=_audio_subprocess_env(),
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    return res.stdout or ""
+
+
+def _wpctl_inspect_text(node_id: str) -> str:
+    if not shutil.which("wpctl"):
+        return ""
+    try:
+        res = subprocess.run(
+            ["wpctl", "inspect", str(node_id)],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, timeout=2.0, check=False,
+            env=_audio_subprocess_env(),
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    return res.stdout or ""
+
+
+def _enumerate_wpctl_audio_stream_ids() -> list[str]:
+    """Walk ``wpctl status`` and return the IDs of every node listed
+    under ``Audio -> Streams:``.  These are the PipeWire output streams
+    that ``wpctl set-mute`` operates on."""
+    text = _wpctl_status_text()
+    if not text:
+        return []
+    out: list[str] = []
+    in_audio = False
+    in_streams = False
+    indent_floor: Optional[int] = None
+    for raw in text.splitlines():
+        # Top-level section banners are flush-left.
+        if raw.startswith("Audio"):
+            in_audio = True
+            in_streams = False
+            indent_floor = None
+            continue
+        if raw.startswith("Video") or raw.startswith("Settings"):
+            in_audio = False
+            in_streams = False
+            indent_floor = None
+            continue
+        if not in_audio:
+            continue
+        if "Streams:" in raw:
+            in_streams = True
+            indent_floor = None
+            continue
+        if not in_streams:
+            continue
+        # Stop scanning Streams at the next top-level audio sub-section
+        # (Sinks:, Sources:, Endpoints, ...) — those don't carry "Streams:"
+        # in their header so we detect them by an explicit ":" suffix.
+        if raw.strip().endswith(":") and "Streams" not in raw:
+            in_streams = False
+            indent_floor = None
+            continue
+        m = _WPCTL_NODE_LINE_RE.match(raw)
+        if not m:
+            continue
+        # Pick the OUTER-MOST stream depth — VLC nests its port nodes
+        # (output_FL / output_FR) under the stream node and we don't
+        # want to mute individual ports.
+        indent = len(raw) - len(raw.lstrip(" │"))
+        if indent_floor is None:
+            indent_floor = indent
+        if indent > indent_floor:
+            continue
+        out.append(m.group(1))
+    return out
+
+
+def _stream_node_pid(node_id: str) -> Optional[int]:
+    text = _wpctl_inspect_text(node_id)
     if not text:
         return None
-    acceptable_pids = {str(pid)} | {str(p) for p in _descendant_pids(pid)}
-    current_id: Optional[str] = None
-    for line in text.splitlines():
-        m = _PACTL_SINK_INPUT_RE.match(line)
-        if m:
-            current_id = m.group(1)
-            continue
-        if current_id is None:
-            continue
-        stripped = line.strip()
-        if stripped.startswith("application.process.id"):
-            # form: application.process.id = "12345"
-            val = stripped.split("=", 1)[-1].strip().strip('"')
-            if val in acceptable_pids:
-                return current_id
+    m = _INSPECT_PID_RE.search(text)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def _wpctl_find_stream_for_pid(pid: int) -> Optional[str]:
+    if not pid or pid <= 1:
+        return None
+    acceptable_pids = {pid} | _descendant_pids(pid)
+    for node_id in _enumerate_wpctl_audio_stream_ids():
+        node_pid = _stream_node_pid(node_id)
+        if node_pid is not None and node_pid in acceptable_pids:
+            return node_id
     return None
+
+
+def _sink_input_id_for_pid(pid: int) -> Optional[str]:
+    """Find the audio output node for a process PID (or any descendant).
+
+    Tries the legacy pulse-shim ``pactl list sink-inputs`` first for
+    backward compat with hosts that still have pulseaudio's CLI tools;
+    falls back to the PipeWire-native ``wpctl status`` + ``wpctl
+    inspect`` discovery path, which is the only thing available on a
+    pipewire-only host (micro)."""
+    if not pid or pid <= 1:
+        return None
+    # Pulse-shim path (legacy).
+    text = _pactl_sink_inputs_text()
+    if text:
+        acceptable_pids = {str(pid)} | {str(p) for p in _descendant_pids(pid)}
+        current_id: Optional[str] = None
+        for line in text.splitlines():
+            m = _PACTL_SINK_INPUT_RE.match(line)
+            if m:
+                current_id = m.group(1)
+                continue
+            if current_id is None:
+                continue
+            stripped = line.strip()
+            if stripped.startswith("application.process.id"):
+                val = stripped.split("=", 1)[-1].strip().strip('"')
+                if val in acceptable_pids:
+                    return current_id
+    # PipeWire-native path.
+    return _wpctl_find_stream_for_pid(pid)
 
 
 def _set_sink_input_mute(sink_input_id: str, muted: bool) -> tuple[bool, str]:
@@ -249,12 +399,14 @@ def _set_sink_input_mute(sink_input_id: str, muted: bool) -> tuple[bool, str]:
     ``pactl set-sink-input-mute`` (works through the pulse shim).
     """
     arg = "1" if muted else "0"
+    env = _audio_subprocess_env()
     if shutil.which("wpctl"):
         try:
             res = subprocess.run(
                 ["wpctl", "set-mute", str(sink_input_id), arg],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, timeout=2.0, check=False,
+                env=env,
             )
         except Exception as exc:  # noqa: BLE001
             return False, f"wpctl exec: {exc}"
@@ -267,6 +419,7 @@ def _set_sink_input_mute(sink_input_id: str, muted: bool) -> tuple[bool, str]:
                 ["pactl", "set-sink-input-mute", str(sink_input_id), arg],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, timeout=2.0, check=False,
+                env=env,
             )
         except Exception as exc:  # noqa: BLE001
             return False, f"pactl exec: {exc}"
@@ -275,30 +428,60 @@ def _set_sink_input_mute(sink_input_id: str, muted: bool) -> tuple[bool, str]:
 
 
 def _current_sink_input_mute(sink_input_id: str) -> Optional[bool]:
-    """Read the current Mute: state of a sink-input via pactl.  Returns
-    None if pactl is missing or the input was not found."""
+    """Read the current Mute state of an audio stream.
+
+    Tries pulse-shim pactl first (when present), then falls back to
+    ``wpctl get-volume`` which prints ``[MUTED]`` after the volume when
+    the node is muted.  Returns None when the state can't be read."""
+    # Pulse-shim path.
     text = _pactl_sink_inputs_text()
-    if not text:
-        return None
-    in_target = False
-    for line in text.splitlines():
-        m = _PACTL_SINK_INPUT_RE.match(line)
-        if m:
-            in_target = (m.group(1) == str(sink_input_id))
-            continue
-        if in_target and line.strip().startswith("Mute:"):
-            val = line.split(":", 1)[1].strip().lower()
-            return val.startswith("yes")
+    if text:
+        in_target = False
+        for line in text.splitlines():
+            m = _PACTL_SINK_INPUT_RE.match(line)
+            if m:
+                in_target = (m.group(1) == str(sink_input_id))
+                continue
+            if in_target and line.strip().startswith("Mute:"):
+                val = line.split(":", 1)[1].strip().lower()
+                return val.startswith("yes")
+    # PipeWire-native path.
+    if shutil.which("wpctl"):
+        try:
+            res = subprocess.run(
+                ["wpctl", "get-volume", str(sink_input_id)],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                text=True, timeout=2.0, check=False,
+                env=_audio_subprocess_env(),
+            )
+        except Exception:  # noqa: BLE001
+            return None
+        if res.returncode == 0 and res.stdout:
+            return bool(_GET_VOLUME_MUTED_RE.search(res.stdout))
     return None
 
 
 def _apply_vlc_mute(unit: str, muted: bool) -> tuple[bool, str]:
+    """Apply mute to a per-band VLC sink-input.
+
+    Returns ``(ok, message)``.  When the upstream service is up but no
+    audio stream node currently exists (e.g. squelch is closed, VLC is
+    connected to icecast but not emitting frames), we return ok=True
+    with a message saying the watcher will apply mute when the stream
+    appears.  Intent is already persisted before this call returns from
+    set_band() so the watcher's 5s reconcile loop will catch it."""
     pid = _service_main_pid(unit)
     if pid is None:
         return False, f"{unit} not active"
     sink_id = _sink_input_id_for_pid(pid)
     if sink_id is None:
-        return False, f"no sink-input found for {unit} pid={pid}"
+        # No live audio stream — common when the band is squelched.  Not
+        # an error; the watcher will apply mute as soon as a stream node
+        # appears for this pid.
+        return True, (
+            f"{unit} pid={pid} has no live audio stream "
+            f"(squelched?); mute will apply when audio resumes"
+        )
     return _set_sink_input_mute(sink_id, muted)
 
 
