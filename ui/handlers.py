@@ -5650,6 +5650,50 @@ class Handler(BaseHTTPRequestHandler):
             return self._proxy_icecast_mount(p[len("/stream/"):], head_only=True, transcode=transcode)
         return self._send_head(404)
 
+    def do_PUT(self):
+        """Handle PUT requests.
+
+        The handler is otherwise POST-based; PUT is used only for the
+        idempotent player-card calibration store (Phase 1, 2026-06-05) —
+        ``PUT /api/audio/mount_gains`` with a full-or-partial JSON body of
+        ``{"ANALOG": 1.0, ..., "target_lufs": -18.0}``.  Read it back with
+        ``GET /api/audio/mount_gains``.  See ui/mount_gains.py.
+        """
+        p = _canonical_scan_api_path(urlparse(self.path).path)
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        raw = self.rfile.read(length).decode("utf-8", errors="ignore")
+        try:
+            payload = json.loads(raw) if raw.strip() else {}
+        except json.JSONDecodeError as exc:
+            return self._send(
+                400,
+                json.dumps({"ok": False, "error": f"invalid JSON: {exc}"}),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/audio/mount_gains":
+            try:
+                from . import mount_gains as _mount_gains_mod
+            except Exception:  # noqa: BLE001 — package vs script import
+                import mount_gains as _mount_gains_mod  # type: ignore
+            ok, err, state = _mount_gains_mod.set_state(
+                payload if isinstance(payload, dict) else {}
+            )
+            body = {"ok": ok, "gains": state}
+            if not ok:
+                body["error"] = err
+            return self._send(
+                200 if ok else 400,
+                json.dumps(body),
+                "application/json; charset=utf-8",
+            )
+
+        return self._send(
+            404,
+            json.dumps({"ok": False, "error": f"no PUT route for {p}"}),
+            "application/json; charset=utf-8",
+        )
+
     def do_GET(self):
         """Handle GET requests."""
         u = urlparse(self.path)
@@ -5767,6 +5811,28 @@ class Handler(BaseHTTPRequestHandler):
                 payload = {"ok": False, "error": str(e)}
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/audio/mount_gains":
+            # Phase 1 (2026-06-05) — read the player-card calibration store.
+            # Returns the flat schema {ANALOG, ANALOG_GROUND, DIGITAL, VFO,
+            # target_lufs}.  Written via PUT (see do_PUT) / ui/mount_gains.py.
+            try:
+                from . import mount_gains as _mount_gains_mod
+            except Exception:  # noqa: BLE001 — package vs script import
+                import mount_gains as _mount_gains_mod  # type: ignore
+            try:
+                state = _mount_gains_mod.get_state()
+            except Exception as e:  # noqa: BLE001
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, "gains": state}),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/heartbeat":
             # Phase 1b — read-only state inspection: QUIET vs WEDGED.
