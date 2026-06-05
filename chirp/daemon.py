@@ -80,6 +80,48 @@ from chirp.state import ChannelState, ChirpState, StateStore, default_state_path
 log = logging.getLogger("chirp.daemon")
 
 
+# ---------------------------------------------------------------------------
+# systemd integration (sd_notify)
+#
+# The gr-demod@.service unit is Type=notify (see
+# chirp/systemd/gr-demod@.service.template).  We must signal READY=1
+# after startup completes and WATCHDOG=1 periodically once running, or
+# systemd kills us.  python3-systemd is installed on Micro; the import
+# is wrapped defensively so unit-test environments without it still
+# import this module.
+#
+# See DESIGN_sdrplay_wedge_fix.md for full rationale.
+try:  # pragma: no cover — env-dependent
+    from systemd import daemon as _sd
+    _HAVE_SD = True
+except ImportError:  # pragma: no cover
+    _sd = None  # type: ignore[assignment]
+    _HAVE_SD = False
+
+
+def _sd_notify(state: Optional[str], status: Optional[str] = None) -> None:
+    """Send sd_notify state + optional STATUS line.
+
+    No-op when systemd python bindings are not importable (test
+    environments, dev laptops).  Under Type=notify on Micro, a missing
+    READY=1 means systemd kills the daemon at TimeoutStartSec — which
+    is correct behaviour for a misconfigured install.
+    """
+    if not _HAVE_SD:
+        return
+    parts: list[str] = []
+    if state:
+        parts.append(state)
+    if status:
+        parts.append(f"STATUS={status}")
+    if not parts:
+        return
+    try:
+        _sd.notify("\n".join(parts))
+    except Exception:  # noqa: BLE001
+        log.exception("sd_notify failed (state=%r status=%r)", state, status)
+
+
 # Squelch level used to "park" an inactive pool slot. 0 dBFS = gate closed
 # unless the input is louder than fullscale (i.e. effectively never).
 PARKED_SQUELCH_DBFS = 0.0
@@ -1042,6 +1084,10 @@ def main() -> int:
              cfg.source_kind, cfg.source_path,
              cfg.audio_out_kind, cfg.audio_out_path, cfg.max_channels)
 
+    # Surface startup phase to systemd / `systemctl status` so an operator
+    # can tell "currently opening" from "wedged in sdrplay_api_Open".
+    _sd_notify(None, f"opening {cfg.source_kind} source / building flowgraph (band={cfg.band})")
+
     # Build command server first (so we can pass it to the flowgraph for events).
     server = CommandServer(
         ServerConfig(host=cfg.cmd_host, port=cfg.cmd_port, event_sink=cfg.event_sink),
@@ -1069,18 +1115,34 @@ def main() -> int:
     except Exception:
         log.exception("state restore failed (continuing with empty pool)")
 
+    # READY=1: startup complete. Under Type=notify, systemd was holding
+    # the unit in "activating" until this signal — if the daemon hung in
+    # sdrplay_api_Open above, this line was never reached and systemd
+    # SIGKILL'd at TimeoutStartSec=60. See DESIGN_sdrplay_wedge_fix.md.
+    _sd_notify("READY=1", f"chirp ready (band={cfg.band})")
+
     stop_evt = threading.Event()
 
     def _sig(signum, frame):  # noqa: ARG001
         log.info("signal %d received, shutting down", signum)
+        _sd_notify("STOPPING=1", "draining + tearing down")
         stop_evt.set()
 
     signal.signal(signal.SIGTERM, _sig)
     signal.signal(signal.SIGINT, _sig)
 
+    # Watchdog cadence: ping every ~10 s. Unit has WatchdogSec=30, so
+    # this is 3× safety margin. See DESIGN_sdrplay_wedge_fix.md §4.3.
+    _WATCHDOG_INTERVAL_S = 10.0
+    last_watchdog = time.monotonic()
+
     try:
         while not stop_evt.is_set():
             time.sleep(0.25)
+            now = time.monotonic()
+            if now - last_watchdog >= _WATCHDOG_INTERVAL_S:
+                _sd_notify("WATCHDOG=1")
+                last_watchdog = now
     finally:
         log.info("stopping flowgraph + server")
         server.emit_event("daemon_stopping", band=cfg.band)
@@ -1094,6 +1156,17 @@ def main() -> int:
         except Exception:
             log.exception("error stopping flowgraph")
         server.stop()
+
+        # SDR shutdown drain. Give SoapySDR/sdrplay_api IPC time to fully
+        # release the device session before this process exits, so the
+        # replacement daemon's osmosdr.source() does not race against an
+        # incomplete release. File-source runs skip the drain.
+        # See DESIGN_sdrplay_wedge_fix.md §4.4.
+        drain_s = float(os.environ.get("CHIRP_SDR_SHUTDOWN_DRAIN_S", "2.0"))
+        if cfg.source_kind == "sdr" and drain_s > 0:
+            log.info("sdr shutdown drain: sleeping %.2fs to let sdrplay_api release", drain_s)
+            time.sleep(drain_s)
+
         log.info("chirp stopped")
     return 0
 
