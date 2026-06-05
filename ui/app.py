@@ -126,6 +126,19 @@ def main():
         logging.info("squelch_tracker thread started")
     except Exception:
         logging.exception("squelch_tracker failed to start")
+    # 2026-06-05: per-band BT-speaker mute watcher.  Reconciles persisted
+    # mute intent (data/band_mute.json) against the live PipeWire sink
+    # state every 5s so a service restart that re-creates an unmuted
+    # sink-input gets re-muted automatically.
+    try:
+        try:
+            from .band_mute import start_watcher as _start_band_mute_watcher
+        except ImportError:
+            from ui.band_mute import start_watcher as _start_band_mute_watcher
+        _start_band_mute_watcher()
+        logging.info("band_mute watcher thread started")
+    except Exception:
+        logging.exception("band_mute watcher failed to start")
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
     logging.info(f"UI listening on 0.0.0.0:{UI_PORT}")
     server.serve_forever()

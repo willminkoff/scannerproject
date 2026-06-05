@@ -5148,8 +5148,18 @@ def _compute_sitrep_payload() -> dict:
     data is surfaced in the dedicated panes already and the modal
     only needs heartbeat headline, service health, dongle assignments,
     and the evidence rows.
+
+    2026-06-05: also surfaces persisted per-band BT-mute state so the
+    dashboard's band-card mute toggles render correctly on page load
+    without needing a second round-trip.  See ui/band_mute.py.
     """
     hb = _compute_heartbeat_payload()
+    try:
+        from . import band_mute as _band_mute_mod  # local lazy import
+        mute_state = _band_mute_mod.get_state()
+    except Exception:  # noqa: BLE001
+        logger.debug("sitrep: band_mute.get_state() failed", exc_info=True)
+        mute_state = {"airband": False, "ground": False, "digital": False}
     return {
         "state": hb.get("state"),
         "headline": hb.get("headline"),
@@ -5158,6 +5168,7 @@ def _compute_sitrep_payload() -> dict:
         "since": hb.get("since"),
         "services": _sitrep_services(),
         "dongles": _sitrep_dongles(),
+        "band_mute": mute_state,
         "server_time": time.time(),
     }
 
@@ -9542,6 +9553,64 @@ class Handler(BaseHTTPRequestHandler):
                     "gain_db": applied.get("gain_db"),
                     "live_apply": True,
                 }),
+                "application/json; charset=utf-8",
+            )
+
+        # ============================================================
+        # 2026-06-05 — POST /api/audio/band_mute: mute / unmute a per-band
+        # BT-speaker sink-input WITHOUT stopping the upstream VLC service
+        # or muting icecast.  Body: {"band": "airband"|"ground"|"digital",
+        # "muted": bool}.  See ui/band_mute.py for implementation details
+        # (PipeWire sink-input mute for airband/ground; touchfile mute
+        # for digital, matching the op25 audio bridge's existing
+        # OP25_AUDIO_MUTE_FLAG contract).
+        # ============================================================
+        if p == "/api/audio/band_mute":
+            payload_in = form if isinstance(form, dict) else {}
+            band = str(payload_in.get("band") or "").strip().lower()
+            if "muted" not in payload_in:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "need muted=true|false"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                from . import band_mute as _band_mute_mod
+            except Exception as exc:  # noqa: BLE001
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"band_mute import: {exc}"}),
+                    "application/json; charset=utf-8",
+                )
+            if band not in _band_mute_mod.BAND_KEYS:
+                return self._send(
+                    400,
+                    json.dumps({
+                        "ok": False,
+                        "error": f"unknown band {band!r}; must be one of "
+                                 f"{list(_band_mute_mod.BAND_KEYS)}",
+                    }),
+                    "application/json; charset=utf-8",
+                )
+            muted = bool(payload_in.get("muted"))
+            ok, msg = _band_mute_mod.set_band(band, muted)
+            # State is persisted regardless of apply success — return the
+            # current persisted intent so the UI reflects what's saved.
+            state = _band_mute_mod.get_state()
+            body = {
+                "ok": ok,
+                "band": band,
+                "muted": bool(state.get(band, muted)),
+                "state": state,
+            }
+            if not ok:
+                body["error"] = msg
+            # 200 even on apply failure: intent persisted, watcher will
+            # retry within ~5s.  UI keeps the toggle in its new position;
+            # the operator sees a transient warning toast.
+            return self._send(
+                200,
+                json.dumps(body),
                 "application/json; charset=utf-8",
             )
 

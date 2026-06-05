@@ -576,26 +576,10 @@
     border-top-right-radius: 12px;
   }
   .spec-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
-  /* Top-3 peak labels (WebGL path): floated DOM overlays so the WebGL
-     trace shader stays text-free.  The 2D fallback still draws text on
-     the canvas — these only appear when WebGL is active. */
-  .spec-peak-label {
-    position: absolute;
-    font: 600 var(--type-meta)/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    color: var(--text-2);
-    white-space: nowrap;
-    pointer-events: none;
-    z-index: 6;
-    transform: translate(-50%, calc(-100% - 5px));
-    text-shadow: 0 0 3px rgba(4, 6, 13, 0.95);
-  }
-  .spec-peak-label::after {
-    content: ""; position: absolute; left: 50%; bottom: -5px;
-    width: 1px; height: 4px; background: var(--text-2);
-    transform: translateX(-50%);
-  }
-  .spec-peak-label.below { transform: translate(-50%, 5px); }
-  .spec-peak-label.below::after { top: -5px; bottom: auto; }
+  /* (.spec-peak-label CSS rules removed 2026-06-05 along with the bouncing
+     dBFS-@-freq labels above peaks.  Peak detection itself still feeds
+     click-to-tune via SPEC_PEAK_HITS / wireSpecPeakClicks; only the visual
+     annotations were gutted.) */
   /* When a spec sits directly above a waterfall wrap, square the top of
      the waterfall so the two read as one block instead of two cards. */
   .spec-canvas-wrap + .wf-canvas-wrap {
@@ -897,54 +881,14 @@
     border-radius: 4px;
   }
 
-  /* ============ Live IQ SB5 redesign — minimap / side sliders / needle / fullscreen ============
+  /* ============ Live IQ SB5 redesign — side sliders / needle / fullscreen ============
      Desktop-only chrome (hidden under @media (max-width: 700px) — see the
-     mobile block further down for the legacy compact view rules). */
+     mobile block further down for the legacy compact view rules).
 
-  /* --- minimap strip (full hardware BW, draggable viewport box) --- */
-  .wf-minimap-wrap {
-    position: relative;
-    height: 38px;
-    margin-bottom: 6px;
-    background: #03060e;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 6px;
-    overflow: hidden;
-    cursor: pointer;
-    touch-action: none;
-  }
-  .wf-minimap-canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-  .wf-minimap-viewport {
-    position: absolute;
-    top: 0; bottom: 0;
-    background: rgba(126, 211, 255, 0.13);
-    border: 1px solid rgba(126, 211, 255, 0.65);
-    border-radius: 3px;
-    pointer-events: auto;
-    cursor: grab;
-    box-shadow: 0 0 0 1px rgba(8, 14, 28, 0.55) inset;
-    transition: background 0.1s, border-color 0.1s;
-  }
-  .wf-minimap-viewport:hover {
-    background: rgba(126, 211, 255, 0.22);
-    border-color: var(--sky-2);
-  }
-  .wf-minimap-viewport.dragging {
-    cursor: grabbing;
-    background: rgba(126, 211, 255, 0.28);
-    border-color: var(--sky-2);
-  }
-  .wf-minimap-viewport::before {
-    content: ""; position: absolute;
-    left: 50%; top: 0; bottom: 0;
-    width: 1px;
-    background: rgba(126, 211, 255, 0.55);
-    transform: translateX(-0.5px);
-  }
+     2026-06-05: the minimap strip was removed. Pan-within-hw-BW is now done
+     by click-and-drag directly on the spectrum / waterfall (see
+     wireWfDesktopPan in JS). The minimap's CSS / HTML / JS were deleted
+     wholesale and the reclaimed ~44px went to .wf-canvas-wrap. */
 
   /* --- main display row: spectrum/waterfall + side-controls --- */
   .wf-display-row {
@@ -957,9 +901,16 @@
     min-width: 0;
   }
   /* Override default spec/wf heights inside the new display region to
-     give the operator a real "studio" view — taller spectrum + waterfall. */
+     give the operator a real "studio" view — taller spectrum + waterfall.
+     2026-06-05: the minimap strip was reclaimed (38px wrap + 6px margin =
+     44px), absorbed into .wf-canvas-wrap so the waterfall history depth
+     grows correspondingly. */
   .wf-display-region .spec-canvas-wrap { height: 140px; }
-  .wf-display-region .wf-canvas-wrap   { height: 260px; }
+  .wf-display-region .wf-canvas-wrap   { height: 304px; }
+  /* Desktop pan affordance — cursor hints that the waterfall is grabbable
+     when zoomed in (set via wireWfDesktopPan). */
+  .wf-display-region .wf-canvas-wrap.wf-pan-ready { cursor: grab; }
+  .wf-display-region .wf-canvas-wrap.wf-pan-active { cursor: grabbing; }
 
   /* --- right-side vertical sliders (zoom + contrast) --- */
   .wf-side-controls {
@@ -1064,20 +1015,46 @@
     box-shadow: 0 0 6px rgba(255, 58, 78, 0.6);
   }
   .wf-needle.dragging .wf-needle-grip { background: #ff5566; }
+  /* Floats above the top of the canvas so it never collides with the
+     wf-axis row below. A small caret-arrow ties it visually back to the
+     red needle. Live-updated by updateWfNeedle() — both during a drag and
+     on every incoming spectrum frame. */
   .wf-needle-label {
     position: absolute;
-    bottom: -20px;
+    top: -26px;
     left: 50%;
     transform: translateX(-50%);
     font-size: var(--type-meta);
-    color: #ffd0d4;
-    background: rgba(40, 4, 8, 0.88);
-    border: 1px solid rgba(255, 58, 78, 0.7);
+    color: #fff2f3;
+    background: rgba(40, 4, 8, 0.92);
+    border: 1px solid rgba(255, 58, 78, 0.85);
     border-radius: 4px;
-    padding: 1px 6px;
+    padding: 2px 7px;
     white-space: nowrap;
     pointer-events: none;
     z-index: 9;
+    font-weight: 600;
+    box-shadow: 0 0 6px rgba(255, 58, 78, 0.45);
+  }
+  .wf-needle-label::after {
+    /* small caret pointing down at the needle */
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -6px;
+    width: 0; height: 0;
+    transform: translateX(-50%);
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid rgba(255, 58, 78, 0.85);
+    filter: drop-shadow(0 0 3px rgba(255, 58, 78, 0.45));
+  }
+  /* While the user is actively dragging, lift the contrast a touch so the
+     readout pops against bright waterfall colors. */
+  .wf-needle.dragging .wf-needle-label {
+    background: rgba(70, 6, 12, 0.95);
+    border-color: #ff5566;
+    color: #fff;
   }
 
   /* --- fullscreen toggle button (in pane header) --- */
@@ -1130,10 +1107,11 @@
     .wf-mobile-only { display: none !important; }
   }
   @media (max-width: 700px) {
-    /* Mobile keeps the legacy compact view — no minimap, no side sliders,
-       no needle, no fullscreen button. The freq-window center marker and
-       drag-to-pan on the waterfall remain the tuning UX on mobile. */
-    .wf-minimap-wrap,
+    /* Mobile keeps the legacy compact view — no side sliders, no needle,
+       no fullscreen button. The freq-window center marker and drag-to-pan
+       on the waterfall remain the tuning UX on mobile. (The minimap was
+       desktop-only and has now been removed entirely; no mobile-specific
+       hide-rule is needed for it.) */
     .wf-side-controls,
     .wf-needle,
     .wf-fs-btn { display: none !important; }
@@ -1262,6 +1240,49 @@
   @keyframes vfo-bt-pulse {
     0%, 100% { box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35); }
     50%      { box-shadow: 0 0 0 6px var(--sky-2, rgba(80, 160, 240, 0.35)); }
+  }
+
+  /* ============ Per-band BT-speaker mute toggle (2026-06-05) ============
+     Lives on AIRBAND, GROUND, and DIGITAL band cards.  Mutes that band's
+     output to the BT speaker without stopping the upstream VLC service
+     or muting icecast — see ui/band_mute.py for the backend contract.
+     Visually parallels .vfo-toggle-card on the VFO card; differs only in
+     using a band-scoped data attribute (data-band-mute) and an
+     icon-prefixed label so the operator instantly distinguishes per-band
+     mute from per-card squelch-auto / preset chips. */
+  .band-mute-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .band-mute-card {
+    flex: 1;
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    background: rgba(8, 14, 28, 0.45);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .band-mute-card .icon {
+    font-size: 16px;
+    line-height: 1;
+    color: var(--text-3, #8a9bb5);
+    flex-shrink: 0;
+  }
+  .band-mute-card .lab {
+    flex: 1;
+    font-size: var(--type-body-sm);
+    color: var(--text-2);
+    font-weight: 500;
+  }
+  /* When muted, dim the card slightly + tint the icon red so the
+     muted state reads at a glance across the dashboard. */
+  .band-mute-card.is-muted {
+    background: rgba(58, 12, 18, 0.45);
+    border-color: rgba(255, 58, 78, 0.45);
+  }
+  .band-mute-card.is-muted .icon {
+    color: #ff8a96;
   }
 
   /* ============ Disco pane internals ============ */
@@ -2693,6 +2714,19 @@
           <button type="button" class="apply-cancel" data-role="apply-cancel">Cancel</button>
         </div>
       </div>
+      <!-- 2026-06-05 — Per-band BT-speaker mute toggle.  Posts to
+           /api/audio/band_mute (see ui/band_mute.py).  Mutes the
+           per-band VLC sink-input on the BT speaker without stopping
+           scanner-vlc-analog.service or muting icecast. -->
+      <div class="band-mute-row">
+        <div class="band-mute-card" data-band-mute-card="airband">
+          <span class="icon" aria-hidden="true">🔊</span>
+          <span class="lab">Mute BT speaker</span>
+          <span class="toggle off" data-band-mute="airband"
+                role="switch" aria-checked="false"
+                title="Mute this band's output to the BT speaker. Icecast + VLC service stay running."></span>
+        </div>
+      </div>
       <div class="pane-disclosure" id="analog-disclosure">
         <div class="summary-row">
           <span class="chev">›</span>
@@ -2787,6 +2821,18 @@
           <button type="button" class="apply-cancel" data-role="apply-cancel">Cancel</button>
         </div>
       </div>
+      <!-- 2026-06-05 — Per-band BT-speaker mute toggle.  See AIRBAND
+           card above for the contract.  Backend resolves "ground" to
+           scanner-vlc-ground.service's PipeWire sink-input. -->
+      <div class="band-mute-row">
+        <div class="band-mute-card" data-band-mute-card="ground">
+          <span class="icon" aria-hidden="true">🔊</span>
+          <span class="lab">Mute BT speaker</span>
+          <span class="toggle off" data-band-mute="ground"
+                role="switch" aria-checked="false"
+                title="Mute this band's output to the BT speaker. Icecast + VLC service stay running."></span>
+        </div>
+      </div>
     </div>
     <div class="pane-evidence" id="ground-evidence">
       <button type="button" class="dongle-badge" id="ev-ground-badge"
@@ -2825,6 +2871,19 @@
       </div>
       <div class="hits-list" id="digital-hits">
         <div class="hits-empty">Loading hits…</div>
+      </div>
+      <!-- 2026-06-05 — Per-band BT-speaker mute toggle.  Digital does
+           NOT route through a VLC sink-input (the audio bridge writes
+           directly to PipeWire via pw-cat); muting is implemented by
+           touching OP25_AUDIO_MUTE_FLAG.  See ui/band_mute.py. -->
+      <div class="band-mute-row">
+        <div class="band-mute-card" data-band-mute-card="digital">
+          <span class="icon" aria-hidden="true">🔊</span>
+          <span class="lab">Mute BT speaker</span>
+          <span class="toggle off" data-band-mute="digital"
+                role="switch" aria-checked="false"
+                title="Mute the digital (P25) audio output to the BT speaker. OP25 + icecast keep running."></span>
+        </div>
       </div>
       <div class="pane-disclosure" id="digital-disclosure">
         <div class="summary-row">
@@ -2938,15 +2997,19 @@
 
   <!-- ============ WATERFALL pane (2 RTL-SDRs stitched, SB5 redesign) ============
        Desktop layout matches the SDR# studio model:
-         - thin minimap strip (full 4.0 MHz) with a draggable viewport box
          - tall spectrum + waterfall stack inside .wf-display-region
          - right-side vertical zoom + contrast sliders (.wf-side-controls)
-         - red draggable tuning needle (.wf-needle) inside the main display
+         - red draggable tuning needle (.wf-needle) inside the main display,
+           with a live freq readout above the grip that follows the drag
          - fullscreen button (.wf-fs-btn) expands the pane to fill the viewport
-       Mobile (<= 700px) hides the minimap, side sliders, needle, and FS button
-       and falls back to the legacy compact view (drag-to-pan on the waterfall,
-       .freq-window center marker, bw input). All pills / jump chips / step
-       buttons / center input remain shared across both layouts. -->
+         - click-and-drag on empty waterfall pans the visible window within
+           the full 4.0 MHz hw BW when zoomed in (wireWfDesktopPan, JS)
+       Mobile (<= 700px) hides the side sliders, needle, and FS button and
+       falls back to the legacy compact view (drag-to-pan retunes the hw
+       band, .freq-window center marker, bw input). All pills / jump chips
+       / step buttons / center input remain shared across both layouts.
+       2026-06-05: the minimap strip (full-BW draggable viewport box) was
+       removed — its pan affordance moved to direct drag on the waterfall. -->
   <section class="pane pane-waterfall" id="pane-waterfall" tabindex="0">
     <div class="pane-hd">
       <div class="pane-hd-titles">
@@ -2962,13 +3025,9 @@
       <span class="sub" id="wf-sub">2 × RTL-SDR</span>
     </div>
     <div class="pane-body">
-      <!-- ===== Minimap: full hardware BW with viewport box (desktop only) ===== -->
-      <div class="wf-minimap-wrap" id="wf-minimap-wrap"
-           title="Minimap — full 4.0 MHz; drag the box to pan, click to snap">
-        <canvas id="wf-minimap" class="wf-minimap-canvas"></canvas>
-        <div class="wf-minimap-viewport" id="wf-minimap-viewport"></div>
-      </div>
-      <!-- ===== Main display + right-side vertical sliders ===== -->
+      <!-- ===== Main display + right-side vertical sliders =====
+           (minimap removed 2026-06-05 — pan-within-hw-BW is now done by
+           click-drag directly on the waterfall, wireWfDesktopPan in JS) -->
       <div class="wf-display-row">
         <div class="wf-display-region" id="wf-display-region">
           <div class="spec-canvas-wrap">
@@ -3829,34 +3888,21 @@ function _paintSpecGL(state, bins, peakBins, lo, hi, cssW, cssH) {
   gl.uniform4fv(state.uColor, state.traceColor);
   gl.drawArrays(gl.LINE_STRIP, 0, N);
 }
-// Top-3 peak labels as DOM overlays (WebGL can't draw text cheaply).
-// Reused across frames; surplus divs are hidden, not destroyed.
+// 2026-06-05 — the floating dBFS-@-freq labels above the top-3 spectrum
+// peaks were removed.  Peak detection itself stays (SPEC_PEAK_HITS still
+// feeds wireSpecPeakClicks for click-to-tune), but the bouncing labels
+// were unreadable noise as the per-frame peak finder chased moving
+// signals.  The function below is retained as a cleanup pass so any
+// labels left in the DOM from a prior page load (or hot-reload) get
+// hidden — surplus divs are not destroyed.
 function _updateSpecPeakLabelsDOM(canvas, chosen, freqLo, fSpan, N, yOf) {
-  const wrap = canvas.parentElement;
+  const wrap = canvas && canvas.parentElement;
   if (!wrap) return;
-  let labels = wrap._specPeakLabels;
-  if (!labels) labels = wrap._specPeakLabels = [];
-  while (labels.length < chosen.length) {
-    const d = document.createElement('div');
-    d.className = 'spec-peak-label';
-    wrap.appendChild(d);
-    labels.push(d);
-  }
-  for (let i = 0; i < chosen.length; i++) {
-    const c = chosen[i];
+  const labels = wrap._specPeakLabels;
+  if (!labels || !labels.length) return;
+  for (let i = 0; i < labels.length; i++) {
     const d = labels[i];
-    const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
-    // Pass the bin idx so callers using per-half scales (Live IQ) can map
-    // the dBFS value through the segment that owns this peak.
-    const y = yOf(c.val, c.idx);
-    d.textContent = `${c.val.toFixed(0)} dBFS @ ${freq.toFixed(3)}`;
-    d.style.display = 'block';
-    d.style.left = `${c.x}px`;
-    d.style.top  = `${y}px`;
-    d.classList.toggle('below', y < 18);
-  }
-  for (let i = chosen.length; i < labels.length; i++) {
-    labels[i].style.display = 'none';
+    if (d) d.style.display = 'none';
   }
 }
 
@@ -4166,34 +4212,18 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   ctx.stroke();
   ctx.restore();
 
-  // 3) Peak markers — canvas-text labels for the chosen set computed above.
-  if (chosen.length) {
-    const fontPx = parseInt(labelFont, 10) || 12;
-    ctx.save();
-    ctx.font = `${fontPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = labelColor;
-    ctx.strokeStyle = labelColor;
-    ctx.lineWidth = 1;
-    for (const c of chosen) {
-      const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
-      const y = yOf(c.val, c.idx);
-      const txt = `${c.val.toFixed(0)} dBFS @ ${freq.toFixed(3)}`;
-      const w = ctx.measureText(txt).width;
-      let lx = c.x - w / 2;
-      if (lx < 2) lx = 2;
-      if (lx + w > cssW - 2) lx = cssW - w - 2;
-      let ly = y - fontPx - 5;
-      if (ly < 1) ly = Math.min(cssH - fontPx - 1, y + 5);  // flip below the spike on top overflow
-      // 4px tick from the peak so the label clearly belongs to that spike
-      ctx.beginPath();
-      ctx.moveTo(c.x, y);
-      ctx.lineTo(c.x, Math.max(0, y - 4));
-      ctx.stroke();
-      ctx.fillText(txt, lx, ly);
-    }
-    ctx.restore();
-  }
+  // 3) Peak markers — 2026-06-05: floating "N dBFS @ freq" labels removed.
+  //    Peak detection stays (chosen / SPEC_PEAK_HITS still feeds click-to-
+  //    tune via wireSpecPeakClicks); only the bouncing on-canvas text
+  //    annotations were excised because they were unreadable noise as the
+  //    per-frame finder chased moving signals.  Trace + peak-hold lines
+  //    above are untouched.
+  //
+  //    `labelColor` / `labelFont` are intentionally left declared so the
+  //    CSS var lookups still warm the computed-style cache the rest of the
+  //    render path uses.  Treat the unused locals as load-bearing
+  //    documentation that the theme tokens are still consumed elsewhere.
+  void labelColor; void labelFont;
 }
 
 // ----- rAF-driven spec render loop ---------------------------------------
@@ -4909,10 +4939,11 @@ function renderWaterfall(data) {
 
   if (!wsBinsFresh(WS_PANE_WATERFALL)) {
     // Compute intensity on the FULL hw band so autoStretch's half-stitch
-    // boundary stays correct. Stash the full intensity for the minimap,
-    // then slice to viewport + apply contrast for the main display.
+    // boundary stays correct, then slice to viewport + apply contrast for
+    // the main display. (Pre-2026-06-05 the full-band intensity was also
+    // stashed for a minimap strip; the minimap has since been removed and
+    // the global stash with it.)
     const fullIntensity = autoStretchIntensity(data.bins, "wf-canvas");
-    WF_LAST_FULL_INTENSITY = fullIntensity;
     let renderIntensity = fullIntensity;
     let renderBins = data.bins;
     let renderMin = min, renderMax = max;
@@ -4924,8 +4955,6 @@ function renderWaterfall(data) {
     pushWaterfallRow("wf-canvas", renderIntensity, wfColormap);
     specSubmitFrame($("wf-spec"), renderBins, renderMin, renderMax, "wf-canvas");
     if (_wfDesktop) {
-      renderWfMinimap();
-      updateWfMinimapViewport();
       updateWfNeedle();
     }
   }
@@ -5270,8 +5299,6 @@ const WF_VP = { center_mhz: 123.7, zoom: 1.0 };
 const WF_NEEDLE = { mhz: 123.7 };
 // Display effects.
 const WF_FX = { contrast: 1.0, fullscreen: false };
-// Latest full-band intensity (for minimap rendering).
-let WF_LAST_FULL_INTENSITY = null;
 const WF_ZOOM_MIN = 1.0;
 const WF_ZOOM_MAX = 4.0;
 const WF_CONTRAST_MIN = 0.4;
@@ -5329,55 +5356,9 @@ function sliceArrayForZoom(arr) {
   return arr.subarray ? arr.subarray(lo, hi) : arr.slice(lo, hi);
 }
 
-// Render the latest full-band intensity into the minimap canvas.
-// One row, painted directly. Cheap.
-function renderWfMinimap() {
-  const cv = document.getElementById("wf-minimap");
-  if (!cv) return;
-  const cssW = cv.clientWidth, cssH = cv.clientHeight;
-  if (cssW < 4 || cssH < 4) return;
-  if (cv.width !== cssW) cv.width = cssW;
-  if (cv.height !== cssH) cv.height = cssH;
-  const ctx = cv.getContext("2d");
-  const intensity = WF_LAST_FULL_INTENSITY;
-  if (!intensity || !intensity.length) {
-    ctx.fillStyle = "#03060e";
-    ctx.fillRect(0, 0, cssW, cssH);
-    return;
-  }
-  const N = intensity.length;
-  const img = ctx.createImageData(cssW, cssH);
-  const data = img.data;
-  // Paint one column per pixel, repeated down the height (vertical bar look).
-  for (let x = 0; x < cssW; x++) {
-    const xi = Math.floor((x / cssW) * N);
-    const v = intensity[Math.min(N - 1, xi)];
-    const rgb = wfColormap(v);
-    for (let y = 0; y < cssH; y++) {
-      const i = (y * cssW + x) * 4;
-      data[i]   = rgb[0];
-      data[i+1] = rgb[1];
-      data[i+2] = rgb[2];
-      data[i+3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-}
-
-// Position the minimap viewport box to reflect the current visible window.
-function updateWfMinimapViewport() {
-  const box = document.getElementById("wf-minimap-viewport");
-  if (!box) return;
-  const lo = wfHwMin(), hi = wfHwMax();
-  const span = hi - lo;
-  if (span <= 0) { box.style.display = "none"; return; }
-  const vlo = wfVisibleMin(), vhi = wfVisibleMax();
-  const leftPct = Math.max(0, Math.min(100, ((vlo - lo) / span) * 100));
-  const widthPct = Math.max(0.5, Math.min(100, ((vhi - vlo) / span) * 100));
-  box.style.display = "block";
-  box.style.left = leftPct.toFixed(3) + "%";
-  box.style.width = widthPct.toFixed(3) + "%";
-}
+// (renderWfMinimap / updateWfMinimapViewport were removed 2026-06-05 along
+// with the minimap strip; pan-within-hw-BW is now done via direct drag on
+// the waterfall — see wireWfDesktopPan below.)
 
 // Position the red needle. Clamp at viewport edges if needle is outside.
 function updateWfNeedle() {
@@ -5433,7 +5414,6 @@ function setWfNeedleFreq(mhz, opts) {
   // Mirror to legacy mobile state so peak-click + VFO + arrow keys stay consistent.
   WF_CENTER_LOCAL.mhz = m;
   updateWfNeedle();
-  updateWfMinimapViewport();
   updateWfMarker(m);
 }
 
@@ -5448,7 +5428,7 @@ function refreshWfViewport() {
   if (ax_md) ax_md.textContent = ((WF_VIEW.min + WF_VIEW.max) / 2).toFixed(2);
   if (ax_hi) ax_hi.textContent = WF_VIEW.max.toFixed(2);
   updateWfNeedle();
-  updateWfMinimapViewport();
+  updateWfDesktopPanCursor();
   // Reset spec peak-hold so it tracks the new visible window.
   try { SPEC_PEAK_HOLD.delete("wf-canvas"); } catch (_) {}
 }
@@ -5511,70 +5491,88 @@ function wireWfNeedleDrag() {
   });
 }
 
-// ----- minimap drag (pans the desktop viewport) -----
-function wireWfMinimapDrag() {
-  const mm = document.getElementById("wf-minimap-wrap");
-  const box = document.getElementById("wf-minimap-viewport");
-  if (!mm || !box) return;
-  let dragging = false;
-  let dragOffsetFrac = 0;  // where inside the box the user clicked
-  function frameSpan() {
-    return { lo: wfHwMin(), hi: wfHwMax() };
+// ----- desktop click-drag pan on the main waterfall -----
+// Replaces the deleted minimap viewport-box drag. Only engages when zoom > 1×
+// (visible BW < full hw BW) — at 1× the entire band is already visible so
+// the gesture is a no-op.  Hit-tests so a drag that starts ON the needle is
+// routed to wireWfNeedleDrag (tune), not to pan.  Stays purely local: no
+// /api/waterfall POST is fired — the bins are already in hand and we just
+// shift the visible window within them.
+const WF_DESKTOP_PAN_THRESHOLD_PX = 4;
+function _wfPanIsZoomed() {
+  return Number(WF_VP.zoom) > 1.001;
+}
+function updateWfDesktopPanCursor() {
+  const wrap = document.querySelector(".wf-canvas-wrap");
+  if (!wrap) return;
+  if (typeof wfIsDesktop === "function" && wfIsDesktop() && _wfPanIsZoomed()) {
+    wrap.classList.add("wf-pan-ready");
+  } else {
+    wrap.classList.remove("wf-pan-ready");
   }
-  function setViewportFromClientX(clientX, useOffset) {
-    const rect = mm.getBoundingClientRect();
-    const w = rect.width || 1;
-    let frac = (clientX - rect.left) / w;
-    if (frac < 0) frac = 0; else if (frac > 1) frac = 1;
-    const { lo, hi } = frameSpan();
-    const span = hi - lo;
-    const visBw = wfVisibleBw();
-    let centerFrac = frac;
-    if (useOffset) centerFrac = frac - dragOffsetFrac + (visBw / span) / 2;
-    const center = lo + centerFrac * span;
-    WF_VP.center_mhz = clampViewportCenter(center);
-    refreshWfViewport();
+}
+function wireWfDesktopPan() {
+  const wrap = document.querySelector(".wf-canvas-wrap");
+  if (!wrap) return;
+  let dragging = false;
+  let startClientX = 0;
+  let startCenter = 0;
+  let totalMoved = 0;
+  let armed = false;
+  function hitTestTargetIsNeedle(target) {
+    const needle = document.getElementById("wf-needle");
+    if (!needle) return false;
+    return target === needle ||
+           (needle.contains && needle.contains(target));
   }
   function onMove(e) {
     if (!dragging) return;
-    if (e.cancelable) e.preventDefault();
     const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
-    setViewportFromClientX(clientX, true);
+    const dx = clientX - startClientX;
+    totalMoved = Math.max(totalMoved, Math.abs(dx));
+    if (!armed) {
+      if (totalMoved < WF_DESKTOP_PAN_THRESHOLD_PX) return;
+      armed = true;
+      wrap.classList.add("wf-pan-active");
+    }
+    if (e.cancelable) e.preventDefault();
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width || 1;
+    const visBw = wfVisibleBw();
+    // drag right (dx > 0) -> lower freq under cursor, i.e. shift viewport left
+    const deltaMhz = -(dx / w) * visBw;
+    WF_VP.center_mhz = clampViewportCenter(startCenter + deltaMhz);
+    refreshWfViewport();
   }
   function onUp() {
     if (!dragging) return;
     dragging = false;
-    box.classList.remove("dragging");
+    wrap.classList.remove("wf-pan-active");
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("mouseup", onUp);
     document.removeEventListener("touchmove", onMove);
     document.removeEventListener("touchend", onUp);
   }
   function onDown(e) {
-    if (!wfIsDesktop()) return;
-    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
-    const target = e.target;
-    if (target === box || (box.contains && box.contains(target))) {
-      // Drag the box: track the offset inside it so the box follows the cursor.
-      const boxRect = box.getBoundingClientRect();
-      const bw = boxRect.width || 1;
-      dragOffsetFrac = (clientX - boxRect.left) / bw *
-                       ((boxRect.width || 1) / (mm.getBoundingClientRect().width || 1));
-    } else {
-      // Click-snap: viewport center jumps to clicked point.
-      dragOffsetFrac = 0;
-      setViewportFromClientX(clientX, false);
-    }
+    if (typeof wfIsDesktop === "function" && !wfIsDesktop()) return;
+    if (!_wfPanIsZoomed()) return;        // at 1x the whole band is visible
+    if (hitTestTargetIsNeedle(e.target)) return;  // needle drag wins
     dragging = true;
-    box.classList.add("dragging");
+    armed = false;
+    totalMoved = 0;
+    startClientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    startCenter = Number(WF_VP.center_mhz) || WF_HW.center_mhz;
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
     document.addEventListener("touchmove", onMove, { passive: false });
     document.addEventListener("touchend", onUp);
-    if (e.cancelable) e.preventDefault();
+    // Do NOT preventDefault here — that would block the wrap's click handler
+    // (in wireWfNeedleDrag) which still needs to fire on no-drag clicks to
+    // snap the needle to the clicked column.
   }
-  mm.addEventListener("mousedown", onDown);
-  mm.addEventListener("touchstart", onDown, { passive: false });
+  wrap.addEventListener("mousedown", onDown);
+  wrap.addEventListener("touchstart", onDown, { passive: false });
+  updateWfDesktopPanCursor();
 }
 
 // ----- zoom + contrast sliders -----
@@ -5594,6 +5592,9 @@ function wireWfZoomSlider() {
     }
     if (v) v.textContent = z.toFixed(1) + "×";
     refreshWfViewport();
+    // Desktop pan is only available when zoomed in — refresh the cursor
+    // affordance now that zoom level changed.
+    updateWfDesktopPanCursor();
   }
   s.addEventListener("input", apply);
   s.addEventListener("change", apply);
@@ -5629,9 +5630,8 @@ function wireWfFullscreen() {
         if (c1) { c1.width = c1.clientWidth; c1.height = c1.clientHeight; }
         if (c2) { c2.width = c2.clientWidth; c2.height = c2.clientHeight; }
         WF_HIST.delete("wf-canvas");
-        renderWfMinimap();
-        updateWfMinimapViewport();
         updateWfNeedle();
+        updateWfDesktopPanCursor();
       } catch (_) {}
     });
   });
@@ -5784,9 +5784,10 @@ function wfEdgeHint(side) {
   }, 450);
 }
 function wireWfPan() {
-  // SB5 redesign: on desktop the needle + minimap take over panning, so
-  // drag-on-waterfall must NOT retune the hw band any more. Mobile keeps
-  // the legacy drag-to-pan flow (no needle, no minimap, no sliders).
+  // SB5 redesign: on desktop the needle + wireWfDesktopPan take over
+  // panning (the latter pans the viewport within the hw band, no hw
+  // retune). Mobile keeps the legacy drag-to-pan flow which DOES retune
+  // the hw band (mobile has no zoom, so panning means tuning).
   if (wfIsDesktop()) return;
   const wrap = document.querySelector(".wf-canvas-wrap");
   if (!wrap) return;
@@ -6429,6 +6430,98 @@ function wireVFOControls() {
 }
 
 // =========================================================================
+// 2026-06-05 — Per-band BT-speaker mute toggles on AIRBAND, GROUND,
+// DIGITAL band cards.
+//
+//   - Click POSTs /api/audio/band_mute {band, muted}.  Backend persists
+//     intent to data/band_mute.json (survives restarts) and applies the
+//     mute via PipeWire sink-input (airband/ground) or touchfile
+//     (digital — matches the op25 audio bridge contract).
+//   - Restore-on-load + watcher-driven re-sync: state is surfaced via
+//     /api/sitrep .band_mute = {airband, ground, digital}.  We seed
+//     once at boot via seedBandMuteFromSitrep(), and re-apply whenever
+//     the sitrep modal refreshes (catches divergence from the 5s
+//     backend reconciler thread).
+// =========================================================================
+const BAND_MUTE_KEYS = ["airband", "ground", "digital"];
+function applyBandMuteUI(band, muted) {
+  if (BAND_MUTE_KEYS.indexOf(band) < 0) return;
+  const toggle = document.querySelector(`[data-band-mute="${band}"]`);
+  if (toggle) {
+    toggle.classList.toggle("off", !muted);
+    try { toggle.setAttribute("aria-checked", muted ? "true" : "false"); } catch (_) {}
+  }
+  const card = document.querySelector(`[data-band-mute-card="${band}"]`);
+  if (card) card.classList.toggle("is-muted", !!muted);
+}
+function applyBandMuteStateMap(state) {
+  if (!state || typeof state !== "object") return;
+  BAND_MUTE_KEYS.forEach(band => {
+    if (Object.prototype.hasOwnProperty.call(state, band)) {
+      applyBandMuteUI(band, !!state[band]);
+    }
+  });
+}
+async function postBandMute(band, muted) {
+  const r = await fetch("/api/audio/band_mute", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ band, muted }),
+  });
+  let body = {};
+  try { body = await r.json(); } catch (_) { body = {}; }
+  return { ok: !!body.ok, status: r.status, body };
+}
+function wireBandMuteToggles() {
+  const toggles = document.querySelectorAll("[data-band-mute]");
+  toggles.forEach(t => {
+    t.addEventListener("click", async () => {
+      if (t.dataset.busy === "1") return;
+      const band = t.getAttribute("data-band-mute");
+      if (BAND_MUTE_KEYS.indexOf(band) < 0) return;
+      const wasOff = t.classList.contains("off");
+      const wantMuted = wasOff;  // off -> on means "now muted"
+      // Optimistic flip; revert if the server says no.
+      t.dataset.busy = "1";
+      applyBandMuteUI(band, wantMuted);
+      let resp;
+      try {
+        resp = await postBandMute(band, wantMuted);
+      } catch (exc) {
+        resp = { ok: false, status: 0, body: { error: String((exc && exc.message) || exc) } };
+      }
+      t.dataset.busy = "";
+      // Apply whatever the server now says is persisted — even on
+      // apply failure the backend persists intent, so the toggle should
+      // stay in the new position (the watcher will retry).  Only
+      // revert on a hard rejection (4xx/5xx with persisted=false).
+      if (resp && resp.body && resp.body.state && typeof resp.body.state === "object") {
+        applyBandMuteStateMap(resp.body.state);
+      } else if (!resp.ok) {
+        // Server didn't acknowledge — revert.
+        applyBandMuteUI(band, !wantMuted);
+      }
+      if (!resp.ok) {
+        const msg = (resp.body && resp.body.error) || ("HTTP " + (resp.status || 0));
+        try {
+          showSitrepToast(`Mute ${band}: ${msg}`, "warn", 3000);
+        } catch (_) {}
+      }
+    });
+  });
+}
+async function seedBandMuteFromSitrep() {
+  try {
+    const r = await fetch("/api/sitrep", { cache: "no-store" });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data && data.band_mute) applyBandMuteStateMap(data.band_mute);
+  } catch (_) {
+    /* silent — modal open will retry */
+  }
+}
+
+// =========================================================================
 // Sitrep modal — operator situation report.  Renders heartbeat headline,
 // service health, dongle assignments, heartbeat evidence, plus a
 // Controls section that POSTs /api/sitrep/action.  The favorites /
@@ -6497,6 +6590,14 @@ async function renderSitrepModal() {
     });
     _sitrepRenderServiceList("sitrep-dongle-list", data.dongles, row =>
       `${row.role || "?"}${row.detail ? " · " + row.detail : ""}`);
+    // 2026-06-05 — keep per-band mute toggles in sync with the persisted
+    // backend state (and the band-mute watcher's reconciler).  Sitrep
+    // refreshes on every modal open + periodic polling, so a divergence
+    // (e.g., a vlc-service restart that the watcher just re-muted) lands
+    // back in the toggle UI within one refresh.
+    if (data && data.band_mute) {
+      try { applyBandMuteStateMap(data.band_mute); } catch (_) {}
+    }
     // Split heartbeat evidence into Mounts vs everything-else for a
     // cleaner at-a-glance read. Mount rows are the ones whose label
     // starts with "/" (e.g. "/ANALOG.mp3 byte rate", "/VFO.mp3 mount").
@@ -7997,7 +8098,6 @@ function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
     WF_HW.full_bw = spanMhz;
     const _wfDesktop = wfIsDesktop();
     const fullIntensity = autoStretchIntensity(bins, "wf-canvas");
-    WF_LAST_FULL_INTENSITY = fullIntensity;
     let renderIntensity = fullIntensity;
     let renderBins = bins;
     let renderMin = min, renderMax = max;
@@ -8021,8 +8121,6 @@ function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
     pushWaterfallRow("wf-canvas", renderIntensity, wfColormap);
     specSubmitFrame($("wf-spec"), renderBins, renderMin, renderMax, "wf-canvas");
     if (_wfDesktop) {
-      renderWfMinimap();
-      updateWfMinimapViewport();
       updateWfNeedle();
     }
   }
@@ -8340,18 +8438,23 @@ function boot() {
 
   // Live IQ: on mobile this attaches drag-to-pan (legacy hw retune on
   // drag). On desktop the function early-returns and the SB5 needle +
-  // minimap take over.
+  // desktop-pan handler take over (the minimap was retired 2026-06-05).
   wireWfPan();
   // SB5 desktop redesign wires (no-ops on mobile — they just bind to
   // DOM nodes that media queries have set to display:none).
   wireWfNeedleDrag();
-  wireWfMinimapDrag();
+  wireWfDesktopPan();
   wireWfZoomSlider();
   wireWfContrastSlider();
   wireWfFullscreen();
 
   wireVFOControls();
   wireVFOSliders();
+  // 2026-06-05 — per-band BT mute toggles on AIRBAND/GROUND/DIGITAL.
+  // Seed runs in parallel with the rest of boot; the toggles render
+  // .off by default so the dashboard is interactive immediately.
+  wireBandMuteToggles();
+  seedBandMuteFromSitrep();
   wireAudioBar();
   wireWfCenterInput();
   wireWfStepButtons();
