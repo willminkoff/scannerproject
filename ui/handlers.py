@@ -3891,14 +3891,15 @@ VFO_SQUELCH_MAX_DBFS = 0.0
 VFO_GAIN_MIN_DB = 0.0
 VFO_GAIN_MAX_DB = 49.0
 
-# Phase 6b.3 — BT routing.  Flipping the "Route to BT speaker" toggle ON
-# triggers a bluetoothctl connect to VFO_BT_SPEAKER_MAC followed by
-# starting scanner-vlc-vfo.service (the icecast→bluez VLC bridge).
-# Flipping OFF stops the service but leaves the BT connection intact —
-# other targets may be using it.
-VFO_BT_SPEAKER_MAC = os.getenv("VFO_BT_SPEAKER_MAC", "C0:28:8D:34:6E:67").strip()
-VFO_BT_CONNECT_TIMEOUT_SEC = 8.0
-VFO_BT_POST_START_WAIT_SEC = 1.2
+# 2026-06-05 — VFO is now permanently routed to the BT speaker.  The
+# scanner-vlc-vfo.service unit is enabled at the systemd level (boots with
+# the host) and the operator-facing BT-speaker control on the Manual Tune
+# card is now the standardized .band-mute-row toggle (see ui/band_mute.py),
+# which mutes the VFO sink-input without stopping the bridge service or
+# disconnecting BT.  The legacy "Route to BT speaker" toggle and its
+# bluetoothctl-connect side-effect path were removed — they duplicated
+# behavior that systemd handles, and let the dashboard lie about
+# bt_routed state when the unit was started out-of-band.
 
 
 def _vfo_read_state() -> dict | None:
@@ -4006,57 +4007,24 @@ def _vfo_pass_through_payload() -> dict:
     return state
 
 
-def _vfo_bt_connect(mac: str = VFO_BT_SPEAKER_MAC) -> tuple[bool, str]:
-    """Connect to the configured BT speaker via ``bluetoothctl connect``.
-
-    Returns (ok, err).  ``bluetoothctl`` runs as the ``ubuntu`` user
-    without sudo on this host (the user is in the bluetooth-capable
-    groups).  Calling connect on an already-connected device is a
-    no-op — bluetoothctl returns success quickly.  We additionally
-    verify ``Connected: yes`` via ``bluetoothctl info`` because some
-    bluetoothctl versions return rc 0 on a transient connect failure.
-    """
-    if not mac:
-        return False, "no MAC configured (VFO_BT_SPEAKER_MAC)"
-    try:
-        res = subprocess.run(
-            ["bluetoothctl", "connect", mac],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, timeout=VFO_BT_CONNECT_TIMEOUT_SEC, check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return False, (
-            f"connect timed out after {VFO_BT_CONNECT_TIMEOUT_SEC:.0f}s "
-            f"(speaker off?)"
-        )
-    except FileNotFoundError:
-        return False, "bluetoothctl not installed"
-    except Exception as exc:  # noqa: BLE001
-        return False, f"connect exec error: {exc}"
-    out = (res.stdout or "").strip()
-    try:
-        chk = subprocess.run(
-            ["bluetoothctl", "info", mac],
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, timeout=3.0, check=False,
-        )
-        if "Connected: yes" in (chk.stdout or ""):
-            return True, ""
-    except Exception:  # noqa: BLE001
-        pass
-    snippet = out.splitlines()[-1] if out else f"rc={res.returncode}"
-    return False, snippet[:200]
-
-
 def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
     """POST /api/vfo body handler — merge patch into config.json atomically.
 
-    Accepts any subset of {freq_mhz, mod, muted, bt_routed}.  Validates
-    freq range + mod choice.  USB/LSB are accepted as mod values but
-    the worker stubs them (Phase 6b.1).  Returns (ok, msg, applied).
+    Accepts any subset of {freq_mhz, mod, squelch_dbfs, squelch_auto,
+    gain_db}.  Validates freq range + mod choice.  USB/LSB are accepted
+    as mod values but the worker stubs them (Phase 6b.1).  Returns
+    (ok, msg, applied).
+
+    2026-06-05: ``muted`` and ``bt_routed`` are no longer first-class
+    fields here.  BT-speaker mute moved to the per-band ``band_mute``
+    pipeline (see ui/band_mute.py — ``vfo`` band), and bt_routed is now
+    a property of the systemd-managed scanner-vlc-vfo.service (always
+    routed).  Stray patch keys are accepted silently for back-compat
+    with older clients still POSTing them, but they do not influence
+    behavior.
     """
     existing = _vfo_read_config() or {
-        "freq_mhz": 127.700, "mod": "am", "muted": False, "bt_routed": False,
+        "freq_mhz": 127.700, "mod": "am",
         "squelch_dbfs": -60.0, "squelch_auto": False, "gain_db": 40.0,
     }
 
@@ -4076,10 +4044,6 @@ def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
         if m not in VFO_VALID_MODS:
             return False, f"invalid mod {m!r}: must be one of {VFO_VALID_MODS}", {}
         merged["mod"] = m
-    if "muted" in patch:
-        merged["muted"] = bool(patch["muted"])
-    if "bt_routed" in patch:
-        merged["bt_routed"] = bool(patch["bt_routed"])
     # Phase 6b.2 — squelch + gain.  Range-validated; out-of-range
     # values are 400'd rather than silently clamped, so the UI can
     # surface the mistake to the operator.
@@ -4105,45 +4069,6 @@ def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
                 f"gain_db {v} out of range ({VFO_GAIN_MIN_DB}-{VFO_GAIN_MAX_DB})"
             ), {}
         merged["gain_db"] = v
-
-    # Phase 6b.3 — if bt_routed flipped, do the BT + VLC bridge side
-    # effects BEFORE persisting config.  Going ON requires both
-    # bluetoothctl-connect AND scanner-vlc-vfo.service-start to succeed;
-    # if either fails we return an error WITHOUT writing config so the
-    # UI doesn't lie about bt_routed=True.  Going OFF stops the bridge
-    # (best-effort) but leaves the BT connection intact — other targets
-    # may still be using the speaker.
-    bt_was = bool(existing.get("bt_routed"))
-    bt_now = bool(merged.get("bt_routed"))
-    bt_flipped = ("bt_routed" in patch) and (bt_was != bt_now)
-    if bt_flipped and bt_now:
-        bt_ok, bt_err = _vfo_bt_connect()
-        if not bt_ok:
-            return False, f"bluetooth connect failed: {bt_err}", {}
-        try:
-            from ui import vlc as _vlc_mod
-            unit = _vlc_mod._VLC_SYSTEMD_SERVICES.get(
-                "vfo", "scanner-vlc-vfo.service",
-            )
-            svc_ok, svc_err = _vlc_mod._systemd_service_ctl(unit, "start")
-            if not svc_ok:
-                return False, f"vlc-vfo service start failed: {svc_err}", {}
-        except Exception as exc:  # noqa: BLE001
-            return False, f"vlc-vfo wire-up error: {exc}", {}
-        # Give the bridge a beat to attach to the bluez sink before we
-        # acknowledge success — gives the UI a stable handover.
-        time.sleep(VFO_BT_POST_START_WAIT_SEC)
-    elif bt_flipped and not bt_now:
-        try:
-            from ui import vlc as _vlc_mod
-            unit = _vlc_mod._VLC_SYSTEMD_SERVICES.get(
-                "vfo", "scanner-vlc-vfo.service",
-            )
-            svc_ok, svc_err = _vlc_mod._systemd_service_ctl(unit, "stop")
-            if not svc_ok:
-                logger.warning("scanner-vlc-vfo stop failed: %s", svc_err)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("scanner-vlc-vfo stop error: %s", exc)
 
     try:
         os.makedirs(VFO_STATE_DIR, exist_ok=True)
@@ -5159,7 +5084,9 @@ def _compute_sitrep_payload() -> dict:
         mute_state = _band_mute_mod.get_state()
     except Exception:  # noqa: BLE001
         logger.debug("sitrep: band_mute.get_state() failed", exc_info=True)
-        mute_state = {"airband": False, "ground": False, "digital": False}
+        mute_state = {
+            "airband": False, "ground": False, "digital": False, "vfo": False,
+        }
     return {
         "state": hb.get("state"),
         "headline": hb.get("headline"),
@@ -5429,8 +5356,6 @@ def _mock_vfo_payload() -> dict:
         "state": "ok",
         "freq_mhz": freq_mhz,
         "mod": "am",
-        "muted": False,
-        "bt_routed": False,
         "bins": bins,
         "dongle_serial": "00000003",
     }
@@ -9471,9 +9396,11 @@ class Handler(BaseHTTPRequestHandler):
 
         # ============================================================
         # Phase 6b — VFO POST: file-backed config merge.  Accepts any
-        # subset of {freq_mhz, mod, muted, bt_routed}, validates, and
-        # atomically writes /run/scannerproject/vfo/config.json which
-        # scripts/vfo.py picks up via mtime-poll.
+        # subset of {freq_mhz, mod, squelch_dbfs, squelch_auto, gain_db},
+        # validates, and atomically writes
+        # /run/scannerproject/vfo/config.json which scripts/vfo.py picks
+        # up via mtime-poll.  (BT-speaker mute moved to
+        # /api/audio/band_mute with band=vfo on 2026-06-05.)
         # ============================================================
         if p == "/api/vfo":
             payload_in = form if isinstance(form, dict) else {}

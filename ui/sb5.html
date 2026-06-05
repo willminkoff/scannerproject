@@ -1198,18 +1198,6 @@
     background-position: right 12px center;
     padding-right: 32px;
   }
-  .vfo-toggles { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
-  .vfo-toggle-card {
-    flex: 1; min-width: 130px;
-    display: flex; align-items: center; gap: 10px;
-    padding: 9px 12px;
-    background: rgba(8, 14, 28, 0.45);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-  }
-  .vfo-toggle-card .lab {
-    flex: 1; font-size: var(--type-body-sm); color: var(--text-2); font-weight: 500;
-  }
   .toggle {
     width: 42px; height: 26px;
     background: var(--green);
@@ -1227,29 +1215,15 @@
   }
   .toggle.off { background: rgba(138, 155, 181, 0.22); }
   .toggle.off::after { left: 2px; }
-  /* Phase 6b.3 — VFO BT toggle in-flight state.  Pulses the knob while
-     the server is connecting the BT speaker + starting the VLC bridge.
-     Pointer is disabled so the operator can't double-fire the action. */
-  .toggle.connecting {
-    pointer-events: none;
-    opacity: 0.72;
-  }
-  .toggle.connecting::after {
-    animation: vfo-bt-pulse 0.9s ease-in-out infinite;
-  }
-  @keyframes vfo-bt-pulse {
-    0%, 100% { box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35); }
-    50%      { box-shadow: 0 0 0 6px var(--sky-2, rgba(80, 160, 240, 0.35)); }
-  }
 
   /* ============ Per-band BT-speaker mute toggle (2026-06-05) ============
-     Lives on AIRBAND, GROUND, and DIGITAL band cards.  Mutes that band's
-     output to the BT speaker without stopping the upstream VLC service
-     or muting icecast — see ui/band_mute.py for the backend contract.
-     Visually parallels .vfo-toggle-card on the VFO card; differs only in
-     using a band-scoped data attribute (data-band-mute) and an
-     icon-prefixed label so the operator instantly distinguishes per-band
-     mute from per-card squelch-auto / preset chips. */
+     Lives on every band card — AIRBAND, GROUND, DIGITAL, and VFO
+     (Manual Tune).  Mutes that band's output to the BT speaker without
+     stopping the upstream VLC service or muting icecast — see
+     ui/band_mute.py for the backend contract.  Uses a band-scoped data
+     attribute (data-band-mute) and an icon-prefixed label so the
+     operator instantly distinguishes per-band mute from per-card
+     squelch-auto / preset chips. */
   .band-mute-row {
     display: flex;
     gap: 10px;
@@ -2929,16 +2903,6 @@
             <option value="lsb">LSB (not yet)</option>
           </select>
         </div>
-        <div class="vfo-toggles">
-          <div class="vfo-toggle-card">
-            <span class="lab">Mute</span>
-            <span class="toggle off" id="vfo-mute" data-key="muted"></span>
-          </div>
-          <div class="vfo-toggle-card">
-            <span class="lab">Route to BT speaker</span>
-            <span class="toggle off" id="vfo-bt" data-key="bt_routed"></span>
-          </div>
-        </div>
         <!-- Phase 6b.2 — per-VFO squelch + gain. Reuses the
              .band-controls component pattern shipped in d536928 for
              AIR/GROUND so the visual language stays consistent. The
@@ -2975,6 +2939,20 @@
             <span class="ctl-val" data-role="gain-val">—</span>
             <span class="band-ctl-hint" data-role="ctl-hint"></span>
           </div>
+        </div>
+      </div>
+      <!-- 2026-06-05 — Per-band BT-speaker mute toggle.  See AIRBAND
+           card above for the contract.  Backend resolves "vfo" to
+           scanner-vlc-vfo.service's PipeWire sink-input.  VFO is
+           always routed to BT — the service is enabled at the systemd
+           level, so this toggle is the only operator control. -->
+      <div class="band-mute-row">
+        <div class="band-mute-card" data-band-mute-card="vfo">
+          <span class="icon" aria-hidden="true">🔊</span>
+          <span class="lab">Mute BT speaker</span>
+          <span class="toggle off" data-band-mute="vfo"
+                role="switch" aria-checked="false"
+                title="Mute the VFO output to the BT speaker. Icecast + scanner-vlc-vfo keep running."></span>
         </div>
       </div>
       <div class="dongle-overlay" id="vfo-down-overlay">
@@ -4961,8 +4939,10 @@ function renderWaterfall(data) {
 }
 
 let VFO_LOCAL = {
-  freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false,
+  freq_mhz: 127.700, mod: "am",
   // Phase 6b.2 — squelch + gain. Defaults match scripts/vfo.py.
+  // (BT-speaker mute moved to the standardized data-band-mute="vfo"
+  // toggle on 2026-06-05 — see wireBandMuteToggles below.)
   squelch_dbfs: -60, squelch_auto: false, gain_db: 40,
 };
 // Local cache of the latest live squelch state from /api/vfo so we
@@ -5035,16 +5015,6 @@ function renderVFO(data) {
     VFO_LOCAL.mod = data.mod;
     const sel = $("vfo-mod");
     if (sel && !sel.dataset.userEdited) sel.value = data.mod;
-  }
-  if (typeof data.muted === "boolean") {
-    VFO_LOCAL.muted = data.muted;
-    const t = $("vfo-mute");
-    if (t && !t.dataset.userEdited) t.classList.toggle("off", !data.muted);
-  }
-  if (typeof data.bt_routed === "boolean") {
-    VFO_LOCAL.bt_routed = data.bt_routed;
-    const t = $("vfo-bt");
-    if (t && !t.dataset.userEdited) t.classList.toggle("off", !data.bt_routed);
   }
   // Live tag.
   const liveTag = $("vfo-live-tag");
@@ -6368,82 +6338,28 @@ function wireVFOControls() {
       postVFO({ mod: mod.value });
     });
   }
-  function wireToggle(id, key) {
-    const t = $(id); if (!t) return;
-    t.addEventListener("click", async () => {
-      if (t.dataset.busy === "1") return;
-      t.dataset.userEdited = "1";
-      const wasOff = t.classList.contains("off");
-      const on = wasOff;
-      // Optimistic UI flip — bounce back below if the server says no.
-      t.classList.toggle("off", !on);
-      // BT toggle is the only one that does heavy lifting server-side
-      // (bluetoothctl connect + scanner-vlc-vfo start).  Give the
-      // operator immediate "Connecting…" feedback while we wait.
-      const isBT = (key === "bt_routed");
-      let toast = null;
-      if (isBT && on) {
-        t.dataset.busy = "1";
-        t.classList.add("connecting");
-        toast = showSitrepToast("Connecting to BT speaker…", "busy", 0);
-      }
-      let ok = false;
-      let errMsg = "";
-      try {
-        const next = { ...VFO_LOCAL, [key]: on };
-        const resp = await fetch("/api/vfo", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(next),
-        });
-        const body = await resp.json().catch(() => ({}));
-        if (resp.ok && body.ok !== false) {
-          ok = true;
-          Object.assign(VFO_LOCAL, next);
-        } else {
-          errMsg = (body && body.error) || `HTTP ${resp.status}`;
-        }
-      } catch (exc) {
-        errMsg = String((exc && exc.message) || exc);
-      }
-      if (isBT) {
-        t.dataset.busy = "";
-        t.classList.remove("connecting");
-      }
-      if (!ok) {
-        // Revert toggle to its pre-click state.
-        t.classList.toggle("off", on);
-        if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
-        showSitrepToast(
-          `${isBT ? "BT speaker" : key}: ${errMsg}`,
-          "err",
-          5000,
-        );
-      } else if (isBT && on) {
-        if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
-        showSitrepToast("BT speaker connected", "ok", 1800);
-      }
-    });
-  }
-  wireToggle("vfo-mute", "muted");
-  wireToggle("vfo-bt", "bt_routed");
+  // 2026-06-05 — the legacy "Mute" and "Route to BT speaker" toggles on
+  // the VFO card were removed.  VFO is now permanently routed to BT (the
+  // scanner-vlc-vfo.service unit is enabled at the systemd level), and
+  // the BT-speaker mute control moved to the standardized
+  // data-band-mute="vfo" toggle wired by wireBandMuteToggles().
 }
 
 // =========================================================================
-// 2026-06-05 — Per-band BT-speaker mute toggles on AIRBAND, GROUND,
-// DIGITAL band cards.
+// 2026-06-05 — Per-band BT-speaker mute toggles on every band card:
+// AIRBAND, GROUND, DIGITAL, and VFO (Manual Tune).
 //
 //   - Click POSTs /api/audio/band_mute {band, muted}.  Backend persists
 //     intent to data/band_mute.json (survives restarts) and applies the
-//     mute via PipeWire sink-input (airband/ground) or touchfile
+//     mute via PipeWire sink-input (airband/ground/vfo) or touchfile
 //     (digital — matches the op25 audio bridge contract).
 //   - Restore-on-load + watcher-driven re-sync: state is surfaced via
-//     /api/sitrep .band_mute = {airband, ground, digital}.  We seed
-//     once at boot via seedBandMuteFromSitrep(), and re-apply whenever
-//     the sitrep modal refreshes (catches divergence from the 5s
-//     backend reconciler thread).
+//     /api/sitrep .band_mute = {airband, ground, digital, vfo}.  We
+//     seed once at boot via seedBandMuteFromSitrep(), and re-apply
+//     whenever the sitrep modal refreshes (catches divergence from
+//     the 5s backend reconciler thread).
 // =========================================================================
-const BAND_MUTE_KEYS = ["airband", "ground", "digital"];
+const BAND_MUTE_KEYS = ["airband", "ground", "digital", "vfo"];
 function applyBandMuteUI(band, muted) {
   if (BAND_MUTE_KEYS.indexOf(band) < 0) return;
   const toggle = document.querySelector(`[data-band-mute="${band}"]`);

@@ -64,10 +64,12 @@ STATE_PATH = Path(os.getenv("BAND_MUTE_STATE_PATH", str(_DEFAULT_STATE_PATH)))
 # Band → systemd unit (PipeWire sink-input owner).
 #   airband -> rtl-airband-airband produces ANALOG.mp3 → scanner-vlc-analog
 #   ground  -> rtl-airband-ground  produces ANALOG_GROUND.mp3 → scanner-vlc-ground
+#   vfo     -> scripts/vfo.py      produces VFO.mp3            → scanner-vlc-vfo
 # (Digital is the touchfile path — handled separately.)
 _BAND_UNITS = {
     "airband": os.getenv("BAND_MUTE_UNIT_AIRBAND", "scanner-vlc-analog.service"),
     "ground":  os.getenv("BAND_MUTE_UNIT_GROUND",  "scanner-vlc-ground.service"),
+    "vfo":     os.getenv("BAND_MUTE_UNIT_VFO",     "scanner-vlc-vfo.service"),
 }
 
 # Match ui/vlc.py:DIGITAL_MUTE_FLAG so both paths agree on the contract.
@@ -75,7 +77,7 @@ _DIGITAL_MUTE_FLAG = Path(
     os.getenv("OP25_AUDIO_MUTE_FLAG", "/run/scannerproject/op25/digital_local_mute")
 )
 
-BAND_KEYS: tuple[str, ...] = ("airband", "ground", "digital")
+BAND_KEYS: tuple[str, ...] = ("airband", "ground", "digital", "vfo")
 BAND_MUTE_WATCHER_INTERVAL_SEC = float(
     os.getenv("BAND_MUTE_WATCHER_INTERVAL_SEC", "5.0")
 )
@@ -516,7 +518,7 @@ def _digital_is_muted() -> bool:
 # ---------------------------------------------------------------------------
 
 def _apply_band(band: str, muted: bool) -> tuple[bool, str]:
-    if band in ("airband", "ground"):
+    if band in ("airband", "ground", "vfo"):
         unit = _BAND_UNITS[band]
         return _apply_vlc_mute(unit, muted)
     if band == "digital":
@@ -554,7 +556,7 @@ def reconcile_once() -> None:
     state = get_state()
     for band, want in state.items():
         try:
-            if band in ("airband", "ground"):
+            if band in ("airband", "ground", "vfo"):
                 unit = _BAND_UNITS[band]
                 pid = _service_main_pid(unit)
                 if pid is None:

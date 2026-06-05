@@ -98,7 +98,10 @@ class BandMuteTests(unittest.TestCase):
 
     def test_default_state_is_all_unmuted(self) -> None:
         state = self.bm.get_state()
-        self.assertEqual(state, {"airband": False, "ground": False, "digital": False})
+        self.assertEqual(
+            state,
+            {"airband": False, "ground": False, "digital": False, "vfo": False},
+        )
 
     def test_unknown_band_rejected(self) -> None:
         ok, msg = self.bm.set_band("bogus", True)
@@ -117,6 +120,7 @@ class BandMuteTests(unittest.TestCase):
         self.assertTrue(state["digital"])
         self.assertFalse(state["airband"])
         self.assertFalse(state["ground"])
+        self.assertFalse(state["vfo"])
         # Persisted to disk:
         with open(os.environ["BAND_MUTE_STATE_PATH"], "r", encoding="utf-8") as f:
             disk = json.load(f)
@@ -250,7 +254,9 @@ class BandMuteTests(unittest.TestCase):
         # Persist airband=True manually, then have pactl report Mute: yes
         # already.  reconcile_once should NOT call wpctl.
         with self.bm._state_lock:
-            self.bm._write_state_file({"airband": True, "ground": False, "digital": False})
+            self.bm._write_state_file({
+                "airband": True, "ground": False, "digital": False, "vfo": False,
+            })
 
         def fake_run(cmd, **kwargs):
             if cmd[0] == "systemctl":
@@ -275,7 +281,9 @@ class BandMuteTests(unittest.TestCase):
         # restarted and the new sink-input came up unmuted).  reconcile
         # must re-mute it.
         with self.bm._state_lock:
-            self.bm._write_state_file({"airband": True, "ground": False, "digital": False})
+            self.bm._write_state_file({
+                "airband": True, "ground": False, "digital": False, "vfo": False,
+            })
 
         wpctl_called: list[list[str]] = []
 
@@ -299,7 +307,9 @@ class BandMuteTests(unittest.TestCase):
         flag.parent.mkdir(parents=True, exist_ok=True)
         flag.touch()
         with self.bm._state_lock:
-            self.bm._write_state_file({"airband": False, "ground": False, "digital": True})
+            self.bm._write_state_file({
+                "airband": False, "ground": False, "digital": True, "vfo": False,
+            })
         self.bm.reconcile_once()
         # Still exists; nothing crashed.
         self.assertTrue(flag.exists())
@@ -308,15 +318,26 @@ class BandMuteTests(unittest.TestCase):
         flag = Path(os.environ["OP25_AUDIO_MUTE_FLAG"])
         # Persist digital=True but flag does not yet exist.
         with self.bm._state_lock:
-            self.bm._write_state_file({"airband": False, "ground": False, "digital": True})
+            self.bm._write_state_file({
+                "airband": False, "ground": False, "digital": True, "vfo": False,
+            })
         self.assertFalse(flag.exists())
         self.bm.reconcile_once()
         self.assertTrue(flag.exists())
 
     # ---- BAND_KEYS round-trip ----------------------------------------------
 
-    def test_band_keys_cover_all_three(self) -> None:
-        self.assertEqual(set(self.bm.BAND_KEYS), {"airband", "ground", "digital"})
+    def test_band_keys_cover_all_four(self) -> None:
+        self.assertEqual(
+            set(self.bm.BAND_KEYS),
+            {"airband", "ground", "digital", "vfo"},
+        )
+
+    def test_vfo_unit_default_is_scanner_vlc_vfo(self) -> None:
+        # Catch regressions in the unit-name mapping — band_mute.py and
+        # the scanner-vlc-vfo systemd unit name must stay aligned, since
+        # the watcher resolves sink-input identity via the unit's MainPID.
+        self.assertEqual(self.bm._BAND_UNITS["vfo"], "scanner-vlc-vfo.service")
 
     # ---- wpctl-native path (pactl absent, e.g. micro) ---------------------
 
@@ -414,6 +435,127 @@ class BandMuteTests(unittest.TestCase):
         self.assertTrue(ok, msg=msg)
         self.assertIn("squelched", msg)
         self.assertTrue(self.bm.get_state()["ground"])
+
+    # ---- VFO: parallels airband path, but resolves scanner-vlc-vfo --------
+
+    @mock.patch("shutil.which", return_value="/usr/bin/wpctl")
+    @mock.patch("subprocess.run")
+    def test_vfo_mute_resolves_pid_then_mutes_sink_input(
+        self,
+        run_mock: mock.Mock,
+        which_mock: mock.Mock,
+    ) -> None:
+        """VFO mute walks the same pid → sink-input → wpctl set-mute path
+        as airband; verifies the new BAND_KEYS entry threads through
+        _apply_band correctly and the unit-name override resolves to
+        scanner-vlc-vfo.service."""
+        unit_seen: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "systemctl" and "show" in cmd:
+                # Capture the unit-name so we can assert the VFO unit is
+                # the one consulted (not airband / ground by accident).
+                unit_seen.append(cmd[-1])
+                return _fake_completed(rc=0, stdout="73307\n")
+            if cmd[0] == "pactl" and cmd[1:3] == ["list", "sink-inputs"]:
+                # Re-use the analog VLC fixture but swap the pid to the
+                # VFO MainPID we returned above.
+                return _fake_completed(
+                    rc=0,
+                    stdout=_PACTL_LIST_WITH_VLC_ANALOG.replace("12345", "73307"),
+                )
+            if cmd[0] == "wpctl" and cmd[1] == "set-mute":
+                return _fake_completed(rc=0, stdout="")
+            return _fake_completed(rc=0, stdout="")
+
+        run_mock.side_effect = fake_run
+        ok, msg = self.bm.set_band("vfo", True)
+        self.assertTrue(ok, msg=msg)
+        wpctl_calls = [
+            c.args[0] for c in run_mock.call_args_list if c.args[0][0] == "wpctl"
+        ]
+        self.assertEqual(wpctl_calls, [["wpctl", "set-mute", "42", "1"]])
+        # Confirm we queried the VFO unit, not the airband / ground ones.
+        self.assertIn("scanner-vlc-vfo.service", unit_seen)
+        self.assertTrue(self.bm.get_state()["vfo"])
+
+    @mock.patch("shutil.which", return_value="/usr/bin/wpctl")
+    @mock.patch("subprocess.run")
+    def test_vfo_unmute_passes_zero_to_wpctl(
+        self,
+        run_mock: mock.Mock,
+        which_mock: mock.Mock,
+    ) -> None:
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "systemctl":
+                return _fake_completed(rc=0, stdout="73307\n")
+            if cmd[0] == "pactl" and cmd[1:3] == ["list", "sink-inputs"]:
+                return _fake_completed(
+                    rc=0,
+                    stdout=_PACTL_LIST_WITH_VLC_ANALOG.replace("12345", "73307"),
+                )
+            return _fake_completed(rc=0, stdout="")
+
+        run_mock.side_effect = fake_run
+        self.bm.set_band("vfo", False)
+        wpctl_calls = [
+            c.args[0] for c in run_mock.call_args_list if c.args[0][0] == "wpctl"
+        ]
+        self.assertEqual(wpctl_calls, [["wpctl", "set-mute", "42", "0"]])
+
+    @mock.patch("shutil.which", return_value="/usr/bin/wpctl")
+    @mock.patch("subprocess.run")
+    def test_vfo_service_inactive_persists_but_returns_err(
+        self,
+        run_mock: mock.Mock,
+        which_mock: mock.Mock,
+    ) -> None:
+        # If scanner-vlc-vfo.service is down (e.g. BT speaker disconnected),
+        # set_band must still persist the intent so the watcher applies
+        # mute the moment the service comes back up.
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "systemctl":
+                return _fake_completed(rc=0, stdout="0\n")
+            return _fake_completed(rc=0, stdout="")
+
+        run_mock.side_effect = fake_run
+        ok, msg = self.bm.set_band("vfo", True)
+        self.assertFalse(ok)
+        self.assertIn("not active", msg)
+        self.assertTrue(self.bm.get_state()["vfo"])
+
+    @mock.patch("shutil.which", return_value="/usr/bin/wpctl")
+    @mock.patch("subprocess.run")
+    def test_reconcile_reapplies_vfo_when_diverged(
+        self,
+        run_mock: mock.Mock,
+        which_mock: mock.Mock,
+    ) -> None:
+        # Persisted state: vfo muted; live sink-input shows unmuted (e.g.
+        # scanner-vlc-vfo restarted).  Watcher must re-mute.
+        with self.bm._state_lock:
+            self.bm._write_state_file({
+                "airband": False, "ground": False, "digital": False, "vfo": True,
+            })
+
+        wpctl_called: list[list[str]] = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "systemctl":
+                return _fake_completed(rc=0, stdout="73307\n")
+            if cmd[0] == "pactl" and cmd[1:3] == ["list", "sink-inputs"]:
+                return _fake_completed(
+                    rc=0,
+                    stdout=_PACTL_LIST_WITH_VLC_ANALOG.replace("12345", "73307"),
+                )
+            if cmd[0] == "wpctl":
+                wpctl_called.append(list(cmd))
+                return _fake_completed(rc=0, stdout="")
+            return _fake_completed(rc=0, stdout="")
+
+        run_mock.side_effect = fake_run
+        self.bm.reconcile_once()
+        self.assertEqual(wpctl_called, [["wpctl", "set-mute", "42", "1"]])
 
     # ---- start_watcher is idempotent ---------------------------------------
 
