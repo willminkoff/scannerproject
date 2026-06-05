@@ -5017,6 +5017,20 @@ function wireAudioBar() {
   const audioHost = $("pl-audio-host");
   const HOST = `${location.protocol}//${location.hostname}:8000/`;
 
+  // --- audio source mode (phase-3c-fallback) -------------------------------
+  // false: direct cross-origin to icecast :8000 (needs audio.crossOrigin +
+  //   icecast CORS). Works only if the browser allows cross-origin Web Audio.
+  // true:  same-origin passthrough proxy /stream/<MOUNT>?transcode=0, served by
+  //   airband-ui on :5050 — no CORS, no crossOrigin, no taint. Use this if
+  //   cross-origin streams are blocked/closed in the browser. Flip this one
+  //   constant to switch; srcFor() + the crossOrigin guard handle the rest.
+  const USE_STREAM_PROXY = true;
+  function srcFor(mount) {
+    return USE_STREAM_PROXY
+      ? `/stream/${mount}?transcode=0`        // same-origin, passthrough (no ffmpeg)
+      : `${HOST}${mount}`;                     // direct icecast :8000
+  }
+
   const PLAY = "▶", PAUSE = "❚❚";
   let isPlaying = false;
   const streams = {};   // mount -> { pill, audio, src, calGain, analyser }
@@ -5083,8 +5097,10 @@ function wireAudioBar() {
   function mountAudio(mount) {
     const a = document.createElement("audio");
     a.preload = "none";
-    a.crossOrigin = "anonymous";   // required for cross-origin Web Audio (icecast CORS)
-    a.src = HOST + mount;
+    // crossOrigin is only needed (and only safe) for the direct cross-origin
+    // path; the same-origin proxy must NOT set it.
+    if (!USE_STREAM_PROXY) a.crossOrigin = "anonymous";
+    a.src = srcFor(mount);
     a.addEventListener("playing", () => { setPillState(mount, null); refreshTransport(); });
     a.addEventListener("waiting", () => { setPillState(mount, "buffering"); });
     a.addEventListener("pause", () => { setPillState(mount, null); });
