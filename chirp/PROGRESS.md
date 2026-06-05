@@ -121,6 +121,100 @@ hot/teardown path on production.
 
 ---
 
+## 2026-06-05 — chirp(lo-scheduler): break the daemon ↔ scheduler lock cycle
+
+**Goal** — eliminate the structural lock-inversion bug that produced the
+2026-06-04 21:26:21 EDT `chirp-airband` wedge during a cluster_hop.
+
+**Root cause (static analysis; the live forensic file was never written
+to disk — captured in-conversation only)** — two reentrant locks acquired
+in opposite orders by two threads:
+
+- `ChirpFlowgraph._lock` ("D-lock", `chirp/daemon.py:357`)
+- `LoScheduler._lock` ("S-lock", `chirp/dsp/lo_scheduler.py:138`)
+
+The cmd-server thread takes D-then-S in `_cmd_get_status` (D at
+daemon.py:827, then `lo_scheduler.snapshot()` at 884 takes S) and in
+every pool-mutating handler (D at the start, then
+`_invalidate_and_apply_now` → `lo_scheduler.step()` takes S).  The
+scheduler thread takes S-then-D in `step()` (S inside `step`, then the
+daemon callbacks `_scheduler_unpark_channels` etc. each take D).  Under
+concurrent cluster_hop + UI status poll + hit-stream activity the two
+orders close into a cycle, and the daemon goes silent while alive.
+The hit-detector thread ("chirp-hits") is collateral — it only takes S,
+not D, so it cannot be on the cycle, it just blocks on S along with
+everyone else.
+
+**Done**
+
+- Established canonical lock order **D-lock-before-S-lock** for any
+  thread that takes both.  Threads that take only one are unaffected.
+- `LoScheduler.__init__` now accepts an optional `daemon_lock` kwarg.
+  When provided (production wires `ChirpFlowgraph._lock`), `step()`
+  acquires it *before* the internal S-lock — `with self._daemon_lock,
+  self._lock:`.  Cmd-server callers already holding the daemon lock pay
+  only an RLock-reentry; the scheduler's own `_loop` acquires D fresh.
+- `chirp/daemon.py` passes `daemon_lock=self._lock` at scheduler
+  construction (`ChirpFlowgraph.__init__`).
+- Added a "Canonical lock order (CRITICAL)" bullet to the
+  `chirp/dsp/lo_scheduler.py` module docstring and a "Threading /
+  lock-order discipline" section to the `ChirpFlowgraph` class
+  docstring documenting the invariant for future maintainers.
+- Added two regression tests in
+  `chirp/tests/test_lo_scheduler.py::TestLoSchedulerLockCycleRegression`:
+  - `test_step_acquires_daemon_lock_before_internal_lock` —
+    deterministically reproduces the D↔S cycle in <1 s.  Fails on
+    un-fixed code (verified by temporarily reverting `step()` and
+    running a standalone reproducer outside pytest — the GR import in
+    the test file means the embedded pytest version requires GR to
+    run, but the scenario is exercised identically).  Passes on fixed
+    code.
+  - `test_step_runs_normally_without_external_daemon_lock_contention`
+    — sanity that single-threaded `step()` does not block on the new
+    outer lock.
+
+**Files changed**
+
+- `chirp/dsp/lo_scheduler.py` — docstring, new `daemon_lock` kwarg,
+  D-then-S acquisition in `step()`.
+- `chirp/daemon.py` — class docstring (lock-order section); pass
+  `daemon_lock=self._lock` to the scheduler.
+- `chirp/tests/test_lo_scheduler.py` — new
+  `TestLoSchedulerLockCycleRegression` class (two tests).
+
+**Verification**
+
+- Standalone reproducer of the regression scenario PASSED with the fix;
+  DEADLOCKED on the un-fixed code (proves the test exercises the bug).
+- 78 hermetic tests pass (`test_cluster_planner`, `test_state`,
+  `test_migrate_state`, `test_phase4c`).  Tests under
+  `test_phase{1,2,2_stress,3,4a,4b,4pre}` and `test_lo_scheduler` /
+  `test_radio_bugs` could not be collected in the bench environment
+  because they import gnuradio — pre-existing condition, unrelated to
+  this change.  On the deploy host they run normally.
+
+**Deferred / surfaces for Will**
+
+- `lo_scheduler.snapshot()` still takes S-lock.  Converting it (and
+  `current_cluster_center_hz`) to a lock-free atomic-snapshot pattern
+  is a worthwhile optimisation but not required for correctness now
+  that lock-order discipline is enforced.
+- The historical forensic dump for the 21:26 EDT wedge was never
+  actually written to disk (a prior agent reported writing it but the
+  write didn't happen).  This fix is grounded in static analysis of
+  the in-conversation summary plus exhaustive grep of every lock
+  acquisition in the codebase — see `DESIGN_lo_scheduler_lockfix.md`
+  (working file, deleted before commit) for the full audit trail and
+  the assumption flagged about the unnamed B→A leg (almost certainly
+  the cmd-server itself mid-`_cmd_get_status`, not a GR worker — no
+  GR worker thread acquires `ChirpFlowgraph._lock` anywhere).
+
+**Next task** — ship.  Will handles SFTP → commit on micro → push →
+restart `gr-demod@airband` + `gr-demod@ground` → verify daemons survive
+a forced cluster-hop + simultaneous chip click + get_status burst.
+
+---
+
 ## 2026-06-04 ~21:35 UTC — Phase 4d hotfix #3: chirp hit-ingest into /api/hits
 
 **Goal** — fill the last UI-side gap surfaced during a 1:1 chirp-vs-Uniden

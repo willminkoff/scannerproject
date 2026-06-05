@@ -573,3 +573,190 @@ class TestHitDetectorWithScheduler:
         # No exception, no cluster tag.
         ev = next(kw for (n, kw) in server.events if n == "hit_start")
         assert "cluster_center_hz" not in ev
+
+
+# ---------------------------------------------------------------------------
+# 4. Lock-order regression — the 2026-06-04 21:26 EDT chirp-airband wedge
+# ---------------------------------------------------------------------------
+
+
+class TestLoSchedulerLockCycleRegression:
+    """Deterministic regression for the daemon ↔ scheduler lock inversion.
+
+    The wedge:
+      - cmd-server thread holds ``ChirpFlowgraph._lock`` (D-lock) inside
+        ``_cmd_get_status``, then calls ``lo_scheduler.snapshot()`` which
+        wants the scheduler's internal lock (S-lock).
+      - scheduler thread holds S-lock inside ``step()``, then calls back
+        into the daemon (``_scheduler_unpark_channels`` etc.) which wants
+        D-lock.
+
+    Fix: ``LoScheduler.step()`` now acquires the injected ``daemon_lock``
+    BEFORE its internal lock — canonical D-before-S order.  See
+    ``DESIGN_lo_scheduler_lockfix.md`` and the module docstring of
+    ``chirp/dsp/lo_scheduler.py``.
+
+    Without the fix this test deadlocks (both joins time out, asserts
+    fire).  With the fix the cmd-server analogue completes immediately
+    because the scheduler is blocked at the top of ``step()`` waiting
+    for the daemon lock — S is free, ``snapshot()`` runs without
+    contention, the cmd-server analogue releases D, and the scheduler
+    then proceeds normally.
+    """
+
+    def test_step_acquires_daemon_lock_before_internal_lock(self):
+        daemon_lock_sim = threading.RLock()
+
+        scheduler_in_callback = threading.Event()
+        daemon_has_d_lock = threading.Event()
+        snapshot_done = threading.Event()
+        scheduler_step_done = threading.Event()
+
+        # Each callback mirrors a real daemon callback:
+        # _scheduler_park_channels / _scheduler_unpark_channels /
+        # _scheduler_retune_to / _get_plan_channels all acquire
+        # ``ChirpFlowgraph._lock`` (D-lock) before doing their work.
+        def park_cb(ids):
+            with daemon_lock_sim:
+                pass
+
+        def unpark_cb(ids):
+            with daemon_lock_sim:
+                pass
+
+        def retune_cb(hz):
+            with daemon_lock_sim:
+                pass
+
+        def get_channels_cb():
+            # ``_recompute_plan`` calls this FIRST under S-lock on every
+            # initial step, so this is our most reliable signalling
+            # point for "scheduler is inside the S critical section".
+            # Set the event BEFORE the ``with daemon_lock_sim`` so the
+            # parallel cmdserver thread can race for S-lock during the
+            # window where (un-fixed) the scheduler holds S and is
+            # about to want D.
+            scheduler_in_callback.set()
+            with daemon_lock_sim:
+                return [PlanChannel(
+                    id="ch_a", freq_hz=118_100_000.0, recent_hits=0.0,
+                )]
+
+        def emit_event_cb(name, **kw):
+            pass
+
+        scheduler = LoScheduler(
+            get_channels=get_channels_cb,
+            retune_to=retune_cb,
+            park_channels=park_cb,
+            unpark_channels=unpark_cb,
+            emit_event=emit_event_cb,
+            iq_bw_hz=2e6,
+            dwell_s=60.0,
+            daemon_lock=daemon_lock_sim,
+        )
+
+        def fake_cmdserver():
+            # Mirrors `_cmd_get_status`: acquire D first, then call
+            # snapshot() (which wants S).
+            with daemon_lock_sim:
+                daemon_has_d_lock.set()
+                # Wait for the scheduler to enter the S critical section.
+                # In the un-fixed code this fires almost immediately
+                # (scheduler takes S, calls get_channels_cb).  In the
+                # fixed code the scheduler is blocked at step()'s outer
+                # `with self._daemon_lock` waiting for us — the event
+                # never fires and we time out.  In BOTH cases snapshot()
+                # is the next action: it wants S, which is held by the
+                # scheduler in the un-fixed case (deadlock) and free in
+                # the fixed case (returns immediately).
+                scheduler_in_callback.wait(timeout=0.5)
+                scheduler.snapshot()
+                snapshot_done.set()
+
+        def fake_scheduler():
+            # Wait for the fake cmdserver to be holding D-lock so the
+            # ordering is deterministic regardless of OS scheduling.
+            if not daemon_has_d_lock.wait(timeout=2.0):
+                return
+            scheduler.step()
+            scheduler_step_done.set()
+
+        t1 = threading.Thread(
+            target=fake_cmdserver, name="test-fake-cmdserver", daemon=True,
+        )
+        t2 = threading.Thread(
+            target=fake_scheduler, name="test-fake-scheduler", daemon=True,
+        )
+        t1.start()
+        t2.start()
+
+        # 3 s per join is well above the ~0.5 s rendezvous in the fixed
+        # path and well below the wedge-detection threshold the operator
+        # would notice.  Both threads finish promptly in the fixed code.
+        t1.join(timeout=3.0)
+        t2.join(timeout=3.0)
+
+        assert snapshot_done.is_set(), (
+            "deadlock reproduced: fake_cmdserver.snapshot() never "
+            "returned.  LoScheduler.step() must acquire daemon_lock "
+            "BEFORE its internal lock (canonical D-before-S order). "
+            "See DESIGN_lo_scheduler_lockfix.md."
+        )
+        assert scheduler_step_done.is_set(), (
+            "deadlock reproduced: fake_scheduler.step() never returned."
+        )
+
+    def test_step_runs_normally_without_external_daemon_lock_contention(self):
+        """Sanity check: ``step()`` still completes when no other thread
+        is competing for the daemon lock.  Guards against a regression
+        where the new ``with self._daemon_lock`` accidentally blocks the
+        single-threaded test path."""
+        daemon_lock_sim = threading.RLock()
+
+        called = {"get_channels": 0, "retune": 0, "park": 0, "unpark": 0,
+                  "emit": 0}
+
+        def park_cb(ids):
+            with daemon_lock_sim:
+                called["park"] += 1
+
+        def unpark_cb(ids):
+            with daemon_lock_sim:
+                called["unpark"] += 1
+
+        def retune_cb(hz):
+            with daemon_lock_sim:
+                called["retune"] += 1
+
+        def get_channels_cb():
+            with daemon_lock_sim:
+                called["get_channels"] += 1
+                return [PlanChannel(
+                    id="solo", freq_hz=118_000_000.0, recent_hits=0.0,
+                )]
+
+        def emit_event_cb(name, **kw):
+            called["emit"] += 1
+
+        scheduler = LoScheduler(
+            get_channels=get_channels_cb,
+            retune_to=retune_cb,
+            park_channels=park_cb,
+            unpark_channels=unpark_cb,
+            emit_event=emit_event_cb,
+            iq_bw_hz=2e6,
+            dwell_s=60.0,
+            daemon_lock=daemon_lock_sim,
+        )
+
+        # Must return promptly (no deadlock, no hang).
+        t0 = time.monotonic()
+        scheduler.step()
+        elapsed = time.monotonic() - t0
+
+        assert elapsed < 1.0, f"step() took {elapsed:.3f}s — unexpected hang"
+        assert called["get_channels"] == 1
+        # Single-cluster plan → unpark of the lone channel, no park.
+        assert called["unpark"] >= 1
+        assert called["emit"] >= 1  # cluster_hop event
