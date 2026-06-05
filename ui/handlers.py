@@ -8614,11 +8614,20 @@ class Handler(BaseHTTPRequestHandler):
         # We persist the new value via write_controls + the managed
         # controls override store, but DO NOT auto-restart rtl-airband
         # (TimeoutStopSec=5; risky to bounce on every slider drag, and
-        # the SDRplay daemon can wedge on SIGKILL). The change applies
-        # on the next manual restart via Sitrep → Reset Radios; we
-        # signal that with `pending_restart: true` in the response so
-        # the UI can render a "pending" hint. The existing /api/apply
-        # path remains the way to commit-and-restart in one shot.
+        # the SDRplay daemon can wedge on SIGKILL). On the rtl-airband
+        # backend the change applies on the next manual restart via
+        # Sitrep → Reset Radios; we signal that with
+        # `pending_restart: true` in the response so the UI can render
+        # a "pending" hint. The existing /api/apply path remains the
+        # way to commit-and-restart in one shot.
+        #
+        # Phase 4d cleanup: when SB5_USE_GR_DEMOD=true (chirp is the
+        # analog backend), there is no "next restart" — the squelch
+        # tracker pushes the new value live via the chirp client on
+        # its next tick. Returning `pending_restart` under chirp would
+        # be a lie, so we OMIT the field entirely. Consumers should
+        # branch on field presence; sb5's `_bandCommitAfter` clamps
+        # `st.pending` to false under USE_GR_DEMOD as defense in depth.
         if p in ("/api/airband/squelch", "/api/airband/gain"):
             band_raw = str(form.get("band", "")).strip().lower()
             band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
@@ -8693,20 +8702,31 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
 
+            # Phase 4d: omit `pending_restart` under chirp (no restart
+            # concept — the squelch tracker propagates live via the
+            # chirp client). The probe is defensive: any exception
+            # falls through to the legacy rtl-airband response shape.
+            use_chirp = False
+            try:
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("%s: use_gr_demod probe failed", p, exc_info=True)
+            resp = {
+                "ok": True,
+                "band": "air" if target == "airband" else "ground",
+                "target": target,
+                "gain_db": float(new_gain),
+                "threshold_dbfs": float(new_dbfs),
+                "auto": new_mode == "snr",
+                "changed": bool(changed),
+            }
+            if not use_chirp:
+                # Hot reload of rtl-airband is intentionally NOT done
+                # here. The operator restarts manually via Sitrep.
+                resp["pending_restart"] = bool(changed)
             return self._send(
                 200,
-                json.dumps({
-                    "ok": True,
-                    "band": "air" if target == "airband" else "ground",
-                    "target": target,
-                    "gain_db": float(new_gain),
-                    "threshold_dbfs": float(new_dbfs),
-                    "auto": new_mode == "snr",
-                    "changed": bool(changed),
-                    # Hot reload of rtl-airband is intentionally NOT done
-                    # here. The operator restarts manually via Sitrep.
-                    "pending_restart": bool(changed),
-                }),
+                json.dumps(resp),
                 "application/json; charset=utf-8",
             )
 
@@ -8718,11 +8738,18 @@ class Handler(BaseHTTPRequestHandler):
         # incremented.  This endpoint reads the live noise floor from
         # /run/rtl_airband_<svc>_stats.txt, computes per-channel
         # threshold = noise + margin, and writes a list form into the
-        # resolved controls profile.  rtl-airband does NOT hot-reload; the
-        # operator (or the 6s sb5 auto-apply countdown) restarts via
-        # /api/sitrep/action reset_radios.  We respond with
-        # pending_restart=true so the countdown fires the same way the
-        # legacy slider commit did.
+        # resolved controls profile.  On the rtl-airband backend rtl-airband
+        # does NOT hot-reload; the operator (or the 6s sb5 auto-apply
+        # countdown) restarts via /api/sitrep/action reset_radios.  We
+        # respond with pending_restart=true so the countdown fires the same
+        # way the legacy slider commit did.
+        #
+        # Phase 4d cleanup: when SB5_USE_GR_DEMOD=true the chirp adapter
+        # pushes the per-channel thresholds via set_squelch and the change
+        # is live immediately — there is no restart concept.  We OMIT the
+        # `pending_restart` field from the response in that case; sb5's
+        # _bandCommitAfter additionally clamps st.pending to false under
+        # USE_GR_DEMOD so even a stray field never surfaces hint text.
         if p == "/api/airband/squelch_preset":
             band_raw = str(form.get("band", "")).strip().lower()
             band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
@@ -8842,21 +8869,26 @@ class Handler(BaseHTTPRequestHandler):
                 )
             except Exception:
                 logger.debug("managed override persist for preset skipped", exc_info=True)
+            resp = {
+                "ok": True,
+                "band": "air" if target == "airband" else "ground",
+                "target": target,
+                "preset": plan.get("preset"),
+                "margin_db": plan.get("margin_db"),
+                "threshold_median": plan.get("threshold_median"),
+                "noise_floor_median": plan.get("noise_floor_median"),
+                "freqs_count": len(plan.get("freqs") or []),
+                "stats_available": plan.get("stats_available"),
+                "changed": bool(plan.get("changed")),
+            }
+            # Phase 4d: omit pending_restart under chirp (live apply via
+            # set_squelch — no restart).  use_chirp was already probed
+            # above to pick the apply path.
+            if not use_chirp:
+                resp["pending_restart"] = bool(plan.get("changed"))
             return self._send(
                 200,
-                json.dumps({
-                    "ok": True,
-                    "band": "air" if target == "airband" else "ground",
-                    "target": target,
-                    "preset": plan.get("preset"),
-                    "margin_db": plan.get("margin_db"),
-                    "threshold_median": plan.get("threshold_median"),
-                    "noise_floor_median": plan.get("noise_floor_median"),
-                    "freqs_count": len(plan.get("freqs") or []),
-                    "stats_available": plan.get("stats_available"),
-                    "changed": bool(plan.get("changed")),
-                    "pending_restart": bool(plan.get("changed")),
-                }),
+                json.dumps(resp),
                 "application/json; charset=utf-8",
             )
 

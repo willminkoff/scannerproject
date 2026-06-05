@@ -6666,7 +6666,14 @@ function renderBandControls(band) {
     readout.textContent = txt;
   }
   _bandSetVal(band, "gain-val", `${Math.round(st.gain)} dB`);
-  _bandSetHint(band, st.pending ? "pending · applies on next rtl-airband restart" : "", st.pending);
+  // Phase 4d: under chirp the "pending restart" concept is dead — squelch
+  // and gain apply live via the chirp client. Suppress the hint
+  // unconditionally so a stale st.pending (or a backend that still ships
+  // the field on a rolling deploy) never surfaces operator-facing text
+  // that reads like an error. The complementary clamp in _bandCommitAfter
+  // also pins st.pending to false; this gate is defense in depth.
+  const showPending = !!st.pending && !USE_GR_DEMOD;
+  _bandSetHint(band, showPending ? "pending · applies on next rtl-airband restart" : "", showPending);
 }
 
 function updateBandStateFromStatus(status) {
@@ -6752,7 +6759,16 @@ const _bandCommitTimers = { air: { sql: null, gain: null }, ground: { sql: null,
 // a no-op: _scheduleAutoApply stops any prior timer and starts fresh.
 function _bandCommitAfter(r, band) {
   const st = BAND_STATE[band];
-  st.pending = !!(r.ok && r.json && r.json.pending_restart);
+  // Phase 4d: under chirp the backend OMITS pending_restart entirely
+  // (handlers.py /api/airband/{squelch,gain,squelch_preset}), and even
+  // if a stale build still ships it we ignore it — the change applied
+  // live via set_squelch already. Force pending=false so the per-band
+  // card never shows "pending · applies on next rtl-airband restart".
+  if (USE_GR_DEMOD) {
+    st.pending = false;
+  } else {
+    st.pending = !!(r.ok && r.json && r.json.pending_restart);
+  }
   renderBandControls(band);
   if (st.pending && typeof _scheduleAutoApply === "function") {
     try { _scheduleAutoApply(); } catch (_) {}
@@ -6862,13 +6878,16 @@ function _autoApplyCancel() {
   _autoApplyHide();
 }
 
-// After a successful auto-apply, rtl-airband has restarted with the
-// slider values the user committed during the countdown.  The
-// "pending · applies on next rtl-airband restart" hint on each band
-// card is now stale (the next restart already happened), so clear
-// st.pending for both bands and re-render their controls.  Subsequent
-// slider commits flow through _bandCommit, which re-sets st.pending if
-// the backend still reports pending_restart for that change.
+// After a successful auto-apply (rtl-airband path only — the chirp
+// path gates _scheduleAutoApply / _autoApplyFire to no-ops), rtl-airband
+// has restarted with the slider values the user committed during the
+// countdown.  The "pending · applies on next rtl-airband restart" hint
+// on each band card is now stale (the next restart already happened),
+// so clear st.pending for both bands and re-render their controls.
+// Subsequent slider commits flow through _bandCommit, which re-sets
+// st.pending iff the backend ships pending_restart (rtl-airband path).
+// Under chirp the field is OMITTED by the backend and clamped to false
+// in _bandCommitAfter, so this clear is a no-op in that path.
 const AUTO_APPLY_APPLIED_LINGER_MS = 2500;  // how long "Applied ✓" stays before auto-hide
 const AUTO_APPLY_ERROR_LINGER_MS   = 5000;  // how long "Apply failed:" stays before auto-hide
 function _clearBandPendingAfterApply() {
