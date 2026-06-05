@@ -1,0 +1,31 @@
+[Unit]
+Description=Scanner Audio Leveler (apply mount_gains.json to VLC sink-inputs -> BT speaker)
+# Start after the audio chain so the four VLC sink-inputs already exist to
+# level. Soft Wants (not Requires/BindsTo): the leveler self-heals and
+# re-resolves nodes every tick, so it must never stop/bounce the VLC services.
+After=pipewire.service scanner-vlc-analog.service scanner-vlc-ground.service scanner-vlc-digital.service scanner-vlc-vfo.service
+Wants=scanner-vlc-analog.service scanner-vlc-ground.service scanner-vlc-digital.service scanner-vlc-vfo.service
+
+[Service]
+Type=simple
+User=ubuntu
+# Same uid-1000 PipeWire env the scanner-vlc-* units use, so wpctl reaches the
+# same session that owns the sink-inputs. (No PULSE_SINK: we don't emit audio,
+# only set volume on existing sink-inputs.)
+EnvironmentFile=-/etc/airband-ui.conf
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+WorkingDirectory=/home/ubuntu/scannerproject
+ExecStart=/usr/bin/python3 -m ui.audio_leveler
+Restart=always
+RestartSec=3
+TimeoutStopSec=5
+KillSignal=SIGTERM
+# Least-privilege, kept minimal on purpose: heavier sandboxing (ProtectSystem,
+# ProtectProc, etc.) can break the /proc descendant-PID walk and the PipeWire
+# socket access the discovery relies on. Revisit once verified.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
