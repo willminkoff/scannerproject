@@ -24,14 +24,7 @@ Wants=network-online.target
 Requires=icecast2.service sdrplay.service
 
 [Service]
-# Type=notify so systemd can detect a startup hang in the SDR open
-# path (osmosdr.source() → sdrplay_api_Open). The daemon signals
-# READY=1 only after flowgraph init + cmd server + state restore all
-# succeed. If the daemon hangs in sdrplay_api_Open it never says
-# READY=1 → systemd SIGKILLs at TimeoutStartSec → Restart=on-failure
-# triggers a clean retry (bounded by StartLimitBurst below).
-Type=notify
-NotifyAccess=main
+Type=simple
 User=ubuntu
 Group=ubuntu
 
@@ -51,16 +44,7 @@ ExecStart=/usr/bin/python3 -m chirp.daemon
 
 Restart=on-failure
 RestartSec=2
-# Generous startup budget: typical chirp boot is ~5-15 s (flowgraph
-# build + cmd server + state restore). 60 s covers slow boots while
-# still bounding sdrplay_api_Open hangs.
-TimeoutStartSec=60
-# Slightly longer than the rtl-airband-era 5 s: the SDR shutdown drain
-# (chirp/daemon.py) costs ~2 s, plus drain + tb.stop()/wait().
-TimeoutStopSec=10
-# Watchdog catches mid-run hangs (e.g. main loop blocked forever).
-# Daemon pings WATCHDOG=1 every ~10 s, well under this ceiling.
-WatchdogSec=30
+TimeoutStopSec=5
 KillSignal=SIGTERM
 KillMode=mixed
 
