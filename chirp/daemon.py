@@ -170,6 +170,9 @@ class DaemonConfig:
     # AM voice band-pass edges (Hz). Defaults match the prior hardcoded values.
     audio_bandpass_low_hz: float = 300.0
     audio_bandpass_high_hz: float = 3500.0
+    # AM voice denoise (RNNoise via ffmpeg arnndn at the icecast encoder).
+    denoise: bool = False
+    denoise_model: str = ""
     max_channels: int = DEFAULT_MAX_CHANNELS
     event_sink: Optional[tuple[str, int]] = None
     log_level: str = "INFO"
@@ -344,6 +347,14 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
             "CHIRP_AUDIO_BANDPASS_HIGH_HZ",
             raw.get("audio_bandpass_high_hz", 3500.0),
         )),
+        denoise=str(os.environ.get(
+            "CHIRP_DENOISE",
+            str(raw.get("denoise", "false")),
+        )).strip().lower() in ("1", "true", "yes", "on"),
+        denoise_model=os.environ.get(
+            "CHIRP_DENOISE_MODEL",
+            raw.get("denoise_model", "") or "",
+        ),
         max_channels=int(os.environ.get("CHIRP_MAX_CHANNELS", raw.get("max_channels", DEFAULT_MAX_CHANNELS))),
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
         log_level=os.environ.get("CHIRP_LOG_LEVEL", raw.get("log_level", "INFO")).upper(),
@@ -525,6 +536,8 @@ class ChirpFlowgraph(gr.top_block):
                 password=cfg.icecast_password,
                 bitrate_kbps=int(cfg.icecast_bitrate_kbps),
                 sample_rate=int(cfg.audio_rate),
+                denoise=bool(cfg.denoise),
+                denoise_model=cfg.denoise_model,
             )
             ice_ok = False
             try:
@@ -975,6 +988,7 @@ class ChirpFlowgraph(gr.top_block):
                 "agc_decay": self._cfg.agc_decay,
                 "audio_bandpass_low_hz": self._cfg.audio_bandpass_low_hz,
                 "audio_bandpass_high_hz": self._cfg.audio_bandpass_high_hz,
+                "denoise_enabled": bool(self._cfg.denoise),
                 "master_gain_db": self._master_gain_db,
                 "audio_path": str(self._audio_out_path),
                 "channels": channels,

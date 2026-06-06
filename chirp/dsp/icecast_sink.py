@@ -47,17 +47,23 @@ Notes:
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import numpy as np
 from gnuradio import gr
 
 log = logging.getLogger("chirp.icecast")
+
+# Repo root (chirp/dsp/icecast_sink.py -> parents[2]) — resolves a relative
+# denoise_model path like "chirp/models/sh.rnnn" regardless of CWD.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +138,11 @@ class IcecastSinkConfig:
     password: str
     bitrate_kbps: int = 32
     sample_rate: int = 16000
+    # AM voice denoise: when True AND denoise_model is set, encode via ffmpeg
+    # arnndn (RNNoise) instead of lame. Same stdin/stdout (raw PCM -> MP3)
+    # contract, so libshout + the flowgraph are untouched.
+    denoise: bool = False
+    denoise_model: str = ""
     user: str = "source"
     server_name: str = "chirp"
     description: str = "chirp gr-demod"
@@ -287,9 +298,9 @@ class IcecastSink(gr.sync_block):
         # Counters surfaced via get_status.
         self._t_start = time.monotonic()
 
-        # Spawn lame if no encoder injected.
+        # Spawn the encoder subprocess if none injected (tests inject a stub).
         if self._encoder is None:
-            self._spawn_lame()
+            self._spawn_encoder()
 
         # Start initial connection + publisher thread.
         if autostart_publisher:
@@ -307,6 +318,46 @@ class IcecastSink(gr.sync_block):
             self._publish_thread = None  # type: ignore[assignment]
 
     # -- lame subprocess ----------------------------------------------------
+
+    def _spawn_encoder(self) -> None:
+        """Spawn the PCM->MP3 encoder subprocess: ffmpeg+arnndn (RNNoise) when
+        denoise is configured, else lame. Both expose .stdin (raw int16 PCM in)
+        and .stdout (MP3 out); the rest of the sink is encoder-agnostic."""
+        if self.cfg.denoise and self.cfg.denoise_model:
+            self._spawn_ffmpeg_arnndn()
+        else:
+            self._spawn_lame()
+
+    @staticmethod
+    def _ffmpeg_arnndn_cmd(model: str, sample_rate: int, bitrate_kbps: int) -> list:
+        """Build the ffmpeg arnndn encoder command. arnndn runs at 48 kHz, so
+        ffmpeg auto-resamples the 16 kHz input up; aresample={sr} brings it back
+        so the published MP3 keeps the icecast contract rate + bitrate."""
+        return [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+            "-f", "s16le", "-ar", str(int(sample_rate)), "-ac", "1", "-i", "pipe:0",
+            "-af", f"arnndn=m={model},aresample={int(sample_rate)}",
+            "-c:a", "libmp3lame", "-b:a", f"{int(bitrate_kbps)}k", "-ac", "1",
+            "-flush_packets", "1", "-f", "mp3", "pipe:1",
+        ]
+
+    def _spawn_ffmpeg_arnndn(self) -> None:
+        if shutil.which("ffmpeg") is None:
+            raise RuntimeError("ffmpeg not found on PATH (needed for denoise)")
+        model = self.cfg.denoise_model
+        if not os.path.isabs(model):
+            model = str((_REPO_ROOT / model).resolve())
+        if not os.path.isfile(model):
+            raise RuntimeError(f"denoise_model not found: {model}")
+        cmd = self._ffmpeg_arnndn_cmd(model, self.cfg.sample_rate, self.cfg.bitrate_kbps)
+        log.info("spawning ffmpeg arnndn encoder: %s", " ".join(cmd))
+        # self._lame holds the encoder process handle for either backend
+        # (stop()/_publish_loop are encoder-agnostic).
+        self._lame = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, bufsize=0,
+        )
+        self._encoder = self._lame
 
     def _spawn_lame(self) -> None:
         if not _lame_available():
