@@ -1,0 +1,208 @@
+==========================================
+POST-REBOOT SNAPSHOT  2026-05-29 19:49:54 EDT  (UTC 20260529T234954Z)
+host: Micro  uname: 6.17.0-29-generic
+uptime: up 1 hour, 9 minutes  loadavg: 1.58 1.67 1.66
+boot:   2026-05-29 18:40:50
+==========================================
+
+###### 1. SERVICE STATE ######
+  rtl-airband-airband.service                    active      5420|0|active|running|Fri 2026-05-29 18:41:05 EDT
+  rtl-airband-ground.service                     active      6054|1|active|running|Fri 2026-05-29 18:41:08 EDT
+  scanner-digital-op25.service                   active      3415|0|active|running|Fri 2026-05-29 18:41:02 EDT
+  scanner-digital-op25-audio.service             active      3493|0|active|running|Fri 2026-05-29 18:41:02 EDT
+  sdrplay.service                                active      1575|0|active|running|Fri 2026-05-29 18:40:56 EDT
+  airband-ui.service                             active      3297|0|active|running|Fri 2026-05-29 18:41:02 EDT
+  scanner-bt-audio-heal.timer                    active      active|running|Fri 2026-05-29 18:40:55 EDT
+  scanner-vlc-analog.service                     active      16736|0|active|running|Fri 2026-05-29 18:44:33 EDT
+  scanner-vlc-ground.service                     active      3560|0|active|running|Fri 2026-05-29 18:41:02 EDT
+  scanner-vlc-digital.service                    active      3498|0|active|running|Fri 2026-05-29 18:41:02 EDT
+
+###### 2. PROCESSES ######
+   1575    01:08:58 /opt/sdrplay_api/sdrplay_apiService
+   3453    01:08:52 python3 /opt/op25/op25/gr-op25_repeater/apps/multi_rx.py -c /run/scannerproject/op25/instance-1/multi_rx.json -v 1
+   3493    01:08:52 /usr/bin/python3 /home/ubuntu/scannerproject/scripts/op25-audio-bridge.py
+   3498    01:08:52 /usr/bin/vlc -I dummy --intf dummy --aout=pulse --quiet --no-video --gain 1.0 --clock-jitter=0 --clock-synchro=0 --http-reconnect --network-caching 500 --live-caching 100 http://127.0.0.1:8000/DIGITAL.mp3
+   3560    01:08:52 /usr/bin/vlc -I dummy --intf dummy --aout=pulse --quiet --no-video --clock-jitter=0 --clock-synchro=0 --http-reconnect --network-caching 150 --live-caching 100 http://127.0.0.1:8000/ANALOG_GROUND.mp3
+   4977    01:08:50 python3 /opt/op25/op25/gr-op25_repeater/apps/multi_rx.py -c /run/scannerproject/op25/instance-0/multi_rx.json -v 1
+   5420    01:08:50 /bin/bash /home/ubuntu/scannerproject/scripts/rtl-airband-filter.sh /run/rtl_airband_airband_runtime.conf
+   5429    01:08:50 /usr/local/bin/rtl_airband -F -e -c /run/rtl_airband_airband_runtime.conf
+   6054    01:08:46 /bin/bash /home/ubuntu/scannerproject/scripts/rtl-airband-filter.sh /run/rtl_airband_ground_runtime.conf
+   6061    01:08:46 /usr/local/bin/rtl_airband -F -e -c /run/rtl_airband_ground_runtime.conf
+  16736    01:05:21 /usr/bin/vlc -I dummy --intf dummy --aout=pulse --quiet --no-video --clock-jitter=0 --clock-synchro=0 --http-reconnect --network-caching 150 --live-caching 100 http://127.0.0.1:8000/ANALOG.mp3
+
+###### 3. ICECAST MOUNTS ######
+  mount=ANALOG.mp3               listeners=  1 start=2026-05-29T18:41:06-0400  title=
+  mount=ANALOG_GROUND.mp3        listeners=  1 start=2026-05-29T18:41:09-0400  title=
+  mount=DIGITAL.mp3              listeners=  1 start=2026-05-29T18:41:04-0400  title=
+  mount=keepalive-analog.mp3     listeners=  0 start=2026-05-29T18:41:02-0400  title=
+  mount=keepalive-ground.mp3     listeners=  0 start=2026-05-29T18:41:02-0400  title=
+
+###### 4. JOURNAL TAILS ######
+--- rtl-airband-airband.service (last 25) ---
+May 29 18:41:05 rtl_airband[5429]: [5460]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 18:41:05 rtl_airband[5429]: [5462]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 18:41:05 rtl_airband[5429]: [5463]: sdrplay_api_device: heartBeatThread: Entry
+May 29 18:41:05 bash[5429]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=MA,tuner=1': using native sample format 'CS16' (fullScale=32767.0)
+May 29 18:41:05 rtl_airband[5429]: [5462]: sdrplay_api_device: eventHandlerThread: Exit
+May 29 18:41:06 rtl_airband[5429]: [5460]: sdrplay_api_device: strmHandlerThread: Exit
+May 29 18:41:06 rtl_airband[5429]: [5463]: sdrplay_api_device: heartBeatThread: Exit
+May 29 18:41:06 bash[5429]: RTLSDR-Airband version v5.1.1 starting
+May 29 18:41:06 bash[5429]: Connecting to 127.0.0.1:8000/ANALOG.mp3...
+May 29 18:41:06 bash[5429]: Connected to 127.0.0.1:8000/ANALOG.mp3
+May 29 18:41:06 bash[5429]: [INFO] devIdx: 0
+May 29 18:41:06 bash[5429]: [INFO] SerNo: 1809063632
+May 29 18:41:06 bash[5429]: [INFO] hwVer: 3
+May 29 18:41:06 bash[5429]: [INFO] rspDuoMode: 4
+May 29 18:41:06 bash[5429]: [INFO] tuner: 1
+May 29 18:41:06 bash[5429]: [INFO] rspDuoSampleFreq: 6000000.000000
+May 29 18:41:06 rtl_airband[5429]: [5914]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 18:41:06 rtl_airband[5429]: [5916]: sdrplay_api_device: heartBeatThread: Entry
+May 29 18:41:06 rtl_airband[5429]: [5915]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 18:41:06 bash[5429]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=MA,tuner=1': sample rate set to 1000000 sps
+May 29 18:41:06 bash[5429]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=MA,tuner=1': AGC off (requested: off)
+May 29 18:41:06 bash[5429]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=MA,tuner=1': gain set to 40.0 dB
+May 29 18:41:06 bash[5429]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=MA,tuner=1' initialized
+May 29 18:41:06 bash[5429]: [INFO] Using format CS16.
+May 29 18:41:07 bash[5429]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=MA,tuner=1' started
+
+--- rtl-airband-ground.service (last 25) ---
+May 29 18:41:08 rtl_airband[6061]: [6095]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 18:41:08 rtl_airband[6061]: [6096]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 18:41:08 rtl_airband[6061]: [6097]: sdrplay_api_device: heartBeatThread: Entry
+May 29 18:41:08 bash[6061]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=SL,tuner=2': using native sample format 'CS16' (fullScale=32767.0)
+May 29 18:41:08 rtl_airband[6061]: [6096]: sdrplay_api_device: eventHandlerThread: Exit
+May 29 18:41:09 rtl_airband[6061]: [6095]: sdrplay_api_device: strmHandlerThread: Exit
+May 29 18:41:09 rtl_airband[6061]: [6097]: sdrplay_api_device: heartBeatThread: Exit
+May 29 18:41:09 bash[6061]: RTLSDR-Airband version v5.1.1 starting
+May 29 18:41:09 bash[6061]: Connecting to 127.0.0.1:8000/ANALOG_GROUND.mp3...
+May 29 18:41:09 bash[6061]: Connected to 127.0.0.1:8000/ANALOG_GROUND.mp3
+May 29 18:41:09 bash[6061]: [INFO] devIdx: 0
+May 29 18:41:09 bash[6061]: [INFO] SerNo: 1809063632
+May 29 18:41:09 bash[6061]: [INFO] hwVer: 3
+May 29 18:41:09 bash[6061]: [INFO] rspDuoMode: 8
+May 29 18:41:09 bash[6061]: [INFO] tuner: 2
+May 29 18:41:09 bash[6061]: [INFO] rspDuoSampleFreq: 6000000.000000
+May 29 18:41:09 rtl_airband[6061]: [6189]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 18:41:09 rtl_airband[6061]: [6190]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 18:41:09 rtl_airband[6061]: [6191]: sdrplay_api_device: heartBeatThread: Entry
+May 29 18:41:10 bash[6061]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=SL,tuner=2': sample rate set to 1000000 sps
+May 29 18:41:10 bash[6061]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=SL,tuner=2': AGC off (requested: off)
+May 29 18:41:10 bash[6061]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=SL,tuner=2': gain set to 38.0 dB
+May 29 18:41:10 bash[6061]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=SL,tuner=2' initialized
+May 29 18:41:10 bash[6061]: [INFO] Using format CS16.
+May 29 18:41:10 bash[6061]: SoapySDR: device 'driver=sdrplay,serial=1809063632,mode=SL,tuner=2' started
+
+--- scanner-digital-op25.service (last 25) ---
+May 29 16:40:55 python3[427161]: [427161]: sdrplay_api_Open
+May 29 16:40:55 python3[427161]: [427304]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 16:40:55 python3[427161]: [427305]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 16:40:55 python3[427161]: [427306]: sdrplay_api_device: heartBeatThread: Entry
+May 29 16:40:57 python3[427531]: [427531]: sdrplay_api_Open
+May 29 16:40:57 python3[427531]: [427695]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 16:40:57 python3[427531]: [427696]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 16:40:57 python3[427531]: [427697]: sdrplay_api_device: heartBeatThread: Entry
+May 29 18:38:57 systemd[1]: Stopping scanner-digital-op25.service - OP25 P25 Digital Decoder...
+May 29 18:38:57 python3[427531]: [427531]: sdrplay_api_Close
+May 29 18:38:57 python3[427161]: [427161]: sdrplay_api_Close
+May 29 18:38:57 systemd[1]: scanner-digital-op25.service: Main process exited, code=exited, status=143/n/a
+May 29 18:38:57 systemd[1]: scanner-digital-op25.service: Failed with result 'exit-code'.
+May 29 18:38:57 systemd[1]: Stopped scanner-digital-op25.service - OP25 P25 Digital Decoder.
+May 29 18:38:57 systemd[1]: scanner-digital-op25.service: Consumed 55min 12.808s CPU time, 262.3M memory peak, 0B memory swap peak.
+-- Boot d27bc45569e64e06b3d7656145b54320 --
+May 29 18:41:02 systemd[1]: Starting scanner-digital-op25.service - OP25 P25 Digital Decoder...
+May 29 18:41:02 systemd[1]: Started scanner-digital-op25.service - OP25 P25 Digital Decoder.
+May 29 18:41:02 python3[3453]: [3453]: sdrplay_api_Open
+May 29 18:41:04 python3[4977]: [4977]: sdrplay_api_Open
+May 29 18:41:04 python3[3453]: [5178]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 18:41:04 python3[3453]: [5179]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 18:41:04 python3[3453]: [5180]: sdrplay_api_device: heartBeatThread: Entry
+May 29 18:41:04 python3[4977]: [5229]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 18:41:04 python3[4977]: [5230]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 18:41:04 python3[4977]: [5231]: sdrplay_api_device: heartBeatThread: Entry
+
+--- airband-ui.service (last 25) ---
+May 29 18:38:56 systemd[1]: airband-ui.service: Consumed 11min 9.498s CPU time, 136.5M memory peak, 0B memory swap peak.
+-- Boot d27bc45569e64e06b3d7656145b54320 --
+May 29 18:41:02 systemd[1]: Started airband-ui.service - Airband Gain/Squelch Web UI.
+May 29 18:41:02 python3[3297]: INFO root: V3 compile status=healthy issues=0
+May 29 18:41:02 python3[3297]: INFO root: UI listening on 0.0.0.0:5050
+May 29 18:41:02 python3[3297]: INFO ui.profile_config: write_controls: /home/ubuntu/scannerproject/profiles/rtl_airband_hp3_favorites_airband.conf gain=40.2 mode=dbfs snr=10.0 dbfs=-60.0
+May 29 18:41:02 python3[3297]: INFO ui.profile_config: write_controls: updated config
+May 29 18:41:02 python3[3297]: INFO ui.profile_config: write_controls: /home/ubuntu/scannerproject/profiles/rtl_airband_hp3_favorites_ground.conf gain=38.6 mode=dbfs snr=10.0 dbfs=-15.0
+May 29 18:41:02 python3[3297]: INFO ui.profile_config: write_controls: updated config
+May 29 18:41:02 python3[3297]: restart_rtl_airband: reason='unspecified' probe_enabled=True probe_timeout_sec=30.0
+May 29 18:41:02 sudo[3745]:   ubuntu : PWD=/home/ubuntu/scannerproject ; USER=root ; COMMAND=/usr/bin/systemctl stop rtl-airband-airband
+May 29 18:41:02 sudo[3745]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+May 29 18:41:04 sudo[3745]: pam_unix(sudo:session): session closed for user root
+May 29 18:41:04 sudo[5265]:   ubuntu : PWD=/home/ubuntu/scannerproject ; USER=root ; COMMAND=/usr/bin/systemctl kill -s SIGKILL rtl-airband-airband
+May 29 18:41:04 sudo[5265]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+May 29 18:41:04 sudo[5265]: pam_unix(sudo:session): session closed for user root
+May 29 18:41:04 sudo[5272]:   ubuntu : PWD=/home/ubuntu/scannerproject ; USER=root ; COMMAND=/usr/bin/systemctl reset-failed rtl-airband-airband
+May 29 18:41:04 sudo[5272]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+May 29 18:41:04 sudo[5272]: pam_unix(sudo:session): session closed for user root
+May 29 18:41:04 sudo[5369]:   ubuntu : PWD=/home/ubuntu/scannerproject ; USER=root ; COMMAND=/usr/bin/systemctl start rtl-airband-airband
+May 29 18:41:04 sudo[5369]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+May 29 18:41:05 sudo[5369]: pam_unix(sudo:session): session closed for user root
+May 29 18:41:05 sudo[5434]:   ubuntu : PWD=/home/ubuntu/scannerproject ; USER=root ; COMMAND=/usr/bin/systemctl start rtl-airband-ground
+May 29 18:41:05 sudo[5434]: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+May 29 18:41:05 sudo[5434]: pam_unix(sudo:session): session closed for user root
+May 29 18:41:11 python3[3297]: WARNING root: Favorites runtime sync failed: name 'target_mount' is not defined
+
+###### 4b. PAIRED-SIGKILL CHECK SINCE BOOT ######
+  rtl-airband-airband SIGKILL events:
+    count=4
+May 29 18:41:02 rtl_airband[3376]: [3376]: sdrplay_api_Open
+May 29 18:41:04 systemd[1]: rtl-airband-airband.service: State 'stop-sigterm' timed out. Killing.
+May 29 18:41:04 systemd[1]: rtl-airband-airband.service: Killing process 3367 (bash) with signal SIGKILL.
+May 29 18:41:04 systemd[1]: rtl-airband-airband.service: Killing process 3376 (rtl_airband) with signal SIGKILL.
+May 29 18:41:04 systemd[1]: rtl-airband-airband.service: Killing process 3378 (sox) with signal SIGKILL.
+May 29 18:41:05 rtl_airband[5429]: [5429]: sdrplay_api_Open
+  rtl-airband-ground SIGKILL events:
+    count=4
+May 29 18:41:02 rtl_airband[3558]: [3558]: sdrplay_api_Open
+May 29 18:41:03 systemd[1]: rtl-airband-ground.service: State 'stop-sigterm' timed out. Killing.
+May 29 18:41:03 systemd[1]: rtl-airband-ground.service: Killing process 3550 (bash) with signal SIGKILL.
+May 29 18:41:03 systemd[1]: rtl-airband-ground.service: Killing process 3558 (rtl_airband) with signal SIGKILL.
+May 29 18:41:03 systemd[1]: rtl-airband-ground.service: Killing process 3559 (sox) with signal SIGKILL.
+May 29 18:41:05 rtl_airband[5459]: [5459]: sdrplay_api_Open
+May 29 18:41:08 rtl_airband[6061]: [6061]: sdrplay_api_Open
+
+###### 5. MOUNT BYTE SNIFF (5s each) ######
+  ANALOG.mp3             bytes=9800     avg=1960 B/s  (~15 kbps)
+  ANALOG_GROUND.mp3      bytes=2800     avg=560 B/s  (~4 kbps)
+  DIGITAL.mp3            bytes=36400    avg=7280 B/s  (~56 kbps)
+
+###### 6. ACTIVE PROFILES + SQUELCH ######
+  --- /run/rtl_airband_airband_runtime.conf ---
+38:    gain = 40.200;   # UI_CONTROLLED
+580:        squelch_threshold = -60;  # UI_CONTROLLED
+  --- /run/rtl_airband_ground_runtime.conf ---
+37:    gain = 38.600;   # UI_CONTROLLED
+402:        squelch_threshold = -15;  # UI_CONTROLLED
+
+###### 7. OP25 STATUS (delta over 10s) ######
+  --- op25 port 8080 (t=0) ---
+    GET / http=200 t=0.000868
+  --- op25 port 8081 (t=0) ---
+    GET / http=200 t=0.000541
+  journal-tail lines: t=0:200  t=10s:200  new lines in window: 0
+  --- new tsbk/voice/trunk events in 10s window ---
+
+###### 8. SDRPLAY DAEMON STATE ######
+1575 /opt/sdrplay_api/sdrplay_apiService
+May 29 18:41:06 sdrplay_apiService[1575]: [1575]: sdrplay_apiService_log_enable: 0
+May 29 18:41:06 sdrplay_apiService[1575]: [5911]: sdrplay_apiService_rsp_log_enable 0
+May 29 18:41:08 sdrplay_apiService[1575]: [1575]: sdrplay_apiService_log_enable: 0
+May 29 18:41:10 sdrplay_apiService[1575]: [1575]: sdrplay_apiService_log_enable: 0
+May 29 18:41:10 sdrplay_apiService[1575]: [1575]: sdrplay_apiService_log_enable: 0
+
+###### 9. VLC → ICECAST CONNECTIVITY ######
+  scanner-vlc-analog pid=16736 fds=12
+    ESTAB 0      0                                   127.0.0.1:41544             127.0.0.1:8000  users:(("vlc",pid=16736,fd=10))                          
+  scanner-vlc-ground pid=3560 fds=11
+    ESTAB 0      0                                   127.0.0.1:42874             127.0.0.1:8000  users:(("vlc",pid=3560,fd=10))                           
+  scanner-vlc-digital pid=3498 fds=9
+    (no :8000 conns found via ss)
+
+###### END ######
+WROTE: /home/ubuntu/scannerproject/snapshots/post-reboot-20260529T234954Z.txt  size=15883

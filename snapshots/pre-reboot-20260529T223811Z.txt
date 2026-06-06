@@ -1,0 +1,131 @@
+==========================================
+PRE-REBOOT SNAPSHOT  2026-05-29 18:38:11 EDT  (UTC 20260529T223811Z)
+host: Micro  uname: 6.17.0-29-generic
+uptime: up 3 hours, 54 minutes  loadavg: 2.04 1.70 1.76
+==========================================
+
+###### 1. SERVICE STATE ######
+  rtl-airband-airband.service                    active      860179|0|active|running|Fri 2026-05-29 18:31:29 EDT
+  rtl-airband-ground.service                     active      860189|0|active|running|Fri 2026-05-29 18:31:29 EDT
+  scanner-digital-op25.service                   active      427159|0|active|running|Fri 2026-05-29 16:40:54 EDT
+  scanner-digital-op25-audio.service             active      427165|0|active|running|Fri 2026-05-29 16:40:54 EDT
+  sdrplay.service                                active      426017|0|active|running|Fri 2026-05-29 16:40:39 EDT
+  airband-ui.service                             active      677735|0|active|running|Fri 2026-05-29 17:46:35 EDT
+  scanner-bt-audio-heal.timer                    active      active|running|Fri 2026-05-29 14:43:27 EDT
+  scanner-vlc-analog.service                     active      640022|0|active|running|Fri 2026-05-29 17:38:28 EDT
+  scanner-vlc-ground.service                     active      3533|0|active|running|Fri 2026-05-29 14:43:34 EDT
+  scanner-vlc-digital.service                    active      3516|0|active|running|Fri 2026-05-29 14:43:34 EDT
+
+###### 2. PROCESSES ######
+   3516    03:54:37 /usr/bin/vlc -I dummy --intf dummy --aout=pulse --quiet --no-video --gain 1.0 --clock-jitter=0 --clock-synchro=0 --http-reconnect --network-caching 500 --live-caching 100 http://127.0.0.1:8000/DIGITAL.mp3
+   3533    03:54:37 /usr/bin/vlc -I dummy --intf dummy --aout=pulse --quiet --no-video --clock-jitter=0 --clock-synchro=0 --http-reconnect --network-caching 150 --live-caching 100 http://127.0.0.1:8000/ANALOG_GROUND.mp3
+ 426017    01:57:31 /opt/sdrplay_api/sdrplay_apiService
+ 427161    01:57:16 python3 /opt/op25/op25/gr-op25_repeater/apps/multi_rx.py -c /run/scannerproject/op25/instance-1/multi_rx.json -v 1
+ 427165    01:57:16 /usr/bin/python3 /home/ubuntu/scannerproject/scripts/op25-audio-bridge.py
+ 427531    01:57:14 python3 /opt/op25/op25/gr-op25_repeater/apps/multi_rx.py -c /run/scannerproject/op25/instance-0/multi_rx.json -v 1
+ 640022       59:42 /usr/bin/vlc -I dummy --intf dummy --aout=pulse --quiet --no-video --clock-jitter=0 --clock-synchro=0 --http-reconnect --network-caching 150 --live-caching 100 http://127.0.0.1:8000/ANALOG.mp3
+ 860179       06:42 /bin/bash /home/ubuntu/scannerproject/scripts/rtl-airband-filter.sh /run/rtl_airband_airband_runtime.conf
+ 860184       06:41 /usr/local/bin/rtl_airband -F -e -c /run/rtl_airband_airband_runtime.conf
+ 860189       06:41 /bin/bash /home/ubuntu/scannerproject/scripts/rtl-airband-filter.sh /run/rtl_airband_ground_runtime.conf
+ 860191       06:41 /usr/local/bin/rtl_airband -F -e -c /run/rtl_airband_ground_runtime.conf
+
+###### 3. ICECAST MOUNTS ######
+  mount=ANALOG.mp3               listeners=  0 start=? title=
+  mount=ANALOG_GROUND.mp3        listeners=  0 start=? title=
+  mount=DIGITAL.mp3              listeners=  2 start=2026-05-29T16:40:57-0400 title=
+  mount=GND.mp3                  listeners=  0 start=? title=
+  mount=disco.mp3                listeners=  0 start=? title=
+  mount=keepalive-analog.mp3     listeners=  2 start=2026-05-29T14:43:34-0400 title=
+  mount=keepalive-ground.mp3     listeners=  2 start=2026-05-29T14:43:34-0400 title=
+
+###### 4. JOURNAL TAILS ######
+--- rtl-airband-airband.service (last 20) ---
+May 29 18:31:10 systemd[1]: rtl-airband-airband.service: Killing process 856633 (rtl_airband) with signal SIGKILL.
+May 29 18:31:10 systemd[1]: rtl-airband-airband.service: Killing process 856634 (sox) with signal SIGKILL.
+May 29 18:31:10 systemd[1]: rtl-airband-airband.service: Main process exited, code=killed, status=9/KILL
+May 29 18:31:10 systemd[1]: rtl-airband-airband.service: Failed with result 'timeout'.
+May 29 18:31:10 systemd[1]: Stopped rtl-airband-airband.service - rtl-airband (airband — RSPduo Tuner 1, MA mode).
+May 29 18:31:10 systemd[1]: Starting rtl-airband-airband.service - rtl-airband (airband — RSPduo Tuner 1, MA mode)...
+May 29 18:31:10 systemd[1]: Started rtl-airband-airband.service - rtl-airband (airband — RSPduo Tuner 1, MA mode).
+May 29 18:31:10 rtl_airband[858950]: [858950]: sdrplay_api_Open
+May 29 18:31:28 bash[858950]: Got signal 2, exiting
+May 29 18:31:28 systemd[1]: Stopping rtl-airband-airband.service - rtl-airband (airband — RSPduo Tuner 1, MA mode)...
+May 29 18:31:29 systemd[1]: rtl-airband-airband.service: State 'stop-sigterm' timed out. Killing.
+May 29 18:31:29 systemd[1]: rtl-airband-airband.service: Killing process 858947 (bash) with signal SIGKILL.
+May 29 18:31:29 systemd[1]: rtl-airband-airband.service: Killing process 858950 (rtl_airband) with signal SIGKILL.
+May 29 18:31:29 systemd[1]: rtl-airband-airband.service: Killing process 858951 (sox) with signal SIGKILL.
+May 29 18:31:29 systemd[1]: rtl-airband-airband.service: Main process exited, code=killed, status=9/KILL
+May 29 18:31:29 systemd[1]: rtl-airband-airband.service: Failed with result 'timeout'.
+May 29 18:31:29 systemd[1]: Stopped rtl-airband-airband.service - rtl-airband (airband — RSPduo Tuner 1, MA mode).
+May 29 18:31:29 systemd[1]: Starting rtl-airband-airband.service - rtl-airband (airband — RSPduo Tuner 1, MA mode)...
+May 29 18:31:29 systemd[1]: Started rtl-airband-airband.service - rtl-airband (airband — RSPduo Tuner 1, MA mode).
+May 29 18:31:29 rtl_airband[860184]: [860184]: sdrplay_api_Open
+
+--- rtl-airband-ground.service (last 20) ---
+May 29 18:31:09 systemd[1]: rtl-airband-ground.service: Killing process 856647 (rtl_airband) with signal SIGKILL.
+May 29 18:31:09 systemd[1]: rtl-airband-ground.service: Killing process 856648 (sox) with signal SIGKILL.
+May 29 18:31:09 systemd[1]: rtl-airband-ground.service: Main process exited, code=killed, status=9/KILL
+May 29 18:31:09 systemd[1]: rtl-airband-ground.service: Failed with result 'timeout'.
+May 29 18:31:09 systemd[1]: Stopped rtl-airband-ground.service - rtl-airband (ground VHF — RSPduo Tuner 2, SL mode).
+May 29 18:31:10 systemd[1]: Starting rtl-airband-ground.service - rtl-airband (ground VHF — RSPduo Tuner 2, SL mode)...
+May 29 18:31:10 systemd[1]: Started rtl-airband-ground.service - rtl-airband (ground VHF — RSPduo Tuner 2, SL mode).
+May 29 18:31:10 rtl_airband[858958]: [858958]: sdrplay_api_Open
+May 29 18:31:26 bash[858958]: Got signal 2, exiting
+May 29 18:31:26 systemd[1]: Stopping rtl-airband-ground.service - rtl-airband (ground VHF — RSPduo Tuner 2, SL mode)...
+May 29 18:31:28 systemd[1]: rtl-airband-ground.service: State 'stop-sigterm' timed out. Killing.
+May 29 18:31:28 systemd[1]: rtl-airband-ground.service: Killing process 858956 (bash) with signal SIGKILL.
+May 29 18:31:28 systemd[1]: rtl-airband-ground.service: Killing process 858958 (rtl_airband) with signal SIGKILL.
+May 29 18:31:28 systemd[1]: rtl-airband-ground.service: Killing process 858959 (sox) with signal SIGKILL.
+May 29 18:31:28 systemd[1]: rtl-airband-ground.service: Main process exited, code=killed, status=9/KILL
+May 29 18:31:28 systemd[1]: rtl-airband-ground.service: Failed with result 'timeout'.
+May 29 18:31:28 systemd[1]: Stopped rtl-airband-ground.service - rtl-airband (ground VHF — RSPduo Tuner 2, SL mode).
+May 29 18:31:29 systemd[1]: Starting rtl-airband-ground.service - rtl-airband (ground VHF — RSPduo Tuner 2, SL mode)...
+May 29 18:31:29 systemd[1]: Started rtl-airband-ground.service - rtl-airband (ground VHF — RSPduo Tuner 2, SL mode).
+May 29 18:31:29 rtl_airband[860191]: [860191]: sdrplay_api_Open
+
+--- scanner-digital-op25.service (last 20) ---
+May 29 16:26:27 python3[366194]: [366319]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 16:26:27 python3[366194]: [366320]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 16:26:27 python3[366194]: [366321]: sdrplay_api_device: heartBeatThread: Entry
+May 29 16:39:09 systemd[1]: Stopping scanner-digital-op25.service - OP25 P25 Digital Decoder...
+May 29 16:39:09 python3[366194]: [366194]: sdrplay_api_Close
+May 29 16:39:09 python3[365727]: [365727]: sdrplay_api_Close
+May 29 16:39:09 systemd[1]: scanner-digital-op25.service: Main process exited, code=exited, status=143/n/a
+May 29 16:39:09 systemd[1]: scanner-digital-op25.service: Failed with result 'exit-code'.
+May 29 16:39:09 systemd[1]: Stopped scanner-digital-op25.service - OP25 P25 Digital Decoder.
+May 29 16:39:09 systemd[1]: scanner-digital-op25.service: Consumed 5min 50.355s CPU time, 252.5M memory peak, 0B memory swap peak.
+May 29 16:40:54 systemd[1]: Starting scanner-digital-op25.service - OP25 P25 Digital Decoder...
+May 29 16:40:54 systemd[1]: Started scanner-digital-op25.service - OP25 P25 Digital Decoder.
+May 29 16:40:55 python3[427161]: [427161]: sdrplay_api_Open
+May 29 16:40:55 python3[427161]: [427304]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 16:40:55 python3[427161]: [427305]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 16:40:55 python3[427161]: [427306]: sdrplay_api_device: heartBeatThread: Entry
+May 29 16:40:57 python3[427531]: [427531]: sdrplay_api_Open
+May 29 16:40:57 python3[427531]: [427695]: sdrplay_api_device: strmHandlerThread: Entry
+May 29 16:40:57 python3[427531]: [427696]: sdrplay_api_device: eventHandlerThread: Entry
+May 29 16:40:57 python3[427531]: [427697]: sdrplay_api_device: heartBeatThread: Entry
+
+--- airband-ui.service (last 20) ---
+May 29 18:31:35 python3[677735]: Traceback (most recent call last):
+May 29 18:31:35 python3[677735]:   File "/usr/lib/python3.12/socketserver.py", line 692, in process_request_thread
+May 29 18:31:35 python3[677735]:     self.finish_request(request, client_address)
+May 29 18:31:35 python3[677735]:   File "/usr/lib/python3.12/socketserver.py", line 362, in finish_request
+May 29 18:31:35 python3[677735]:     self.RequestHandlerClass(request, client_address, self)
+May 29 18:31:35 python3[677735]:   File "/usr/lib/python3.12/socketserver.py", line 761, in __init__
+May 29 18:31:35 python3[677735]:     self.handle()
+May 29 18:31:35 python3[677735]:   File "/usr/lib/python3.12/http/server.py", line 436, in handle
+May 29 18:31:35 python3[677735]:     self.handle_one_request()
+May 29 18:31:35 python3[677735]:   File "/usr/lib/python3.12/http/server.py", line 424, in handle_one_request
+May 29 18:31:35 python3[677735]:     method()
+May 29 18:31:35 python3[677735]:   File "/home/ubuntu/scannerproject/ui/handlers.py", line 6093, in do_POST
+May 29 18:31:35 python3[677735]:     return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+May 29 18:31:35 python3[677735]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+May 29 18:31:35 python3[677735]:   File "/home/ubuntu/scannerproject/ui/handlers.py", line 2860, in _send
+May 29 18:31:35 python3[677735]:     self.wfile.write(body)
+May 29 18:31:35 python3[677735]:   File "/usr/lib/python3.12/socketserver.py", line 840, in write
+May 29 18:31:35 python3[677735]:     self._sock.sendall(b)
+May 29 18:31:35 python3[677735]: BrokenPipeError: [Errno 32] Broken pipe
+May 29 18:31:35 python3[677735]: ----------------------------------------
+
+###### 5. MOUNT BYTE SNIFF (5s each) ######
+  ANALOG.mp3             bytes=2800     avg=560 B/s
