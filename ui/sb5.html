@@ -3285,7 +3285,7 @@
       <div class="pl-vol">
         <span class="spk" id="pl-spk">&#128266;</span>
         <span class="vlab">Master</span>
-        <input type="range" id="pl-vol" min="0" max="100" value="72" aria-label="Master volume">
+        <input type="range" id="pl-vol" min="0" max="100" value="100" aria-label="Master volume">
       </div>
       <div class="pl-note">Browser mix — independent of the BT-speaker path. Master scales all active streams.</div>
 
@@ -5054,7 +5054,7 @@ function wireAudioBar() {
     })
     .catch((e) => { console.warn("mount_gains fetch failed; using unity calibration (1.0):", e); });
 
-  function master() { return volEl ? volEl.value / 100 : 0.72; }
+  function master() { return volEl ? volEl.value / 100 : 1.0; }
   function activeMounts() { return Object.keys(streams); }
   function activeNames() {
     return pills.filter((p) => streams[p.dataset.mount]).map((p) => p.dataset.name);
@@ -5115,10 +5115,10 @@ function wireAudioBar() {
     ctx = new AC();
     masterGain = ctx.createGain();
     masterGain.gain.value = master();
-    compressor = ctx.createDynamicsCompressor();   // bus limiter for coincident peaks
-    compressor.threshold.value = -10;
+    compressor = ctx.createDynamicsCompressor();   // gentle bus limiter — only catches near-clip peaks
+    compressor.threshold.value = -1;
     compressor.knee.value = 20;
-    compressor.ratio.value = 4;
+    compressor.ratio.value = 2;
     compressor.attack.value = 0.003;
     compressor.release.value = 0.25;
     masterGain.connect(compressor);
