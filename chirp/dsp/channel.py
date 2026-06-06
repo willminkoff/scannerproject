@@ -109,6 +109,9 @@ class Channel(gr.hier_block2):
         gain_db: float = 0.0,
         mode: ChannelMode = "am",
         nfm_max_deviation_hz: float = 5e3,
+        agc_max_gain: float = 1000.0,
+        agc_attack: float = 0.1,
+        audio_hpf_hz: float = 300.0,
     ) -> None:
         if mode not in ("am", "nfm"):
             raise ValueError(f"unsupported mode: {mode!r} (want 'am' or 'nfm')")
@@ -128,6 +131,14 @@ class Channel(gr.hier_block2):
         self._squelch_dbfs = float(squelch_dbfs)
         self._gain_db = self._clamp_gain_db(float(gain_db))
         self._nfm_max_deviation_hz = float(nfm_max_deviation_hz)
+        # AM AGC ceiling + attack rate (configurable). Caps the old 96 dB /
+        # fast-attack AGC that amplified the noise floor on weak signals.
+        # AM-only (NFM has no AGC).
+        self._agc_max_gain = float(agc_max_gain)
+        self._agc_attack = float(agc_attack)
+        # AM voice band-pass low edge (HPF, Hz): strips the envelope
+        # detector's DC term + sub-300 Hz rumble. AM-only.
+        self._audio_hpf_hz = float(audio_hpf_hz)
 
         # Phase 4-pre: LO scheduler parks channels that are NOT in the
         # currently-tuned cluster.  A parked channel:
@@ -190,8 +201,8 @@ class Channel(gr.hier_block2):
         # --- Mode-specific demod --------------------------------------------
         if mode == "am":
             # AGC. agc3_cc(attack, decay, reference, gain_init, max_gain_floor).
-            self.agc = analog.agc3_cc(1.0, 1e-4, self._AGC_REF_0DB, 10, 1)
-            self.agc.set_max_gain(65536)
+            self.agc = analog.agc3_cc(self._agc_attack, 1e-4, self._AGC_REF_0DB, 10, 1)
+            self.agc.set_max_gain(int(self._agc_max_gain))
             # AM envelope detector (ham2mon's choice for N>2 parallel demods).
             self.am_demod = blocks.complex_to_mag(1)
             # NFM members exist as None so introspection code can branch
@@ -212,15 +223,28 @@ class Channel(gr.hier_block2):
             # identical between modes from the operator's perspective.
             self.nfm_audio_gain = blocks.multiply_const_ff(1.0)
 
-        # --- Audio LPF + decim (same shape for AM and NFM) ------------------
-        taps_audio = grfilter.firdes.low_pass(
-            1.0,
-            pre_demod_rate,
-            self._audio_bw_hz,
-            500.0,
-            window.WIN_HAMMING,
-        )
-        self.audio_lpf = grfilter.fir_filter_fff(decims[0], taps_audio)
+        # --- Audio filter + decim ------------------------------------------
+        # AM: voice BAND-PASS (audio_hpf_hz .. audio_bw_hz). The ~300 Hz HPF
+        # removes the envelope detector's DC term + sub-300 Hz rumble that
+        # otherwise muddies weak-signal audio. NFM: plain LOW-PASS (no DC
+        # after the discriminator). Both decimate by decims[0].
+        if mode == "am":
+            taps_audio = grfilter.firdes.band_pass(
+                1.0, pre_demod_rate,
+                self._audio_hpf_hz, self._audio_bw_hz,
+                200.0, window.WIN_HAMMING,
+            )
+            self.audio_bpf = grfilter.fir_filter_fff(decims[0], taps_audio)
+            self.audio_lpf = None
+            self._audio_filt = self.audio_bpf
+        else:  # nfm
+            taps_audio = grfilter.firdes.low_pass(
+                1.0, pre_demod_rate,
+                self._audio_bw_hz, 500.0, window.WIN_HAMMING,
+            )
+            self.audio_lpf = grfilter.fir_filter_fff(decims[0], taps_audio)
+            self.audio_bpf = None
+            self._audio_filt = self.audio_lpf
 
         # Arb resampler -> audio_rate.
         post_audio_lpf_rate = pre_demod_rate / decims[0]
@@ -247,13 +271,13 @@ class Channel(gr.hier_block2):
         if mode == "am":
             self.connect(self.pwr_squelch, self.agc)
             self.connect(self.agc, self.am_demod)
-            self.connect(self.am_demod, self.audio_lpf)
+            self.connect(self.am_demod, self._audio_filt)
         else:  # nfm
             self.connect(self.pwr_squelch, self.quad_demod)
             self.connect(self.quad_demod, self.nfm_audio_gain)
-            self.connect(self.nfm_audio_gain, self.audio_lpf)
+            self.connect(self.nfm_audio_gain, self._audio_filt)
 
-        self.connect(self.audio_lpf, self.audio_resamp)
+        self.connect(self._audio_filt, self.audio_resamp)
         # Phase 4d: route the resampled audio through the trim multiplier
         # so set_gain(db) is a clean post-demod level adjustment rather
         # than something that perturbs the AM AGC or the NFM

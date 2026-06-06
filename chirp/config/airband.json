@@ -8,6 +8,8 @@
   "source_samp_rate": 2000000.0,
   "audio_rate": 16000.0,
   "channel_bw_hz": 6000.0,
+  "agc_max_gain": 1000,
+  "agc_attack": 0.1,
   "max_channels": 32,
   "icecast_bitrate_kbps": 32,
   "icecast_fallback_file": "/tmp/chirp_airband_fallback.f32",

@@ -161,6 +161,10 @@ class DaemonConfig:
     # Default 12.5 kHz (full 25 kHz AM channel); airband.json tightens to
     # 8 kHz for AM-voice SNR (carrier +-~4 kHz fits, less noise admitted).
     channel_bw_hz: float = 12500.0
+    # AM AGC ceiling (linear) + attack rate. Caps the old 96 dB / fast-attack
+    # AGC that pumped up the noise floor on weak signals. AM-only.
+    agc_max_gain: float = 1000.0
+    agc_attack: float = 0.1
     max_channels: int = DEFAULT_MAX_CHANNELS
     event_sink: Optional[tuple[str, int]] = None
     log_level: str = "INFO"
@@ -314,6 +318,14 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         channel_bw_hz=float(os.environ.get(
             "CHIRP_CHANNEL_BW_HZ",
             raw.get("channel_bw_hz", 12500.0),
+        )),
+        agc_max_gain=float(os.environ.get(
+            "CHIRP_AGC_MAX_GAIN",
+            raw.get("agc_max_gain", 1000.0),
+        )),
+        agc_attack=float(os.environ.get(
+            "CHIRP_AGC_ATTACK",
+            raw.get("agc_attack", 0.1),
         )),
         max_channels=int(os.environ.get("CHIRP_MAX_CHANNELS", raw.get("max_channels", DEFAULT_MAX_CHANNELS))),
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
@@ -535,6 +547,8 @@ class ChirpFlowgraph(gr.top_block):
                 samp_rate=cfg.source_samp_rate,
                 audio_rate=cfg.audio_rate,
                 channel_bw_hz=cfg.channel_bw_hz,
+                agc_max_gain=cfg.agc_max_gain,
+                agc_attack=cfg.agc_attack,
                 center_freq_offset=0.0,
                 squelch_dbfs=PARKED_SQUELCH_DBFS,
                 gain_db=0.0,
@@ -936,6 +950,8 @@ class ChirpFlowgraph(gr.top_block):
                 },
                 "max_channels": self._cfg.max_channels,
                 "channel_bw_hz": self._cfg.channel_bw_hz,
+                "agc_max_gain": self._cfg.agc_max_gain,
+                "agc_attack": self._cfg.agc_attack,
                 "master_gain_db": self._master_gain_db,
                 "audio_path": str(self._audio_out_path),
                 "channels": channels,
