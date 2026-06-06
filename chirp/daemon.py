@@ -167,6 +167,9 @@ class DaemonConfig:
     agc_attack: float = 0.1
     # AGC decay rate (lower = slower ramp-up on signal loss ~= hang/hold).
     agc_decay: float = 1e-4
+    # AM voice band-pass edges (Hz). Defaults match the prior hardcoded values.
+    audio_bandpass_low_hz: float = 300.0
+    audio_bandpass_high_hz: float = 3500.0
     max_channels: int = DEFAULT_MAX_CHANNELS
     event_sink: Optional[tuple[str, int]] = None
     log_level: str = "INFO"
@@ -332,6 +335,14 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         agc_decay=float(os.environ.get(
             "CHIRP_AGC_DECAY",
             raw.get("agc_decay", 1e-4),
+        )),
+        audio_bandpass_low_hz=float(os.environ.get(
+            "CHIRP_AUDIO_BANDPASS_LOW_HZ",
+            raw.get("audio_bandpass_low_hz", 300.0),
+        )),
+        audio_bandpass_high_hz=float(os.environ.get(
+            "CHIRP_AUDIO_BANDPASS_HIGH_HZ",
+            raw.get("audio_bandpass_high_hz", 3500.0),
         )),
         max_channels=int(os.environ.get("CHIRP_MAX_CHANNELS", raw.get("max_channels", DEFAULT_MAX_CHANNELS))),
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
@@ -556,6 +567,8 @@ class ChirpFlowgraph(gr.top_block):
                 agc_max_gain=cfg.agc_max_gain,
                 agc_attack=cfg.agc_attack,
                 agc_decay=cfg.agc_decay,
+                audio_bandpass_low_hz=cfg.audio_bandpass_low_hz,
+                audio_bandpass_high_hz=cfg.audio_bandpass_high_hz,
                 center_freq_offset=0.0,
                 squelch_dbfs=PARKED_SQUELCH_DBFS,
                 gain_db=0.0,
@@ -960,6 +973,8 @@ class ChirpFlowgraph(gr.top_block):
                 "agc_max_gain": self._cfg.agc_max_gain,
                 "agc_attack": self._cfg.agc_attack,
                 "agc_decay": self._cfg.agc_decay,
+                "audio_bandpass_low_hz": self._cfg.audio_bandpass_low_hz,
+                "audio_bandpass_high_hz": self._cfg.audio_bandpass_high_hz,
                 "master_gain_db": self._master_gain_db,
                 "audio_path": str(self._audio_out_path),
                 "channels": channels,

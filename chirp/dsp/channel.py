@@ -112,7 +112,8 @@ class Channel(gr.hier_block2):
         agc_max_gain: float = 1000.0,
         agc_attack: float = 0.1,
         agc_decay: float = 1e-4,
-        audio_hpf_hz: float = 300.0,
+        audio_bandpass_low_hz: float = 300.0,
+        audio_bandpass_high_hz: float = 3500.0,
     ) -> None:
         if mode not in ("am", "nfm"):
             raise ValueError(f"unsupported mode: {mode!r} (want 'am' or 'nfm')")
@@ -140,9 +141,10 @@ class Channel(gr.hier_block2):
         # AGC decay rate: lower = slower gain ramp-up when signal drops,
         # approximating a hang/hold so inter-syllable gaps stay quiet. AM-only.
         self._agc_decay = float(agc_decay)
-        # AM voice band-pass low edge (HPF, Hz): strips the envelope
-        # detector's DC term + sub-300 Hz rumble. AM-only.
-        self._audio_hpf_hz = float(audio_hpf_hz)
+        # AM voice band-pass edges (Hz): low ~300 strips envelope-detector DC +
+        # rumble; high trims hiss above the voice band. AM-only (config-tunable).
+        self._audio_bandpass_low_hz = float(audio_bandpass_low_hz)
+        self._audio_bandpass_high_hz = float(audio_bandpass_high_hz)
 
         # Phase 4-pre: LO scheduler parks channels that are NOT in the
         # currently-tuned cluster.  A parked channel:
@@ -228,14 +230,14 @@ class Channel(gr.hier_block2):
             self.nfm_audio_gain = blocks.multiply_const_ff(1.0)
 
         # --- Audio filter + decim ------------------------------------------
-        # AM: voice BAND-PASS (audio_hpf_hz .. audio_bw_hz). The ~300 Hz HPF
-        # removes the envelope detector's DC term + sub-300 Hz rumble that
-        # otherwise muddies weak-signal audio. NFM: plain LOW-PASS (no DC
-        # after the discriminator). Both decimate by decims[0].
+        # AM: voice BAND-PASS (audio_bandpass_low_hz .. audio_bandpass_high_hz).
+        # The ~300 Hz HPF removes the envelope detector's DC + sub-300 Hz
+        # rumble; the high edge trims hiss above the voice band. NFM: plain
+        # LOW-PASS (no DC after the discriminator). Both decimate by decims[0].
         if mode == "am":
             taps_audio = grfilter.firdes.band_pass(
                 1.0, pre_demod_rate,
-                self._audio_hpf_hz, self._audio_bw_hz,
+                self._audio_bandpass_low_hz, self._audio_bandpass_high_hz,
                 200.0, window.WIN_HAMMING,
             )
             self.audio_bpf = grfilter.fir_filter_fff(decims[0], taps_audio)
