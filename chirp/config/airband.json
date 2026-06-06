@@ -16,6 +16,7 @@
   "denoise": false,
   "denoise_model": "chirp/models/sh.rnnn",
   "denoise_gain_db": 25.0,
+  "audio_eq": "equalizer=f=500:t=q:w=1:g=-2,equalizer=f=2000:t=q:w=2:g=3,equalizer=f=3000:t=q:w=1.5:g=4",
   "max_channels": 32,
   "icecast_bitrate_kbps": 32,
   "icecast_fallback_file": "/tmp/chirp_airband_fallback.f32",

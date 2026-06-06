@@ -146,6 +146,10 @@ class IcecastSinkConfig:
     # Post-arnndn make-up gain (dB) to compensate RNNoise's voice attenuation.
     # Applied via the ffmpeg `volume` filter after arnndn. 0 = no boost.
     denoise_gain_db: float = 0.0
+    # Optional ffmpeg audio filter chain (e.g. presence-boost EQ). When set
+    # (and denoise off), the encoder is ffmpeg+libmp3lame with this chain
+    # instead of plain lame. Empty = plain lame.
+    audio_eq: str = ""
     user: str = "source"
     server_name: str = "chirp"
     description: str = "chirp gr-demod"
@@ -323,27 +327,23 @@ class IcecastSink(gr.sync_block):
     # -- lame subprocess ----------------------------------------------------
 
     def _spawn_encoder(self) -> None:
-        """Spawn the PCM->MP3 encoder subprocess: ffmpeg+arnndn (RNNoise) when
-        denoise is configured, else lame. Both expose .stdin (raw int16 PCM in)
-        and .stdout (MP3 out); the rest of the sink is encoder-agnostic."""
+        """Spawn the PCM->MP3 encoder subprocess. Three backends, same
+        stdin (raw int16 PCM in) / stdout (MP3 out) contract:
+          * denoise on            -> ffmpeg arnndn (+volume +eq)
+          * denoise off, eq set   -> ffmpeg eq-only
+          * denoise off, eq empty -> plain lame (default; ground)
+        """
         if self.cfg.denoise and self.cfg.denoise_model:
             self._spawn_ffmpeg_arnndn()
+        elif self.cfg.audio_eq:
+            self._spawn_ffmpeg_eq()
         else:
             self._spawn_lame()
 
     @staticmethod
-    def _ffmpeg_arnndn_cmd(model: str, sample_rate: int, bitrate_kbps: int,
-                           gain_db: float = 0.0) -> list:
-        """Build the ffmpeg arnndn encoder command. arnndn runs at 48 kHz, so
-        ffmpeg auto-resamples the 16 kHz input up; aresample={sr} brings it back
-        so the published MP3 keeps the icecast contract rate + bitrate. A
-        non-zero gain_db inserts a `volume` make-up boost AFTER arnndn to
-        compensate RNNoise's voice attenuation."""
+    def _ffmpeg_base_cmd(sample_rate: int, bitrate_kbps: int, af: str) -> list:
+        """ffmpeg PCM->MP3 wrapper for a given -af chain (encoder-agnostic)."""
         sr = int(sample_rate)
-        af = f"arnndn=m={model}"
-        if gain_db:
-            af += f",volume={gain_db}dB"
-        af += f",aresample={sr}"
         return [
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
             "-f", "s16le", "-ar", str(sr), "-ac", "1", "-i", "pipe:0",
@@ -351,6 +351,39 @@ class IcecastSink(gr.sync_block):
             "-c:a", "libmp3lame", "-b:a", f"{int(bitrate_kbps)}k", "-ac", "1",
             "-flush_packets", "1", "-f", "mp3", "pipe:1",
         ]
+
+    @staticmethod
+    def _ffmpeg_arnndn_cmd(model: str, sample_rate: int, bitrate_kbps: int,
+                           gain_db: float = 0.0, audio_eq: str = "") -> list:
+        """ffmpeg arnndn encoder command. arnndn runs at 48 kHz (ffmpeg
+        auto-resamples 16k up); volume make-up + optional EQ follow, then
+        aresample back so the MP3 keeps the icecast rate + bitrate."""
+        sr = int(sample_rate)
+        af = f"arnndn=m={model}"
+        if gain_db:
+            af += f",volume={gain_db}dB"
+        if audio_eq:
+            af += f",{audio_eq}"
+        af += f",aresample={sr}"
+        return IcecastSink._ffmpeg_base_cmd(sr, bitrate_kbps, af)
+
+    @staticmethod
+    def _ffmpeg_eq_cmd(sample_rate: int, bitrate_kbps: int, audio_eq: str) -> list:
+        """ffmpeg EQ-only encoder command (no arnndn). Input is already at the
+        contract rate; aresample is a harmless no-op kept for chain symmetry."""
+        sr = int(sample_rate)
+        return IcecastSink._ffmpeg_base_cmd(sr, bitrate_kbps, f"{audio_eq},aresample={sr}")
+
+    def _spawn_ffmpeg_eq(self) -> None:
+        if shutil.which("ffmpeg") is None:
+            raise RuntimeError("ffmpeg not found on PATH (needed for audio_eq)")
+        cmd = self._ffmpeg_eq_cmd(self.cfg.sample_rate, self.cfg.bitrate_kbps, self.cfg.audio_eq)
+        log.info("spawning ffmpeg eq encoder: %s", " ".join(cmd))
+        self._lame = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, bufsize=0,
+        )
+        self._encoder = self._lame
 
     def _spawn_ffmpeg_arnndn(self) -> None:
         if shutil.which("ffmpeg") is None:
@@ -361,7 +394,8 @@ class IcecastSink(gr.sync_block):
         if not os.path.isfile(model):
             raise RuntimeError(f"denoise_model not found: {model}")
         cmd = self._ffmpeg_arnndn_cmd(
-            model, self.cfg.sample_rate, self.cfg.bitrate_kbps, self.cfg.denoise_gain_db,
+            model, self.cfg.sample_rate, self.cfg.bitrate_kbps,
+            self.cfg.denoise_gain_db, self.cfg.audio_eq,
         )
         log.info("spawning ffmpeg arnndn encoder: %s", " ".join(cmd))
         # self._lame holds the encoder process handle for either backend
