@@ -10,7 +10,7 @@
   "channel_bw_hz": 6000.0,
   "agc_max_gain": 1000,
   "agc_attack": 0.1,
-  "agc_decay": 1e-5,
+  "agc_decay": 1e-4,
   "max_channels": 32,
   "icecast_bitrate_kbps": 32,
   "icecast_fallback_file": "/tmp/chirp_airband_fallback.f32",
