@@ -36,6 +36,10 @@ __pycache__/
 /runtime/
 /data/
 
+# host-side diagnostic snapshots (reboot captures, profile inventories) —
+# one-off scratch generated on the box, not source of truth
+/snapshots/
+
 # disco bulk RF / FCC data (regeneratable from upstream sources)
 disco/training_captures/
 disco/uls/
