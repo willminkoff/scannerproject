@@ -77,3 +77,23 @@ def test_ffmpeg_cmd_shape():
     s = " ".join(cmd)
     assert "arnndn=m=/x/sh.rnnn,aresample=16000" in s
     assert "-ar 16000" in s and "-b:a 32k" in s and "libmp3lame" in s
+
+
+def test_ffmpeg_cmd_inserts_volume_when_gain_set():
+    cmd = IcecastSink._ffmpeg_arnndn_cmd("/x/sh.rnnn", 16000, 32, gain_db=15.0)
+    s = " ".join(cmd)
+    # volume make-up goes AFTER arnndn and BEFORE the final resample
+    assert "arnndn=m=/x/sh.rnnn,volume=15.0dB,aresample=16000" in s
+
+
+def test_ffmpeg_cmd_no_volume_when_gain_zero():
+    cmd = IcecastSink._ffmpeg_arnndn_cmd("/x/sh.rnnn", 16000, 32, gain_db=0.0)
+    assert "volume=" not in " ".join(cmd)
+
+
+def test_denoise_gain_db_config_plumbs(tmp_path, monkeypatch):
+    monkeypatch.delenv("CHIRP_DENOISE_GAIN_DB", raising=False)
+    cfg = load_config(_cfg_file(tmp_path, {"band": "airband", "denoise_gain_db": 15.0}))
+    assert cfg.denoise_gain_db == 15.0
+    cfg2 = load_config(_cfg_file(tmp_path, {"band": "ground"}))
+    assert cfg2.denoise_gain_db == 0.0

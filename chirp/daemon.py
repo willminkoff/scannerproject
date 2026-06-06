@@ -173,6 +173,8 @@ class DaemonConfig:
     # AM voice denoise (RNNoise via ffmpeg arnndn at the icecast encoder).
     denoise: bool = False
     denoise_model: str = ""
+    # Post-arnndn make-up gain (dB) to compensate RNNoise voice attenuation.
+    denoise_gain_db: float = 0.0
     max_channels: int = DEFAULT_MAX_CHANNELS
     event_sink: Optional[tuple[str, int]] = None
     log_level: str = "INFO"
@@ -355,6 +357,10 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
             "CHIRP_DENOISE_MODEL",
             raw.get("denoise_model", "") or "",
         ),
+        denoise_gain_db=float(os.environ.get(
+            "CHIRP_DENOISE_GAIN_DB",
+            raw.get("denoise_gain_db", 0.0),
+        )),
         max_channels=int(os.environ.get("CHIRP_MAX_CHANNELS", raw.get("max_channels", DEFAULT_MAX_CHANNELS))),
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
         log_level=os.environ.get("CHIRP_LOG_LEVEL", raw.get("log_level", "INFO")).upper(),
@@ -538,6 +544,7 @@ class ChirpFlowgraph(gr.top_block):
                 sample_rate=int(cfg.audio_rate),
                 denoise=bool(cfg.denoise),
                 denoise_model=cfg.denoise_model,
+                denoise_gain_db=float(cfg.denoise_gain_db),
             )
             ice_ok = False
             try:
@@ -989,6 +996,7 @@ class ChirpFlowgraph(gr.top_block):
                 "audio_bandpass_low_hz": self._cfg.audio_bandpass_low_hz,
                 "audio_bandpass_high_hz": self._cfg.audio_bandpass_high_hz,
                 "denoise_enabled": bool(self._cfg.denoise),
+                "denoise_gain_db": self._cfg.denoise_gain_db,
                 "master_gain_db": self._master_gain_db,
                 "audio_path": str(self._audio_out_path),
                 "channels": channels,

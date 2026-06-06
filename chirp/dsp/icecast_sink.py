@@ -143,6 +143,9 @@ class IcecastSinkConfig:
     # contract, so libshout + the flowgraph are untouched.
     denoise: bool = False
     denoise_model: str = ""
+    # Post-arnndn make-up gain (dB) to compensate RNNoise's voice attenuation.
+    # Applied via the ffmpeg `volume` filter after arnndn. 0 = no boost.
+    denoise_gain_db: float = 0.0
     user: str = "source"
     server_name: str = "chirp"
     description: str = "chirp gr-demod"
@@ -329,14 +332,22 @@ class IcecastSink(gr.sync_block):
             self._spawn_lame()
 
     @staticmethod
-    def _ffmpeg_arnndn_cmd(model: str, sample_rate: int, bitrate_kbps: int) -> list:
+    def _ffmpeg_arnndn_cmd(model: str, sample_rate: int, bitrate_kbps: int,
+                           gain_db: float = 0.0) -> list:
         """Build the ffmpeg arnndn encoder command. arnndn runs at 48 kHz, so
         ffmpeg auto-resamples the 16 kHz input up; aresample={sr} brings it back
-        so the published MP3 keeps the icecast contract rate + bitrate."""
+        so the published MP3 keeps the icecast contract rate + bitrate. A
+        non-zero gain_db inserts a `volume` make-up boost AFTER arnndn to
+        compensate RNNoise's voice attenuation."""
+        sr = int(sample_rate)
+        af = f"arnndn=m={model}"
+        if gain_db:
+            af += f",volume={gain_db}dB"
+        af += f",aresample={sr}"
         return [
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
-            "-f", "s16le", "-ar", str(int(sample_rate)), "-ac", "1", "-i", "pipe:0",
-            "-af", f"arnndn=m={model},aresample={int(sample_rate)}",
+            "-f", "s16le", "-ar", str(sr), "-ac", "1", "-i", "pipe:0",
+            "-af", af,
             "-c:a", "libmp3lame", "-b:a", f"{int(bitrate_kbps)}k", "-ac", "1",
             "-flush_packets", "1", "-f", "mp3", "pipe:1",
         ]
@@ -349,7 +360,9 @@ class IcecastSink(gr.sync_block):
             model = str((_REPO_ROOT / model).resolve())
         if not os.path.isfile(model):
             raise RuntimeError(f"denoise_model not found: {model}")
-        cmd = self._ffmpeg_arnndn_cmd(model, self.cfg.sample_rate, self.cfg.bitrate_kbps)
+        cmd = self._ffmpeg_arnndn_cmd(
+            model, self.cfg.sample_rate, self.cfg.bitrate_kbps, self.cfg.denoise_gain_db,
+        )
         log.info("spawning ffmpeg arnndn encoder: %s", " ".join(cmd))
         # self._lame holds the encoder process handle for either backend
         # (stop()/_publish_loop are encoder-agnostic).
