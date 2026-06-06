@@ -11,6 +11,11 @@ EnvironmentFile=-/etc/airband-ui.conf
 User=ubuntu
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+# Disable the direct pw-cat -> PipeWire local-playback bypass. Digital reaches
+# the Boom solely via the icecast -> VLC path, like the other three mounts.
+# Running BOTH paths doubled Digital audio (~2s apart: ~100ms local vs ~2s
+# icecast-buffered). Placed AFTER EnvironmentFile so it wins. See phase 6b.
+Environment=OP25_AUDIO_LOCAL_PLAY=0
 ExecStartPre=+/bin/bash -c "mkdir -p /run/scannerproject/hls/digital && chown -R ubuntu:ubuntu /run/scannerproject/hls"
 ExecStart=/usr/bin/python3 /home/ubuntu/scannerproject/scripts/op25-audio-bridge.py
 Restart=on-failure
