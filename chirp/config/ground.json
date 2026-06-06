@@ -11,6 +11,7 @@
   "icecast_bitrate_kbps": 32,
   "icecast_fallback_file": "/tmp/chirp_ground_fallback.f32",
   "log_level": "INFO",
+  "lo_dwell_sec": 3.0,
   "sdr": {
     "_comment": "SDR source defaults for ground. Production cutover (Phase 4d) targets the analog RSPduo serial 1809063632 with mode=SL tuner=2 to coexist with rtl-airband-airband's MA-master on the same physical RSPduo. center_freq_hz set to 138.05 MHz (177th Fighter Wing \u2014 the busiest ground channel by far in rtl-airband's stats).",
     "device_args": "soapy=,driver=sdrplay,serial=1809063632,mode=SL,tuner=2",
