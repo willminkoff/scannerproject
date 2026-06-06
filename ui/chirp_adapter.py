@@ -308,12 +308,14 @@ def _read_favorite_freqs_for_band(band: str, fav_id: str) -> list[dict]:
         flag_key = f"enabled_{'air' if target == 'airband' else 'ground'}"
         if not bool(f.get(flag_key)):
             return []
-        # Favorite's "frequency" + custom_favorites list contains the
-        # channel definitions.  The legacy rtl-airband path uses the
-        # profiles/rtl_airband_hp3_favorites_*.conf file to enumerate
-        # channels; for the chirp path we don't need that file because
-        # the daemon receives the freq list directly.
-        custom = list(state.custom_favorites or [])
+        # Read THIS favorite's own channel list — not the top-level
+        # state.custom_favorites, which is a stale "last loaded" global set
+        # that activate() never recomputes.  Reading the global meant
+        # activating any favorite (e.g. single-channel "Casino") re-pushed
+        # whatever was last loaded (e.g. SIC's ~20 channels).  The legacy
+        # rtl-airband path keys off the enabled favorite's own channels
+        # (scan_mode_controller); this aligns the chirp path with it.
+        custom = list(f.get("custom_favorites") or [])
         out: list[dict] = []
         for entry in custom:
             if not isinstance(entry, dict):
@@ -444,11 +446,18 @@ def _populate_after_reset(band: str, fav_id: str) -> dict:
         logger.debug("chirp_adapter: post-add preset restore skipped",
                      exc_info=True)
 
+    n_loaded = int(result.get("count") or len(channels))
+    # Telemetry: surface profile/favorite activation so "Casino -> 1 channel"
+    # is visible in the airband-ui journal.
+    logger.info(
+        "favorite_activated band=%s fav_id=%s n_channels_loaded=%d",
+        target, fav_id, n_loaded,
+    )
     return {
         "ok": True,
         "target": target,
         "fav_id": fav_id,
-        "added_count": int(result.get("count") or len(channels)),
+        "added_count": n_loaded,
         "channels": channels,
         "via": "chirp",
     }
