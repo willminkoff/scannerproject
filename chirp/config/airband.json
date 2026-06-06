@@ -13,7 +13,7 @@
   "agc_decay": 1e-4,
   "audio_bandpass_low_hz": 300,
   "audio_bandpass_high_hz": 3500,
-  "denoise": true,
+  "denoise": false,
   "denoise_model": "chirp/models/sh.rnnn",
   "denoise_gain_db": 25.0,
   "max_channels": 32,
