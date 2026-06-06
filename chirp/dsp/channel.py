@@ -111,6 +111,7 @@ class Channel(gr.hier_block2):
         nfm_max_deviation_hz: float = 5e3,
         agc_max_gain: float = 1000.0,
         agc_attack: float = 0.1,
+        agc_decay: float = 1e-4,
         audio_hpf_hz: float = 300.0,
     ) -> None:
         if mode not in ("am", "nfm"):
@@ -136,6 +137,9 @@ class Channel(gr.hier_block2):
         # AM-only (NFM has no AGC).
         self._agc_max_gain = float(agc_max_gain)
         self._agc_attack = float(agc_attack)
+        # AGC decay rate: lower = slower gain ramp-up when signal drops,
+        # approximating a hang/hold so inter-syllable gaps stay quiet. AM-only.
+        self._agc_decay = float(agc_decay)
         # AM voice band-pass low edge (HPF, Hz): strips the envelope
         # detector's DC term + sub-300 Hz rumble. AM-only.
         self._audio_hpf_hz = float(audio_hpf_hz)
@@ -201,7 +205,7 @@ class Channel(gr.hier_block2):
         # --- Mode-specific demod --------------------------------------------
         if mode == "am":
             # AGC. agc3_cc(attack, decay, reference, gain_init, max_gain_floor).
-            self.agc = analog.agc3_cc(self._agc_attack, 1e-4, self._AGC_REF_0DB, 10, 1)
+            self.agc = analog.agc3_cc(self._agc_attack, self._agc_decay, self._AGC_REF_0DB, 10, 1)
             self.agc.set_max_gain(int(self._agc_max_gain))
             # AM envelope detector (ham2mon's choice for N>2 parallel demods).
             self.am_demod = blocks.complex_to_mag(1)

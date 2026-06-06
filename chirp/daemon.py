@@ -165,6 +165,8 @@ class DaemonConfig:
     # AGC that pumped up the noise floor on weak signals. AM-only.
     agc_max_gain: float = 1000.0
     agc_attack: float = 0.1
+    # AGC decay rate (lower = slower ramp-up on signal loss ~= hang/hold).
+    agc_decay: float = 1e-4
     max_channels: int = DEFAULT_MAX_CHANNELS
     event_sink: Optional[tuple[str, int]] = None
     log_level: str = "INFO"
@@ -326,6 +328,10 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         agc_attack=float(os.environ.get(
             "CHIRP_AGC_ATTACK",
             raw.get("agc_attack", 0.1),
+        )),
+        agc_decay=float(os.environ.get(
+            "CHIRP_AGC_DECAY",
+            raw.get("agc_decay", 1e-4),
         )),
         max_channels=int(os.environ.get("CHIRP_MAX_CHANNELS", raw.get("max_channels", DEFAULT_MAX_CHANNELS))),
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
@@ -549,6 +555,7 @@ class ChirpFlowgraph(gr.top_block):
                 channel_bw_hz=cfg.channel_bw_hz,
                 agc_max_gain=cfg.agc_max_gain,
                 agc_attack=cfg.agc_attack,
+                agc_decay=cfg.agc_decay,
                 center_freq_offset=0.0,
                 squelch_dbfs=PARKED_SQUELCH_DBFS,
                 gain_db=0.0,
@@ -952,6 +959,7 @@ class ChirpFlowgraph(gr.top_block):
                 "channel_bw_hz": self._cfg.channel_bw_hz,
                 "agc_max_gain": self._cfg.agc_max_gain,
                 "agc_attack": self._cfg.agc_attack,
+                "agc_decay": self._cfg.agc_decay,
                 "master_gain_db": self._master_gain_db,
                 "audio_path": str(self._audio_out_path),
                 "channels": channels,
