@@ -7,7 +7,7 @@
   "cmd_port": 7400,
   "source_samp_rate": 2000000.0,
   "audio_rate": 16000.0,
-  "channel_bw_hz": 8000,
+  "channel_bw_hz": 6000.0,
   "max_channels": 32,
   "icecast_bitrate_kbps": 32,
   "icecast_fallback_file": "/tmp/chirp_airband_fallback.f32",
