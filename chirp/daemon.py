@@ -157,6 +157,10 @@ class DaemonConfig:
     audio_out_kind: str = "file"  # Phase 1/2: "file"; Phase 3 adds "icecast"
     audio_out_path: Optional[str] = None
     audio_rate: float = 16000.0
+    # Per-channel post-decimation LPF cutoff (Hz) — the demod bandwidth.
+    # Default 12.5 kHz (full 25 kHz AM channel); airband.json tightens to
+    # 8 kHz for AM-voice SNR (carrier +-~4 kHz fits, less noise admitted).
+    channel_bw_hz: float = 12500.0
     max_channels: int = DEFAULT_MAX_CHANNELS
     event_sink: Optional[tuple[str, int]] = None
     log_level: str = "INFO"
@@ -307,6 +311,10 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         audio_out_kind=audio_kind,
         audio_out_path=audio_path,
         audio_rate=float(os.environ.get("CHIRP_AUDIO_RATE", raw.get("audio_rate", 16000.0))),
+        channel_bw_hz=float(os.environ.get(
+            "CHIRP_CHANNEL_BW_HZ",
+            raw.get("channel_bw_hz", 12500.0),
+        )),
         max_channels=int(os.environ.get("CHIRP_MAX_CHANNELS", raw.get("max_channels", DEFAULT_MAX_CHANNELS))),
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
         log_level=os.environ.get("CHIRP_LOG_LEVEL", raw.get("log_level", "INFO")).upper(),
@@ -526,6 +534,7 @@ class ChirpFlowgraph(gr.top_block):
             channel = Channel(
                 samp_rate=cfg.source_samp_rate,
                 audio_rate=cfg.audio_rate,
+                channel_bw_hz=cfg.channel_bw_hz,
                 center_freq_offset=0.0,
                 squelch_dbfs=PARKED_SQUELCH_DBFS,
                 gain_db=0.0,
@@ -926,6 +935,7 @@ class ChirpFlowgraph(gr.top_block):
                     "sdr_gain_db": self._cfg.sdr_gain_db,
                 },
                 "max_channels": self._cfg.max_channels,
+                "channel_bw_hz": self._cfg.channel_bw_hz,
                 "master_gain_db": self._master_gain_db,
                 "audio_path": str(self._audio_out_path),
                 "channels": channels,
