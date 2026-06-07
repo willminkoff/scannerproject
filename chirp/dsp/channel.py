@@ -266,6 +266,15 @@ class Channel(gr.hier_block2):
         # initial multiplier = 1.0 (0 dB).  Updated via ``_apply_gain``.
         self.audio_trim = blocks.multiply_const_ff(1.0)
 
+        # --- Priority gate (scan single-active-channel) ---------------------
+        # A 0/1 multiplier the priority-gate controller flips to mute
+        # non-selected channels even when their squelch is open, so only ONE
+        # channel's audio reaches the mixer at a time.  Default 1.0 (pass) —
+        # the gate is a no-op unless the controller mutes it, so when
+        # priority_gate_enabled is False this block never changes from unity.
+        self._priority_muted: bool = False
+        self.priority_gate = blocks.multiply_const_ff(1.0)
+
         # --- Wiring ---------------------------------------------------------
         self.connect(self, self.freq_xlating)
         self.connect(self.freq_xlating, self.fir_stage1)
@@ -289,7 +298,8 @@ class Channel(gr.hier_block2):
         # than something that perturbs the AM AGC or the NFM
         # discriminator output.
         self.connect(self.audio_resamp, self.audio_trim)
-        self.connect(self.audio_trim, self)
+        self.connect(self.audio_trim, self.priority_gate)
+        self.connect(self.priority_gate, self)
 
         # Apply gain (after demod wiring is complete).
         self._apply_gain(self._gain_db)
@@ -398,6 +408,26 @@ class Channel(gr.hier_block2):
 
     is_squelch_open = get_squelch_open  # convenience alias
 
+    # ----- Priority gate (scan single-active-channel) ----------------------
+
+    def set_priority_muted(self, muted: bool) -> None:
+        """Mute (0) or pass (1) this channel's audio at the priority gate.
+
+        Independent of squelch/parking: the priority-gate controller mutes
+        every channel except the one currently holding the audio path, so a
+        cluster with several open channels still yields one voice, not a mix.
+        Idempotent.
+        """
+        muted = bool(muted)
+        if muted == self._priority_muted:
+            return
+        self._priority_muted = muted
+        self.priority_gate.set_k(0.0 if muted else 1.0)
+
+    @property
+    def is_priority_muted(self) -> bool:
+        return self._priority_muted
+
     # ----- Introspection ---------------------------------------------------
 
     @property
@@ -454,6 +484,7 @@ class Channel(gr.hier_block2):
             "signal_level_dbfs": self.get_signal_level_dbfs(),
             "squelch_open": self.get_squelch_open(),
             "is_parked": self._is_parked,
+            "priority_muted": self._priority_muted,
         }
 
 

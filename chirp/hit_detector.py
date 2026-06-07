@@ -65,6 +65,7 @@ class HitDetector:
         poll_s: float = DEFAULT_POLL_S,
         warmup_s: float = 1.0,
         get_cluster_center_hz: Optional[Any] = None,
+        priority_gate: Optional[Any] = None,
     ) -> None:
         """Construct a hit detector.
 
@@ -84,6 +85,9 @@ class HitDetector:
         self._stop = threading.Event()
         # zero-arg callable -> Optional[float]
         self._get_cluster_center_hz = get_cluster_center_hz
+        # Optional PriorityGate: when set, each tick selects one open channel
+        # to pass and mutes the rest (single active channel). None = disabled.
+        self._priority_gate = priority_gate
 
         # Per-slot in-flight hit state.
         # key = slot.index, value = dict(open_ts, peak_dbfs, ch_id, freq_mhz, warmup)
@@ -134,6 +138,11 @@ class HitDetector:
     def _tick(self) -> None:
         now = time.time()
         cluster_center_hz = self._read_cluster_center()
+        # Priority gate: collect the live (non-parked, claimed) channels and
+        # which of them are squelch-open this tick, then arbitrate after the
+        # loop so exactly one passes audio.
+        live_channels: dict[str, Any] = {}
+        open_ids: list[str] = []
         for s in self._slots:
             if s.user_id is None:
                 # Slot empty: clean up any stale in-flight state.
@@ -157,6 +166,10 @@ class HitDetector:
             except Exception:
                 log.exception("could not read slot %d", s.index)
                 continue
+            if s.user_id is not None:
+                live_channels[s.user_id] = s.channel
+                if is_open:
+                    open_ids.append(s.user_id)
             prev = self._last_open.get(s.index, False)
             in_warmup = (s.claimed_at is not None and (now - s.claimed_at) < self._warmup_s)
 
@@ -208,6 +221,15 @@ class HitDetector:
                     self._server.emit_event("hit_end", **record)
                     self._append_log(record)
             self._last_open[s.index] = is_open
+
+        # Priority gate: select one open channel; mute the rest (live only).
+        if self._priority_gate is not None:
+            try:
+                selected = self._priority_gate.update(open_ids, now)
+                for cid, ch in live_channels.items():
+                    ch.set_priority_muted(cid != selected)
+            except Exception:
+                log.exception("priority gate update failed")
 
     # -- Phase 4-pre helper -------------------------------------------------
 

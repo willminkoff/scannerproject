@@ -72,6 +72,7 @@ from chirp.dsp.lo_scheduler import (
     LoScheduler,
 )
 from chirp.dsp.mixer import AudioMixer
+from chirp.dsp.priority_gate import PriorityGate
 from chirp.dsp.source_file import FileIQSource
 from chirp.dsp.source_sdr import SdrIQSource, SdrSourceConfig
 from chirp.hit_detector import HitDetector
@@ -195,6 +196,16 @@ class DaemonConfig:
     # channel list fits in one cluster these have no effect.
     lo_dwell_sec: float = LO_DEFAULT_DWELL_S
     lo_max_clusters: int = LO_DEFAULT_MAX_CLUSTERS
+    # Scan-hold: latch the LO on a cluster while a TX is live instead of
+    # hopping mid-transmission.  Opt-in per band.  Only affects multi-cluster
+    # plans (single-cluster pools never rotate).
+    scan_hold_enabled: bool = False
+    scan_hold_hang_sec: float = 2.0
+    scan_hold_max_sec: float = 30.0
+    # Priority gate: within a cluster, pass exactly one open channel's audio
+    # at a time (most-recently-opened latch).  Opt-in per band; independent
+    # of scan_hold so the two can be tested separately.
+    priority_gate_enabled: bool = False
 
 
 def _parse_event_sink(spec: Optional[str]) -> Optional[tuple[str, int]]:
@@ -265,6 +276,17 @@ def _parse_icecast_spec(rem: str) -> tuple[str, int, str, str]:
     except ValueError as e:
         raise ValueError(f"bad icecast port {port_str!r}: {e}") from e
     return host, port, mount, password
+
+
+def _as_bool(val: Any) -> bool:
+    """Coerce a config/env value (str or bool) to bool.
+
+    Env vars arrive as strings, so ``bool("false")`` would be True — parse
+    the usual truthy tokens instead.  A real bool passes through.
+    """
+    if isinstance(val, bool):
+        return val
+    return str(val).strip().lower() in ("1", "true", "yes", "on")
 
 
 def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
@@ -422,6 +444,22 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         lo_max_clusters=int(os.environ.get(
             "CHIRP_LO_MAX_CLUSTERS",
             raw.get("lo_max_clusters", LO_DEFAULT_MAX_CLUSTERS),
+        )),
+        scan_hold_enabled=_as_bool(os.environ.get(
+            "CHIRP_SCAN_HOLD_ENABLED",
+            raw.get("scan_hold_enabled", False),
+        )),
+        scan_hold_hang_sec=float(os.environ.get(
+            "CHIRP_SCAN_HOLD_HANG_SEC",
+            raw.get("scan_hold_hang_sec", 2.0),
+        )),
+        scan_hold_max_sec=float(os.environ.get(
+            "CHIRP_SCAN_HOLD_MAX_SEC",
+            raw.get("scan_hold_max_sec", 30.0),
+        )),
+        priority_gate_enabled=_as_bool(os.environ.get(
+            "CHIRP_PRIORITY_GATE_ENABLED",
+            raw.get("priority_gate_enabled", False),
         )),
     )
 
@@ -632,6 +670,22 @@ class ChirpFlowgraph(gr.top_block):
             # wedge.  See chirp/dsp/lo_scheduler.py module docstring +
             # DESIGN_lo_scheduler_lockfix.md.
             daemon_lock=self._lock,
+            # Scan-hold: latch the LO on a live cluster instead of hopping
+            # mid-TX.  is_open reads a live channel's squelch (reentrant on
+            # the daemon lock — step() already holds it when it calls this).
+            is_open=self._scheduler_is_open,
+            scan_hold_enabled=cfg.scan_hold_enabled,
+            scan_hold_hang_sec=cfg.scan_hold_hang_sec,
+            scan_hold_max_sec=cfg.scan_hold_max_sec,
+        )
+
+        # Priority gate: single-active-channel latch driven by the hit
+        # detector's 5 Hz squelch poll.  None when disabled so channels stay
+        # at unity priority gain (no muting).
+        self.priority_gate = (
+            PriorityGate(emit_event=self._server.emit_event)
+            if cfg.priority_gate_enabled
+            else None
         )
 
         # Hit detector / health probe.  Phase 4-pre: pass the scheduler's
@@ -643,6 +697,7 @@ class ChirpFlowgraph(gr.top_block):
             hit_log_path=cfg.hit_log_path,
             warmup_s=1.0,
             get_cluster_center_hz=self.lo_scheduler.current_cluster_center_hz,
+            priority_gate=self.priority_gate,
         )
 
     # -- pool helpers -------------------------------------------------------
@@ -1031,6 +1086,14 @@ class ChirpFlowgraph(gr.top_block):
                 })
             # Phase 4-pre: surface LO scheduler state for the dashboard.
             data["lo_scheduler"] = self.lo_scheduler.snapshot()
+            data["priority_gate"] = {
+                "enabled": self.priority_gate is not None,
+                "selected": (
+                    self.priority_gate.selected
+                    if self.priority_gate is not None
+                    else None
+                ),
+            }
             return Response.make_ok(env.id, data)
 
     # -- LO scheduler callbacks (Phase 4-pre) -----------------------------
@@ -1089,6 +1152,20 @@ class ChirpFlowgraph(gr.top_block):
                     continue
                 new_offset = (s.last_freq_mhz * 1e6) - float(hz)
                 s.channel.set_center_freq_offset(new_offset)
+
+    def _scheduler_is_open(self, cid: str) -> bool:
+        """Squelch-open state for one channel id, for the scheduler's
+        scan-hold check.  Reentrant on the daemon lock: step() already holds
+        it when it calls this, so this is a free RLock re-entry on the same
+        thread (no D↔S inversion)."""
+        with self._lock:
+            slot = self._slot_for(cid)
+            if slot is None:
+                return False
+            try:
+                return bool(slot.channel.get_squelch_open())
+            except Exception:
+                return False
 
     def _scheduler_park_channels(self, ids) -> None:
         with self._lock:

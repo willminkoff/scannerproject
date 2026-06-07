@@ -134,6 +134,10 @@ class LoScheduler:
         tick_s: float = DEFAULT_TICK_S,
         clock: Callable[[], float] = time.time,
         daemon_lock: Optional[threading.RLock] = None,
+        is_open: Optional[Callable[[str], bool]] = None,
+        scan_hold_enabled: bool = False,
+        scan_hold_hang_sec: float = 2.0,
+        scan_hold_max_sec: float = 30.0,
     ) -> None:
         if iq_bw_hz <= 0:
             raise ValueError(f"iq_bw_hz must be > 0, got {iq_bw_hz!r}")
@@ -143,6 +147,15 @@ class LoScheduler:
             raise ValueError(f"max_clusters must be >= 1, got {max_clusters!r}")
         if tick_s <= 0:
             raise ValueError(f"tick_s must be > 0, got {tick_s!r}")
+        if scan_hold_enabled:
+            if scan_hold_hang_sec <= 0:
+                raise ValueError(
+                    f"scan_hold_hang_sec must be > 0, got {scan_hold_hang_sec!r}"
+                )
+            if scan_hold_max_sec <= 0:
+                raise ValueError(
+                    f"scan_hold_max_sec must be > 0, got {scan_hold_max_sec!r}"
+                )
 
         self._get_channels = get_channels
         self._retune_to = retune_to
@@ -154,6 +167,23 @@ class LoScheduler:
         self._max_clusters = int(max_clusters)
         self._tick_s = float(tick_s)
         self._clock = clock
+
+        # Scan-hold: latch the LO on a cluster while a TX is live, instead of
+        # hopping away mid-transmission.  ``is_open(id)`` reads a live
+        # channel's squelch-open state (backed by Channel.get_squelch_open).
+        self._is_open = is_open
+        self._scan_hold_enabled = bool(scan_hold_enabled)
+        self._scan_hold_hang_sec = float(scan_hold_hang_sec)
+        self._scan_hold_max_sec = float(scan_hold_max_sec)
+        # Hold state (None/0 when not holding).
+        self._hold_active: bool = False
+        self._hold_start_ts: Optional[float] = None
+        self._hold_last_open_ts: Optional[float] = None
+        self._hold_trigger_id: Optional[str] = None
+        self._hold_extended_n: int = 0
+        # Ids that were open on the previous scan-hold evaluation, so a
+        # closed→open transition (re-key or a new channel) can extend the hold.
+        self._hold_prev_open_ids: set[str] = set()
 
         self._lock = threading.RLock()
         # See canonical-lock-order note in module docstring.  When the
@@ -242,6 +272,15 @@ class LoScheduler:
                 "plan_failed_reason": self._plan_failed_reason,
                 "plan_needed": self._plan_needed,
                 "last_recompute_ts": self._last_recompute_ts,
+                "scan_hold_enabled": self._scan_hold_enabled,
+                "scan_hold_state": "holding" if self._hold_active else "scanning",
+                "held_channel_id": self._hold_trigger_id,
+                "hold_elapsed_sec": (
+                    round(self._clock() - self._hold_start_ts, 3)
+                    if self._hold_active and self._hold_start_ts is not None
+                    else None
+                ),
+                "hold_extended_n_times": self._hold_extended_n,
             }
             if not self._current_plan:
                 base.update({
@@ -325,17 +364,98 @@ class LoScheduler:
                 self._apply_cluster(0, now, from_idx=None)
                 return
 
-            # 4) Single-cluster plans don't rotate.
+            # 4) Single-cluster plans don't rotate (scan-hold is moot).
             if len(self._current_plan) == 1:
                 return
 
-            # 5) Multi-cluster: check dwell expiry.
+            # 5) Scan-hold: if a TX is live on the current cluster, latch here
+            #    instead of hopping.  Returns True when the hop must be
+            #    suppressed (held this tick, or just advanced on release/cap).
+            if self._scan_hold_enabled and self._is_open is not None:
+                if self._step_scan_hold(now):
+                    return
+
+            # 6) Multi-cluster: check dwell expiry.
             elapsed = now - self._cluster_dwell_start_ts
             if elapsed >= self._dwell_s:
                 next_idx = (self._current_cluster_idx + 1) % len(self._current_plan)
                 self._apply_cluster(
                     next_idx, now, from_idx=self._current_cluster_idx
                 )
+
+    def _step_scan_hold(self, now: float) -> bool:
+        """Evaluate scan-hold for the active cluster.
+
+        Returns True if the normal dwell hop must be suppressed this tick
+        (either we are holding, or we just released-and-advanced).  Returns
+        False to let normal rotation proceed (no activity, not holding).
+        """
+        live_ids = set(self._current_plan[self._current_cluster_idx].channel_ids)
+        open_ids = {cid for cid in live_ids if self._safe_is_open(cid)}
+
+        if open_ids:
+            if not self._hold_active:
+                # Engage: freeze rotation, latch on the triggering channel.
+                self._hold_active = True
+                self._hold_start_ts = now
+                self._hold_extended_n = 0
+                self._hold_trigger_id = sorted(open_ids)[0]
+                self._emit_event(
+                    "scan_hold_engaged",
+                    cluster_idx=self._current_cluster_idx,
+                    channel_id=self._hold_trigger_id,
+                )
+            else:
+                # A new closed→open transition (re-key or another channel in
+                # the cluster) extends the hold and bumps the counter.
+                if open_ids - self._hold_prev_open_ids:
+                    self._hold_extended_n += 1
+            self._hold_last_open_ts = now
+            self._hold_prev_open_ids = open_ids
+            # Cap: bound total time on a constantly-busy cluster.
+            if now - self._hold_start_ts >= self._scan_hold_max_sec:
+                self._release_hold(now, "max_cap")
+                self._advance_cluster(now)
+            return True
+
+        # Nothing open right now.
+        self._hold_prev_open_ids = set()
+        if self._hold_active:
+            # Release once the cluster has been quiet for the hang window.
+            if now - self._hold_last_open_ts >= self._scan_hold_hang_sec:
+                self._release_hold(now, "hang")
+                self._advance_cluster(now)
+            return True  # still within hang → keep holding (suppress hop)
+        return False  # not holding, no activity → normal rotation
+
+    def _safe_is_open(self, cid: str) -> bool:
+        try:
+            return bool(self._is_open(cid))  # type: ignore[misc]
+        except Exception:
+            return False
+
+    def _release_hold(self, now: float, reason: str) -> None:
+        held_for = now - (self._hold_start_ts or now)
+        self._emit_event(
+            "scan_hold_released",
+            cluster_idx=self._current_cluster_idx,
+            held_for_sec=round(held_for, 3),
+            extended_n_times=self._hold_extended_n,
+            released_reason=reason,
+        )
+        self._reset_hold()
+
+    def _reset_hold(self) -> None:
+        self._hold_active = False
+        self._hold_start_ts = None
+        self._hold_last_open_ts = None
+        self._hold_trigger_id = None
+        self._hold_extended_n = 0
+        self._hold_prev_open_ids = set()
+
+    def _advance_cluster(self, now: float) -> None:
+        next_idx = (self._current_cluster_idx + 1) % len(self._current_plan)
+        self._apply_cluster(next_idx, now, from_idx=self._current_cluster_idx)
 
     # -- internal helpers --------------------------------------------------
 
@@ -369,6 +489,8 @@ class LoScheduler:
         self._current_cluster_idx = 0
         self._cluster_dwell_start_ts = None
         self._last_recompute_ts = now
+        # A new plan invalidates any in-progress hold (channel set changed).
+        self._reset_hold()
 
         # Refresh pool-id memory from the new plan.
         new_pool_ids = set()
