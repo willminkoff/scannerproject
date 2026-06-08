@@ -4263,7 +4263,7 @@ const SPEC_PANE = new Map();   // key -> { canvas, target, display, freqLo, freq
 
 function specSubmitFrame(canvas, bins, freqLo, freqHi, scaleKey) {
   if (!canvas) return;
-  if (!Array.isArray(bins) || bins.length === 0) return;
+  if ((!Array.isArray(bins) && !ArrayBuffer.isView(bins)) || bins.length === 0) return;
   if (!Number.isFinite(freqLo) || !Number.isFinite(freqHi) || freqHi <= freqLo) return;
   const key = scaleKey || canvas.id;
   const N = bins.length;
@@ -8256,7 +8256,6 @@ function _wsRefreshIndicator() {
 setInterval(_wsRefreshIndicator, 500);
 
 function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
-  lastWsFrameAt[paneId] = Date.now();
   if (paneId === WS_PANE_WATERFALL) {
     const min = centerMhz - spanMhz / 2;
     const max = centerMhz + spanMhz / 2;
@@ -8287,6 +8286,7 @@ function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
     }
     pushWaterfallRow("wf-canvas", renderIntensity, wfColormap);
     specSubmitFrame($("wf-spec"), renderBins, renderMin, renderMax, "wf-canvas");
+    lastWsFrameAt[paneId] = Date.now();
     if (_wfDesktop) {
       updateWfNeedle();
     }
