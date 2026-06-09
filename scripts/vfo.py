@@ -635,7 +635,7 @@ class VFOWorker:
         # Demod instance pool — recreated on mod change so internal
         # state (filter memory) starts fresh.
         self._demod_am = AMDemod()
-        self._demod_nfm = FMDemod(deemph_us=None)
+        self._demod_nfm = FMDemod(deemph_us=75.0)
         self._demod_wfm = FMDemod(deemph_us=75.0)
 
         # Mini-waterfall throttle.
@@ -798,7 +798,7 @@ class VFOWorker:
             )
             # Reset demod state by recreating instances.
             self._demod_am = AMDemod()
-            self._demod_nfm = FMDemod(deemph_us=None)
+            self._demod_nfm = FMDemod(deemph_us=75.0)
             self._demod_wfm = FMDemod(deemph_us=75.0)
             self.applied_mod = want_mod
         if want_muted != self.applied_muted:
