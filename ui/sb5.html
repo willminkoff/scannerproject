@@ -1552,6 +1552,23 @@
     background: rgba(138, 155, 181, 0.20);
     color: var(--text);
   }
+  /* SB5 2026-06-09 — primary Auto-tune button styling */
+  .band-ctl-btn-primary {
+    background: rgba(90,184,255,0.18);
+    color: #cfe8ff;
+    border-color: rgba(90,184,255,0.55);
+    font-weight: 600;
+    padding: 6px 14px;
+  }
+  .band-ctl-btn-primary:hover {
+    background: rgba(90,184,255,0.32);
+    color: #fff;
+  }
+  .ctl-tune-status {
+    font-size: 11px;
+    color: rgba(190,210,225,0.70);
+    margin-top: 2px;
+  }
   /* Phase 1 squelch preset chips.  The three buttons share the
      base .band-ctl-btn look; .ctl-preset.on (set via aria-checked
      mirroring in JS) highlights the active preset. */
@@ -2670,37 +2687,22 @@
              fires reset_radios to restart rtl-airband. -->
         <div class="band-ctl band-ctl-preset" data-band="air">
           <span class="ctl-lbl">Squelch</span>
-          <!-- SB5 Phase 2 — AUTO/MANUAL pill.  ON = continuous noise
-               tracker re-applies the preset margin every 30 s with
-               5 dB hysteresis.  OFF = chip thresholds stay frozen
-               until operator picks a preset again. -->
-          <div class="band-ctl-auto-row" data-role="auto-row">
-            <button type="button" class="band-ctl-auto-pill on"
-                    data-band="air" data-role="auto-toggle"
-                    aria-pressed="true"
-                    title="When AUTO is on, the tracker re-samples noise every 30 s and re-applies the preset margin if any channel drifts >= 5 dB.">AUTO</button>
+          <div class="band-ctl-auto-row" data-role="auto-row" data-legacy="1" style="display:none">
+            <button type="button" class="band-ctl-auto-pill on" data-band="air" data-role="auto-toggle" aria-pressed="true">AUTO</button>
             <span class="auto-status" data-role="auto-status">Auto · waiting for first sync</span>
           </div>
-          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="AIR squelch preset">
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="sensitive"
-                    role="radio" aria-checked="false"
-                    title="Sensitive — opens at 3 dB above per-channel noise floor">Sensitive</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="balanced"
-                    role="radio" aria-checked="true"
-                    title="Balanced — opens at 6 dB above per-channel noise floor (default)">Balanced</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="selective"
-                    role="radio" aria-checked="false"
-                    title="Selective — opens at 12 dB above per-channel noise floor">Selective</button>
+          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="AIR squelch preset" data-legacy="1" style="display:none">
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="sensitive" role="radio" aria-checked="false">Sensitive</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="balanced" role="radio" aria-checked="true">Balanced</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="selective" role="radio" aria-checked="false">Selective</button>
           </div>
-          <!-- SB5 2026-06-09 — Calibrate (per-channel noise sample over 15s)
-               + Test (wide-open pass-through to verify audio path) -->
           <div class="band-ctl-row band-ctl-sq-tools">
-            <button type="button" class="band-ctl-btn ctl-calibrate" data-band="air"
-                    title="Sample noise per channel for 15s; set squelch = 90th percentile noise + 3 dB.  Closed channels only; skip channels active during sample.">Calibrate</button>
+            <button type="button" class="band-ctl-btn ctl-calibrate band-ctl-btn-primary" data-band="air"
+                    title="Push to learn the noise floor on every channel in this band, then set squelch automatically.  Takes 15 seconds.">Auto-tune</button>
             <button type="button" class="band-ctl-btn ctl-wide-open" data-band="air"
-                    title="Test mode — set every channel wide open (-120 dBFS) to verify audio pass-through.  Re-apply a preset to restore.">Test</button>
+                    title="Open every channel (test the audio path).  Push Auto-tune to restore.">Test</button>
           </div>
-          <span class="ctl-val ctl-preset-readout" data-role="preset-readout">—</span>
+          <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="air">—</span>
         </div>
         <div class="band-ctl">
           <span class="ctl-lbl">Gain</span>
@@ -2790,31 +2792,22 @@
         <!-- SB5 Phase 1 squelch preset.  See AIR card above. -->
         <div class="band-ctl band-ctl-preset" data-band="ground">
           <span class="ctl-lbl">Squelch</span>
-          <div class="band-ctl-auto-row" data-role="auto-row">
-            <button type="button" class="band-ctl-auto-pill on"
-                    data-band="ground" data-role="auto-toggle"
-                    aria-pressed="true"
-                    title="When AUTO is on, the tracker re-samples noise every 30 s and re-applies the preset margin if any channel drifts >= 5 dB.">AUTO</button>
+          <div class="band-ctl-auto-row" data-role="auto-row" data-legacy="1" style="display:none">
+            <button type="button" class="band-ctl-auto-pill on" data-band="ground" data-role="auto-toggle" aria-pressed="true">AUTO</button>
             <span class="auto-status" data-role="auto-status">Auto · waiting for first sync</span>
           </div>
-          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="GROUND squelch preset">
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="sensitive"
-                    role="radio" aria-checked="false"
-                    title="Sensitive — opens at 3 dB above per-channel noise floor">Sensitive</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="balanced"
-                    role="radio" aria-checked="true"
-                    title="Balanced — opens at 6 dB above per-channel noise floor (default)">Balanced</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective"
-                    role="radio" aria-checked="false"
-                    title="Selective — opens at 12 dB above per-channel noise floor">Selective</button>
+          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="GROUND squelch preset" data-legacy="1" style="display:none">
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="sensitive" role="radio" aria-checked="false">Sensitive</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="balanced" role="radio" aria-checked="true">Balanced</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective" role="radio" aria-checked="false">Selective</button>
           </div>
           <div class="band-ctl-row band-ctl-sq-tools">
-            <button type="button" class="band-ctl-btn ctl-calibrate" data-band="ground"
-                    title="Sample noise per channel for 15s; set squelch = 90th percentile noise + 3 dB">Calibrate</button>
+            <button type="button" class="band-ctl-btn ctl-calibrate band-ctl-btn-primary" data-band="ground"
+                    title="Push to learn the noise floor on every channel in this band, then set squelch automatically.  Takes 15 seconds.">Auto-tune</button>
             <button type="button" class="band-ctl-btn ctl-wide-open" data-band="ground"
-                    title="Test mode — set every channel wide open (-120 dBFS) to verify audio pass-through">Test</button>
+                    title="Open every channel (test the audio path).  Push Auto-tune to restore.">Test</button>
           </div>
-          <span class="ctl-val ctl-preset-readout" data-role="preset-readout">—</span>
+          <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="ground">—</span>
         </div>
         <div class="band-ctl">
           <span class="ctl-lbl">Gain</span>
@@ -8715,19 +8708,30 @@ if (document.readyState === "loading") {
       var band = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
       t.disabled = true;
       var orig = t.textContent;
-      t.textContent = "Sampling…";
-      showToast("Sampling " + band + " noise for 15s…", "busy");
+      t.textContent = "Tuning…";
+      var statusEl = document.querySelector("[data-role=\"tune-status\"][data-band=\"" + band + "\"]");
+      if (statusEl) statusEl.textContent = "Listening to noise floor…";
+      showToast("Auto-tuning " + band + " (15 s)…", "busy");
       postJSON("/api/squelch/calibrate", { band: band, sample_sec: 15, margin_db: 3 })
         .then(function (a) {
           var status = a[0], res = a[1];
           if (status === 200 && res.ok) {
             showToast(summarizeCalibrate(res), "ok");
+            if (statusEl) {
+              var when = new Date().toLocaleTimeString();
+              var nT = res.channels_applied | 0;
+              var nS = res.channels_skipped | 0;
+              statusEl.textContent = "Auto-tuned " + nT + " ch" +
+                (nS ? " (skipped " + nS + " active)" : "") + " · " + when;
+            }
           } else {
-            showToast("Calibrate failed: " + (res.error || "status " + status), "err");
+            showToast("Auto-tune failed: " + (res.error || "status " + status), "err");
+            if (statusEl) statusEl.textContent = "Auto-tune failed — see toast";
           }
         })
         .catch(function (e) {
-          showToast("Calibrate error: " + (e && e.message ? e.message : e), "err");
+          showToast("Auto-tune error: " + (e && e.message ? e.message : e), "err");
+          if (statusEl) statusEl.textContent = "Auto-tune error";
         })
         .then(function () {
           t.textContent = orig;
