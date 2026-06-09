@@ -633,6 +633,93 @@ def reset_radios_via_chirp(*, unconditional_repopulate: bool = True) -> tuple[bo
     elapsed = time.monotonic() - t0
     all_ok = all(r.get("ok") for r in results.values())
 
+    # ----- Escalation: comms failure → safe_restart_rtl_airband ----------
+    # If any band's UDP reset failed with a comms-style error (timeout,
+    # refused, no response), the daemon is likely wedged at a syscall
+    # (canonical case: stuck in sdrplay_api_Open with the SoapySDR
+    # daemon hung; UDP socket isn't being serviced).  Fall back to
+    # safe_restart_rtl_airband, which sequences the systemd restart
+    # with an sdrplay-daemon bounce on probe failure.  Without this
+    # escalation, "Reset Radios" returns red and the operator has to
+    # SSH in and run the recovery by hand (which is what happened on
+    # 2026-06-08; commit history has the manual sequence).
+    restart_summary = None
+    if not all_ok:
+        comms_failed = [
+            name for name, r in results.items()
+            if not r.get("ok") and _looks_like_comms_failure(r.get("error"))
+        ]
+        if comms_failed:
+            try:
+                try:
+                    from .airband_restart import safe_restart_rtl_airband
+                except ImportError:
+                    from ui.airband_restart import safe_restart_rtl_airband  # type: ignore
+                logger.info(
+                    "chirp_adapter: reset_radios escalating to safe_restart "
+                    "for bands=%s (comms-failed)", comms_failed,
+                )
+                sr = safe_restart_rtl_airband(
+                    bands=tuple(comms_failed),
+                    reason="chirp_reset_unresponsive",
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "chirp_adapter: safe_restart_rtl_airband raised during "
+                    "reset_radios escalation"
+                )
+                sr = {"status": "raised", "error": f"raised: {exc}", "results": {}}
+            restart_summary = {
+                "status": sr.get("status"),
+                "restarted_sdrplay": bool(sr.get("restarted_sdrplay")),
+                "bands": comms_failed,
+            }
+            per_band = sr.get("results") or {}
+            for band in comms_failed:
+                band_sr = per_band.get(band, {})
+                if band_sr.get("ok"):
+                    # Restart succeeded — band is back.  Mark ok, note
+                    # escalation, attempt repopulate (the per-band repop
+                    # was skipped earlier because reset_failed).
+                    results[band]["ok"] = True
+                    results[band]["escalated"] = "safe_restart"
+                    if unconditional_repopulate:
+                        fav_id = _enabled_fav_id_for_band(band)
+                        if not fav_id:
+                            results[band]["repopulate"] = {
+                                "skipped": "no_enabled_favorite",
+                            }
+                        else:
+                            try:
+                                rp = _populate_after_reset(band, fav_id)
+                                results[band]["repopulate"] = {
+                                    "ok": bool(rp.get("ok")),
+                                    "fav_id": fav_id,
+                                    "added_count": rp.get("added_count"),
+                                    "error": rp.get("error"),
+                                }
+                            except Exception as exc:  # noqa: BLE001
+                                logger.exception(
+                                    "chirp_adapter: post-escalation repop "
+                                    "raised band=%s fav_id=%s", band, fav_id,
+                                )
+                                results[band]["repopulate"] = {
+                                    "ok": False,
+                                    "fav_id": fav_id,
+                                    "error": f"unexpected: {exc}",
+                                }
+                else:
+                    # Restart also failed — propagate combined error.
+                    sr_err = band_sr.get("error") or sr.get("error") or "restart_failed"
+                    results[band]["error"] = (
+                        f"reset+restart both failed: "
+                        f"{results[band].get('error')} → {sr_err}"
+                    )
+            # Recompute after escalation.
+            all_ok = all(r.get("ok") for r in results.values())
+
+    elapsed = time.monotonic() - t0  # recompute after possible escalation
+
     def _repop_summary(b: str) -> str:
         rp = results[b].get("repopulate")
         if rp is None:
@@ -643,6 +730,15 @@ def reset_radios_via_chirp(*, unconditional_repopulate: bool = True) -> tuple[bo
             return f"repop={rp.get('added_count')}"
         return f"repop-fail({rp.get('error') or 'unknown'})"
 
+    def _escal_summary() -> str:
+        if not restart_summary:
+            return ""
+        sd = " (sdrplay bounced)" if restart_summary["restarted_sdrplay"] else ""
+        return (
+            f" [escalated:safe_restart status={restart_summary['status']}"
+            f" bands={','.join(restart_summary['bands'])}{sd}]"
+        )
+
     if all_ok:
         msg = (
             f"Reset Radios (chirp) triggered in {elapsed:.2f}s "
@@ -650,13 +746,39 @@ def reset_radios_via_chirp(*, unconditional_repopulate: bool = True) -> tuple[bo
             f"{_repop_summary('airband')}, "
             f"ground pool_free={results['ground'].get('pool_free')} "
             f"{_repop_summary('ground')})"
+            f"{_escal_summary()}"
         )
         return True, msg, ""
     detail = "; ".join(
         f"{b}: {('ok' if r.get('ok') else (r.get('error') or 'fail'))}"
         for b, r in results.items()
     )
-    return False, "", f"Reset Radios (chirp) partial fail after {elapsed:.2f}s — {detail}"
+    return False, "", (
+        f"Reset Radios (chirp) partial fail after {elapsed:.2f}s — {detail}"
+        f"{_escal_summary()}"
+    )
+
+
+def _looks_like_comms_failure(err: Optional[str]) -> bool:
+    """Heuristic: does an error string look like a UDP comms failure
+    rather than a logic / parse error?  UDP-comms failures are the
+    signature of a wedged daemon and warrant escalation to
+    safe_restart_rtl_airband.  Logic errors (HPState corrupt,
+    add_channel rejected, etc.) would not be helped by a systemd
+    restart and we let them bubble up as-is.
+    """
+    if not err:
+        return False
+    s = err.lower()
+    return any(
+        token in s
+        for token in (
+            "timed out", "timeout",
+            "refused", "no response", "no reply",
+            "broken pipe", "connection reset", "connection",
+            "unreachable", "errno 111", "errno 113",
+        )
+    )
 
 
 __all__ = [
