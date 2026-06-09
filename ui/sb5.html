@@ -2692,6 +2692,14 @@
                     role="radio" aria-checked="false"
                     title="Selective — opens at 12 dB above per-channel noise floor">Selective</button>
           </div>
+          <!-- SB5 2026-06-09 — Calibrate (per-channel noise sample over 15s)
+               + Test (wide-open pass-through to verify audio path) -->
+          <div class="band-ctl-row band-ctl-sq-tools">
+            <button type="button" class="band-ctl-btn ctl-calibrate" data-band="air"
+                    title="Sample noise per channel for 15s; set squelch = 90th percentile noise + 3 dB.  Closed channels only; skip channels active during sample.">Calibrate</button>
+            <button type="button" class="band-ctl-btn ctl-wide-open" data-band="air"
+                    title="Test mode — set every channel wide open (-120 dBFS) to verify audio pass-through.  Re-apply a preset to restore.">Test</button>
+          </div>
           <span class="ctl-val ctl-preset-readout" data-role="preset-readout">—</span>
         </div>
         <div class="band-ctl">
@@ -2799,6 +2807,12 @@
             <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective"
                     role="radio" aria-checked="false"
                     title="Selective — opens at 12 dB above per-channel noise floor">Selective</button>
+          </div>
+          <div class="band-ctl-row band-ctl-sq-tools">
+            <button type="button" class="band-ctl-btn ctl-calibrate" data-band="ground"
+                    title="Sample noise per channel for 15s; set squelch = 90th percentile noise + 3 dB">Calibrate</button>
+            <button type="button" class="band-ctl-btn ctl-wide-open" data-band="ground"
+                    title="Test mode — set every channel wide open (-120 dBFS) to verify audio pass-through">Test</button>
           </div>
           <span class="ctl-val ctl-preset-readout" data-role="preset-readout">—</span>
         </div>
@@ -8661,6 +8675,88 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
+</script>
+<!-- SB5 2026-06-09 squelch Calibrate + Test wiring -->
+<script>
+(function() {
+  "use strict";
+  var bandMap = { air: "air", airband: "air", ground: "ground", gnd: "ground" };
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+      credentials: "same-origin",
+    }).then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); });
+  }
+  function showToast(text, variant) {
+    try {
+      if (typeof showSitrepToast === "function") {
+        showSitrepToast(text, variant || "busy", 6000);
+        return;
+      }
+    } catch (e) {}
+    console.log("[squelch]", variant || "info", text);
+  }
+  function summarizeCalibrate(res) {
+    var n = res.channels_applied | 0;
+    var sk = res.channels_skipped | 0;
+    var samples = res.polls | 0;
+    return "Calibrated " + n + " ch (" + samples + " polls, " +
+      (res.elapsed_sec || 0) + "s)" +
+      (sk ? ", skipped " + sk + " active" : "");
+  }
+  document.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (!t || !t.dataset) return;
+    var cls = t.className || "";
+    if (cls.indexOf("ctl-calibrate") !== -1) {
+      ev.preventDefault();
+      var band = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
+      t.disabled = true;
+      var orig = t.textContent;
+      t.textContent = "Sampling…";
+      showToast("Sampling " + band + " noise for 15s…", "busy");
+      postJSON("/api/squelch/calibrate", { band: band, sample_sec: 15, margin_db: 3 })
+        .then(function (a) {
+          var status = a[0], res = a[1];
+          if (status === 200 && res.ok) {
+            showToast(summarizeCalibrate(res), "ok");
+          } else {
+            showToast("Calibrate failed: " + (res.error || "status " + status), "err");
+          }
+        })
+        .catch(function (e) {
+          showToast("Calibrate error: " + (e && e.message ? e.message : e), "err");
+        })
+        .then(function () {
+          t.textContent = orig;
+          t.disabled = false;
+        });
+      return;
+    }
+    if (cls.indexOf("ctl-wide-open") !== -1) {
+      ev.preventDefault();
+      var band2 = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
+      t.disabled = true;
+      postJSON("/api/squelch/wide_open", { band: band2, dbfs: -120 })
+        .then(function (a) {
+          var status = a[0], res = a[1];
+          if (status === 200 && res.ok) {
+            showToast(band2 + " WIDE OPEN (" + (res.channels_applied | 0) +
+              " ch) — re-pick a preset to restore", "ok");
+          } else {
+            showToast("Wide-open failed: " + (res.error || "status " + status), "err");
+          }
+        })
+        .catch(function (e) {
+          showToast("Wide-open error: " + (e && e.message ? e.message : e), "err");
+        })
+        .then(function () { t.disabled = false; });
+      return;
+    }
+  }, true);
+})();
 </script>
 </body>
 </html>

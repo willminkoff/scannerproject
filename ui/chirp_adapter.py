@@ -781,8 +781,234 @@ def _looks_like_comms_failure(err: Optional[str]) -> bool:
     )
 
 
+
+
+def calibrate_squelch_via_chirp(
+    band: str,
+    sample_sec: float = 15.0,
+    margin_db: float = 3.0,
+    poll_hz: float = 10.0,
+    skip_open: bool = True,
+) -> dict:
+    """Per-channel noise-floor calibration via signal_level_dbfs sampling.
+
+    The existing preset apply (`apply_squelch_preset_via_chirp`) reads
+    ``signal_level_dbfs`` ONCE and adds margin_db.  If the snapshot
+    happens during a brief signal peak, the resulting threshold is too
+    high and gates real voice (we hit this on marine VHF 2026-06-09).
+
+    This sampler polls at ``poll_hz`` for ``sample_sec`` seconds, builds
+    a distribution per channel, and sets ``squelch = p90_noise + margin_db``.
+    p90 (90th-percentile) of the measured noise is robust against noise
+    fluctuations while still discriminating voice (which would push the
+    percentile much higher when it occurs).
+
+    Channels that were open at ANY sample tick are skipped — voice during
+    sampling would contaminate the noise estimate.  Operator can re-run
+    later when the channel is quiet.
+
+    Returns a plan dict with per-channel measurements + applied thresholds.
+    """
+    import time as _time_mod
+    import statistics as _stats_mod
+
+    sp = _squelch_preset_module()
+    target = _normalize_band(band)
+
+    # Validate/clamp inputs.
+    sample_sec = float(max(2.0, min(60.0, sample_sec)))
+    margin_db = float(max(-10.0, min(30.0, margin_db)))
+    poll_hz = float(max(1.0, min(20.0, poll_hz)))
+    poll_interval = 1.0 / poll_hz
+
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target,
+            "sample_sec": sample_sec,
+            "margin_db": margin_db,
+            "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_calibrate",
+        }
+
+    # Sample loop.
+    samples_per_channel: dict[str, list[float]] = {}
+    labels: dict[str, str] = {}
+    open_seen: set[str] = set()
+    last_status: dict = {}
+    n_polls = 0
+    t0 = _time_mod.monotonic()
+    end_time = t0 + sample_sec
+
+    while _time_mod.monotonic() < end_time:
+        try:
+            status = client.get_status()
+        except Exception as exc:
+            return {
+                "target": target,
+                "sample_sec": sample_sec,
+                "margin_db": margin_db,
+                "polls": n_polls,
+                "changed": False,
+                "error": f"chirp_daemon_unreachable: {exc}",
+                "via": "chirp_calibrate",
+            }
+        last_status = status
+        n_polls += 1
+        for ch in status.get("channels", []) or []:
+            cid = ch.get("id")
+            if not cid:
+                continue
+            lvl = ch.get("signal_level_dbfs")
+            try:
+                lvl_f = float(lvl)
+            except (TypeError, ValueError):
+                continue
+            labels[cid] = ch.get("label") or cid
+            if ch.get("squelch_open"):
+                open_seen.add(cid)
+            samples_per_channel.setdefault(cid, []).append(lvl_f)
+        # Sleep until next poll tick (compensates for get_status latency).
+        next_t = t0 + (n_polls * poll_interval)
+        sleep_for = next_t - _time_mod.monotonic()
+        if sleep_for > 0:
+            _time_mod.sleep(sleep_for)
+
+    elapsed = _time_mod.monotonic() - t0
+
+    # Build per-channel report and apply thresholds.
+    per_channel: list[dict] = []
+    applied_count = 0
+    skipped_count = 0
+    for cid in sorted(samples_per_channel.keys()):
+        samples = samples_per_channel[cid]
+        label = labels.get(cid, cid)
+        if not samples:
+            continue
+        if skip_open and cid in open_seen:
+            per_channel.append({
+                "id": cid,
+                "label": label,
+                "samples": len(samples),
+                "skipped": True,
+                "reason": "was_open_during_sampling",
+                "applied_squelch_dbfs": None,
+            })
+            skipped_count += 1
+            continue
+        sorted_s = sorted(samples)
+        n = len(sorted_s)
+        # 90th percentile (linear interpolation between nearest indices)
+        idx_f = 0.9 * (n - 1)
+        i = int(idx_f)
+        frac = idx_f - i
+        p90 = sorted_s[i] if i + 1 >= n else (sorted_s[i] + frac * (sorted_s[i + 1] - sorted_s[i]))
+        median = _stats_mod.median(sorted_s)
+        threshold = int(round(p90 + margin_db))
+        # Clamp to a sane operating range.
+        threshold = max(-100, min(-1, threshold))
+        try:
+            client.set_squelch(id=cid, dbfs=float(threshold))
+            applied_count += 1
+            per_channel.append({
+                "id": cid,
+                "label": label,
+                "samples": n,
+                "median_noise_dbfs": round(float(median), 1),
+                "p90_noise_dbfs": round(float(p90), 1),
+                "noise_min_dbfs": round(float(sorted_s[0]), 1),
+                "noise_max_dbfs": round(float(sorted_s[-1]), 1),
+                "threshold_dbfs": threshold,
+                "applied_squelch_dbfs": threshold,
+            })
+        except Exception as exc:
+            per_channel.append({
+                "id": cid,
+                "label": label,
+                "samples": n,
+                "median_noise_dbfs": round(float(median), 1),
+                "p90_noise_dbfs": round(float(p90), 1),
+                "threshold_dbfs": threshold,
+                "applied_squelch_dbfs": None,
+                "error": f"set_squelch_failed: {exc}",
+            })
+
+    return {
+        "target": target,
+        "sample_sec": round(sample_sec, 1),
+        "elapsed_sec": round(elapsed, 1),
+        "margin_db": margin_db,
+        "poll_hz": poll_hz,
+        "polls": n_polls,
+        "channels_total": len(samples_per_channel),
+        "channels_applied": applied_count,
+        "channels_skipped": skipped_count,
+        "channels": per_channel,
+        "changed": applied_count > 0,
+        "via": "chirp_calibrate",
+    }
+
+
+def wide_open_squelch_via_chirp(band: str, dbfs: float = -120.0) -> dict:
+    """Test mode: set every channel in the band to a pass-everything dbfs.
+
+    Used to verify the demod + audio path is intact (e.g., after a config
+    change you want to confirm audio reaches the speaker before tightening
+    the squelch back up).  After testing, the operator re-applies a
+    preset (or runs calibrate) to restore noise-floor-based thresholds.
+
+    Returns plan dict with the count of channels touched.
+    """
+    target = _normalize_band(band)
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target,
+            "applied_dbfs": dbfs,
+            "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_wide_open",
+        }
+    try:
+        status = client.get_status()
+    except Exception as exc:
+        return {
+            "target": target,
+            "applied_dbfs": dbfs,
+            "changed": False,
+            "error": f"chirp_daemon_unreachable: {exc}",
+            "via": "chirp_wide_open",
+        }
+    dbfs = float(max(-120.0, min(-1.0, dbfs)))
+    applied = 0
+    failed: list[str] = []
+    for ch in status.get("channels", []) or []:
+        cid = ch.get("id")
+        if not cid:
+            continue
+        try:
+            client.set_squelch(id=cid, dbfs=dbfs)
+            applied += 1
+        except Exception as exc:
+            failed.append(f"{cid}: {exc}")
+    return {
+        "target": target,
+        "applied_dbfs": dbfs,
+        "channels_total": len(status.get("channels", []) or []),
+        "channels_applied": applied,
+        "changed": applied > 0,
+        "errors": failed,
+        "via": "chirp_wide_open",
+    }
+
+
 __all__ = [
     "apply_squelch_preset_via_chirp",
+    "calibrate_squelch_via_chirp",
+    "wide_open_squelch_via_chirp",
     "set_squelch_auto_via_chirp",
     "activate_favorite_via_chirp",
     "reset_radios_via_chirp",

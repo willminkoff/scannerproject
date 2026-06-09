@@ -8744,6 +8744,123 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
 
+        # ============ /api/squelch/calibrate — SB5 2026-06-09 ============
+        # Better-than-SB3 per-channel noise-floor calibration.  Where the
+        # legacy auto_squelch + chirp preset apply read signal_level_dbfs
+        # ONCE and added a fixed margin, this samples per-channel over a
+        # window (default 15 s @ 10 Hz = 150 samples each), takes the 90th
+        # percentile of the noise distribution, and sets threshold = p90 +
+        # margin_db.  Robust against momentary noise spikes, doesn't gate
+        # voice that briefly peaks during sampling (channels open during
+        # sampling are skipped, operator re-runs when quiet).
+        if p == "/api/squelch/calibrate":
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown band (expected 'air' or 'ground')"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                sample_sec = float(form.get("sample_sec", 15.0))
+                margin_db = float(form.get("margin_db", 3.0))
+            except (TypeError, ValueError):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "sample_sec and margin_db must be numeric"}),
+                    "application/json; charset=utf-8",
+                )
+            use_chirp = False
+            try:
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("squelch_calibrate: use_gr_demod probe failed", exc_info=True)
+            if not use_chirp:
+                return self._send(
+                    503,
+                    json.dumps({"ok": False, "error": "calibrate requires SB5_USE_GR_DEMOD=true (chirp backend)"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                result = _chirp_adapter.calibrate_squelch_via_chirp(
+                    band=target, sample_sec=sample_sec, margin_db=margin_db,
+                )
+            except Exception as e:
+                logger.exception("squelch_calibrate apply failed")
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"calibrate_failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            if result.get("error"):
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, **result}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, **result}),
+                "application/json; charset=utf-8",
+            )
+
+        # ============ /api/squelch/wide_open — SB5 2026-06-09 ============
+        # Test mode: set every channel to a pass-everything dbfs (-120 by
+        # default) so the operator can verify the demod + audio path is
+        # intact end-to-end.  Not persistent — re-apply a preset or
+        # /api/squelch/calibrate to restore noise-floor-based thresholds.
+        if p == "/api/squelch/wide_open":
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown band"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                dbfs = float(form.get("dbfs", -120.0))
+            except (TypeError, ValueError):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "dbfs must be numeric"}),
+                    "application/json; charset=utf-8",
+                )
+            use_chirp = False
+            try:
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("squelch_wide_open: use_gr_demod probe failed", exc_info=True)
+            if not use_chirp:
+                return self._send(
+                    503,
+                    json.dumps({"ok": False, "error": "wide_open requires SB5_USE_GR_DEMOD=true"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                result = _chirp_adapter.wide_open_squelch_via_chirp(band=target, dbfs=dbfs)
+            except Exception as e:
+                logger.exception("squelch_wide_open failed")
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"wide_open_failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            if result.get("error"):
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, **result}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, **result}),
+                "application/json; charset=utf-8",
+            )
+
         # ============ /api/airband/squelch_preset — Phase 1 SB5 ============
         # Replaces the legacy per-band squelch dBFS slider with a 3-state
         # preset (Sensitive / Balanced / Selective).  See ui/squelch_preset.py
