@@ -223,31 +223,77 @@ class ConfigPoller:
 # SAMPLE_RATE_HZ and return mono float32 PCM at AUDIO_SR.
 # ---------------------------------------------------------------------
 class AMDemod:
-    """Envelope detector + DC block + decimate."""
+    """Channel-filtered envelope detector + DC block.
 
-    # 1st-order DC block: y[n] = x[n] - x[n-1] + 0.995*y[n-1]
-    # As b/a coefficients for scipy.signal.lfilter:
-    #   a[0]*y[n] = b[0]*x[n] + b[1]*x[n-1] - a[1]*y[n-1]
-    # so b=[1, -1], a=[1, -0.995].
+    Like FMDemod, the IQ must be channel-filtered BEFORE envelope
+    detection — otherwise the magnitude detector sees 2.4 MHz of
+    accumulated noise around the AM channel and weak signals get
+    buried (the same 24 dB SNR penalty FMDemod had pre-fix).
+
+    Channel BW for AM ~10 kHz (airband AM occupies ~6 kHz with
+    margin); cutoff 5 kHz one-sided.
+    """
+
+    # 1st-order DC block (post-decimation, 48 kHz rate).
     _DC_B = np.array([1.0, -1.0], dtype=np.float32)
     _DC_A = np.array([1.0, -0.995], dtype=np.float32)
 
-    def __init__(self):
-        # Filter state: max(len(a), len(b))-1 = 1 sample.  Persists
-        # across blocks so the DC block is continuous.
+    def __init__(self, channel_bw_hz: int = 10_000):
+        # Stage 1: 2.4 MS/s -> 240 kHz, anti-alias at 100 kHz
+        self._aa1 = _sig.firwin(
+            31, 100_000, fs=SAMPLE_RATE_HZ, window=("kaiser", 5.0),
+        ).astype(np.float32)
+        # Stage 2: 240 kHz -> 48 kHz, channel-select filter
+        cutoff2 = min(channel_bw_hz / 2, 22_000)
+        self._aa2 = _sig.firwin(
+            63, cutoff2, fs=SAMPLE_RATE_HZ // 10, window=("kaiser", 6.0),
+        ).astype(np.float32)
+        self._aa2_zi_i = np.zeros(len(self._aa2) - 1, dtype=np.float32)
+        self._aa2_zi_q = np.zeros(len(self._aa2) - 1, dtype=np.float32)
+        self._aa2_phase = 0
+
+        # DC block state (audio rate, post-envelope).
         self._dc_zi = np.zeros(1, dtype=np.float32)
 
     def __call__(self, iq: np.ndarray) -> np.ndarray:
-        mag = np.abs(iq).astype(np.float32)
-        # Vectorized DC block via lfilter — same math as the per-sample
-        # Python loop we used to run, but the inner work is in C.  At
-        # 24000 samples/block this is the difference between ~0.5 ms
-        # per block and ~12 ms per block (i.e. it would single-handedly
-        # peg a core if left in Python).
+        if iq.size == 0:
+            return np.zeros(0, dtype=np.float32)
+
+        # Stage 1: channel-filter IQ, decim 10 (stateless upfirdn).
+        i = iq.real.astype(np.float32, copy=False)
+        q = iq.imag.astype(np.float32, copy=False)
+        i = _sig.upfirdn(self._aa1, i, up=1, down=10).astype(np.float32, copy=False)
+        q = _sig.upfirdn(self._aa1, q, up=1, down=10).astype(np.float32, copy=False)
+
+        # Stage 2: channel-select FIR, decim 5 (stateful).
+        i, self._aa2_zi_i = _sig.lfilter(
+            self._aa2, [1.0], i, zi=self._aa2_zi_i,
+        )
+        q, self._aa2_zi_q = _sig.lfilter(
+            self._aa2, [1.0], q, zi=self._aa2_zi_q,
+        )
+        i = i.astype(np.float32, copy=False)
+        q = q.astype(np.float32, copy=False)
+        start = self._aa2_phase
+        i_dec = i[start::5]
+        q_dec = q[start::5]
+        L_in = len(i)
+        K_out = len(i_dec)
+        if K_out > 0:
+            self._aa2_phase = (start + 5 * K_out - L_in) % 5
+        else:
+            self._aa2_phase = (start - L_in) % 5
+            return np.zeros(0, dtype=np.float32)
+
+        # Envelope detection on channel-filtered IQ at 48 kHz.
+        mag = np.sqrt(i_dec * i_dec + q_dec * q_dec).astype(np.float32, copy=False)
+
+        # DC block at audio rate (much cheaper than the old 2.4 MS/s rate).
         out, self._dc_zi = _sig.lfilter(
             self._DC_B, self._DC_A, mag, zi=self._dc_zi,
         )
-        return _decimate(out.astype(np.float32, copy=False), DECIMATION)
+        # Gentle gain — envelope output is small for typical AM modulation.
+        return out.astype(np.float32, copy=False) * 4.0
 
 
 class FMDemod:
@@ -674,6 +720,12 @@ class VFOWorker:
         # Squelch runtime state — current block RMS dBFS and the
         # auto-squelch noise-floor follower.
         self.last_rms_dbfs = -120.0
+        # Rolling envelope-variance for demod quality classification.
+        # 30 windows ~ 3 sec history; recomputed on each block.
+        from collections import deque as _deque
+        self._rms_history = _deque(maxlen=30)
+        self.demod_quality = "unknown"
+        self.demod_envelope_std_db = 0.0
         self.last_squelch_open = True
         self._floor_dbfs = -60.0           # EMA-tracked noise floor for auto squelch
 
@@ -972,6 +1024,42 @@ class VFOWorker:
 
             audio = self._demod(iq)
 
+            # ---- Demod-quality classifier (AUDIO-based) ----
+            # Voice on AUDIO output modulates 3-15 dB syllable-to-syllable.
+            # Pure noise (open-squelch hash, FM-threshold collapse, no
+            # signal) sits within ~1 dB.  Bucketing 100ms RMS samples
+            # of the AUDIO output gives a meaningful quality signal for
+            # FM as well as AM (IQ envelope is flat for FM voice).
+            if audio.size > 0:
+                a_rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)) + 1e-9)
+                a_rms_db = 20.0 * np.log10(a_rms)
+                self._rms_history.append(a_rms_db)
+                if len(self._rms_history) >= 8:
+                    vals = np.fromiter(self._rms_history, dtype=np.float32)
+                    std = float(vals.std())
+                    mean = float(vals.mean())
+                    self.demod_envelope_std_db = std
+                    # Classification:
+                    # - voice: clear modulation, audible RMS
+                    # - weak_voice: modulation present but low RMS
+                    # - noise: flat envelope at full scale (open-squelch hash)
+                    # - silent: flat envelope at very low RMS (no audio)
+                    # - uncertain: borderline
+                    if std >= 2.5 and mean >= -25.0:
+                        self.demod_quality = "voice"
+                    elif std >= 2.5:
+                        self.demod_quality = "weak_voice"
+                    elif std < 1.0 and mean >= -10.0:
+                        # Full-scale flat audio = open-squelch noise.
+                        # This is the signature of FM-threshold collapse
+                        # (and was the symptom of the missing channel filter).
+                        self.demod_quality = "noise"
+                    elif std < 1.0 and mean < -40.0:
+                        self.demod_quality = "silent"
+                    else:
+                        self.demod_quality = "uncertain"
+
+
             # ---- Squelch gate (Phase 6b.2) ----
             # Cheap power metric — mean |z|^2 of the IQ block in
             # dBFS (re: full-scale complex magnitude of 1.0).  This
@@ -1119,6 +1207,8 @@ def main() -> int:
             "gain_db": float(worker.applied_gain_db),
             "squelch_open": bool(worker.last_squelch_open),
             "rms_dbfs": round(float(worker.last_rms_dbfs), 1),
+            "demod_quality": worker.demod_quality,
+            "demod_envelope_std_db": round(float(worker.demod_envelope_std_db), 2),
             "bins": worker.mini_bins,
             "freq_min_mhz": round(f - bw / 2, 4),
             "freq_max_mhz": round(f + bw / 2, 4),
