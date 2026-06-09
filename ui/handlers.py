@@ -5140,6 +5140,18 @@ _SITREP_ACTIONS: dict[str, dict] = {
         "cmd": ["sudo", "-n", "/bin/systemctl", "restart",
                 "airband-ui.service"],
     },
+    "connect_bt_speaker": {
+        "label": "Connect BT Speaker",
+        # Runs bt-connect-speaker.sh which handles three states:
+        # (a) already paired+connected — re-route sinks only,
+        # (b) paired but disconnected — connect + re-route,
+        # (c) NOT paired — assume speaker is in pairing mode and do
+        #     the full pair+trust+connect+route sequence.
+        # Idempotent — clicking twice is safe.
+        "cmd": [
+            "/home/ubuntu/scannerproject/scripts/bt-connect-speaker.sh",
+        ],
+    },
 }
 
 _SITREP_ACTION_SUDOERS_HINT = (

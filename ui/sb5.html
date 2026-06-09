@@ -3386,6 +3386,8 @@
                   data-action="reset_disco">Reset Discovery</button>
           <button class="sitrep-ctrl-btn" type="button"
                   data-action="reset_ui">Reset UI</button>
+          <button class="sitrep-ctrl-btn" type="button"
+                  data-action="connect_bt_speaker">Connect BT Speaker</button>
           <button class="sitrep-ctrl-btn ctrl-destructive" type="button"
                   data-action="reboot">Reboot Micro</button>
         </div>
@@ -6801,11 +6803,12 @@ async function renderSitrepModal() {
 // to come back so we can flip the toast from "Restarting" to "ok".
 // -------------------------------------------------------------------------
 const SITREP_ACTION_LABELS = {
-  reboot:        "Reboot Micro",
-  reset_radios:  "Reset Radios",
-  reset_live_iq: "Reset Live IQ",
-  reset_disco:   "Reset Discovery",
-  reset_ui:      "Reset UI",
+  reboot:               "Reboot Micro",
+  reset_radios:         "Reset Radios",
+  reset_live_iq:        "Reset Live IQ",
+  reset_disco:          "Reset Discovery",
+  reset_ui:             "Reset UI",
+  connect_bt_speaker:   "Connect BT Speaker",
 };
 
 function showSitrepToast(text, variant /* "busy" | "ok" | "err" */, duration_ms) {
