@@ -22,5 +22,9 @@
     "ppm": 0.0,
     "antenna": null,
     "element_gains": {}
-  }
+  },
+  "scan_hold_enabled": true,
+  "scan_hold_hang_sec": 2.0,
+  "scan_hold_max_sec": 30.0,
+  "priority_gate_enabled": true
 }
