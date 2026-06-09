@@ -251,18 +251,44 @@ class AMDemod:
 
 
 class FMDemod:
-    """Polar discriminator (phase diff) + optional deemphasis + decimate.
+    """IQ channel-filter + polar discriminator + optional deemphasis.
 
-    NFM:  wideband ~12.5 kHz, no deemphasis worth bothering with
-    WFM:  ~200 kHz wide, 75 us deemphasis (NA standard)
+    Critical: the discriminator MUST run on channel-filtered IQ, not
+    the raw 2.4 MS/s stream — otherwise FM-threshold collapses because
+    the discriminator sees 2.4 MHz of noise burden against a 12.5 kHz
+    signal (~24 dB SNR penalty).  Filter chain:
+      2.4 MS/s IQ  →  stage-1 anti-alias (FIR, decim 10)  →  240 kHz
+      240 kHz IQ   →  stage-2 channel filter (FIR, decim 5) → 48 kHz
+      48 kHz IQ    →  polar discriminator                  → 48 kHz audio
+      48 kHz audio →  optional 75 us deemphasis            → output
+
+    NFM channel BW ≈ 12.5 kHz (cutoff 9 kHz, allows ±5 kHz dev + skirt)
+    WFM channel BW ≈ 200 kHz (cap stage-2 cutoff at 22 kHz audio Nyquist;
+        wideband mono FM is recovered up to that audio cutoff)
     """
 
-    def __init__(self, deemph_us: Optional[float] = None):
+    def __init__(
+        self,
+        deemph_us: Optional[float] = None,
+        channel_bw_hz: int = 12_500,
+    ):
+        # Stage 1: 2.4 MS/s → 240 kHz, anti-alias at 100 kHz
+        self._aa1 = _sig.firwin(
+            31, 100_000, fs=SAMPLE_RATE_HZ, window=("kaiser", 5.0),
+        ).astype(np.float32)
+        # Stage 2: 240 kHz → 48 kHz, channel filter at channel_bw_hz/2
+        # Cap cutoff at 22 kHz (audio Nyquist with margin) for wideband WFM.
+        cutoff2 = min(channel_bw_hz / 2, 22_000)
+        self._aa2 = _sig.firwin(
+            63, cutoff2, fs=SAMPLE_RATE_HZ // 10, window=("kaiser", 6.0),
+        ).astype(np.float32)
+        self._aa2_zi_i = np.zeros(len(self._aa2) - 1, dtype=np.float32)
+        self._aa2_zi_q = np.zeros(len(self._aa2) - 1, dtype=np.float32)
+        self._aa2_phase = 0
+
         self._last_sample = np.complex64(1.0 + 0j)
+
         if deemph_us:
-            # 1-pole IIR at corner f = 1/(2 pi tau); use AUDIO_SR.
-            #   y[n] = (1-a)*x[n] + a*y[n-1]
-            # => b = [1-a], a_coef = [1, -a]
             tau = deemph_us * 1e-6
             a = float(np.exp(-1.0 / (AUDIO_SR * tau)))
             self._deemph_b = np.array([1.0 - a], dtype=np.float32)
@@ -276,26 +302,52 @@ class FMDemod:
     def __call__(self, iq: np.ndarray) -> np.ndarray:
         if iq.size == 0:
             return np.zeros(0, dtype=np.float32)
-        prev = self._last_sample
-        # Polar discriminator: phase of z[n]*conj(z[n-1]).  We stitch
-        # against the last sample from the prior block so the phase
-        # diff is continuous across block boundaries — but avoid the
-        # np.concatenate (which allocates+copies a fresh 24k-sample
-        # buffer every block) by computing the first sample's diff
-        # against `prev` directly and the rest as a vectorized slice.
-        phase = np.empty(iq.shape[0], dtype=np.float32)
-        first_prod = iq[0] * np.conj(prev)
-        phase[0] = np.arctan2(float(first_prod.imag), float(first_prod.real))
-        if iq.shape[0] > 1:
-            # vectorized polar discriminator for the rest of the block
-            phase[1:] = np.angle(iq[1:] * np.conj(iq[:-1]))
-        self._last_sample = iq[-1]
-        # Decimate AFTER the phase calc — at 2.4 MS/s -> 48 kHz this is
-        # a 50:1 box filter.  Simple, low-CPU, good enough for scanner
-        # use; ringing is masked by the loudness of typical traffic.
-        audio = _decimate(phase, DECIMATION)
-        # Gentle gain so AM and FM perceive similar.
-        audio *= 6.0
+
+        # Stage 1: anti-alias decimation 10:1, stateless (transient < 1 sample
+        # of audio, inaudible).
+        i = iq.real.astype(np.float32, copy=False)
+        q = iq.imag.astype(np.float32, copy=False)
+        i = _sig.upfirdn(self._aa1, i, up=1, down=10).astype(np.float32, copy=False)
+        q = _sig.upfirdn(self._aa1, q, up=1, down=10).astype(np.float32, copy=False)
+
+        # Stage 2: channel-select decimation 5:1, stateful (filter state
+        # carries across blocks to avoid ~200 us block-edge artifacts).
+        i, self._aa2_zi_i = _sig.lfilter(
+            self._aa2, [1.0], i, zi=self._aa2_zi_i,
+        )
+        q, self._aa2_zi_q = _sig.lfilter(
+            self._aa2, [1.0], q, zi=self._aa2_zi_q,
+        )
+        i = i.astype(np.float32, copy=False)
+        q = q.astype(np.float32, copy=False)
+        # Decimation phase tracking: continuation of the 5:1 sampling grid
+        # across blocks (input lengths aren't guaranteed multiples of 5).
+        start = self._aa2_phase
+        i_dec = i[start::5]
+        q_dec = q[start::5]
+        L_in = len(i)
+        K_out = len(i_dec)
+        if K_out > 0:
+            self._aa2_phase = (start + 5 * K_out - L_in) % 5
+        else:
+            self._aa2_phase = (start - L_in) % 5
+
+        if K_out == 0:
+            return np.zeros(0, dtype=np.float32)
+
+        # Polar discriminator on the 48 kHz channel-filtered IQ.
+        iq48 = (i_dec + 1j * q_dec).astype(np.complex64)
+        audio = np.empty(iq48.shape[0], dtype=np.float32)
+        first_prod = iq48[0] * np.conj(self._last_sample)
+        audio[0] = np.arctan2(float(first_prod.imag), float(first_prod.real))
+        if iq48.shape[0] > 1:
+            audio[1:] = np.angle(iq48[1:] * np.conj(iq48[:-1]))
+        self._last_sample = iq48[-1]
+
+        # Gain: at 48 kHz output, ±5 kHz NFM deviation gives ±0.654 rad
+        # of phase change per sample.  Scale to ~unity peak for typical traffic.
+        audio *= 1.5
+
         if self._deemph_b is not None:
             audio, self._deemph_zi = _sig.lfilter(
                 self._deemph_b, self._deemph_a, audio, zi=self._deemph_zi,
