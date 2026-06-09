@@ -1,6 +1,6 @@
 """Live tunable RTL-SDR VFO backend (Phase 6b).
 
-Owns one RTL-SDR (Realtek 2832U serial 80000003, bus 1-3.1.4) via
+Owns one RTL-SDR (Nooelec NESDR SMArt v5 serial 61108285, bus 1-5.1.4) via
 SoapySDR.  Demodulates AM / NFM / WFM in-process from a single IQ
 stream and publishes:
 
@@ -47,10 +47,13 @@ STATE_DIR = os.environ.get("VFO_STATE_DIR", "/run/scannerproject/vfo")
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
 CONFIG_PATH = os.path.join(STATE_DIR, "config.json")
 
-# Dongle assignment (Phase 6b): VFO = Realtek 2832U / R820T, serial
-# 80000003 on bus 1-3.1.4.  Opened by serial — never by index, which
+# Dongle assignment (Phase 6b → 2026-06-08 re-assigned to NooElec):
+# VFO = Nooelec NESDR SMArt v5 / R820T2 + TCXO, serial 61108285 on
+# bus 1-5.1.4 (previously Realtek 2832U serial 80000003, swapped out
+# due to ~10 dB lower SNR + worse PLL stability on weak NFM signals
+# like NOAA WX 162.400).  Opened by serial — never by index, which
 # can shift across reboots if other RTL-SDRs come and go.
-SERIAL = os.environ.get("VFO_SERIAL", "80000003")
+SERIAL = os.environ.get("VFO_SERIAL", "61108285")
 
 # Hard-coded RTL-SDR tuning range; the POST handler validates too.
 FREQ_MIN_MHZ = 24.0
