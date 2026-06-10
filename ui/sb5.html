@@ -2692,6 +2692,86 @@
     font-weight: 700;
   }
   .fp-row.active .fp-state { color: var(--sky-2); }
+  /* Phase 2 — inline favorite editor (channels CRUD) */
+  .fp-row-wrap { display: flex; flex-direction: column; gap: 0; }
+  .fp-row-tail { display: inline-flex; align-items: center; gap: 8px; }
+  .fp-edit-btn {
+    padding: 3px 9px;
+    border: 1px solid rgba(139,167,212,0.32);
+    border-radius: 5px;
+    background: rgba(8,14,22,0.55);
+    color: rgba(220,230,240,0.85);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .fp-edit-btn:hover {
+    background: rgba(20,30,42,0.78);
+    border-color: rgba(90,184,255,0.5);
+    color: #cfe8ff;
+  }
+  .fp-editor {
+    margin-top: 6px;
+    padding: 10px;
+    background: rgba(8,14,22,0.55);
+    border: 1px solid rgba(139,167,212,0.22);
+    border-radius: 6px;
+    display: flex; flex-direction: column; gap: 8px;
+    font-size: 12px;
+  }
+  .fp-editor[hidden] { display: none; }
+  .fp-editor-head { font-weight: 600; color: var(--text); font-size: 12px; }
+  .fp-editor-list {
+    display: flex; flex-direction: column; gap: 4px;
+    max-height: 240px; overflow-y: auto;
+    padding: 4px;
+    background: rgba(0,0,0,0.18);
+    border-radius: 4px;
+  }
+  .fp-editor-chan {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(8,14,22,0.5);
+    border: 1px solid rgba(139,167,212,0.15);
+  }
+  .fp-editor-chan-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: rgba(230,238,248,0.92);
+  }
+  .fp-editor-chan-freq {
+    font-variant-numeric: tabular-nums;
+    color: rgba(190,210,225,0.65);
+    font-size: 11px;
+  }
+  .fp-editor-chan-rm {
+    padding: 2px 7px;
+    border: 1px solid rgba(255,69,58,0.40);
+    border-radius: 3px;
+    background: rgba(255,69,58,0.10);
+    color: rgba(255,180,170,0.90);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .fp-editor-chan-rm:hover { background: rgba(255,69,58,0.22); color: #ffd0cc; }
+  .fp-editor-add {
+    display: flex; gap: 6px; align-items: end; flex-wrap: wrap;
+    padding: 6px;
+    background: rgba(8,14,22,0.4);
+    border: 1px dashed rgba(139,167,212,0.30);
+    border-radius: 4px;
+  }
+  .fp-editor-add .pb-field { min-width: 70px; }
+  .fp-editor-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+  }
+  .fp-editor-empty {
+    padding: 8px;
+    text-align: center;
+    color: rgba(190,210,225,0.55);
+    font-size: 11px;
+  }
   .fp-empty {
     padding: 12px 14px;
     color: var(--text-4);
@@ -7693,20 +7773,38 @@ function _favPickerRenderRows(pane) {
     const tagHtml = tags.length ? `<span class="fp-band-tags">${tags.join("")}</span>` : "";
     let cls = "fp-row";
     if (isActive) cls += " active active-" + (pane === "dig" ? "both" : pane);
-    return `<div class="${cls}" data-id="${id}" role="button" tabindex="0">
-      <div>
-        <div class="fp-name">${label}${tagHtml}</div>
-        <div class="fp-meta">${meta}</div>
+    return `<div class="fp-row-wrap" data-id="${id}">
+      <div class="${cls}" data-id="${id}" role="button" tabindex="0">
+        <div>
+          <div class="fp-name">${label}${tagHtml}</div>
+          <div class="fp-meta">${meta}</div>
+        </div>
+        <div class="fp-row-tail">
+          <button type="button" class="fp-edit-btn" title="Edit channels in this favorite" data-id="${id}">Edit</button>
+          <span class="fp-state">${stateTxt}</span>
+        </div>
       </div>
-      <span class="fp-state">${stateTxt}</span>
+      <div class="fp-editor" data-id="${id}" hidden></div>
     </div>`;
   }).join("");
   wrap.querySelectorAll(".fp-row").forEach(row => {
     const id = row.getAttribute("data-id") || "";
     const fire = () => _favPickerSwitch(id, pane);
-    row.addEventListener("click", fire);
+    row.addEventListener("click", (e) => {
+      // Don't activate when the inline Edit button was clicked.
+      if (e.target && e.target.classList && e.target.classList.contains("fp-edit-btn")) return;
+      fire();
+    });
     row.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fire(); }
+    });
+  });
+  // Wire Edit buttons to toggle the inline editor.
+  wrap.querySelectorAll(".fp-edit-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute("data-id") || "";
+      window._pbToggleEditor(id);
     });
   });
 }
@@ -9283,6 +9381,163 @@ if (document.readyState === "loading") {
       .then(renderChips)
       .catch(function (e) { console.warn("[profile] init:", e); });
   }
+
+  // Phase 2 — Favorite channel editor (window._pbToggleEditor)
+  function _favForId(id) {
+    const hp = (window.STATE && STATE.hpState) || {};
+    const all = (hp.state && hp.state.favorites) || [];
+    return all.find(function (f) { return String(f.id) === String(id); }) || null;
+  }
+
+  function _bandForFreq(freq) {
+    if (!freq || isNaN(freq)) return "am";
+    return Number(freq) < 137.0 ? "am" : "nfm";
+  }
+
+  function renderEditor(id) {
+    const wrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
+    if (!wrap) return;
+    const fav = _favForId(id);
+    if (!fav) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">Favorite not found</div>";
+      return;
+    }
+    const chans = Array.isArray(fav.custom_favorites) ? fav.custom_favorites.slice() : [];
+    let listHtml = "";
+    if (!chans.length) {
+      listHtml = "<div class=\"fp-editor-empty\">No channels in this favorite yet.</div>";
+    } else {
+      listHtml = chans.map(function (ch, idx) {
+        const label = ch.alpha_tag || ch.department_name || ch.system_name || ch.id || "?";
+        const freq = (ch.frequency != null) ? (Number(ch.frequency).toFixed(4) + " MHz") : "";
+        return "<div class=\"fp-editor-chan\" data-idx=\"" + idx + "\">" +
+          "<span class=\"fp-editor-chan-name\">" + escapeHtml(label) + "</span>" +
+          "<span class=\"fp-editor-chan-freq\">" + escapeHtml(freq) + "</span>" +
+          "<button type=\"button\" class=\"fp-editor-chan-rm\" data-idx=\"" + idx + "\">Remove</button>" +
+          "</div>";
+      }).join("");
+    }
+    wrap.innerHTML =
+      "<div class=\"fp-editor-head\">Edit channels — " + escapeHtml(fav.label || fav.id) + "</div>" +
+      "<div class=\"fp-editor-list\">" + listHtml + "</div>" +
+      "<div class=\"fp-editor-add\">" +
+        "<label class=\"pb-field\"><span>Label</span>" +
+          "<input type=\"text\" class=\"pb-input fp-add-label\" placeholder=\"e.g. Marine Ch 6\" maxlength=\"64\"></label>" +
+        "<label class=\"pb-field pb-field-num\"><span>Freq (MHz)</span>" +
+          "<input type=\"number\" step=\"0.001\" class=\"pb-input fp-add-freq\" placeholder=\"156.300\"></label>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary fp-add-btn\">Add channel</button>" +
+      "</div>" +
+      "<div class=\"fp-editor-actions\">" +
+        "<button type=\"button\" class=\"pb-btn fp-editor-cancel\">Cancel</button>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary fp-editor-save\">Save</button>" +
+      "</div>";
+    // Wire remove buttons (operate on a local working copy held on the wrap)
+    wrap._working = chans.slice();
+    wrap.querySelectorAll(".fp-editor-chan-rm").forEach(function (b) {
+      b.addEventListener("click", function () {
+        const i = parseInt(b.getAttribute("data-idx"), 10);
+        wrap._working.splice(i, 1);
+        rebuildList(wrap);
+      });
+    });
+    const addBtn = wrap.querySelector(".fp-add-btn");
+    if (addBtn) addBtn.addEventListener("click", function () {
+      const labEl = wrap.querySelector(".fp-add-label");
+      const freqEl = wrap.querySelector(".fp-add-freq");
+      const label = (labEl.value || "").trim();
+      const freq = Number(freqEl.value);
+      if (!label || !freq) { toast("Need both label and frequency", "err"); return; }
+      const safeId = "freq:custom:" + label.replace(/[^A-Za-z0-9._-]+/g, "_") + ":" + freq.toFixed(4);
+      wrap._working.push({
+        id: safeId,
+        alpha_tag: label,
+        department_name: label,
+        frequency: freq,
+        kind: "conventional",
+        service_tag: 0,
+        system_id: 0,
+        system_key: "custom",
+        system_name: "Custom",
+        talkgroup: "",
+        control_channels: [],
+      });
+      labEl.value = "";
+      freqEl.value = "";
+      rebuildList(wrap);
+    });
+    wrap.querySelector(".fp-editor-cancel").addEventListener("click", function () {
+      wrap.hidden = true;
+    });
+    wrap.querySelector(".fp-editor-save").addEventListener("click", function () {
+      saveFavorite(id, wrap._working);
+    });
+  }
+
+  function rebuildList(wrap) {
+    const id = wrap.getAttribute("data-id");
+    const fav = _favForId(id);
+    if (!fav) return;
+    // Temporarily swap in the working set, re-render, restore reference.
+    const realCF = fav.custom_favorites;
+    fav.custom_favorites = wrap._working;
+    const saved = wrap._working;
+    renderEditor(id);
+    // After re-render, fp-editor element is the same DOM node but contents reset.
+    const newWrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
+    if (newWrap) {
+      newWrap._working = saved;
+      newWrap.hidden = false;
+    }
+    fav.custom_favorites = realCF;
+  }
+
+  function saveFavorite(id, channels) {
+    const hp = (window.STATE && STATE.hpState) || {};
+    const all = (hp.state && hp.state.favorites) || [];
+    const idx = all.findIndex(function (f) { return String(f.id) === String(id); });
+    if (idx < 0) { toast("Favorite not found in state", "err"); return; }
+    // Build the updated favorite (immutable copy) and push.
+    const updated = Object.assign({}, all[idx], { custom_favorites: channels.slice() });
+    const newFavs = all.slice();
+    newFavs[idx] = updated;
+    postJSON("/api/hp/state", { favorites: newFavs })
+      .then(function (a) {
+        const status = a[0], res = a[1];
+        if (status === 200 && res && (res.ok || res.state)) {
+          if (res.state) {
+            // sync STATE.hpState if present
+            if (window.STATE) STATE.hpState = { state: res.state };
+          } else {
+            // Just patch our local copy
+            all[idx] = updated;
+          }
+          toast("Saved " + channels.length + " channels in " + (updated.label || updated.id), "ok");
+          // Re-render the favorites list (best-effort: re-call the renderer)
+          try {
+            const pane = (document.getElementById("pb-modal").getAttribute("data-pane") || "air");
+            _favPickerRenderRows(pane);
+          } catch (e) {}
+        } else {
+          toast("Save failed: " + (res && res.error ? res.error : "status " + status), "err");
+        }
+      });
+  }
+
+  function cssEscape(s) {
+    if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(String(s));
+    return String(s).replace(/[^\w-]/g, "\\$&");
+  }
+
+  window._pbToggleEditor = function (id) {
+    const wrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
+    if (!wrap) return;
+    if (wrap.hidden) {
+      renderEditor(id);
+      wrap.hidden = false;
+    } else {
+      wrap.hidden = true;
+    }
+  };
 
   // Lazy init: when the pb-modal opens, do init. Hook by observing class on
   // the overlay; if not feasible, also init on first details open.
