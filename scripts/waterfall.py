@@ -66,7 +66,7 @@ BAND_PERSIST_PATH = os.environ.get(
 #   A = Nooelec SMArt v5   (serial 70613472, port 1-4.1.4)
 #   B = RTL-SDR Blog V4    (serial 83241970, port 1-4.1.2 — best DR)
 SERIAL_A = os.environ.get("WATERFALL_SERIAL_A", "70613472")
-SERIAL_B = os.environ.get("WATERFALL_SERIAL_B", "83241970")
+SERIAL_B = os.environ.get("WATERFALL_SERIAL_B", "61108285")
 
 # Default center frequencies — stitched window covers roughly
 # 121.7 .. 125.7 MHz (most of civilian airband + a margin).
