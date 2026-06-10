@@ -54,7 +54,11 @@ RestartSec=2
 # Generous startup budget: typical chirp boot is ~5-15 s (flowgraph
 # build + cmd server + state restore). 60 s covers slow boots while
 # still bounding sdrplay_api_Open hangs.
-TimeoutStartSec=15
+# Phase C #2 reliability: 30 s gives sdrplay_api_Open the breathing room
+# it needs during MA/SL recovery while still catching real wedges (10 s
+# osmosdr open timeout in source_sdr.py + 20 s margin).  Tighter values
+# broke MA/SL boot ordering on 2026-06-10.
+TimeoutStartSec=30
 # Slightly longer than the rtl-airband-era 5 s: the SDR shutdown drain
 # (chirp/daemon.py) costs ~2 s, plus drain + tb.stop()/wait().
 TimeoutStopSec=10
