@@ -1876,7 +1876,56 @@
   }
 
   /* 11-dot service-health card pattern (lifted from sb3 visual style) */
-  .sitrep-service-list {
+  /* SB5 2026-06-12 — Reliability panel */
+  .sitrep-rel { margin-bottom: 12px; }
+  .sitrep-rel-summary {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    background: rgba(8, 14, 22, 0.6);
+    border: 1px solid rgba(139,167,212,0.18);
+    font-size: 12px;
+    color: rgba(220, 230, 240, 0.85);
+  }
+  .sitrep-rel-summary.ok    { border-color: rgba(52,199,89,0.45); }
+  .sitrep-rel-summary.warn  { border-color: rgba(255,159,10,0.55); color: #ffe1b8; }
+  .sitrep-rel-summary.wedged{ border-color: rgba(255,69,58,0.55); color: #ffd0cc; }
+  .sitrep-rel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px;
+  }
+  .sitrep-rel-tile {
+    padding: 8px 10px;
+    border: 1px solid rgba(139,167,212,0.20);
+    border-radius: 6px;
+    background: rgba(8, 14, 22, 0.55);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .sitrep-rel-tile.ok    { border-color: rgba(52,199,89,0.40); }
+  .sitrep-rel-tile.warn  { border-color: rgba(255,159,10,0.55); background: rgba(255,159,10,0.06); }
+  .sitrep-rel-tile.wedged{ border-color: rgba(255,69,58,0.55); background: rgba(255,69,58,0.08); }
+  .sitrep-rel-tile-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sitrep-rel-tile-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(180, 200, 220, 0.45);
+  }
+  .sitrep-rel-tile.ok .sitrep-rel-tile-dot { background: var(--green); box-shadow: 0 0 6px rgba(52,199,89,0.85); }
+  .sitrep-rel-tile.warn .sitrep-rel-tile-dot { background: var(--amber); box-shadow: 0 0 6px rgba(255,159,10,0.85); }
+  .sitrep-rel-tile.wedged .sitrep-rel-tile-dot { background: var(--red); box-shadow: 0 0 6px rgba(255,69,58,0.85); animation: pulse 1.4s ease-in-out infinite; }
+  .sitrep-rel-tile-meta {
+    font-size: 11px;
+    color: rgba(190, 210, 225, 0.65);
+  }
+
+    .sitrep-service-list {
     display: grid;
     gap: 8px;
   }
@@ -3685,6 +3734,12 @@
       </div>
 
       <div class="sitrep-section">
+        <div class="sitrep-section-hd" id="sitrep-rel-hd">Reliability</div>
+        <div class="sitrep-rel" id="sitrep-rel">
+          <div class="sitrep-rel-summary" id="sitrep-rel-summary">Loading reliability snapshot…</div>
+          <div class="sitrep-rel-grid" id="sitrep-rel-grid"></div>
+        </div>
+
         <div class="sitrep-section-hd" id="sitrep-evidence-hd">Heartbeat evidence</div>
         <div class="sitrep-service-list" id="sitrep-evidence-list">
           <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
@@ -9987,6 +10042,127 @@ if (document.readyState === "loading") {
   document.addEventListener("toggle", function (ev) {
     if (ev.target && ev.target.id === "pb-settings" && ev.target.open) initOnce();
   }, true);
+})();
+</script>
+<!-- SB5 2026-06-12 Reliability panel renderer -->
+<script>
+(function () {
+  "use strict";
+  function fetchJSON(url) {
+    return fetch(url, { credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); });
+  }
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c];
+    });
+  }
+  function fmtAge(sec) {
+    sec = Math.round(Number(sec) || 0);
+    if (sec < 60) return sec + "s";
+    if (sec < 3600) return Math.floor(sec/60) + "m " + (sec%60) + "s";
+    return Math.floor(sec/3600) + "h " + Math.floor((sec%3600)/60) + "m";
+  }
+  function tile(name, verdict, metaLines) {
+    var safeName = escapeHtml(name);
+    var lines = (metaLines || []).map(function (l) {
+      return "<div class=\"sitrep-rel-tile-meta\">" + escapeHtml(l) + "</div>";
+    }).join("");
+    return "<div class=\"sitrep-rel-tile " + verdict + "\">" +
+      "<div class=\"sitrep-rel-tile-name\"><span class=\"sitrep-rel-tile-dot\"></span>" + safeName + "</div>" +
+      lines +
+    "</div>";
+  }
+  function render(snap) {
+    var summary = document.getElementById("sitrep-rel-summary");
+    var grid = document.getElementById("sitrep-rel-grid");
+    if (!summary || !grid) return;
+    var verdict = (snap.verdict || "wedged");
+    summary.className = "sitrep-rel-summary " + verdict;
+    var summaryText = verdict.toUpperCase() + " · checked in " + (snap.elapsed_ms||0) + "ms · " + new Date(snap.checked_at_ms).toLocaleTimeString();
+    summary.textContent = summaryText;
+    var tiles = [];
+    // Per-band chirp
+    var chirp = snap.chirp || {};
+    Object.keys(chirp).forEach(function (k) {
+      var c = chirp[k];
+      var meta = [];
+      if (c.channels != null) meta.push(c.channels + " channels");
+      if (c.responsive_ms != null) meta.push("daemon " + c.responsive_ms + "ms");
+      if (c.median_signal_dbfs != null) meta.push("med sig " + Math.round(c.median_signal_dbfs) + " dBFS");
+      if (c.all_dead_silence) meta.push("ALL DEAD");
+      if (c.error) meta.push(c.error);
+      tiles.push(tile("Chirp " + k, c.verdict, meta));
+    });
+    // OP25
+    var op = snap.op25 || {};
+    var opMeta = [];
+    if (op.log_age_sec != null) opMeta.push("log age " + fmtAge(op.log_age_sec));
+    if (op.multi_rx_cpu != null) opMeta.push("multi_rx " + Math.round(op.multi_rx_cpu) + "% CPU");
+    if (op.error) opMeta.push(op.error);
+    tiles.push(tile("OP25", op.verdict || "wedged", opMeta));
+    // VFO
+    var vfo = snap.vfo || {};
+    var vfoMeta = [];
+    if (vfo.freq_mhz != null) vfoMeta.push(vfo.freq_mhz + " MHz " + (vfo.mod||"") );
+    if (vfo.dongle_serial) vfoMeta.push("dongle " + vfo.dongle_serial);
+    if (vfo.last_frame_age_ms != null) vfoMeta.push("frame age " + vfo.last_frame_age_ms + "ms");
+    tiles.push(tile("VFO", vfo.verdict || "wedged", vfoMeta));
+    // Dongles
+    var d = snap.dongles || {};
+    var dMeta = [];
+    dMeta.push((d.enumerated_rtl||[]).length + "/" + (d.expected_rtl||[]).length + " RTL");
+    dMeta.push((d.rspduo_enumerated||0) + "/" + (d.rspduo_expected||0) + " RSPduo");
+    if ((d.missing_rtl||[]).length) dMeta.push("missing: " + d.missing_rtl.join(", "));
+    tiles.push(tile("Dongles", d.verdict || "wedged", dMeta));
+    // BT
+    var bt = snap.bt || {};
+    var btMeta = [];
+    btMeta.push(bt.paired ? "paired" : "unpaired");
+    btMeta.push(bt.connected ? "connected" : "disconnected");
+    if (bt.transport_state) btMeta.push("transport " + bt.transport_state);
+    tiles.push(tile("BT BOOM", bt.verdict || "wedged", btMeta));
+    // Icecast — one tile per mount
+    var ic = snap.icecast || {};
+    Object.keys(ic).forEach(function (mount) {
+      var m = ic[mount];
+      if (!m || typeof m !== "object" || !m.verdict) return;
+      var meta = [];
+      if (m.bitrate_kbps) meta.push(m.bitrate_kbps + " kbps");
+      if (m.listeners != null) meta.push(m.listeners + " listener" + (m.listeners === 1 ? "" : "s"));
+      tiles.push(tile(mount.replace(".mp3",""), m.verdict, meta));
+    });
+    // Services — compact list of WARN/WEDGED only.
+    var svcs = snap.services || {};
+    Object.keys(svcs).forEach(function (unit) {
+      var s = svcs[unit];
+      if (!s || s.verdict === "ok") return;
+      var meta = [];
+      meta.push(s.active_state);
+      if (s.n_restarts) meta.push(s.n_restarts + " restarts");
+      tiles.push(tile(s.label || unit, s.verdict, meta));
+    });
+    grid.innerHTML = tiles.join("");
+  }
+  function poll() {
+    fetchJSON("/api/reliability/status").then(function (a) {
+      var status = a[0], snap = a[1];
+      if (status === 200 && snap && snap.ok !== false) render(snap);
+    }).catch(function () {});
+  }
+  // Poll when SITREP modal opens.
+  var modal = document.getElementById("sitrep-modal");
+  if (modal) {
+    var mo = new MutationObserver(function () {
+      if (!modal.classList.contains("hidden")) {
+        poll();
+      }
+    });
+    mo.observe(modal, { attributes: true, attributeFilter: ["class"] });
+    if (!modal.classList.contains("hidden")) poll();
+  }
+  // Also expose for ad-hoc refresh.
+  window._refreshReliability = poll;
 })();
 </script>
 </body>

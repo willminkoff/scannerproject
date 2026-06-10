@@ -6126,6 +6126,26 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
 
+        # ============ /api/reliability/status — SB5 2026-06-12 ============
+        # Single-call snapshot of every system that can wedge.  Powers a
+        # SITREP reliability panel that lights up red/yellow/green per area
+        # so we can SEE failure modes instead of probing them by hand.
+        if p == "/api/reliability/status":
+            try:
+                try:
+                    from .reliability import snapshot as _rel_snapshot
+                except ImportError:
+                    from ui.reliability import snapshot as _rel_snapshot  # type: ignore
+                payload = _rel_snapshot()
+            except Exception as e:
+                logger.exception("reliability snapshot failed")
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"snapshot_failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         # ============ /api/chirp/{band}/status — SB5 2026-06-11 ============
         # Lightweight read-only proxy for chirp_client.get_status (UDP).
         # Used by the sb5 UI to load current per-channel state (VAD threshold,
