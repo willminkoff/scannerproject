@@ -9772,8 +9772,9 @@ if (document.readyState === "loading") {
         return;
       }
       wrap.innerHTML = WIZ.channels.map(function (ch, idx) {
-        const label = ch.alpha_tag || ch.department_name || ch.tgid || ch.id || "?";
-        const freq = ch.frequency != null ? Number(ch.frequency).toFixed(4) + " MHz" : (ch.tgid != null ? "TG " + ch.tgid : "");
+        const tg = (ch.talkgroup != null && ch.talkgroup !== "") ? ch.talkgroup : ch.tgid;
+        const label = ch.alpha_tag || ch.department_name || (tg != null ? "TG " + tg : null) || ch.id || "?";
+        const freq = ch.frequency != null ? Number(ch.frequency).toFixed(4) + " MHz" : (tg != null ? "TG " + tg : "");
         const chId = ch.id || (systemName + "/" + idx);
         const checked = WIZ.selectedChannels.has(chId) ? "checked" : "";
         return "<label class=\"fp-wizard-channel\" data-id=\"" + escapeHtml(chId) + "\">" +
