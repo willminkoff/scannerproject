@@ -8930,7 +8930,17 @@ class Handler(BaseHTTPRequestHandler):
                 if str(form.get("mode", "vad")).lower() == "dbfs":
                     result = _chirp_adapter.wide_open_squelch_via_chirp(band=target, dbfs=dbfs)
                 else:
-                    result = _chirp_adapter.set_audio_vad_bypass_via_chirp(band=target, bypass=True)
+                    # 2026-06-10 bugfix: read bypass from body so the slider's
+                    # "clear bypass before pushing threshold" POST actually
+                    # clears bypass.  Previously this was hardcoded True, so
+                    # every slider move silently re-enabled wide-open and the
+                    # gate had no effect regardless of threshold.
+                    bypass_raw = form.get("bypass", True)
+                    if isinstance(bypass_raw, str):
+                        bypass_val = bypass_raw.strip().lower() not in ("false", "0", "off", "no", "")
+                    else:
+                        bypass_val = bool(bypass_raw)
+                    result = _chirp_adapter.set_audio_vad_bypass_via_chirp(band=target, bypass=bypass_val)
             except Exception as e:
                 logger.exception("squelch_wide_open failed")
                 return self._send(
