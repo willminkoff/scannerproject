@@ -1553,6 +1553,18 @@
     color: var(--text);
   }
   /* SB5 2026-06-09 — primary Auto-tune button styling */
+  /* SB5 2026-06-09 Sensitivity slider */
+  .band-ctl-sens {
+    display: flex; align-items: center; gap: 8px; flex: 1;
+  }
+  .ctl-sens-lbl { font-size: 12px; color: rgba(190,210,225,0.78); }
+  .ctl-sens-slider { flex: 1; min-width: 120px; }
+  .ctl-sens-readout {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    min-width: 1.5em; text-align: right;
+    color: #cfe8ff;
+  }
   .band-ctl-btn-primary {
     background: rgba(90,184,255,0.18);
     color: #cfe8ff;
@@ -2306,7 +2318,144 @@
   .pane-disclosure .freq-row .f { color: var(--sky-2); }
   .pane-disclosure .freq-row .lab { color: var(--text-2); }
 
-  /* ============ Profile Builder button ============ */
+  /* ============ Profile Settings (Phase 1: Travel Mode + Scan Filters) ============ */
+  .pb-settings {
+    border: 1px solid rgba(139, 167, 212, 0.20);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    background: rgba(8, 14, 22, 0.45);
+    overflow: hidden;
+  }
+  .pb-settings-summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+  }
+  .pb-settings-summary::-webkit-details-marker { display: none; }
+  .pb-settings-summary::before {
+    content: "›";
+    display: inline-block;
+    transition: transform 0.15s ease;
+    font-size: 14px;
+    color: rgba(190, 210, 225, 0.65);
+    line-height: 1;
+  }
+  .pb-settings[open] > .pb-settings-summary::before { transform: rotate(90deg); }
+  .pb-settings-title { font-weight: 600; color: var(--text); font-size: 13px; }
+  .pb-settings-readout {
+    margin-left: auto;
+    font-size: 11px;
+    color: rgba(190, 210, 225, 0.65);
+  }
+  .pb-settings-body {
+    padding: 8px 14px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    border-top: 1px solid rgba(139, 167, 212, 0.10);
+  }
+  .pb-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .pb-row-label { font-size: 11px; color: rgba(190, 210, 225, 0.78); min-width: 110px; }
+  .pb-field {
+    display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  }
+  .pb-field > span { font-size: 11px; color: rgba(190, 210, 225, 0.65); }
+  .pb-field input, .pb-field select {
+    background: rgba(8, 14, 22, 0.65);
+    border: 1px solid rgba(139, 167, 212, 0.30);
+    border-radius: 5px;
+    color: var(--text);
+    padding: 5px 8px;
+    font-size: 13px;
+    min-width: 0;
+  }
+  .pb-field-num input { width: 70px; }
+  .pb-check {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px; color: rgba(220, 230, 240, 0.85);
+    user-select: none;
+  }
+  .pb-check input { accent-color: rgba(90,184,255,0.85); }
+  .pb-toggle {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 10px;
+    border: 1px solid rgba(139, 167, 212, 0.30);
+    border-radius: 999px;
+    background: rgba(8, 14, 22, 0.5);
+    color: rgba(220, 230, 240, 0.85);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .pb-toggle.on {
+    background: rgba(52, 199, 89, 0.16);
+    color: #c6f7c8;
+    border-color: rgba(52, 199, 89, 0.55);
+  }
+  .pb-toggle-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(180, 200, 220, 0.45);
+    box-shadow: 0 0 5px rgba(0,0,0,0.4);
+  }
+  .pb-toggle.on .pb-toggle-dot {
+    background: var(--green);
+    box-shadow: 0 0 6px rgba(52,199,89,0.85);
+  }
+  .pb-travel-state { font-size: 11px; color: rgba(190, 210, 225, 0.65); }
+  .pb-chips {
+    display: flex; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0;
+  }
+  .pb-chip {
+    padding: 3px 9px;
+    border: 1px solid rgba(139, 167, 212, 0.30);
+    border-radius: 999px;
+    background: rgba(8, 14, 22, 0.5);
+    color: rgba(220, 230, 240, 0.78);
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .pb-chip.on {
+    background: rgba(90,184,255,0.18);
+    color: #cfe8ff;
+    border-color: rgba(90,184,255,0.55);
+  }
+  .pb-chip-loading { opacity: 0.6; cursor: default; }
+  .pb-btn {
+    padding: 5px 12px;
+    border: 1px solid rgba(139, 167, 212, 0.32);
+    border-radius: 5px;
+    background: rgba(8, 14, 22, 0.6);
+    color: rgba(220, 230, 240, 0.92);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pb-btn:hover { background: rgba(20, 30, 42, 0.75); }
+  .pb-btn-sub {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  .pb-btn-primary {
+    background: rgba(90,184,255,0.18);
+    color: #cfe8ff;
+    border-color: rgba(90,184,255,0.55);
+    font-weight: 600;
+  }
+  .pb-btn-primary:hover {
+    background: rgba(90,184,255,0.32);
+    color: #fff;
+  }
+  .pb-loc-meta {
+    margin-left: auto;
+    font-size: 11px;
+    color: rgba(190, 210, 225, 0.65);
+  }
+
+/* ============ Profile Builder button ============ */
   .profile-build-btn {
     background: rgba(90, 184, 255, 0.10);
     border: 1px solid rgba(90, 184, 255, 0.30);
@@ -2697,10 +2846,15 @@
             <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="selective" role="radio" aria-checked="false">Selective</button>
           </div>
           <div class="band-ctl-row band-ctl-sq-tools">
-            <button type="button" class="band-ctl-btn ctl-calibrate band-ctl-btn-primary" data-band="air"
-                    title="Push to learn the noise floor on every channel in this band, then set squelch automatically.  Takes 15 seconds.">Auto-tune</button>
+            <div class="band-ctl-sens" data-band="air">
+              <span class="ctl-sens-lbl">Sensitivity</span>
+              <input type="range" min="0" max="10" step="1" value="5"
+                     class="ctl-sens-slider" data-band="air"
+                     aria-label="AIR squelch sensitivity (0 strict / 10 wide)">
+              <span class="ctl-sens-readout" data-role="sens-readout" data-band="air">5</span>
+            </div>
             <button type="button" class="band-ctl-btn ctl-wide-open" data-band="air"
-                    title="Open every channel (test the audio path).  Push Auto-tune to restore.">Test</button>
+                    title="Test mode — bypass the voice-detection gate so every channel passes through.  Move Sensitivity to restore.">Test</button>
           </div>
           <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="air">—</span>
         </div>
@@ -2802,10 +2956,15 @@
             <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective" role="radio" aria-checked="false">Selective</button>
           </div>
           <div class="band-ctl-row band-ctl-sq-tools">
-            <button type="button" class="band-ctl-btn ctl-calibrate band-ctl-btn-primary" data-band="ground"
-                    title="Push to learn the noise floor on every channel in this band, then set squelch automatically.  Takes 15 seconds.">Auto-tune</button>
+            <div class="band-ctl-sens" data-band="ground">
+              <span class="ctl-sens-lbl">Sensitivity</span>
+              <input type="range" min="0" max="10" step="1" value="5"
+                     class="ctl-sens-slider" data-band="ground"
+                     aria-label="GROUND squelch sensitivity (0 strict / 10 wide)">
+              <span class="ctl-sens-readout" data-role="sens-readout" data-band="ground">5</span>
+            </div>
             <button type="button" class="band-ctl-btn ctl-wide-open" data-band="ground"
-                    title="Open every channel (test the audio path).  Push Auto-tune to restore.">Test</button>
+                    title="Test mode — bypass the voice-detection gate so every channel passes through.  Move Sensitivity to restore.">Test</button>
           </div>
           <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="ground">—</span>
         </div>
@@ -3457,6 +3616,80 @@
     </div>
     <div class="modal-body">
       <div class="fp-busy" id="fp-busy" hidden>Switching…</div>
+
+      <!-- Profile Settings (Phase 1 of SB3 sidecar port): Travel Mode +
+           Scan Filters live in a collapsible strip at the top of the
+           favorites modal so the operator can adjust location-based
+           scanning without leaving the picker.  Backend already wired
+           via /api/hp/state (POST), /api/hp/travel_mode/toggle, and
+           /api/hp/location/push.  Service-type chips read from
+           /api/hp/service-types. -->
+      <details class="pb-settings" id="pb-settings">
+        <summary class="pb-settings-summary">
+          <span class="pb-settings-title">Profile Settings</span>
+          <span class="pb-settings-readout" data-role="pb-settings-readout">—</span>
+        </summary>
+        <div class="pb-settings-body">
+          <!-- Travel Mode row -->
+          <div class="pb-row pb-row-travel">
+            <button type="button" class="pb-toggle on" id="pb-travel-toggle"
+                    aria-pressed="true"
+                    title="When Travel Mode is ON, location updates auto-push relevant favorites to the daemons.  When OFF, the rig stays on whatever you last picked.">
+              <span class="pb-toggle-dot"></span>
+              <span class="pb-toggle-label">Travel Mode</span>
+            </button>
+            <span class="pb-travel-state" data-role="pb-travel-state">Loading…</span>
+          </div>
+          <!-- Scan Filters: mode + location + range -->
+          <div class="pb-row pb-row-filters">
+            <label class="pb-field">
+              <span>Scan Source</span>
+              <select id="pb-filter-mode">
+                <option value="favorites">Favorites</option>
+                <option value="full_database">Full Database</option>
+              </select>
+            </label>
+            <label class="pb-field">
+              <span>ZIP</span>
+              <input id="pb-filter-zip" type="text" inputmode="numeric"
+                     maxlength="12" placeholder="08243" autocomplete="postal-code">
+            </label>
+            <label class="pb-field pb-field-num">
+              <span>Range (mi)</span>
+              <input id="pb-filter-range" type="number" min="0" max="500"
+                     step="5" value="50">
+            </label>
+            <label class="pb-check">
+              <input id="pb-filter-strict" type="checkbox">
+              <span>Strict</span>
+            </label>
+            <label class="pb-check">
+              <input id="pb-filter-nationwide" type="checkbox">
+              <span>Nationwide</span>
+            </label>
+          </div>
+          <!-- Service type chips: multi-select. -->
+          <div class="pb-row pb-row-services">
+            <span class="pb-row-label">Service Types</span>
+            <div class="pb-chips" id="pb-services-chips">
+              <span class="pb-chip pb-chip-loading">Loading service types…</span>
+            </div>
+            <div class="pb-row-actions">
+              <button type="button" class="pb-btn pb-btn-sub" id="pb-services-all">All</button>
+              <button type="button" class="pb-btn pb-btn-sub" id="pb-services-default">Default</button>
+              <button type="button" class="pb-btn pb-btn-sub" id="pb-services-none">None</button>
+            </div>
+          </div>
+          <!-- Apply / location actions -->
+          <div class="pb-row pb-row-actions-main">
+            <button type="button" class="pb-btn pb-btn-primary" id="pb-filters-apply">Apply Filters</button>
+            <button type="button" class="pb-btn" id="pb-resolve-zip">Resolve ZIP → Apply</button>
+            <button type="button" class="pb-btn" id="pb-use-current-loc">Use Current Location</button>
+            <span class="pb-loc-meta" data-role="pb-loc-meta"></span>
+          </div>
+        </div>
+      </details>
+
       <div class="fp-rows" id="fp-rows">
         <div class="fp-empty">Loading favorites…</div>
       </div>
@@ -8703,42 +8936,7 @@ if (document.readyState === "loading") {
     var t = ev.target;
     if (!t || !t.dataset) return;
     var cls = t.className || "";
-    if (cls.indexOf("ctl-calibrate") !== -1) {
-      ev.preventDefault();
-      var band = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
-      t.disabled = true;
-      var orig = t.textContent;
-      t.textContent = "Tuning…";
-      var statusEl = document.querySelector("[data-role=\"tune-status\"][data-band=\"" + band + "\"]");
-      if (statusEl) statusEl.textContent = "Listening to noise floor…";
-      showToast("Auto-tuning " + band + " (15 s)…", "busy");
-      postJSON("/api/squelch/calibrate", { band: band, sample_sec: 15, margin_db: 3 })
-        .then(function (a) {
-          var status = a[0], res = a[1];
-          if (status === 200 && res.ok) {
-            showToast(summarizeCalibrate(res), "ok");
-            if (statusEl) {
-              var when = new Date().toLocaleTimeString();
-              var nT = res.channels_applied | 0;
-              var nS = res.channels_skipped | 0;
-              statusEl.textContent = "Auto-tuned " + nT + " ch" +
-                (nS ? " (skipped " + nS + " active)" : "") + " · " + when;
-            }
-          } else {
-            showToast("Auto-tune failed: " + (res.error || "status " + status), "err");
-            if (statusEl) statusEl.textContent = "Auto-tune failed — see toast";
-          }
-        })
-        .catch(function (e) {
-          showToast("Auto-tune error: " + (e && e.message ? e.message : e), "err");
-          if (statusEl) statusEl.textContent = "Auto-tune error";
-        })
-        .then(function () {
-          t.textContent = orig;
-          t.disabled = false;
-        });
-      return;
-    }
+
     if (cls.indexOf("ctl-wide-open") !== -1) {
       ev.preventDefault();
       var band2 = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
@@ -8759,6 +8957,349 @@ if (document.readyState === "loading") {
         .then(function () { t.disabled = false; });
       return;
     }
+  }, true);
+  // Sensitivity slider: send sensitivity 0-10 → backend converts to threshold.
+  function debounce(fn, ms) {
+    var t = null;
+    return function () {
+      var args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function () { fn.apply(null, args); }, ms);
+    };
+  }
+  var sendSensitivity = debounce(function (band, value) {
+    postJSON("/api/squelch/sensitivity", { band: band, sensitivity: value })
+      .then(function (a) {
+        var status = a[0], res = a[1];
+        var statusEl = document.querySelector("[data-role=\"tune-status\"][data-band=\"" + band + "\"]");
+        if (status === 200 && res.ok) {
+          if (statusEl) statusEl.textContent = "Sensitivity " + value + " · " + (res.channels_applied | 0) + " ch updated";
+        } else {
+          if (statusEl) statusEl.textContent = "Sensitivity failed: " + (res.error || "status " + status);
+        }
+      });
+  }, 200);
+  document.addEventListener("input", function (ev) {
+    var t = ev.target;
+    if (!t || !t.classList || !t.classList.contains("ctl-sens-slider")) return;
+    var band = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
+    var val = parseInt(t.value || "5", 10);
+    var ro = document.querySelector('[data-role="sens-readout"][data-band="' + band + '"]');
+    if (ro) ro.textContent = String(val);
+    sendSensitivity(band, val);
+  }, true);
+
+})();
+</script>
+<!-- Phase 1 Profile Settings (Travel Mode + Scan Filters) wiring -->
+<script>
+(function () {
+  "use strict";
+
+  const PB = {
+    initialized: false,
+    state: null,
+    serviceTypes: [],
+    selectedTypes: new Set(),
+    defaultTypes: new Set(),
+  };
+
+  const els = {
+    settings: null,
+    summary: null,
+    readout: null,
+    travelToggle: null,
+    travelState: null,
+    filterMode: null,
+    filterZip: null,
+    filterRange: null,
+    filterStrict: null,
+    filterNationwide: null,
+    chips: null,
+    chipAll: null,
+    chipDefault: null,
+    chipNone: null,
+    applyBtn: null,
+    resolveBtn: null,
+    useLocBtn: null,
+    locMeta: null,
+  };
+
+  function cacheEls() {
+    els.settings = document.getElementById("pb-settings");
+    if (!els.settings) return false;
+    els.summary = els.settings.querySelector(".pb-settings-summary");
+    els.readout = els.settings.querySelector('[data-role="pb-settings-readout"]');
+    els.travelToggle = document.getElementById("pb-travel-toggle");
+    els.travelState = els.settings.querySelector('[data-role="pb-travel-state"]');
+    els.filterMode = document.getElementById("pb-filter-mode");
+    els.filterZip = document.getElementById("pb-filter-zip");
+    els.filterRange = document.getElementById("pb-filter-range");
+    els.filterStrict = document.getElementById("pb-filter-strict");
+    els.filterNationwide = document.getElementById("pb-filter-nationwide");
+    els.chips = document.getElementById("pb-services-chips");
+    els.chipAll = document.getElementById("pb-services-all");
+    els.chipDefault = document.getElementById("pb-services-default");
+    els.chipNone = document.getElementById("pb-services-none");
+    els.applyBtn = document.getElementById("pb-filters-apply");
+    els.resolveBtn = document.getElementById("pb-resolve-zip");
+    els.useLocBtn = document.getElementById("pb-use-current-loc");
+    els.locMeta = els.settings.querySelector('[data-role="pb-loc-meta"]');
+    return true;
+  }
+
+  function fetchJSON(url, opts) {
+    return fetch(url, Object.assign({ credentials: "same-origin" }, opts || {}))
+      .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); });
+  }
+
+  function postJSON(url, body) {
+    return fetchJSON(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+  }
+
+  function toast(text, variant) {
+    try {
+      if (typeof showSitrepToast === "function") {
+        showSitrepToast(text, variant || "ok", 5000);
+        return;
+      }
+    } catch (e) {}
+    console.log("[profile]", variant || "info", text);
+  }
+
+  function setReadout() {
+    if (!els.readout) return;
+    const s = PB.state || {};
+    const parts = [];
+    if (s.travel_mode_enabled) parts.push("Travel ON"); else parts.push("Travel OFF");
+    if (s.mode === "full_database") parts.push("Full DB");
+    else parts.push("Favorites");
+    if (s.zip) parts.push("ZIP " + s.zip);
+    if (s.range_miles != null) parts.push(s.range_miles + " mi");
+    els.readout.textContent = parts.join(" · ");
+  }
+
+  function setTravelUI(enabled, lastPush) {
+    if (els.travelToggle) {
+      els.travelToggle.classList.toggle("on", !!enabled);
+      els.travelToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+    }
+    if (els.travelState) {
+      if (enabled) {
+        if (lastPush && lastPush.ts) {
+          const when = new Date(lastPush.ts * 1000).toLocaleTimeString();
+          els.travelState.textContent = "Last push: " + (lastPush.reason || "ok") + " · " + when;
+        } else {
+          els.travelState.textContent = "Auto-push on location change";
+        }
+      } else {
+        els.travelState.textContent = "Auto-push disabled — manual favorite pick only";
+      }
+    }
+  }
+
+  function setFiltersUI(s) {
+    if (!s) return;
+    if (els.filterMode) els.filterMode.value = (s.mode === "full_database") ? "full_database" : "favorites";
+    if (els.filterZip) els.filterZip.value = s.zip || "";
+    if (els.filterRange) els.filterRange.value = (s.range_miles != null) ? String(s.range_miles) : "";
+    if (els.filterStrict) els.filterStrict.checked = !!s.strict_location;
+    if (els.filterNationwide) els.filterNationwide.checked = !!(s.nationwide_systems && s.nationwide_systems.length);
+    if (els.locMeta) {
+      if (s.lat != null && s.lon != null) {
+        els.locMeta.textContent = "lat " + Number(s.lat).toFixed(3) + ", lon " + Number(s.lon).toFixed(3);
+      } else {
+        els.locMeta.textContent = "";
+      }
+    }
+  }
+
+  function renderChips() {
+    if (!els.chips) return;
+    els.chips.innerHTML = "";
+    PB.serviceTypes.forEach(function (st) {
+      const chip = document.createElement("span");
+      chip.className = "pb-chip" + (PB.selectedTypes.has(st.id) ? " on" : "");
+      chip.textContent = st.label || st.name || String(st.id);
+      chip.dataset.id = String(st.id);
+      chip.addEventListener("click", function () {
+        if (PB.selectedTypes.has(st.id)) PB.selectedTypes.delete(st.id);
+        else PB.selectedTypes.add(st.id);
+        chip.classList.toggle("on");
+      });
+      els.chips.appendChild(chip);
+    });
+    if (PB.serviceTypes.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "pb-chip pb-chip-loading";
+      empty.textContent = "No service types from server";
+      els.chips.appendChild(empty);
+    }
+  }
+
+  function loadServiceTypes() {
+    return fetchJSON("/api/hp/service-types").then(function (a) {
+      const status = a[0], res = a[1];
+      if (status !== 200) {
+        PB.serviceTypes = [];
+        renderChips();
+        return;
+      }
+      const types = (res && res.types) || [];
+      PB.serviceTypes = types.map(function (t) {
+        return {
+          id: t.id != null ? t.id : (t.code != null ? t.code : t.label),
+          label: t.label || t.name || String(t.id),
+          default: !!t.default,
+        };
+      });
+      PB.defaultTypes = new Set(PB.serviceTypes.filter(function (t) { return t.default; }).map(function (t) { return t.id; }));
+      // Initial selected = whatever HPState says or defaults
+      const cur = (PB.state && PB.state.enabled_service_tags) || [];
+      PB.selectedTypes = new Set(cur.length ? cur : PB.serviceTypes.filter(function (t) { return t.default; }).map(function (t) { return t.id; }));
+      renderChips();
+    }).catch(function (e) {
+      console.warn("[profile] service-types failed:", e);
+    });
+  }
+
+  function loadState() {
+    return fetchJSON("/api/hp/state").then(function (a) {
+      const status = a[0], res = a[1];
+      if (status !== 200 || !res || !res.ok) {
+        toast("Could not load HP state", "err");
+        return;
+      }
+      PB.state = res.state || res;
+      setTravelUI(PB.state.travel_mode_enabled, res.travel_mode_last_push || null);
+      setFiltersUI(PB.state);
+      setReadout();
+    });
+  }
+
+  function applyFilters(extra) {
+    if (!PB.state) return Promise.resolve();
+    const body = {
+      mode: els.filterMode ? els.filterMode.value : PB.state.mode,
+      zip: els.filterZip ? (els.filterZip.value || "").trim() : PB.state.zip,
+      range_miles: els.filterRange ? Number(els.filterRange.value || PB.state.range_miles || 0) : PB.state.range_miles,
+      strict_location: !!(els.filterStrict && els.filterStrict.checked),
+      enabled_service_tags: Array.from(PB.selectedTypes),
+    };
+    if (els.filterNationwide) {
+      body.include_nationwide = !!els.filterNationwide.checked;
+    }
+    if (extra) Object.assign(body, extra);
+    return postJSON("/api/hp/state", body).then(function (a) {
+      const status = a[0], res = a[1];
+      if (status === 200 && res && (res.ok || res.state)) {
+        PB.state = res.state || PB.state;
+        setFiltersUI(PB.state);
+        setReadout();
+        toast("Filters applied", "ok");
+      } else {
+        toast("Apply failed: " + (res && res.error ? res.error : "status " + status), "err");
+      }
+    }).catch(function (e) {
+      toast("Apply error: " + (e && e.message ? e.message : e), "err");
+    });
+  }
+
+  function bindEvents() {
+    if (els.travelToggle) {
+      els.travelToggle.addEventListener("click", function () {
+        const newEnabled = !els.travelToggle.classList.contains("on");
+        els.travelToggle.disabled = true;
+        postJSON("/api/hp/travel_mode/toggle", { enabled: newEnabled })
+          .then(function (a) {
+            const status = a[0], res = a[1];
+            if (status === 200 && res && res.ok) {
+              if (PB.state) PB.state.travel_mode_enabled = newEnabled;
+              setTravelUI(newEnabled, res.travel_mode_last_push || null);
+              setReadout();
+              toast("Travel Mode " + (newEnabled ? "ON" : "OFF"), "ok");
+            } else {
+              toast("Toggle failed: " + (res && res.error ? res.error : "status " + status), "err");
+            }
+          })
+          .then(function () { els.travelToggle.disabled = false; });
+      });
+    }
+    if (els.applyBtn) els.applyBtn.addEventListener("click", function () { applyFilters(); });
+    if (els.resolveBtn) {
+      els.resolveBtn.addEventListener("click", function () {
+        const zip = (els.filterZip.value || "").trim();
+        if (!zip) { toast("Enter a ZIP first", "err"); return; }
+        fetchJSON("/api/hp/location/reverse?zip=" + encodeURIComponent(zip))
+          .then(function (a) {
+            const status = a[0], res = a[1];
+            if (status === 200 && res && res.ok && res.lat != null) {
+              return applyFilters({ lat: res.lat, lon: res.lon, zip: zip, use_location: true });
+            }
+            toast("ZIP resolve failed", "err");
+          });
+      });
+    }
+    if (els.useLocBtn) {
+      els.useLocBtn.addEventListener("click", function () {
+        if (!navigator.geolocation) { toast("Browser has no geolocation", "err"); return; }
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          applyFilters({
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            use_location: true,
+          });
+        }, function (e) {
+          toast("Geolocation refused: " + (e && e.message ? e.message : e), "err");
+        });
+      });
+    }
+    if (els.chipAll) els.chipAll.addEventListener("click", function () {
+      PB.selectedTypes = new Set(PB.serviceTypes.map(function (t) { return t.id; }));
+      renderChips();
+    });
+    if (els.chipNone) els.chipNone.addEventListener("click", function () {
+      PB.selectedTypes = new Set();
+      renderChips();
+    });
+    if (els.chipDefault) els.chipDefault.addEventListener("click", function () {
+      PB.selectedTypes = new Set(PB.defaultTypes);
+      renderChips();
+    });
+  }
+
+  function initOnce() {
+    if (PB.initialized) return;
+    if (!cacheEls()) return;
+    PB.initialized = true;
+    bindEvents();
+    Promise.resolve()
+      .then(loadState)
+      .then(loadServiceTypes)
+      .then(renderChips)
+      .catch(function (e) { console.warn("[profile] init:", e); });
+  }
+
+  // Lazy init: when the pb-modal opens, do init. Hook by observing class on
+  // the overlay; if not feasible, also init on first details open.
+  function tryInitOnModalOpen() {
+    const ov = document.getElementById("pb-modal");
+    if (!ov) return;
+    const mo = new MutationObserver(function () {
+      if (!ov.classList.contains("hidden")) initOnce();
+    });
+    mo.observe(ov, { attributes: true, attributeFilter: ["class"] });
+    // also init immediately if it's already open
+    if (!ov.classList.contains("hidden")) initOnce();
+  }
+  document.addEventListener("DOMContentLoaded", tryInitOnModalOpen);
+  // Also init on first expand of the details panel.
+  document.addEventListener("toggle", function (ev) {
+    if (ev.target && ev.target.id === "pb-settings" && ev.target.open) initOnce();
   }, true);
 })();
 </script>
