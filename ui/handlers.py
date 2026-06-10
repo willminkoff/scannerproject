@@ -6126,6 +6126,35 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
 
+        # ============ /api/chirp/{band}/status — SB5 2026-06-11 ============
+        # Lightweight read-only proxy for chirp_client.get_status (UDP).
+        # Used by the sb5 UI to load current per-channel state (VAD threshold,
+        # signal level, squelch open, etc.) so the Sensitivity slider can
+        # reflect reality across page reloads.
+        if p in ("/api/chirp/airband/status", "/api/chirp/ground/status"):
+            target = "airband" if p.endswith("/airband/status") else "ground"
+            try:
+                if target == "airband":
+                    from .chirp_client import get_airband_client as _get
+                else:
+                    from .chirp_client import get_ground_client as _get
+            except ImportError:
+                if target == "airband":
+                    from ui.chirp_client import get_airband_client as _get  # type: ignore
+                else:
+                    from ui.chirp_client import get_ground_client as _get  # type: ignore
+            try:
+                s = _get().get_status()
+            except Exception as e:
+                return self._send(
+                    503,
+                    json.dumps({"ok": False, "error": f"chirp_daemon_unreachable: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            payload = {"ok": True}
+            payload.update(s or {})
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/hp/service-types":
             try:
                 service_types = get_all_service_types()
