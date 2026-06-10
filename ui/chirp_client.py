@@ -307,14 +307,56 @@ class ChirpClient:
         return self._send("add_channel", args)
 
     def add_channels(self, channels: list[dict]) -> dict:
-        """Add a batch in one datagram.  Each element is a full ChannelArgs dict."""
-        return self._send("add_channel", {"channels": list(channels)})
+        """Add a batch.
+
+        Chunks large channel lists so individual UDP packets stay under
+        the chirp daemon's max_packet limit (default 4096 bytes).  The
+        un-chunked single-envelope path serialises all channels into one
+        JSON datagram, which trips the limit at roughly 13-15 ground
+        marine channels with full labels (we hit this 2026-06-09 on
+        fav-sic activation after a power cycle: "add_channels_failed:
+        packet too large (5533 > 4096)").
+        """
+        import json as _json
+        _MAX_PAYLOAD = 3500
+        chans = list(channels)
+        if not chans:
+            return {"ok": True, "added_count": 0, "channels": []}
+        try_one = _json.dumps({"channels": chans}, separators=(",", ":"))
+        if len(try_one.encode("utf-8")) < _MAX_PAYLOAD:
+            return self._send("add_channel", {"channels": chans})
+        total_added = 0
+        last_resp: dict = {}
+        chunk: list = []
+        for ch in chans:
+            tentative = chunk + [ch]
+            payload = _json.dumps({"channels": tentative}, separators=(",", ":"))
+            if len(payload.encode("utf-8")) >= _MAX_PAYLOAD and chunk:
+                resp = self._send("add_channel", {"channels": chunk})
+                last_resp = resp
+                total_added += int(resp.get("added_count", 0) or 0)
+                chunk = [ch]
+            else:
+                chunk = tentative
+        if chunk:
+            resp = self._send("add_channel", {"channels": chunk})
+            last_resp = resp
+            total_added += int(resp.get("added_count", 0) or 0)
+        return {**last_resp, "added_count": total_added}
 
     def remove_channel(self, id: str) -> dict:
         return self._send("remove_channel", {"id": str(id)})
 
     def set_squelch(self, id: str, dbfs: float) -> dict:
         return self._send("set_squelch", {"id": str(id), "dbfs": float(dbfs)})
+
+    def set_vad_threshold(self, id: str, threshold: float) -> dict:
+        """SB5 squelch redesign: set per-channel VAD score threshold (0-100)."""
+        return self._send("set_vad_threshold", {"id": str(id), "threshold": float(threshold)})
+
+    def set_vad_bypass(self, id: str, bypass: bool) -> dict:
+        """SB5 squelch redesign: bypass the VAD gate (passthrough audio)."""
+        return self._send("set_vad_bypass", {"id": str(id), "bypass": bool(bypass)})
 
     def set_freq(self, id: str, mhz: float) -> dict:
         return self._send("set_freq", {"id": str(id), "mhz": float(mhz)})
