@@ -1,0 +1,19 @@
+[Unit]
+Description=SB5 Reliability Watchdog
+After=network.target airband-ui.service
+Wants=airband-ui.service
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/usr/bin/python3 /home/ubuntu/scannerproject/scripts/reliability_watchdog.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+# Generous CPU budget — snapshot is bounded but subprocess calls can add up.
+CPUQuota=200%
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
