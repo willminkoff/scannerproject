@@ -2627,6 +2627,187 @@
   }
   .modal-profile-builder .pb-btn:hover { background: var(--sky-2); }
 
+  /* ============ Profile Builder — full-screen, large-type, easier-nav (2026-06-10) ============
+     Will: "utilize the whole screen. make the words larger font. make it a
+     little easier to navigate."  These overrides scope to .modal-profile-builder
+     so other modals (sitrep, disco-recent, etc.) keep their compact look.  We
+     bump the modal card to near-full viewport, dial up the font scale inside
+     by one tier (11→13, 12→14, 13→15, 14→16), and grow hit targets so chips
+     and buttons clear 36 px height for easier touch + mouse navigation. */
+  .modal-profile-builder .modal-card {
+    max-width: min(1400px, 96vw);
+    width: 96vw;
+    max-height: 94vh;
+    height: 94vh;
+  }
+  .modal-profile-builder .modal-hd {
+    padding: 20px 28px;
+  }
+  .modal-profile-builder .modal-hd .title {
+    font-size: 22px;
+  }
+  .modal-profile-builder .modal-close {
+    width: 36px; height: 36px;
+    font-size: 20px;
+  }
+  .modal-profile-builder .modal-body {
+    padding: 22px 28px 28px;
+  }
+  /* Larger fonts + breathing room inside the Profile Settings strip. */
+  .modal-profile-builder .pb-settings {
+    margin-bottom: 18px;
+  }
+  .modal-profile-builder .pb-settings-summary {
+    padding: 14px 18px;
+    gap: 12px;
+  }
+  .modal-profile-builder .pb-settings-summary::before {
+    font-size: 18px;
+  }
+  .modal-profile-builder .pb-settings-title {
+    font-size: 16px;
+  }
+  .modal-profile-builder .pb-settings-readout {
+    font-size: 13px;
+  }
+  .modal-profile-builder .pb-settings-body {
+    padding: 14px 18px 18px;
+    gap: 14px;
+  }
+  .modal-profile-builder .pb-row {
+    gap: 14px;
+  }
+  .modal-profile-builder .pb-row-label {
+    font-size: 14px;
+    min-width: 130px;
+  }
+  .modal-profile-builder .pb-field > span {
+    font-size: 13px;
+  }
+  .modal-profile-builder .pb-field input,
+  .modal-profile-builder .pb-field select {
+    font-size: 15px;
+    padding: 8px 12px;
+    min-height: 38px;
+  }
+  .modal-profile-builder .pb-field-num input {
+    width: 92px;
+  }
+  .modal-profile-builder .pb-check {
+    font-size: 14px;
+    gap: 8px;
+  }
+  .modal-profile-builder .pb-check input {
+    width: 18px; height: 18px;
+  }
+  .modal-profile-builder .pb-toggle {
+    padding: 8px 14px;
+    font-size: 14px;
+    min-height: 38px;
+  }
+  .modal-profile-builder .pb-toggle-dot {
+    width: 10px; height: 10px;
+  }
+  .modal-profile-builder .pb-travel-state {
+    font-size: 13px;
+  }
+  .modal-profile-builder .pb-chips {
+    gap: 8px;
+  }
+  .modal-profile-builder .pb-chip {
+    padding: 7px 14px;
+    font-size: 14px;
+    min-height: 34px;
+    display: inline-flex; align-items: center;
+  }
+  .modal-profile-builder .pb-btn {
+    padding: 9px 18px;
+    font-size: 14px;
+    min-height: 38px;
+  }
+  .modal-profile-builder .pb-btn-sub {
+    padding: 6px 12px;
+    font-size: 13px;
+    min-height: 32px;
+  }
+  .modal-profile-builder .pb-loc-meta {
+    font-size: 13px;
+  }
+  /* Favorite rows — bigger so they read like a real list, not a packed picker. */
+  .modal-profile-builder .fp-row {
+    padding: 14px 16px;
+    gap: 16px;
+    border-radius: 12px;
+  }
+  .modal-profile-builder .fp-row .fp-name {
+    font-size: 16px;
+  }
+  .modal-profile-builder .fp-row .fp-meta {
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .modal-profile-builder .fp-row .fp-state {
+    font-size: 12px;
+  }
+  .modal-profile-builder .fp-row .fp-band-tag {
+    font-size: 12px;
+    padding: 3px 8px;
+  }
+  .modal-profile-builder .fp-edit-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    min-height: 32px;
+  }
+  /* Wizard panel — same uplift inside the new-favorite flow. */
+  .modal-profile-builder .fp-wizard {
+    padding: 16px 18px;
+    border-radius: 10px;
+    gap: 14px;
+  }
+  .modal-profile-builder .fp-wizard-title {
+    font-size: 16px;
+  }
+  .modal-profile-builder .fp-wizard-fields {
+    gap: 12px;
+  }
+  .modal-profile-builder .fp-wizard-systems,
+  .modal-profile-builder .fp-wizard-channels {
+    padding: 10px;
+    max-height: 300px;
+    gap: 6px;
+  }
+  .modal-profile-builder .fp-wizard-system,
+  .modal-profile-builder .fp-wizard-channel {
+    padding: 8px 12px;
+    font-size: 14px;
+    gap: 10px;
+  }
+  .modal-profile-builder .fp-wizard-channel-freq {
+    font-size: 13px;
+  }
+  .modal-profile-builder .fp-wizard-counts {
+    font-size: 13px;
+  }
+  .modal-profile-builder .fp-wizard-actions {
+    gap: 10px;
+  }
+  /* Phase 3 hint text at the top of the picker — easier to spot. */
+  .modal-profile-builder .fp-new-hint {
+    font-size: 13px;
+  }
+  /* Service-types chips already promoted via pb-chip rule above; the
+     "All / Default / None" cluster gets a labeled separator so users
+     can see what they apply to. */
+  .modal-profile-builder .pb-row-actions {
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  /* The shared rows of action buttons at bottom of Profile Settings
+     sit on a soft band so they're visually anchored. */
+  .modal-profile-builder .pb-row-actions-main {
+    padding-top: 12px;
+    border-top: 1px solid rgba(139, 167, 212, 0.18);
+  }
+
   /* ============ Sounding pane (Phase 7d — VDL2 + ACARS) ============ */
   .pane-sounding .snd-row {
     display: grid;
