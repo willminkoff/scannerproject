@@ -2692,6 +2692,79 @@
     font-weight: 700;
   }
   .fp-row.active .fp-state { color: var(--sky-2); }
+  /* Phase 3 — new-favorite wizard */
+  .fp-new-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 4px;
+    margin-bottom: 8px;
+  }
+  .fp-new-hint {
+    font-size: 11px; color: rgba(190, 210, 225, 0.55);
+  }
+  .fp-wizard {
+    background: rgba(8,14,22,0.55);
+    border: 1px solid rgba(90,184,255,0.30);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .fp-wizard[hidden] { display: none; }
+  .fp-wizard-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .fp-wizard-title { font-weight: 600; color: var(--text); }
+  .fp-wizard-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  @media (max-width: 600px) { .fp-wizard-fields { grid-template-columns: 1fr; } }
+  .fp-wizard-systems, .fp-wizard-channels {
+    background: rgba(0,0,0,0.18);
+    border-radius: 4px;
+    padding: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .fp-wizard-system, .fp-wizard-channel {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(8,14,22,0.45);
+    border: 1px solid rgba(139,167,212,0.15);
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+  }
+  .fp-wizard-system:hover, .fp-wizard-channel:hover {
+    border-color: rgba(90,184,255,0.40);
+    background: rgba(20,30,42,0.6);
+  }
+  .fp-wizard-system.active, .fp-wizard-channel.selected {
+    border-color: rgba(90,184,255,0.55);
+    background: rgba(90,184,255,0.10);
+  }
+  .fp-wizard-channel input { accent-color: rgba(90,184,255,0.85); }
+  .fp-wizard-channel-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .fp-wizard-channel-freq {
+    font-variant-numeric: tabular-nums;
+    color: rgba(190,210,225,0.65);
+    font-size: 11px;
+  }
+  .fp-wizard-counts {
+    font-size: 11px; color: rgba(190,210,225,0.65);
+    margin-left: 4px;
+  }
+  .fp-wizard-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+  }
+
   /* Phase 2 — inline favorite editor (channels CRUD) */
   .fp-row-wrap { display: flex; flex-direction: column; gap: 0; }
   .fp-row-tail { display: inline-flex; align-items: center; gap: 8px; }
@@ -3769,6 +3842,12 @@
           </div>
         </div>
       </details>
+
+      <div class="fp-new-row">
+        <button type="button" class="pb-btn pb-btn-primary" id="fp-new-fav">+ New favorite</button>
+        <span class="fp-new-hint">Build from HPDB (country → state → county → system → channels)</span>
+      </div>
+      <div class="fp-wizard" id="fp-wizard" hidden></div>
 
       <div class="fp-rows" id="fp-rows">
         <div class="fp-empty">Loading favorites…</div>
@@ -9379,6 +9458,7 @@ if (document.readyState === "loading") {
       .then(loadState)
       .then(loadServiceTypes)
       .then(renderChips)
+      .then(bindNewFavButton)
       .catch(function (e) { console.warn("[profile] init:", e); });
   }
 
@@ -9538,6 +9618,283 @@ if (document.readyState === "loading") {
       wrap.hidden = true;
     }
   };
+
+    // Phase 3 — new-favorite wizard
+  const WIZ = {
+    countries: [],
+    states: [],
+    counties: [],
+    systems: [],
+    channels: [],
+    selectedSystemId: null,
+    selectedSystemType: "analog",
+    selectedChannels: new Map(), // id -> channel object
+    name: "",
+  };
+
+  function wizQS(params) {
+    return Object.keys(params)
+      .filter(function (k) { return params[k] != null && params[k] !== ""; })
+      .map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); })
+      .join("&");
+  }
+
+  function renderWizard() {
+    const wrap = document.getElementById("fp-wizard");
+    if (!wrap) return;
+    wrap.hidden = false;
+    wrap.innerHTML =
+      "<div class=\"fp-wizard-head\">" +
+        "<div class=\"fp-wizard-title\">Build a new favorite</div>" +
+        "<button type=\"button\" class=\"pb-btn\" id=\"wiz-close\">Cancel</button>" +
+      "</div>" +
+      "<label class=\"pb-field\"><span>Favorite name</span>" +
+        "<input type=\"text\" id=\"wiz-name\" placeholder=\"e.g. Miami Marine\" maxlength=\"64\" value=\"" + escapeHtml(WIZ.name) + "\"></label>" +
+      "<div class=\"fp-wizard-fields\">" +
+        "<label class=\"pb-field\"><span>Country</span>" +
+          "<select id=\"wiz-country\"></select></label>" +
+        "<label class=\"pb-field\"><span>State</span>" +
+          "<select id=\"wiz-state\"></select></label>" +
+        "<label class=\"pb-field\"><span>County</span>" +
+          "<select id=\"wiz-county\"></select></label>" +
+        "<label class=\"pb-field\"><span>System Type</span>" +
+          "<select id=\"wiz-system-type\">" +
+            "<option value=\"analog\"" + (WIZ.selectedSystemType === "analog" ? " selected" : "") + ">Analog (conventional)</option>" +
+            "<option value=\"digital\"" + (WIZ.selectedSystemType === "digital" ? " selected" : "") + ">Digital (trunked)</option>" +
+          "</select></label>" +
+      "</div>" +
+      "<div class=\"fp-wizard-fields\">" +
+        "<div>" +
+          "<div class=\"pb-row-label\">Systems <span class=\"fp-wizard-counts\" id=\"wiz-systems-count\"></span></div>" +
+          "<div class=\"fp-wizard-systems\" id=\"wiz-systems-list\"><div class=\"fp-editor-empty\">Pick a state & county first</div></div>" +
+        "</div>" +
+        "<div>" +
+          "<div class=\"pb-row-label\">Channels <span class=\"fp-wizard-counts\" id=\"wiz-channels-count\"></span></div>" +
+          "<div class=\"fp-wizard-channels\" id=\"wiz-channels-list\"><div class=\"fp-editor-empty\">Pick a system to see its channels</div></div>" +
+        "</div>" +
+      "</div>" +
+      "<div class=\"fp-wizard-actions\">" +
+        "<button type=\"button\" class=\"pb-btn\" id=\"wiz-cancel\">Cancel</button>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary\" id=\"wiz-save\">Save Favorite</button>" +
+      "</div>";
+    // Initial population
+    populateCountries();
+    bindWizardEvents();
+  }
+
+  function populateCountries() {
+    fetchJSON("/api/hp/favorites-wizard/countries").then(function (a) {
+      const res = a[1] || {};
+      WIZ.countries = res.countries || [];
+      const sel = document.getElementById("wiz-country");
+      if (!sel) return;
+      sel.innerHTML = WIZ.countries.map(function (cc) {
+        return "<option value=\"" + cc.country_id + "\">" + escapeHtml(cc.name) + "</option>";
+      }).join("");
+      if (WIZ.countries.length) {
+        sel.value = String(WIZ.countries[0].country_id);
+        loadStates(WIZ.countries[0].country_id);
+      }
+    });
+  }
+
+  function loadStates(countryId) {
+    return fetchJSON("/api/hp/favorites-wizard/states?country_id=" + countryId).then(function (a) {
+      const res = a[1] || {};
+      WIZ.states = res.states || [];
+      const sel = document.getElementById("wiz-state");
+      if (!sel) return;
+      sel.innerHTML = "<option value=\"\">— pick state —</option>" + WIZ.states.map(function (s) {
+        return "<option value=\"" + s.state_id + "\">" + escapeHtml(s.abbr + " — " + s.name) + "</option>";
+      }).join("");
+    });
+  }
+
+  function loadCounties(countryId, stateId) {
+    if (!stateId) return Promise.resolve();
+    return fetchJSON("/api/hp/favorites-wizard/counties?" + wizQS({ country_id: countryId, state_id: stateId })).then(function (a) {
+      const res = a[1] || {};
+      WIZ.counties = res.counties || [];
+      const sel = document.getElementById("wiz-county");
+      if (!sel) return;
+      sel.innerHTML = WIZ.counties.map(function (cc) {
+        return "<option value=\"" + cc.county_id + "\">" + escapeHtml(cc.name) + "</option>";
+      }).join("");
+    });
+  }
+
+  function loadSystems() {
+    const country = document.getElementById("wiz-country").value;
+    const state = document.getElementById("wiz-state").value;
+    const county = document.getElementById("wiz-county").value;
+    const type = document.getElementById("wiz-system-type").value || "analog";
+    WIZ.selectedSystemType = type;
+    if (!state) return;
+    const params = { country_id: country, state_id: state, county_id: county || 0, system_type: type };
+    if (Number(county || 0) > 0) params.scope = "county";
+    fetchJSON("/api/hp/favorites-wizard/systems?" + wizQS(params)).then(function (a) {
+      const res = a[1] || {};
+      WIZ.systems = res.systems || [];
+      const wrap = document.getElementById("wiz-systems-list");
+      const count = document.getElementById("wiz-systems-count");
+      if (count) count.textContent = "(" + WIZ.systems.length + ")";
+      if (!WIZ.systems.length) {
+        wrap.innerHTML = "<div class=\"fp-editor-empty\">No systems for this scope</div>";
+        return;
+      }
+      wrap.innerHTML = WIZ.systems.map(function (s) {
+        return "<div class=\"fp-wizard-system\" data-id=\"" + s.id + "\" data-name=\"" + escapeHtml(s.name) + "\">" +
+          "<span class=\"fp-wizard-channel-name\">" + escapeHtml(s.name) + "</span>" +
+          "<span class=\"fp-wizard-channel-freq\">" + escapeHtml(s.protocol || s.system_type) + "</span>" +
+        "</div>";
+      }).join("");
+      wrap.querySelectorAll(".fp-wizard-system").forEach(function (el) {
+        el.addEventListener("click", function () {
+          wrap.querySelectorAll(".fp-wizard-system.active").forEach(function (x) { x.classList.remove("active"); });
+          el.classList.add("active");
+          WIZ.selectedSystemId = el.getAttribute("data-id");
+          loadChannels(WIZ.selectedSystemId, el.getAttribute("data-name"));
+        });
+      });
+    });
+  }
+
+  function loadChannels(systemId, systemName) {
+    const params = { system_id: systemId, system_type: WIZ.selectedSystemType };
+    fetchJSON("/api/hp/favorites-wizard/channels?" + wizQS(params)).then(function (a) {
+      const res = a[1] || {};
+      WIZ.channels = res.channels || [];
+      const wrap = document.getElementById("wiz-channels-list");
+      const count = document.getElementById("wiz-channels-count");
+      if (count) count.textContent = "(" + (res.total_channels || WIZ.channels.length) + ")";
+      if (!WIZ.channels.length) {
+        wrap.innerHTML = "<div class=\"fp-editor-empty\">No channels for this system</div>";
+        return;
+      }
+      wrap.innerHTML = WIZ.channels.map(function (ch, idx) {
+        const label = ch.alpha_tag || ch.department_name || ch.tgid || ch.id || "?";
+        const freq = ch.frequency != null ? Number(ch.frequency).toFixed(4) + " MHz" : (ch.tgid != null ? "TG " + ch.tgid : "");
+        const chId = ch.id || (systemName + "/" + idx);
+        const checked = WIZ.selectedChannels.has(chId) ? "checked" : "";
+        return "<label class=\"fp-wizard-channel\" data-id=\"" + escapeHtml(chId) + "\">" +
+          "<input type=\"checkbox\" data-idx=\"" + idx + "\" " + checked + ">" +
+          "<span class=\"fp-wizard-channel-name\">" + escapeHtml(label) + "</span>" +
+          "<span class=\"fp-wizard-channel-freq\">" + escapeHtml(freq) + "</span>" +
+        "</label>";
+      }).join("");
+      wrap.querySelectorAll(".fp-wizard-channel input").forEach(function (cb) {
+        cb.addEventListener("change", function () {
+          const lbl = cb.closest(".fp-wizard-channel");
+          const id = lbl.getAttribute("data-id");
+          const idx = parseInt(cb.getAttribute("data-idx"), 10);
+          const ch = WIZ.channels[idx];
+          if (cb.checked) {
+            WIZ.selectedChannels.set(id, Object.assign({}, ch, { id: id, system_name: systemName }));
+            lbl.classList.add("selected");
+          } else {
+            WIZ.selectedChannels.delete(id);
+            lbl.classList.remove("selected");
+          }
+        });
+      });
+    });
+  }
+
+  function bindWizardEvents() {
+    document.getElementById("wiz-country").addEventListener("change", function (ev) {
+      loadStates(ev.target.value).then(function () {
+        // reset downstream
+        const county = document.getElementById("wiz-county");
+        if (county) county.innerHTML = "";
+      });
+    });
+    document.getElementById("wiz-state").addEventListener("change", function (ev) {
+      const country = document.getElementById("wiz-country").value;
+      loadCounties(country, ev.target.value).then(loadSystems);
+    });
+    document.getElementById("wiz-county").addEventListener("change", loadSystems);
+    document.getElementById("wiz-system-type").addEventListener("change", loadSystems);
+    document.getElementById("wiz-name").addEventListener("input", function (ev) {
+      WIZ.name = ev.target.value;
+    });
+    document.getElementById("wiz-close").addEventListener("click", closeWizard);
+    document.getElementById("wiz-cancel").addEventListener("click", closeWizard);
+    document.getElementById("wiz-save").addEventListener("click", saveNewFavorite);
+  }
+
+  function closeWizard() {
+    const wrap = document.getElementById("fp-wizard");
+    if (wrap) { wrap.hidden = true; wrap.innerHTML = ""; }
+    WIZ.selectedChannels.clear();
+    WIZ.name = "";
+  }
+
+  function saveNewFavorite() {
+    const name = (WIZ.name || "").trim();
+    if (!name) { toast("Give the favorite a name", "err"); return; }
+    if (WIZ.selectedChannels.size === 0) { toast("Pick at least one channel", "err"); return; }
+    const safeId = "fav-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+    const channels = Array.from(WIZ.selectedChannels.values()).map(function (ch) {
+      return {
+        id: String(ch.id),
+        alpha_tag: ch.alpha_tag || ch.tag || name,
+        department_name: ch.department_name || ch.system_name || "",
+        frequency: ch.frequency != null ? Number(ch.frequency) : null,
+        kind: ch.kind || (WIZ.selectedSystemType === "digital" ? "trunked" : "conventional"),
+        service_tag: ch.service_tag || 0,
+        system_id: ch.system_id || 0,
+        system_key: ch.system_key || "",
+        system_name: ch.system_name || "",
+        talkgroup: ch.talkgroup || ch.tgid || "",
+        control_channels: ch.control_channels || [],
+      };
+    });
+    const hasAir = channels.some(function (c) { return c.frequency != null && c.frequency < 137; });
+    const hasGround = channels.some(function (c) { return c.frequency != null && c.frequency >= 137 && c.kind === "conventional"; });
+    const hasDigital = channels.some(function (c) { return c.kind === "trunked"; });
+    const newFav = {
+      id: safeId,
+      label: name,
+      type: "custom",
+      target: "all",
+      profile_id: "",
+      enabled: false,
+      enabled_air: hasAir,
+      enabled_ground: hasGround,
+      enabled_digital: hasDigital,
+      custom_favorites: channels,
+    };
+    const hp = (window.STATE && STATE.hpState) || {};
+    const all = (hp.state && hp.state.favorites) || [];
+    const newFavs = all.concat([newFav]);
+    postJSON("/api/hp/state", { favorites: newFavs })
+      .then(function (a) {
+        const status = a[0], res = a[1];
+        if (status === 200 && res && (res.ok || res.state)) {
+          toast("Saved favorite " + name + " (" + channels.length + " channels)", "ok");
+          if (res.state && window.STATE) STATE.hpState = { state: res.state };
+          closeWizard();
+          try {
+            const pane = (document.getElementById("pb-modal").getAttribute("data-pane") || "air");
+            _favPickerRenderRows(pane);
+          } catch (e) {}
+        } else {
+          toast("Save failed: " + (res && res.error ? res.error : "status " + status), "err");
+        }
+      });
+  }
+
+  // Wire the "+ New favorite" button
+  function bindNewFavButton() {
+    const btn = document.getElementById("fp-new-fav");
+    if (!btn || btn.__bound) return;
+    btn.__bound = true;
+    btn.addEventListener("click", function () {
+      const wrap = document.getElementById("fp-wizard");
+      if (wrap && !wrap.hidden) { closeWizard(); return; }
+      renderWizard();
+    });
+  }
 
   // Lazy init: when the pb-modal opens, do init. Hook by observing class on
   // the overlay; if not feasible, also init on first details open.
