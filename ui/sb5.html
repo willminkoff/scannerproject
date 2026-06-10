@@ -9845,22 +9845,28 @@ if (document.readyState === "loading") {
     if (WIZ.selectedChannels.size === 0) { toast("Pick at least one channel", "err"); return; }
     const safeId = "fav-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
     const channels = Array.from(WIZ.selectedChannels.values()).map(function (ch) {
+      const kind = ch.kind || (WIZ.selectedSystemType === "digital" ? "trunked" : "conventional");
+      // Match the on-disk shape for trunked custom favorites: frequency 0.0
+      // (not null) and talkgroup stringified.  Conventional entries keep
+      // their MHz frequency as a Number.
+      const rawTg = (ch.talkgroup != null && ch.talkgroup !== "") ? ch.talkgroup : ch.tgid;
+      const freqNum = ch.frequency != null ? Number(ch.frequency) : (kind === "trunked" ? 0.0 : null);
       return {
         id: String(ch.id),
         alpha_tag: ch.alpha_tag || ch.tag || name,
         department_name: ch.department_name || ch.system_name || "",
-        frequency: ch.frequency != null ? Number(ch.frequency) : null,
-        kind: ch.kind || (WIZ.selectedSystemType === "digital" ? "trunked" : "conventional"),
+        frequency: freqNum,
+        kind: kind,
         service_tag: ch.service_tag || 0,
         system_id: ch.system_id || 0,
         system_key: ch.system_key || "",
         system_name: ch.system_name || "",
-        talkgroup: ch.talkgroup || ch.tgid || "",
-        control_channels: ch.control_channels || [],
+        talkgroup: rawTg != null ? String(rawTg) : "",
+        control_channels: Array.isArray(ch.control_channels) ? ch.control_channels : [],
       };
     });
-    const hasAir = channels.some(function (c) { return c.frequency != null && c.frequency < 137; });
-    const hasGround = channels.some(function (c) { return c.frequency != null && c.frequency >= 137 && c.kind === "conventional"; });
+    const hasAir = channels.some(function (c) { return c.kind === "conventional" && c.frequency != null && c.frequency > 0 && c.frequency < 137; });
+    const hasGround = channels.some(function (c) { return c.kind === "conventional" && c.frequency != null && c.frequency >= 137; });
     const hasDigital = channels.some(function (c) { return c.kind === "trunked"; });
     const newFav = {
       id: safeId,
