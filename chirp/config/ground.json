@@ -7,7 +7,7 @@
   "cmd_port": 7401,
   "source_samp_rate": 2000000.0,
   "audio_rate": 16000.0,
-  "max_channels": 32,
+  "max_channels": 64,
   "icecast_bitrate_kbps": 32,
   "icecast_fallback_file": "/tmp/chirp_ground_fallback.f32",
   "log_level": "INFO",
