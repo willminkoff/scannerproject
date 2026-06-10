@@ -3003,7 +3003,7 @@
               <span class="ctl-sens-lbl">Sensitivity</span>
               <input type="range" min="0" max="10" step="1" value="5"
                      class="ctl-sens-slider" data-band="air"
-                     aria-label="AIR squelch sensitivity (0 strict / 10 wide)">
+                     aria-label="AIR voice-detection sensitivity (0 strict / 10 wide)" title="Voice Activity Detection threshold. Higher = more permissive (lets in more audio, including possible noise). Lower = stricter (only obvious voice passes). 5 = default.">
               <span class="ctl-sens-readout" data-role="sens-readout" data-band="air">5</span>
             </div>
             <button type="button" class="band-ctl-btn ctl-wide-open" data-band="air"
@@ -3113,7 +3113,7 @@
               <span class="ctl-sens-lbl">Sensitivity</span>
               <input type="range" min="0" max="10" step="1" value="5"
                      class="ctl-sens-slider" data-band="ground"
-                     aria-label="GROUND squelch sensitivity (0 strict / 10 wide)">
+                     aria-label="GROUND voice-detection sensitivity (0 strict / 10 wide)" title="Voice Activity Detection threshold. Higher = more permissive (lets in more audio, including possible noise). Lower = stricter (only obvious voice passes). 5 = default.">
               <span class="ctl-sens-readout" data-role="sens-readout" data-band="ground">5</span>
             </div>
             <button type="button" class="band-ctl-btn ctl-wide-open" data-band="ground"
@@ -9156,13 +9156,47 @@ if (document.readyState === "loading") {
         }
       });
   }, 200);
+
+  // SB5 2026-06-11 — Load current VAD threshold from chirp on init so the
+  // slider reflects reality across page reloads.  Median of all channel
+  // vad_threshold values is the band-level setting (per chirp_adapter:
+  // set_audio_vad_sensitivity_via_chirp pushes the SAME threshold to every
+  // channel, so any channel's value is canonical, but median is robust to
+  // a stale channel mid-add).
+  function loadVadSensitivity(band) {
+    var endpoint = band === "ground" ? "/api/chirp/ground/status" : "/api/chirp/airband/status";
+    fetch(endpoint, { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.channels || !j.channels.length) return;
+        var thresholds = j.channels.map(function (c) {
+          return Number(c.vad_threshold || 50);
+        }).sort(function (a, b) { return a - b; });
+        var median = thresholds[Math.floor(thresholds.length / 2)];
+        // threshold = 100 - sensitivity * 10  =>  sensitivity = (100 - threshold) / 10
+        var sensitivity = Math.round((100 - median) / 10);
+        sensitivity = Math.max(0, Math.min(10, sensitivity));
+        var slider = document.querySelector('.ctl-sens-slider[data-band="' + band + '"]');
+        var ro = document.querySelector('[data-role="sens-readout"][data-band="' + band + '"]');
+        if (slider) slider.value = String(sensitivity);
+        if (ro) ro.textContent = String(sensitivity) + " (th " + Math.round(median) + ")";
+      })
+      .catch(function (e) { /* silent — chirp may be down, slider keeps default 5 */ });
+  }
+  // Run once when the script loads.
+  document.addEventListener("DOMContentLoaded", function () {
+    loadVadSensitivity("air");
+    loadVadSensitivity("ground");
+  });
+
   document.addEventListener("input", function (ev) {
     var t = ev.target;
     if (!t || !t.classList || !t.classList.contains("ctl-sens-slider")) return;
     var band = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
     var val = parseInt(t.value || "5", 10);
     var ro = document.querySelector('[data-role="sens-readout"][data-band="' + band + '"]');
-    if (ro) ro.textContent = String(val);
+    var threshold = 100 - val * 10;
+    if (ro) ro.textContent = String(val) + " (th " + threshold + ")";
     sendSensitivity(band, val);
   }, true);
 
