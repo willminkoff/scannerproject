@@ -393,8 +393,11 @@ class FMDemod:
         self._last_sample = iq48[-1]
 
         # Gain: at 48 kHz output, ±5 kHz NFM deviation gives ±0.654 rad
-        # of phase change per sample.  Scale to ~unity peak for typical traffic.
-        audio *= 1.5
+        # of phase change per sample.  Scale to ~-10 dB peak for typical
+        # traffic so the mp3 encoder has 10 dB of headroom (2026-06-10:
+        # was 1.5 -> NOAA WX and other strong signals clipped at 0 dB,
+        # producing layer3 decode errors in VLC).
+        audio *= 0.5
 
         if self._deemph_b is not None:
             audio, self._deemph_zi = _sig.lfilter(
