@@ -1005,10 +1005,109 @@ def wide_open_squelch_via_chirp(band: str, dbfs: float = -120.0) -> dict:
     }
 
 
+
+
+def set_audio_vad_sensitivity_via_chirp(band: str, sensitivity: float) -> dict:
+    """Push the VAD threshold to every channel in the band.
+
+    The UI exposes a 0-10 Sensitivity slider; we map that linearly to a
+    0-100 VAD score threshold (10 = 0 threshold = let everything pass,
+    0 = 100 threshold = strict voice only).  Default operator position 5
+    maps to threshold 50.
+
+    Returns a per-channel report dict similar to other chirp_adapter
+    helpers so handlers.py can surface counts/errors uniformly.
+    """
+    target = _normalize_band(band)
+    sensitivity = float(max(0.0, min(10.0, sensitivity)))
+    # 10 = threshold 0 (very permissive), 0 = threshold 100 (very strict).
+    threshold = float(round(100.0 - sensitivity * 10.0))
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target, "sensitivity": sensitivity, "threshold": threshold,
+            "changed": False, "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_vad_sensitivity",
+        }
+    try:
+        status = client.get_status()
+    except Exception as exc:
+        return {
+            "target": target, "sensitivity": sensitivity, "threshold": threshold,
+            "changed": False, "error": f"chirp_daemon_unreachable: {exc}",
+            "via": "chirp_vad_sensitivity",
+        }
+    applied = 0
+    failed: list[str] = []
+    for ch in status.get("channels", []) or []:
+        cid = ch.get("id")
+        if not cid:
+            continue
+        try:
+            client.set_vad_threshold(id=cid, threshold=threshold)
+            applied += 1
+        except Exception as exc:
+            failed.append(f"{cid}: {exc}")
+    return {
+        "target": target, "sensitivity": sensitivity, "threshold": threshold,
+        "channels_total": len(status.get("channels", []) or []),
+        "channels_applied": applied,
+        "changed": applied > 0,
+        "errors": failed,
+        "via": "chirp_vad_sensitivity",
+    }
+
+
+def set_audio_vad_bypass_via_chirp(band: str, bypass: bool) -> dict:
+    """Set every channel's VAD gate to bypass=True (passthrough) or False.
+
+    Used by the Test/wide-open UI to verify the audio path.
+    """
+    target = _normalize_band(band)
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target, "bypass": bool(bypass), "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_vad_bypass",
+        }
+    try:
+        status = client.get_status()
+    except Exception as exc:
+        return {
+            "target": target, "bypass": bool(bypass), "changed": False,
+            "error": f"chirp_daemon_unreachable: {exc}",
+            "via": "chirp_vad_bypass",
+        }
+    applied = 0
+    failed: list[str] = []
+    for ch in status.get("channels", []) or []:
+        cid = ch.get("id")
+        if not cid:
+            continue
+        try:
+            client.set_vad_bypass(id=cid, bypass=bool(bypass))
+            applied += 1
+        except Exception as exc:
+            failed.append(f"{cid}: {exc}")
+    return {
+        "target": target, "bypass": bool(bypass),
+        "channels_total": len(status.get("channels", []) or []),
+        "channels_applied": applied,
+        "changed": applied > 0,
+        "errors": failed,
+        "via": "chirp_vad_bypass",
+    }
+
+
 __all__ = [
     "apply_squelch_preset_via_chirp",
     "calibrate_squelch_via_chirp",
     "wide_open_squelch_via_chirp",
+    "set_audio_vad_sensitivity_via_chirp",
+    "set_audio_vad_bypass_via_chirp",
     "set_squelch_auto_via_chirp",
     "activate_favorite_via_chirp",
     "reset_radios_via_chirp",

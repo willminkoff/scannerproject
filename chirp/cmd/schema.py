@@ -265,6 +265,40 @@ class SetMasterGainArgs(_ArgsBase):
         return _check_gain(v)
 
 
+class SetVadThresholdArgs(_ArgsBase):
+    """SB5 2026-06-09 squelch redesign. Per-channel VAD score threshold.
+
+    threshold range 0..100.  Higher = stricter (only strong voice).
+    Lower = more permissive (hiss may bleed through).  Default 50.
+    """
+    id: str
+    threshold: float
+
+    @field_validator("id")
+    @classmethod
+    def _v_id(cls, v: str) -> str:
+        return _check_id(v)
+
+    @field_validator("threshold")
+    @classmethod
+    def _v_th(cls, v: float) -> float:
+        v = float(v)
+        if not (0.0 <= v <= 100.0):
+            raise ValueError(f"threshold out of range: {v} (want 0-100)")
+        return v
+
+
+class SetVadBypassArgs(_ArgsBase):
+    """SB5 2026-06-09 squelch redesign. Per-channel VAD gate bypass.
+
+    bypass=True: VAD scoring is skipped and audio passes through (used by
+    the Test/wide-open UI to verify the audio path).  bypass=False:
+    normal VAD-gated audio.
+    """
+    id: str
+    bypass: bool
+
+
 class ResetArgs(_ArgsBase):
     """Phase 2. Clears all channels + zeros master_gain + resets state file."""
     pass
@@ -297,6 +331,8 @@ COMMAND_ARGS: dict[str, type[_ArgsBase]] = {
     "add_channel": AddChannelArgs,
     "remove_channel": RemoveChannelArgs,
     "set_squelch": SetSquelchArgs,
+    "set_vad_threshold": SetVadThresholdArgs,
+    "set_vad_bypass": SetVadBypassArgs,
     "set_freq": SetFreqArgs,
     "set_gain": SetGainArgs,
     "set_master_gain": SetMasterGainArgs,
@@ -356,6 +392,8 @@ __all__ = [
     "SetFreqArgs",
     "SetGainArgs",
     "SetMasterGainArgs",
+    "SetVadThresholdArgs",
+    "SetVadBypassArgs",
     "ResetArgs",
     "GetStatusArgs",
     "SubscribeArgs",

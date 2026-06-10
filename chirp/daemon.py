@@ -61,6 +61,8 @@ from chirp.cmd.schema import (
     SetGainArgs,
     SetMasterGainArgs,
     SetSquelchArgs,
+    SetVadThresholdArgs,
+    SetVadBypassArgs,
 )
 from chirp.cmd.server import CommandServer, ServerConfig
 from chirp.dsp.channel import Channel
@@ -481,6 +483,9 @@ class _Slot:
     last_freq_mhz: Optional[float] = None
     # Set when channel was claimed; HitDetector uses this for warmup gating.
     claimed_at: Optional[float] = None
+    # SB5 2026-06-09 squelch redesign: per-channel VAD gate state.
+    last_vad_threshold: float = 50.0
+    last_vad_bypass: bool = False
 
 
 class ChirpFlowgraph(gr.top_block):
@@ -725,6 +730,10 @@ class ChirpFlowgraph(gr.top_block):
                 return self._cmd_remove_channel(env, args)
             if cmd == "set_squelch":
                 return self._cmd_set_squelch(env, args)
+            if cmd == "set_vad_threshold":
+                return self._cmd_set_vad_threshold(env, args)
+            if cmd == "set_vad_bypass":
+                return self._cmd_set_vad_bypass(env, args)
             if cmd == "set_freq":
                 return self._cmd_set_freq(env, args)
             if cmd == "set_gain":
@@ -959,6 +968,28 @@ class ChirpFlowgraph(gr.top_block):
             self._persist_state()
             return Response.make_ok(env.id, {"dbfs": args.dbfs})
 
+    def _cmd_set_vad_threshold(self, env: Envelope, args: SetVadThresholdArgs) -> Response:
+        """SB5 squelch redesign: set per-channel VAD score threshold."""
+        with self._lock:
+            slot = self._slot_for(args.id)
+            if slot is None:
+                return Response.make_rejected(env.id, f"unknown channel: {args.id}")
+            slot.channel.set_vad_threshold(args.threshold)
+            slot.last_vad_threshold = float(args.threshold)
+            self._persist_state()
+            return Response.make_ok(env.id, {"threshold": float(args.threshold)})
+
+    def _cmd_set_vad_bypass(self, env: Envelope, args: SetVadBypassArgs) -> Response:
+        """SB5 squelch redesign: bypass the VAD gate (passthrough)."""
+        with self._lock:
+            slot = self._slot_for(args.id)
+            if slot is None:
+                return Response.make_rejected(env.id, f"unknown channel: {args.id}")
+            slot.channel.set_vad_bypass(bool(args.bypass))
+            slot.last_vad_bypass = bool(args.bypass)
+            self._persist_state()
+            return Response.make_ok(env.id, {"bypass": bool(args.bypass)})
+
     def _cmd_set_freq(self, env: Envelope, args: SetFreqArgs) -> Response:
         with self._lock:
             slot = self._slot_for(args.id)
@@ -1025,6 +1056,11 @@ class ChirpFlowgraph(gr.top_block):
                 if s.user_id is None:
                     continue
                 snap = s.channel.snapshot()
+                vad_snap = {}
+                try:
+                    vad_snap = s.channel.vad_snapshot()
+                except Exception:
+                    pass
                 channels.append({
                     "id": s.user_id,
                     "label": s.label,
@@ -1038,6 +1074,11 @@ class ChirpFlowgraph(gr.top_block):
                     # Phase 4-pre: parked channels are dormant on the
                     # LO scheduler's other clusters.
                     "is_parked": snap.get("is_parked", False),
+                    # SB5 2026-06-09 squelch redesign — per-channel VAD gate.
+                    "vad_threshold": float(vad_snap.get("threshold", s.last_vad_threshold)),
+                    "vad_bypass": bool(vad_snap.get("bypass", s.last_vad_bypass)),
+                    "vad_last_score": float(vad_snap.get("last_score", 0.0)),
+                    "vad_last_open": bool(vad_snap.get("last_open", False)),
                 })
             data = {
                 "version": PROTOCOL_VERSION,

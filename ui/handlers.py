@@ -8744,6 +8744,39 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
 
+        # ============ /api/squelch/sensitivity — SB5 2026-06-09 ============
+        # Single "Sensitivity" knob (0-10) replaces the legacy preset chips
+        # + Auto-tune in the new VAD-gated audio architecture.  Pushes a
+        # VAD score threshold to every channel in the band (threshold =
+        # 100 - sensitivity * 10).  Higher slider = more permissive (lets
+        # quieter / fainter audio pass); lower slider = stricter (only
+        # strong voice).  Default UI position 5 → threshold 50.
+        if p == "/api/squelch/sensitivity":
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown band"}), "application/json; charset=utf-8")
+            try:
+                sensitivity = float(form.get("sensitivity", 5.0))
+            except (TypeError, ValueError):
+                return self._send(400, json.dumps({"ok": False, "error": "sensitivity must be numeric"}), "application/json; charset=utf-8")
+            use_chirp = False
+            try:
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("squelch_sensitivity: use_gr_demod probe failed", exc_info=True)
+            if not use_chirp:
+                return self._send(503, json.dumps({"ok": False, "error": "sensitivity requires SB5_USE_GR_DEMOD=true"}), "application/json; charset=utf-8")
+            try:
+                result = _chirp_adapter.set_audio_vad_sensitivity_via_chirp(band=target, sensitivity=sensitivity)
+            except Exception as e:
+                logger.exception("squelch_sensitivity failed")
+                return self._send(500, json.dumps({"ok": False, "error": f"failed: {e}"}), "application/json; charset=utf-8")
+            if result.get("error"):
+                return self._send(500, json.dumps({"ok": False, **result}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps({"ok": True, **result}), "application/json; charset=utf-8")
+
         # ============ /api/squelch/calibrate — SB5 2026-06-09 ============
         # Better-than-SB3 per-channel noise-floor calibration.  Where the
         # legacy auto_squelch + chirp preset apply read signal_level_dbfs
@@ -8841,7 +8874,14 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
             try:
-                result = _chirp_adapter.wide_open_squelch_via_chirp(band=target, dbfs=dbfs)
+                # In the VAD-gated model, "wide open" means bypassing the
+                # gate entirely (passthrough).  The legacy dbfs path still
+                # works underneath for power-only-squelch fallback callers,
+                # but the operator-facing button hits the bypass path.
+                if str(form.get("mode", "vad")).lower() == "dbfs":
+                    result = _chirp_adapter.wide_open_squelch_via_chirp(band=target, dbfs=dbfs)
+                else:
+                    result = _chirp_adapter.set_audio_vad_bypass_via_chirp(band=target, bypass=True)
             except Exception as e:
                 logger.exception("squelch_wide_open failed")
                 return self._send(
