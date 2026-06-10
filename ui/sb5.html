@@ -9145,13 +9145,23 @@ if (document.readyState === "loading") {
     };
   }
   var sendSensitivity = debounce(function (band, value) {
-    postJSON("/api/squelch/sensitivity", { band: band, sensitivity: value })
+    // Slider movement always clears VAD bypass — if Test mode was left
+    // sticky, the slider would have no audible effect (gate disabled
+    // regardless of threshold).  Clear bypass first, then push the new
+    // threshold; keep it atomic so the UI status reflects reality.
+    var apiBand = band === "air" ? "air" : (band === "ground" ? "ground" : band);
+    postJSON("/api/squelch/wide_open", { band: apiBand, bypass: false })
+      .catch(function () { /* tolerant — endpoint may be in transition */ })
+      .then(function () {
+        return postJSON("/api/squelch/sensitivity", { band: apiBand, sensitivity: value });
+      })
       .then(function (a) {
+        if (!a) return;
         var status = a[0], res = a[1];
         var statusEl = document.querySelector("[data-role=\"tune-status\"][data-band=\"" + band + "\"]");
         if (status === 200 && res.ok) {
           if (statusEl) statusEl.textContent = "Sensitivity " + value + " · " + (res.channels_applied | 0) + " ch updated";
-        } else {
+        } else if (res) {
           if (statusEl) statusEl.textContent = "Sensitivity failed: " + (res.error || "status " + status);
         }
       });
