@@ -39,6 +39,11 @@ stopping op25) so the open succeeds.
 
 from __future__ import annotations
 
+import logging
+import os
+import re
+import sys
+import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -48,6 +53,72 @@ try:  # pragma: no cover — osmocom is system-installed on Micro
     import osmosdr
 except ImportError:  # pragma: no cover
     osmosdr = None  # type: ignore[assignment]
+
+
+log = logging.getLogger("chirp.source_sdr")
+
+
+_SERIAL_RE = re.compile(r"serial=([A-Za-z0-9_-]+)")
+
+
+def _preflight_check_sdr_serial(device_args: str) -> None:
+    """Verify the SDR serial in device_args is enumerated by the kernel.
+
+    Returns silently if the serial is found (or device_args has no serial —
+    e.g. file source).  Raises SystemExit(100) if the serial is declared but
+    not present, so systemd's restart-on-failure cycles in seconds instead
+    of waiting for the 60 s SoapySDR open timeout.
+    """
+    m = _SERIAL_RE.search(device_args or "")
+    if not m:
+        return
+    serial = m.group(1)
+    base = "/sys/bus/usb/devices"
+    if not os.path.isdir(base):
+        return
+    for entry in os.listdir(base):
+        try:
+            with open(os.path.join(base, entry, "serial")) as f:
+                if f.read().strip() == serial:
+                    return
+        except OSError:
+            continue
+    log.error(
+        "SDR serial %s NOT enumerated in /sys/bus/usb/devices — exiting fast. "
+        "Likely needs physical reconnect of the dongle.",
+        serial,
+    )
+    sys.exit(100)
+
+
+def _open_osmosdr_with_timeout(device_args: str, timeout_sec: float):
+    """Call osmosdr.source(args=...) under a watchdog timer.
+
+    Runs the open in a thread; the main thread waits up to ``timeout_sec``
+    for completion.  If it doesn't return, log and SystemExit(100) so the
+    restart cycles fast instead of dragging in the SoapySDR open hang.
+    """
+    box: dict = {}
+
+    def _runner():
+        try:
+            box["src"] = osmosdr.source(args=device_args)
+        except Exception as exc:  # noqa: BLE001
+            box["err"] = exc
+
+    t = threading.Thread(target=_runner, name="sdr-open", daemon=True)
+    t.start()
+    t.join(timeout=timeout_sec)
+    if t.is_alive():
+        log.error(
+            "osmosdr.source open did not return within %.1f s for args=%r — "
+            "exiting fast (likely sdrplay_api wedged; needs daemon bounce).",
+            timeout_sec, device_args,
+        )
+        sys.exit(100)
+    if "err" in box:
+        raise box["err"]
+    return box["src"]
 
 
 @dataclass
@@ -117,7 +188,16 @@ class SdrIQSource(gr.hier_block2):
             )
 
         self._cfg = cfg
-        self._src = osmosdr.source(args=cfg.device_args)
+        # Phase C reliability — pre-flight + timeout-protected open.
+        # See _preflight_check_sdr_serial and _open_osmosdr_with_timeout above.
+        # The bare osmosdr.source() call below would block ~60 s on the
+        # sdrplay_api wedge before systemd killed gr-demod; now we exit code 100
+        # in <10 s so the watchdog/operator can act on a meaningful failure.
+        _preflight_check_sdr_serial(cfg.device_args)
+        self._src = _open_osmosdr_with_timeout(
+            cfg.device_args,
+            timeout_sec=float(os.environ.get("SDR_OPEN_TIMEOUT_SEC", "10.0")),
+        )
 
         # Order matters: rate first, then bandwidth, then freq + gain.
         self._src.set_sample_rate(float(cfg.sample_rate))
