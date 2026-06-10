@@ -9888,16 +9888,21 @@ if (document.readyState === "loading") {
   }
 
   function saveFavorite(id, channels) {
-    const hp = (window.STATE && STATE.hpState) || {};
-    const all = (hp.state && hp.state.favorites) || [];
-    const idx = all.findIndex(function (f) { return String(f.id) === String(id); });
-    if (idx < 0) { toast("Favorite not found in state", "err"); return; }
-    // Build the updated favorite (immutable copy) and push.
-    const updated = Object.assign({}, all[idx], { custom_favorites: channels.slice() });
-    const newFavs = all.slice();
-    newFavs[idx] = updated;
-    postJSON("/api/hp/state", { favorites: newFavs })
+    // 2026-06-10 — same fresh-GET pattern as saveNewFavorite to avoid
+    // racing a stale STATE.hpState against the on-disk favorites array.
+    fetch("/api/hp/state", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (cur) {
+        const all = (cur && cur.state && Array.isArray(cur.state.favorites)) ? cur.state.favorites : [];
+        const idx = all.findIndex(function (f) { return String(f.id) === String(id); });
+        if (idx < 0) { toast("Favorite not found in state", "err"); return null; }
+        const updated = Object.assign({}, all[idx], { custom_favorites: channels.slice() });
+        const newFavs = all.slice();
+        newFavs[idx] = updated;
+        return postJSON("/api/hp/state", { favorites: newFavs, intent: "replace_all" });
+      })
       .then(function (a) {
+        if (!a) return;
         const status = a[0], res = a[1];
         if (status === 200 && res && (res.ok || res.state)) {
           if (res.state) {
@@ -10275,10 +10280,26 @@ if (document.readyState === "loading") {
       enabled_digital: hasDigital,
       custom_favorites: channels,
     };
-    const hp = (window.STATE && STATE.hpState) || {};
-    const all = (hp.state && hp.state.favorites) || [];
-    const newFavs = all.concat([newFav]);
-    postJSON("/api/hp/state", { favorites: newFavs })
+    // 2026-06-10 — fetch fresh hp/state right before save so we never
+    // POST a stale (or empty) favorites array.  The previous code read
+    // STATE.hpState which can be a few seconds behind disk (or empty on
+    // first paint), and the new shrink guard correctly 409s a save that
+    // would silently drop favorites.  This GET makes the save atomic
+    // from the operator's perspective: existing favorites are guaranteed
+    // current at write time, and intent=replace_all marks our submission
+    // as a known full-list replace.
+    fetch("/api/hp/state", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (cur) {
+        const all = (cur && cur.state && Array.isArray(cur.state.favorites)) ? cur.state.favorites : [];
+        // If a favorite with the same id somehow already exists, replace
+        // it instead of appending a duplicate.
+        const idx = all.findIndex(function (f) { return String(f.id) === String(newFav.id); });
+        const newFavs = idx >= 0
+          ? all.slice(0, idx).concat([newFav], all.slice(idx + 1))
+          : all.concat([newFav]);
+        return postJSON("/api/hp/state", { favorites: newFavs, intent: "replace_all" });
+      })
       .then(function (a) {
         const status = a[0], res = a[1];
         if (status === 200 && res && (res.ok || res.state)) {
