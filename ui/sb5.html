@@ -9149,12 +9149,12 @@ if (document.readyState === "loading") {
         renderChips();
         return;
       }
-      const types = (res && res.types) || [];
+      const types = (res && (res.service_types || res.types)) || [];
       PB.serviceTypes = types.map(function (t) {
         return {
-          id: t.id != null ? t.id : (t.code != null ? t.code : t.label),
-          label: t.label || t.name || String(t.id),
-          default: !!t.default,
+          id: t.service_tag != null ? t.service_tag : (t.id != null ? t.id : t.code),
+          label: t.name || t.label || String(t.service_tag || t.id),
+          default: !!(t.enabled_by_default || t.default),
         };
       });
       PB.defaultTypes = new Set(PB.serviceTypes.filter(function (t) { return t.default; }).map(function (t) { return t.id; }));
