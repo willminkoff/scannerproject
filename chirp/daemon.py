@@ -782,6 +782,8 @@ class ChirpFlowgraph(gr.top_block):
                     squelch_dbfs=s.last_squelch_dbfs,
                     gain_db=s.last_gain_db,
                     label=s.label,
+                    vad_threshold=float(getattr(s, "last_vad_threshold", 50.0)),
+                    vad_bypass=bool(getattr(s, "last_vad_bypass", False)),
                 ))
             st = ChirpState(
                 band=self._cfg.band,
@@ -848,6 +850,14 @@ class ChirpFlowgraph(gr.top_block):
         slot.mode = ch.mode
         slot.last_squelch_dbfs = ch.squelch_dbfs
         slot.last_gain_db = ch.gain_db
+        # SB5 2026-06-11 — restore VAD per-channel state from persistence.
+        slot.last_vad_threshold = float(getattr(ch, "vad_threshold", 50.0))
+        slot.last_vad_bypass = bool(getattr(ch, "vad_bypass", False))
+        try:
+            slot.channel.set_vad_threshold(slot.last_vad_threshold)
+            slot.channel.set_vad_bypass(slot.last_vad_bypass)
+        except Exception:
+            log.exception("VAD restore failed for slot %s", slot.user_id)
         slot.last_freq_mhz = ch.freq_mhz
         slot.claimed_at = time.time()
         self._by_id[ch.id] = slot.index
