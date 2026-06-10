@@ -9585,8 +9585,17 @@ if (document.readyState === "loading") {
         const status = a[0], res = a[1];
         if (status === 200 && res && (res.ok || res.state)) {
           if (res.state) {
-            // sync STATE.hpState if present
-            if (window.STATE) STATE.hpState = { state: res.state };
+            // Merge into existing hpState so top-level fields (mode,
+            // travel_mode_last_push, favorites_runtime_sync) are preserved
+            // for downstream readers that key off them.
+            if (window.STATE) {
+              const prev = STATE.hpState || {};
+              STATE.hpState = Object.assign({}, prev, {
+                mode: res.state.mode != null ? res.state.mode : prev.mode,
+                state: res.state,
+                favorites_runtime_sync: res.favorites_runtime_sync != null ? res.favorites_runtime_sync : prev.favorites_runtime_sync,
+              });
+            }
           } else {
             // Just patch our local copy
             all[idx] = updated;
@@ -9873,7 +9882,14 @@ if (document.readyState === "loading") {
         const status = a[0], res = a[1];
         if (status === 200 && res && (res.ok || res.state)) {
           toast("Saved favorite " + name + " (" + channels.length + " channels)", "ok");
-          if (res.state && window.STATE) STATE.hpState = { state: res.state };
+          if (res.state && window.STATE) {
+            const prev = STATE.hpState || {};
+            STATE.hpState = Object.assign({}, prev, {
+              mode: res.state.mode != null ? res.state.mode : prev.mode,
+              state: res.state,
+              favorites_runtime_sync: res.favorites_runtime_sync != null ? res.favorites_runtime_sync : prev.favorites_runtime_sync,
+            });
+          }
           closeWizard();
           try {
             const pane = (document.getElementById("pb-modal").getAttribute("data-pane") || "air");
