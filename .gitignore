@@ -67,3 +67,5 @@ disco/configs/sweep.yaml
 
 # Local Claude Code state (settings, worktrees) — never commit
 .claude/
+# hp_state.json pre-save snapshots (runtime, never committed)
+data/hp_state.json.history/

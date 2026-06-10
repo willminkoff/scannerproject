@@ -794,6 +794,13 @@ def parse_service_tags(raw_value) -> list[int]:
     return out
 
 
+class FavoritesShrinkBlocked(ValueError):
+    """Raised when an incoming hp/state POST would drop favorites without an
+    explicit intent override.  Maps to a 409 in the request handler so the
+    frontend can distinguish "would erase data" from a generic 400 validation
+    error.  Phase 4 guard from the 2026-06-10 data-loss incident."""
+
+
 def _apply_hp_state_form(
     state: "HPState",
     form: dict[str, Any],
@@ -858,6 +865,24 @@ def _apply_hp_state_form(
 
     if "favorites" in form:
         incoming_favorites = _parse_json_like_list(form.get("favorites"))
+        # 2026-06-10 data-loss guard: an incoming list shorter than the
+        # existing list silently drops favorites because
+        # merge_favorites_preserving_custom only iterates incoming.  Today
+        # we collapsed 12 favorites to 1 through this path.  Require an
+        # explicit `intent` whitelist before letting a write shrink the
+        # favorites array.  Same-size or larger lists pass through (an
+        # additive save concatenates existing+new, so it never shrinks).
+        existing_len = len(state.favorites) if isinstance(state.favorites, list) else 0
+        incoming_len = len(incoming_favorites) if isinstance(incoming_favorites, list) else 0
+        if incoming_len < existing_len:
+            intent_raw = form.get("intent")
+            intent = str(intent_raw or "").strip().lower()
+            if intent not in {"replace_all", "delete_favorites"}:
+                raise FavoritesShrinkBlocked(
+                    f"refusing to drop {existing_len - incoming_len} favorite(s) "
+                    f"from {existing_len} -> {incoming_len}: set intent=replace_all "
+                    "or intent=delete_favorites to override"
+                )
         state.favorites = merge_favorites_preserving_custom(state.favorites, incoming_favorites)
 
     if "favorites_name" in form:
@@ -7719,6 +7744,21 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 _apply_hp_state_form(state, form)
+            except FavoritesShrinkBlocked as e:
+                # 2026-06-10 guard.  409 is the right code: the request was
+                # well-formed but conflicts with the current state (the
+                # operator would be deleting favorites).  Frontend can
+                # detect this status and either prompt the user or
+                # retry with intent=replace_all.
+                return self._send(
+                    409,
+                    json.dumps({
+                        "ok": False,
+                        "error": str(e),
+                        "code": "favorites_shrink_blocked",
+                    }),
+                    "application/json; charset=utf-8",
+                )
             except ValueError as e:
                 return self._send(
                     400,

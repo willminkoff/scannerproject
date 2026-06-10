@@ -6,6 +6,8 @@ import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
+from datetime import datetime
+import os
 
 from .config import HPDB_DB_PATH
 from .service_types import get_default_enabled_service_types
@@ -396,11 +398,118 @@ class HPState:
             "service_tag_schema_version": int(self.service_tag_schema_version or _SERVICE_TAG_SCHEMA_VERSION),
         }
 
+    # Number of pre-save snapshots to retain in <path>.history/.  Each save
+    # copies the previous on-disk file (if any) to a timestamped snapshot
+    # BEFORE writing the new state, then prunes oldest snapshots past this
+    # cap.  Tuned to keep ~1 week of typical edits without filling the disk.
+    SNAPSHOT_RETENTION = 20
+
     def save(self, path: str = str(_DEFAULT_STATE_PATH)) -> None:
+        """Atomically persist state with a pre-write snapshot.
+
+        Three properties this guarantees:
+          1) **Pre-write snapshot** — if a state file already exists at
+             ``path``, copy it to ``<path>.history/<UTC-ISO>.json`` BEFORE
+             touching the live file.  If anything goes wrong (bad incoming
+             data, mid-write crash), the previous good state is one ``mv``
+             away.  Rotates to keep ``SNAPSHOT_RETENTION`` newest snapshots.
+          2) **Atomic write** — write to ``<path>.tmp.<pid>``, ``fsync`` it,
+             then ``os.replace`` over the live path.  A crash mid-write
+             leaves either the old file intact or the new file complete,
+             never a partial JSON.
+          3) **fsync the dir** so the rename survives a power cut.
+
+        Phase 4 follow-up to the 2026-06-10 data-loss incident where 12
+        favorites collapsed to 1 with no recovery handle.
+        """
         out_path = Path(path).expanduser().resolve()
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        with out_path.open("w", encoding="utf-8") as handle:
-            json.dump(self.to_dict(), handle, indent=2, sort_keys=True)
+
+        # Step 1: snapshot the existing file (if present) BEFORE we overwrite it.
+        if out_path.is_file():
+            try:
+                self._snapshot_existing(out_path)
+            except Exception:
+                # Snapshot is defensive, not load-bearing.  Log and proceed —
+                # we'd rather lose the snapshot than block the save and lose
+                # the user's edit.
+                logger.warning(
+                    "hp_state: pre-save snapshot failed for %s",
+                    out_path,
+                    exc_info=True,
+                )
+
+        # Step 2: atomic write via tmp + os.replace.
+        tmp_path = out_path.with_suffix(out_path.suffix + f".tmp.{os.getpid()}")
+        payload = self.to_dict()
+        try:
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, sort_keys=True)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_path, out_path)
+            # Step 3: best-effort dir fsync so the rename is durable.
+            try:
+                dir_fd = os.open(str(out_path.parent), os.O_RDONLY)
+                try:
+                    os.fsync(dir_fd)
+                finally:
+                    os.close(dir_fd)
+            except OSError:
+                # fsync of a directory is not supported on every fs; the
+                # rename itself is still atomic on POSIX, just not crash-
+                # durable.  Live with it.
+                pass
+        except Exception:
+            # Clean up the tmp file if it lingers.
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
+
+    def _snapshot_existing(self, out_path: Path) -> None:
+        """Copy ``out_path`` to ``<out_path>.history/<ts>.json`` and rotate.
+
+        Snapshots use UTC ISO-8601 timestamps in the filename so they sort
+        chronologically and survive any locale change.  Suffix is ``.json``
+        so they round-trip through normal JSON tools.
+        """
+        history_dir = out_path.parent / (out_path.name + ".history")
+        history_dir.mkdir(exist_ok=True)
+        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        # Avoid collisions on same-second saves by appending a counter.
+        snap = history_dir / f"{ts}.json"
+        if snap.exists():
+            n = 1
+            while True:
+                snap = history_dir / f"{ts}-{n:02d}.json"
+                if not snap.exists():
+                    break
+                n += 1
+        try:
+            with out_path.open("rb") as src, snap.open("wb") as dst:
+                dst.write(src.read())
+        except Exception:
+            logger.warning(
+                "hp_state: snapshot copy failed: %s -> %s",
+                out_path, snap, exc_info=True,
+            )
+            return
+        # Rotate: drop oldest beyond SNAPSHOT_RETENTION.
+        try:
+            existing = sorted(history_dir.glob("*.json"))
+            excess = len(existing) - self.SNAPSHOT_RETENTION
+            for old in existing[: max(0, excess)]:
+                try:
+                    old.unlink()
+                except OSError:
+                    logger.debug(
+                        "hp_state: failed to prune snapshot %s",
+                        old, exc_info=True,
+                    )
+        except Exception:
+            logger.debug("hp_state: snapshot rotation failed", exc_info=True)
 
     @classmethod
     def load(
