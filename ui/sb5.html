@@ -5420,6 +5420,13 @@ function renderProfile(hpState, profiles) {
   // ground-routed channel count.
   paintBandProfile("dig", favList.filter(favIsDigital), zip, mode, {
     enabledFlag: "enabled_digital",
+    // 2026-06-10: count trunked talkgroups in the active digital favorite
+    // so the tile shows e.g. "7 talkgroups" instead of "3 favorites".
+    countFn: function (f) {
+      const cf = (f && Array.isArray(f.custom_favorites)) ? f.custom_favorites : [];
+      return cf.filter(c => String(c.kind || "").toLowerCase() === "trunked").length;
+    },
+    bandLabel: "talkgroup",
   });
   paintBandProfile("ana", favList.filter(favIsAir), zip, mode, {
     enabledFlag: "enabled_air",
@@ -8784,11 +8791,25 @@ function wireBandControls() {
 function renderPaneDisclosure() {
   const hp = STATE.hpState;
   const favList = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
-  const active = favList.find(f => f.enabled) || favList[0] || null;
-  const favLabel = active ? (active.label || active.id || "fav") : "—";
-  const customs = (active && Array.isArray(active.custom_favorites)) ? active.custom_favorites : [];
-  const conv = customs.filter(c => String(c.kind || "").toLowerCase() === "conventional");
-  const trunked = customs.filter(c => String(c.kind || "").toLowerCase() === "trunked");
+  // 2026-06-10: pick a different active favorite per disclosure because
+  // per-band enablement means analog (air+ground) and digital can be on
+  // different favorites.  Falling back to the legacy `enabled` flag, then
+  // to the first favorite, preserves behavior when nothing has migrated
+  // to per-band flags yet.
+  const activeAnalog = favList.find(f => f && (f.enabled_air || f.enabled_ground))
+                    || favList.find(f => f && f.enabled)
+                    || favList[0]
+                    || null;
+  const activeDigital = favList.find(f => f && f.enabled_digital)
+                    || favList.find(f => f && f.enabled)
+                    || favList[0]
+                    || null;
+  const aLabel = activeAnalog ? (activeAnalog.label || activeAnalog.id || "fav") : "—";
+  const dLabel = activeDigital ? (activeDigital.label || activeDigital.id || "fav") : "—";
+  const aCustoms = (activeAnalog && Array.isArray(activeAnalog.custom_favorites)) ? activeAnalog.custom_favorites : [];
+  const dCustoms = (activeDigital && Array.isArray(activeDigital.custom_favorites)) ? activeDigital.custom_favorites : [];
+  const conv = aCustoms.filter(c => String(c.kind || "").toLowerCase() === "conventional");
+  const trunked = dCustoms.filter(c => String(c.kind || "").toLowerCase() === "trunked");
   const air = conv.filter(c => {
     const f = Number(c.frequency || 0);
     return f >= 118 && f <= 137;
@@ -8805,7 +8826,7 @@ function renderPaneDisclosure() {
   const aFav = $("analog-disc-fav");
   const aDetail = $("analog-disc-detail");
   const aBody = $("analog-disc-body");
-  if (aFav) aFav.textContent = favLabel;
+  if (aFav) aFav.textContent = aLabel;
   if (aDetail) {
     const parts = [];
     if (air.length || gnd.length) {
@@ -8834,7 +8855,7 @@ function renderPaneDisclosure() {
   const dFav = $("digital-disc-fav");
   const dDetail = $("digital-disc-detail");
   const dBody = $("digital-disc-body");
-  if (dFav) dFav.textContent = favLabel;
+  if (dFav) dFav.textContent = dLabel;
   if (dDetail) {
     // Try to derive control channel + count.
     let ccText = "";
