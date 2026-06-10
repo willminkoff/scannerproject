@@ -2785,6 +2785,42 @@
   .modal-profile-builder .fp-wizard-channel-freq {
     font-size: 13px;
   }
+  /* Town / department context inline with the channel name.  Subtle so
+     the alpha_tag stays the primary read but the operator sees which
+     municipality (or trunk_groups.group_name) owns this talkgroup. */
+  .modal-profile-builder .fp-wizard-channel-dept {
+    color: rgba(190,210,225,0.62);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+  .fp-wizard-channel-dept {
+    color: rgba(190,210,225,0.55);
+    font-weight: 400;
+    font-size: 0.9em;
+  }
+  /* Filter input above each wizard list (Systems / Channels) — instant
+     client-side filter so the user can search SB3-style as they type. */
+  .fp-wizard-search {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(8, 14, 22, 0.7);
+    border: 1px solid rgba(139, 167, 212, 0.30);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 6px 10px;
+    font-size: 13px;
+    margin-bottom: 6px;
+    font-family: inherit;
+  }
+  .fp-wizard-search:focus {
+    outline: none;
+    border-color: rgba(90, 184, 255, 0.55);
+  }
+  .modal-profile-builder .fp-wizard-search {
+    padding: 9px 12px;
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
   .modal-profile-builder .fp-wizard-counts {
     font-size: 13px;
   }
@@ -9955,10 +9991,12 @@ if (document.readyState === "loading") {
       "<div class=\"fp-wizard-fields\">" +
         "<div>" +
           "<div class=\"pb-row-label\">Systems <span class=\"fp-wizard-counts\" id=\"wiz-systems-count\"></span></div>" +
+          "<input type=\"search\" class=\"fp-wizard-search\" id=\"wiz-systems-search\" placeholder=\"Filter systems (name, type)…\" autocomplete=\"off\" />" +
           "<div class=\"fp-wizard-systems\" id=\"wiz-systems-list\"><div class=\"fp-editor-empty\">Pick a state & county first</div></div>" +
         "</div>" +
         "<div>" +
           "<div class=\"pb-row-label\">Channels <span class=\"fp-wizard-counts\" id=\"wiz-channels-count\"></span></div>" +
+          "<input type=\"search\" class=\"fp-wizard-search\" id=\"wiz-channels-search\" placeholder=\"Filter channels (town, tag, TGID)…\" autocomplete=\"off\" />" +
           "<div class=\"fp-wizard-channels\" id=\"wiz-channels-list\"><div class=\"fp-editor-empty\">Pick a system to see its channels</div></div>" +
         "</div>" +
       "</div>" +
@@ -9969,6 +10007,13 @@ if (document.readyState === "loading") {
     // Initial population
     populateCountries();
     bindWizardEvents();
+    // Live-filter inputs (Systems + Channels lists).  Re-rendered the
+    // matching wizard list as the user types; click bindings on the
+    // resulting rows are re-attached inside renderWizard*().
+    const sysSearch = document.getElementById("wiz-systems-search");
+    if (sysSearch) sysSearch.addEventListener("input", renderWizardSystems);
+    const chSearch = document.getElementById("wiz-channels-search");
+    if (chSearch) chSearch.addEventListener("input", renderWizardChannels);
   }
 
   function populateCountries() {
@@ -10024,26 +10069,49 @@ if (document.readyState === "loading") {
     fetchJSON("/api/hp/favorites-wizard/systems?" + wizQS(params)).then(function (a) {
       const res = a[1] || {};
       WIZ.systems = res.systems || [];
-      const wrap = document.getElementById("wiz-systems-list");
-      const count = document.getElementById("wiz-systems-count");
-      if (count) count.textContent = "(" + WIZ.systems.length + ")";
-      if (!WIZ.systems.length) {
-        wrap.innerHTML = "<div class=\"fp-editor-empty\">No systems for this scope</div>";
-        return;
-      }
-      wrap.innerHTML = WIZ.systems.map(function (s) {
-        return "<div class=\"fp-wizard-system\" data-id=\"" + s.id + "\" data-name=\"" + escapeHtml(s.name) + "\">" +
-          "<span class=\"fp-wizard-channel-name\">" + escapeHtml(s.name) + "</span>" +
-          "<span class=\"fp-wizard-channel-freq\">" + escapeHtml(s.protocol || s.system_type) + "</span>" +
-        "</div>";
-      }).join("");
-      wrap.querySelectorAll(".fp-wizard-system").forEach(function (el) {
-        el.addEventListener("click", function () {
-          wrap.querySelectorAll(".fp-wizard-system.active").forEach(function (x) { x.classList.remove("active"); });
-          el.classList.add("active");
-          WIZ.selectedSystemId = el.getAttribute("data-id");
-          loadChannels(WIZ.selectedSystemId, el.getAttribute("data-name"));
-        });
+      renderWizardSystems();
+    });
+  }
+
+  // 2026-06-10 — instant client-side filter so the operator can search SB3-style.
+  // Matches against system name (case-insensitive) and protocol/system_type.
+  function renderWizardSystems() {
+    const wrap = document.getElementById("wiz-systems-list");
+    const count = document.getElementById("wiz-systems-count");
+    const search = document.getElementById("wiz-systems-search");
+    if (!wrap) return;
+    const total = (WIZ.systems || []).length;
+    const q = String((search && search.value) || "").trim().toLowerCase();
+    const matches = q
+      ? WIZ.systems.filter(function (s) {
+          return (
+            String(s.name || "").toLowerCase().indexOf(q) !== -1 ||
+            String(s.protocol || "").toLowerCase().indexOf(q) !== -1 ||
+            String(s.system_type || "").toLowerCase().indexOf(q) !== -1
+          );
+        })
+      : WIZ.systems;
+    if (count) count.textContent = q ? "(" + matches.length + " of " + total + ")" : "(" + total + ")";
+    if (!total) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">No systems for this scope</div>";
+      return;
+    }
+    if (!matches.length) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">No match for \"" + escapeHtml(q) + "\"</div>";
+      return;
+    }
+    wrap.innerHTML = matches.map(function (s) {
+      return "<div class=\"fp-wizard-system\" data-id=\"" + s.id + "\" data-name=\"" + escapeHtml(s.name) + "\">" +
+        "<span class=\"fp-wizard-channel-name\">" + escapeHtml(s.name) + "</span>" +
+        "<span class=\"fp-wizard-channel-freq\">" + escapeHtml(s.protocol || s.system_type) + "</span>" +
+      "</div>";
+    }).join("");
+    wrap.querySelectorAll(".fp-wizard-system").forEach(function (el) {
+      el.addEventListener("click", function () {
+        wrap.querySelectorAll(".fp-wizard-system.active").forEach(function (x) { x.classList.remove("active"); });
+        el.classList.add("active");
+        WIZ.selectedSystemId = el.getAttribute("data-id");
+        loadChannels(WIZ.selectedSystemId, el.getAttribute("data-name"));
       });
     });
   }
@@ -10053,22 +10121,64 @@ if (document.readyState === "loading") {
     fetchJSON("/api/hp/favorites-wizard/channels?" + wizQS(params)).then(function (a) {
       const res = a[1] || {};
       WIZ.channels = res.channels || [];
-      const wrap = document.getElementById("wiz-channels-list");
-      const count = document.getElementById("wiz-channels-count");
-      if (count) count.textContent = "(" + (res.total_channels || WIZ.channels.length) + ")";
-      if (!WIZ.channels.length) {
-        wrap.innerHTML = "<div class=\"fp-editor-empty\">No channels for this system</div>";
-        return;
-      }
-      wrap.innerHTML = WIZ.channels.map(function (ch, idx) {
+      WIZ.channelsSystemName = systemName || "";
+      renderWizardChannels();
+    });
+  }
+
+  // 2026-06-10 — same SB3-style instant filter, applied to the channel
+  // list.  Matches against alpha_tag, department_name (town/group_name),
+  // talkgroup/tgid, and frequency.  Selection state for already-checked
+  // channels is preserved across filter changes (WIZ.selectedChannels).
+  function renderWizardChannels() {
+    const wrap = document.getElementById("wiz-channels-list");
+    const count = document.getElementById("wiz-channels-count");
+    const search = document.getElementById("wiz-channels-search");
+    const systemName = WIZ.channelsSystemName || "";
+    if (!wrap) return;
+    const all = (WIZ.channels || []);
+    const total = all.length;
+    const q = String((search && search.value) || "").trim().toLowerCase();
+    const matches = q
+      ? all.filter(function (ch) {
+          const tg = (ch.talkgroup != null && ch.talkgroup !== "") ? String(ch.talkgroup) : (ch.tgid != null ? String(ch.tgid) : "");
+          const freq = ch.frequency != null ? String(ch.frequency) : "";
+          return (
+            String(ch.alpha_tag || "").toLowerCase().indexOf(q) !== -1 ||
+            String(ch.department_name || "").toLowerCase().indexOf(q) !== -1 ||
+            String(ch.system_name || "").toLowerCase().indexOf(q) !== -1 ||
+            tg.toLowerCase().indexOf(q) !== -1 ||
+            freq.toLowerCase().indexOf(q) !== -1
+          );
+        })
+      : all;
+    if (count) count.textContent = q ? "(" + matches.length + " of " + total + ")" : "(" + total + ")";
+    if (!total) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">No channels for this system</div>";
+      return;
+    }
+    if (!matches.length) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">No match for \"" + escapeHtml(q) + "\"</div>";
+      return;
+    }
+    wrap.innerHTML = matches.map(function (ch, idx) {
         const tg = (ch.talkgroup != null && ch.talkgroup !== "") ? ch.talkgroup : ch.tgid;
         const label = ch.alpha_tag || ch.department_name || (tg != null ? "TG " + tg : null) || ch.id || "?";
         const freq = ch.frequency != null ? Number(ch.frequency).toFixed(4) + " MHz" : (tg != null ? "TG " + tg : "");
+        // 2026-06-10 — show department/town context (HPDB trunk_groups.group_name)
+        // so the operator can tell which town "Police 1" belongs to in
+        // multi-municipality systems like Atlantic County or NJICS.  Skip
+        // when department_name duplicates the alpha_tag or system_name.
+        const dept = String(ch.department_name || "").trim();
+        const sys = String(ch.system_name || "").trim();
+        const showDept = dept && dept !== label && dept !== sys;
         const chId = ch.id || (systemName + "/" + idx);
         const checked = WIZ.selectedChannels.has(chId) ? "checked" : "";
         return "<label class=\"fp-wizard-channel\" data-id=\"" + escapeHtml(chId) + "\">" +
           "<input type=\"checkbox\" data-idx=\"" + idx + "\" " + checked + ">" +
-          "<span class=\"fp-wizard-channel-name\">" + escapeHtml(label) + "</span>" +
+          "<span class=\"fp-wizard-channel-name\">" + escapeHtml(label) +
+            (showDept ? "<span class=\"fp-wizard-channel-dept\"> · " + escapeHtml(dept) + "</span>" : "") +
+          "</span>" +
           "<span class=\"fp-wizard-channel-freq\">" + escapeHtml(freq) + "</span>" +
         "</label>";
       }).join("");
