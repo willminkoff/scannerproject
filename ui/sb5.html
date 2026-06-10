@@ -9837,6 +9837,12 @@ if (document.readyState === "loading") {
     if (wrap) { wrap.hidden = true; wrap.innerHTML = ""; }
     WIZ.selectedChannels.clear();
     WIZ.name = "";
+    WIZ.states = [];
+    WIZ.counties = [];
+    WIZ.systems = [];
+    WIZ.channels = [];
+    WIZ.selectedSystemId = null;
+    WIZ.selectedSystemType = "analog";
   }
 
   function saveNewFavorite() {
@@ -9925,11 +9931,12 @@ if (document.readyState === "loading") {
     const ov = document.getElementById("pb-modal");
     if (!ov) return;
     const mo = new MutationObserver(function () {
-      if (!ov.classList.contains("hidden")) initOnce();
+      // pb-modal uses class "show" to display; .hidden is never set.
+      if (ov.classList.contains("show")) initOnce();
     });
     mo.observe(ov, { attributes: true, attributeFilter: ["class"] });
     // also init immediately if it's already open
-    if (!ov.classList.contains("hidden")) initOnce();
+    if (ov.classList.contains("show")) initOnce();
   }
   document.addEventListener("DOMContentLoaded", tryInitOnModalOpen);
   // Also init on first expand of the details panel.
