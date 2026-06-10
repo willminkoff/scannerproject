@@ -1,6 +1,6 @@
 """Live tunable RTL-SDR VFO backend (Phase 6b).
 
-Owns one RTL-SDR (Nooelec NESDR SMArt v5 serial 61108285, bus 1-5.1.4) via
+Owns one RTL-SDR (RTL-SDR Blog V4 serial 83241970) via
 SoapySDR.  Demodulates AM / NFM / WFM in-process from a single IQ
 stream and publishes:
 
@@ -47,13 +47,15 @@ STATE_DIR = os.environ.get("VFO_STATE_DIR", "/run/scannerproject/vfo")
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
 CONFIG_PATH = os.path.join(STATE_DIR, "config.json")
 
-# Dongle assignment (Phase 6b → 2026-06-08 re-assigned to NooElec):
-# VFO = Nooelec NESDR SMArt v5 / R820T2 + TCXO, serial 61108285 on
-# bus 1-5.1.4 (previously Realtek 2832U serial 80000003, swapped out
-# due to ~10 dB lower SNR + worse PLL stability on weak NFM signals
-# like NOAA WX 162.400).  Opened by serial — never by index, which
-# can shift across reboots if other RTL-SDRs come and go.
-SERIAL = os.environ.get("VFO_SERIAL", "61108285")
+# Dongle assignment (Phase 6b → 2026-06-11 re-assigned to RTL-SDR Blog V4):
+# VFO = RTL-SDR Blog V4 / R828D + integrated TCXO + better front-end
+# filtering, serial 83241970.  History: started on Realtek 2832U
+# (80000003 — worse SNR/PLL stability on weak NFM), then NooElec
+# NESDR SMArt v5 (61108285 — improvement but still RF chain bottlenecked
+# the VFO at marginal SNR).  Blog V4 is the highest-quality RTL in the
+# rig and is the right place for the VFO.  Opened by serial — never by
+# index, which can shift across reboots if other RTL-SDRs come and go.
+SERIAL = os.environ.get("VFO_SERIAL", "83241970")
 
 # Hard-coded RTL-SDR tuning range; the POST handler validates too.
 FREQ_MIN_MHZ = 24.0
