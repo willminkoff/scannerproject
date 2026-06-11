@@ -64,6 +64,11 @@ ENABLE_RECOVERY = {
     "op25": os.environ.get("WATCHDOG_RECOVER_OP25", "1") != "0",
     "vfo": os.environ.get("WATCHDOG_RECOVER_VFO", "1") != "0",
     "bt": os.environ.get("WATCHDOG_RECOVER_BT", "1") != "0",
+    # 2026-06-11: per-VLC stalls (post-chirp-restart audio drop pattern).
+    "vlc_analog": os.environ.get("WATCHDOG_RECOVER_VLC", "1") != "0",
+    "vlc_ground": os.environ.get("WATCHDOG_RECOVER_VLC", "1") != "0",
+    "vlc_digital": os.environ.get("WATCHDOG_RECOVER_VLC", "1") != "0",
+    "vlc_vfo": os.environ.get("WATCHDOG_RECOVER_VLC", "1") != "0",
 }
 
 # ---------------------------------------------------------------------------
@@ -187,6 +192,39 @@ def recover_vfo() -> dict:
     return {"ok": rc == 0, "rc": rc, "stderr": err.strip()}
 
 
+def _recover_vlc(band: str) -> dict:
+    """Restart the per-band scanner-vlc-<band> systemd unit.
+
+    The chirp-VLC audio-drop pattern: chirp daemon restarts -> the VLC
+    that pulls from its mount keeps the old TCP connection alive but
+    silently stops consuming, /proc/<pid>/io rchar stops advancing,
+    audio goes silent on BOOM.  Restart fixes it.
+    """
+    unit = "scanner-vlc-" + band + ".service"
+    log.warning("recovery: vlc/%s -> systemctl restart %s", band, unit)
+    rc, _, err = _run_cmd(
+        ["sudo", "-n", "/bin/systemctl", "restart", unit],
+        timeout=20,
+    )
+    return {"ok": rc == 0, "rc": rc, "stderr": err.strip()}
+
+
+def recover_vlc_analog() -> dict:
+    return _recover_vlc("analog")
+
+
+def recover_vlc_ground() -> dict:
+    return _recover_vlc("ground")
+
+
+def recover_vlc_digital() -> dict:
+    return _recover_vlc("digital")
+
+
+def recover_vlc_vfo() -> dict:
+    return _recover_vlc("vfo")
+
+
 def recover_bt() -> dict:
     """Re-run bt-connect-speaker.sh to reconnect a dropped BOOM."""
     log.warning("recovery: bt -> /home/ubuntu/scannerproject/scripts/bt-connect-speaker.sh")
@@ -202,6 +240,10 @@ RECOVERY_ACTIONS: dict[str, Callable[[], dict]] = {
     "op25": recover_op25,
     "vfo": recover_vfo,
     "bt": recover_bt,
+    "vlc_analog": recover_vlc_analog,
+    "vlc_ground": recover_vlc_ground,
+    "vlc_digital": recover_vlc_digital,
+    "vlc_vfo": recover_vlc_vfo,
 }
 
 
@@ -222,6 +264,10 @@ def _extract_per_area_verdicts(snap: dict) -> dict[str, str]:
     # BT: warn (disconnected) is recoverable; wedged (not paired) is operator action.
     bt_v = snap.get("bt", {}).get("verdict", "ok")
     verdicts["bt"] = "wedged" if bt_v == "warn" else "ok"
+    # 2026-06-11: per-band VLC stall verdicts (post-chirp-restart audio drop).
+    vlc_map = snap.get("vlc") or {}
+    for band in ("analog", "ground", "digital", "vfo"):
+        verdicts["vlc_" + band] = vlc_map.get(band, {}).get("verdict", "ok") if isinstance(vlc_map, dict) else "ok"
     return verdicts
 
 

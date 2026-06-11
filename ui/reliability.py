@@ -394,6 +394,135 @@ def check_dongles() -> dict:
     }
 
 
+# 2026-06-11 — per-VLC stall detector.  Cached across snapshot() calls so
+# we can compute rchar deltas without an in-snapshot sleep.  Keyed by
+# systemd unit name.  Reset whenever we miss a sample (PID change, error).
+_VLC_SAMPLE_CACHE: dict[str, tuple[float, int]] = {}
+
+# Each VLC -> the icecast mount it pulls from.  Used to gate "stall" on
+# "is the source actually publishing?" so we don't fire on a dead mount.
+_VLC_MOUNTS = {
+    "scanner-vlc-analog.service": "ANALOG.mp3",
+    "scanner-vlc-ground.service": "ANALOG_GROUND.mp3",
+    "scanner-vlc-digital.service": "DIGITAL.mp3",
+    "scanner-vlc-vfo.service": "VFO.mp3",
+}
+
+# Each VLC -> short band tag used by the watchdog recovery dispatch.
+_VLC_BANDS = {
+    "scanner-vlc-analog.service": "analog",
+    "scanner-vlc-ground.service": "ground",
+    "scanner-vlc-digital.service": "digital",
+    "scanner-vlc-vfo.service": "vfo",
+}
+
+# Threshold for "VLC isn't consuming the stream."  Icecast publishes at
+# 32 kbps = ~4000 B/s; a stalled VLC reads << 500 B/s.  500 gives us 8x
+# margin for clock jitter / silence-frame compression.
+_VLC_STALL_BPS = 500.0
+# Minimum observation window before we trust a delta.  Shorter than this
+# and we just remember the sample for next call.
+_VLC_MIN_WINDOW_SEC = 4.0
+
+
+def _read_vlc_rchar(unit: str) -> tuple[int | None, int | None]:
+    """Return (pid, rchar) for the VLC unit's MainPID, or (None, None)."""
+    pid = _systemd_show(unit).get("main_pid") or 0
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return None, None
+    if pid <= 0:
+        return None, None
+    try:
+        with open(f"/proc/{pid}/io") as fh:
+            for line in fh:
+                if line.startswith("rchar:"):
+                    return pid, int(line.split(":", 1)[1].strip())
+    except OSError:
+        return pid, None
+    return pid, None
+
+
+def check_vlc(icecast_snap: dict | None = None) -> dict:
+    """Per-VLC stall detector.
+
+    A VLC service can be `active` in systemd but in a wedged state where
+    it doesn't consume the icecast stream (post-restart pattern we've
+    seen repeatedly).  The audio chain goes silent on BOOM but nothing
+    on the surface looks broken.  Detect by comparing rchar across two
+    snapshot() calls; if the consume rate is below _VLC_STALL_BPS while
+    icecast is actually publishing the source mount, mark wedged.
+
+    The snapshot caller passes in the just-computed icecast snapshot
+    (saves a duplicate HTTP fetch); if None, we'll fetch fresh.
+    """
+    if icecast_snap is None:
+        icecast_snap = check_icecast()
+    now = time.time()
+    out: dict[str, dict] = {}
+    for unit, mount in _VLC_MOUNTS.items():
+        band = _VLC_BANDS[unit]
+        svc = _systemd_show(unit)
+        if svc.get("active_state") != "active":
+            out[band] = {
+                "unit": unit,
+                "mount": mount,
+                "active_state": svc.get("active_state"),
+                "verdict": "wedged",
+                "reason": "service_not_active",
+            }
+            # Clear cached sample so a fresh measurement starts post-recovery.
+            _VLC_SAMPLE_CACHE.pop(unit, None)
+            continue
+        pid, rchar = _read_vlc_rchar(unit)
+        mount_info = icecast_snap.get(mount) if isinstance(icecast_snap, dict) else None
+        mount_publishing = bool(mount_info and mount_info.get("verdict") == "ok")
+        entry = {
+            "unit": unit,
+            "mount": mount,
+            "pid": pid,
+            "rchar": rchar,
+            "mount_publishing": mount_publishing,
+        }
+        prev = _VLC_SAMPLE_CACHE.get(unit)
+        # Always remember the current sample for next call.  Reset cache
+        # when PID changes (restart) so the post-restart delta is clean.
+        if rchar is not None and pid is not None:
+            if prev and prev[2] != pid:
+                _VLC_SAMPLE_CACHE.pop(unit, None)
+                prev = None
+            _VLC_SAMPLE_CACHE[unit] = (now, rchar, pid)
+        if rchar is None:
+            entry["verdict"] = "warn"
+            entry["reason"] = "io_unreadable"
+        elif not mount_publishing:
+            # Source isn't even publishing; not VLC's fault.  Don't
+            # flag wedged here -- the icecast check already did.
+            entry["verdict"] = "ok"
+            entry["reason"] = "mount_not_publishing"
+        elif prev is None:
+            entry["verdict"] = "ok"
+            entry["reason"] = "no_prior_sample"
+        else:
+            dt = now - prev[0]
+            dbytes = rchar - prev[1]
+            if dt < _VLC_MIN_WINDOW_SEC:
+                entry["verdict"] = "ok"
+                entry["reason"] = "window_too_short"
+            else:
+                rate_bps = dbytes / dt if dt > 0 else 0.0
+                entry["sample_window_sec"] = round(dt, 1)
+                entry["consume_bps"] = round(rate_bps, 1)
+                if rate_bps < _VLC_STALL_BPS:
+                    entry["verdict"] = "wedged"
+                    entry["reason"] = f"stall_consume_{rate_bps:.0f}_bps"
+                else:
+                    entry["verdict"] = "ok"
+        out[band] = entry
+    return out
+
+
 def check_bt() -> dict:
     """BT speaker pair + connect + transport state."""
     mac = "C0:28:8D:34:6E:67"
@@ -449,6 +578,7 @@ def snapshot() -> dict:
     services = check_services()
     chirp = check_chirp()
     icecast = check_icecast()
+    vlc = check_vlc(icecast)
     op25 = check_op25()
     vfo = check_vfo()
     dongles = check_dongles()
@@ -458,6 +588,7 @@ def snapshot() -> dict:
         _worst_verdict(*[s["verdict"] for s in services.values()]) if services else "wedged",
         _worst_verdict(*[c["verdict"] for c in chirp.values()]) if chirp else "wedged",
         _worst_verdict(*[m["verdict"] for m in icecast.values() if isinstance(m, dict) and "verdict" in m]) if isinstance(icecast, dict) and icecast else "wedged",
+        _worst_verdict(*[v["verdict"] for v in vlc.values()]) if vlc else "ok",
         op25.get("verdict", "wedged"),
         vfo.get("verdict", "wedged"),
         dongles.get("verdict", "wedged"),
@@ -471,6 +602,7 @@ def snapshot() -> dict:
         "services": services,
         "chirp": chirp,
         "icecast": icecast,
+        "vlc": vlc,
         "op25": op25,
         "vfo": vfo,
         "dongles": dongles,
