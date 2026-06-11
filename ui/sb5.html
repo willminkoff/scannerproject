@@ -5428,7 +5428,11 @@ function renderProfile(hpState, profiles) {
 
   const favList = (hpState && hpState.state && Array.isArray(hpState.state.favorites)) ? hpState.state.favorites : [];
   const zip = (hpState && hpState.state && hpState.state.zip) || "";
-  const mode = (hpState && hpState.mode) || "";
+  // 2026-06-11: the top-level `mode` field is the scan_mode_controller's
+  // mode (e.g. "expert"), NOT the HPState scan source.  Use state.mode
+  // for the favorites-vs-full_database decision; fall back to top-level
+  // only if state.mode is missing.
+  const mode = (hpState && hpState.state && hpState.state.mode) || (hpState && hpState.mode) || "";
 
   // Each pane has its own active favorite: AIR -> enabled_air,
   // GROUND -> enabled_ground, Digital -> enabled_digital.  Independently
