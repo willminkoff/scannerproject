@@ -9811,17 +9811,11 @@ if (document.readyState === "loading") {
     const wrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
     if (!wrap) return;
     let fav = _favForId(id);
-    if (!fav) {
-      if (_refreshed) {
-        // Already did a fresh GET; the favorite really doesn't exist on disk.
-        wrap.innerHTML = "<div class=\"fp-editor-empty\">Favorite not found</div>";
-        return;
-      }
-      // 2026-06-10: STATE.hpState may be stale (race with a recent save
-      // or activate).  Do a fresh GET and retry the lookup before
-      // declaring "not found."  Mirrors the fresh-GET pattern in
-      // saveFavorite/saveNewFavorite.  The _refreshed flag prevents an
-      // infinite loop if the favorite is genuinely absent.
+    // 2026-06-10: Always do a fresh GET on first entry, even if STATE.hpState
+    // has the favorite -- the previous behavior raced our save path against
+    // the picker render and we kept landing on "Favorite not found" even when
+    // 3 favorites were rendered.  _refreshed guard prevents recursion.
+    if (!_refreshed) {
       wrap.innerHTML = "<div class=\"fp-editor-empty\">Loading favorite…</div>";
       fetch("/api/hp/state", { credentials: "same-origin", cache: "no-store" })
         .then(function (r) { return r.json(); })
@@ -9836,9 +9830,17 @@ if (document.readyState === "loading") {
           }
           renderEditor(id, true);
         })
-        .catch(function () {
-          wrap.innerHTML = "<div class=\"fp-editor-empty\">Failed to load state. Refresh and try again.</div>";
+        .catch(function (err) {
+          wrap.innerHTML = "<div class=\"fp-editor-empty\">Failed to load: " + escapeHtml(String(err && err.message || err)) + "</div>";
         });
+      return;
+    }
+    // _refreshed === true: we just synced STATE.hpState; re-read.
+    fav = _favForId(id);
+    if (!fav) {
+      // Even after fresh GET, no match.  Surface the id we tried so we
+      // can debug if needed.
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">Favorite not found (id=" + escapeHtml(String(id)) + ")</div>";
       return;
     }
     const chans = Array.isArray(fav.custom_favorites) ? fav.custom_favorites.slice() : [];
