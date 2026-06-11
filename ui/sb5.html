@@ -9881,6 +9881,7 @@ if (document.readyState === "loading") {
         "<label class=\"pb-field pb-field-num\"><span>Freq (MHz)</span>" +
           "<input type=\"number\" step=\"0.001\" class=\"pb-input fp-add-freq\" placeholder=\"156.300\"></label>" +
         "<button type=\"button\" class=\"pb-btn pb-btn-primary fp-add-btn\">Add channel</button>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary fp-add-hpdb-btn\" title=\"Open the HPDB picker to add multiple channels from an existing system\">+ Add from HPDB</button>" +
       "</div>" +
       "<div class=\"fp-editor-actions\">" +
         "<button type=\"button\" class=\"pb-btn fp-editor-cancel\">Cancel</button>" +
@@ -9919,6 +9920,19 @@ if (document.readyState === "loading") {
       labEl.value = "";
       freqEl.value = "";
       rebuildList(wrap);
+    });
+    const hpdbBtn = wrap.querySelector(".fp-add-hpdb-btn");
+    if (hpdbBtn) hpdbBtn.addEventListener("click", function () {
+      // Open the wizard in "append-to-favorite" mode.  Pass the current
+      // favorite id + label so the save path appends instead of creating a
+      // new favorite.  Existing working channels stay; new picks get
+      // concatenated after the user clicks Save in the wizard.
+      WIZ.appendTarget = {
+        id: id,
+        label: (fav.label || fav.id || "this favorite"),
+        editorWrap: wrap,
+      };
+      renderWizard();
     });
     wrap.querySelector(".fp-editor-cancel").addEventListener("click", function () {
       wrap.hidden = true;
@@ -10032,13 +10046,20 @@ if (document.readyState === "loading") {
     const wrap = document.getElementById("fp-wizard");
     if (!wrap) return;
     wrap.hidden = false;
+    const isAppend = !!(WIZ.appendTarget && WIZ.appendTarget.id);
+    const headTitle = isAppend
+      ? ("Add channels to " + escapeHtml(WIZ.appendTarget.label || "favorite"))
+      : "Build a new favorite";
+    const nameRow = isAppend
+      ? ""
+      : ("<label class=\"pb-field\"><span>Favorite name</span>" +
+          "<input type=\"text\" id=\"wiz-name\" placeholder=\"e.g. Miami Marine\" maxlength=\"64\" value=\"" + escapeHtml(WIZ.name) + "\"></label>");
     wrap.innerHTML =
       "<div class=\"fp-wizard-head\">" +
-        "<div class=\"fp-wizard-title\">Build a new favorite</div>" +
+        "<div class=\"fp-wizard-title\">" + headTitle + "</div>" +
         "<button type=\"button\" class=\"pb-btn\" id=\"wiz-close\">Cancel</button>" +
       "</div>" +
-      "<label class=\"pb-field\"><span>Favorite name</span>" +
-        "<input type=\"text\" id=\"wiz-name\" placeholder=\"e.g. Miami Marine\" maxlength=\"64\" value=\"" + escapeHtml(WIZ.name) + "\"></label>" +
+      nameRow +
       "<div class=\"fp-wizard-fields\">" +
         "<label class=\"pb-field\"><span>Country</span>" +
           "<select id=\"wiz-country\"></select></label>" +
@@ -10066,7 +10087,7 @@ if (document.readyState === "loading") {
       "</div>" +
       "<div class=\"fp-wizard-actions\">" +
         "<button type=\"button\" class=\"pb-btn\" id=\"wiz-cancel\">Cancel</button>" +
-        "<button type=\"button\" class=\"pb-btn pb-btn-primary\" id=\"wiz-save\">Save Favorite</button>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary\" id=\"wiz-save\">" + (isAppend ? "Add to favorite" : "Save Favorite") + "</button>" +
       "</div>";
     // Initial population
     populateCountries();
@@ -10277,7 +10298,8 @@ if (document.readyState === "loading") {
     });
     document.getElementById("wiz-county").addEventListener("change", loadSystems);
     document.getElementById("wiz-system-type").addEventListener("change", loadSystems);
-    document.getElementById("wiz-name").addEventListener("input", function (ev) {
+    const nameEl = document.getElementById("wiz-name");
+    if (nameEl) nameEl.addEventListener("input", function (ev) {
       WIZ.name = ev.target.value;
     });
     document.getElementById("wiz-close").addEventListener("click", closeWizard);
@@ -10290,6 +10312,7 @@ if (document.readyState === "loading") {
     if (wrap) { wrap.hidden = true; wrap.innerHTML = ""; }
     WIZ.selectedChannels.clear();
     WIZ.name = "";
+    WIZ.appendTarget = null;
     WIZ.states = [];
     WIZ.counties = [];
     WIZ.systems = [];
@@ -10299,6 +10322,39 @@ if (document.readyState === "loading") {
   }
 
   function saveNewFavorite() {
+    if (WIZ.appendTarget && WIZ.appendTarget.id) {
+      // Append-to-existing mode.  Skip the name check (target's name
+      // stays); just collect the picked channels and concat to working set.
+      if (WIZ.selectedChannels.size === 0) { toast("Pick at least one channel", "err"); return; }
+      const target = WIZ.appendTarget;
+      const newChannels = Array.from(WIZ.selectedChannels.values()).map(function (ch) {
+        const kind = ch.kind || (WIZ.selectedSystemType === "digital" ? "trunked" : "conventional");
+        const rawTg = (ch.talkgroup != null && ch.talkgroup !== "") ? ch.talkgroup : ch.tgid;
+        const freqNum = ch.frequency != null ? Number(ch.frequency) : (kind === "trunked" ? 0.0 : null);
+        return {
+          id: String(ch.id),
+          alpha_tag: ch.alpha_tag || ch.tag || "",
+          department_name: ch.department_name || ch.system_name || "",
+          frequency: freqNum,
+          kind: kind,
+          service_tag: ch.service_tag || 0,
+          system_id: ch.system_id || 0,
+          system_key: ch.system_key || "",
+          system_name: ch.system_name || "",
+          talkgroup: rawTg != null ? String(rawTg) : "",
+          control_channels: Array.isArray(ch.control_channels) ? ch.control_channels : [],
+        };
+      });
+      // Merge into the editor's working set + persist via saveFavorite.
+      const existing = (target.editorWrap && Array.isArray(target.editorWrap._working))
+        ? target.editorWrap._working
+        : [];
+      const merged = existing.concat(newChannels);
+      saveFavorite(target.id, merged);
+      WIZ.appendTarget = null;
+      closeWizard();
+      return;
+    }
     const name = (WIZ.name || "").trim();
     if (!name) { toast("Give the favorite a name", "err"); return; }
     if (WIZ.selectedChannels.size === 0) { toast("Pick at least one channel", "err"); return; }
