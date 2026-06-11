@@ -5067,6 +5067,10 @@ const STATE = {
   hits: [],
   profiles: [],
   hpState: null,
+  // 2026-06-11: per-band counts from /api/hp/scan-pool-preview so the
+  // band cards can show "DB · N freqs" in full_database mode.  Refreshed
+  // by pollScanPoolCounts on a 10s timer.
+  scanPoolCounts: { air: 0, ground: 0, digital: 0 },
 };
 
 // Phase 5c: heartbeat state collapses into one of four categories that drive
@@ -5373,15 +5377,26 @@ function paintBandProfile(prefix, list, zip, mode, opts) {
   const bandLabel = (opts && opts.bandLabel) || "";
 
   const active = list.find(f => f && f[enabledFlag]) || null;
-  const label = active ? (active.label || active.id || "fav") : "—";
-  const glyph = String(label || "—").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "—";
+  const isFullDb = String(mode || "").toLowerCase() === "full_database";
 
-  const gEl = $(prefix + "-glyph");
-  const nEl = $(prefix + "-pname");
-  const sEl = $(prefix + "-psub");
-  if (nEl) nEl.textContent = label;
-  if (sEl) {
-    let sub;
+  // 2026-06-11 — in full_database mode the favorite tile is misleading
+  // (favorites don't drive scanning).  Show "Full Database" + the live
+  // scan-pool count for this band instead.
+  let label, glyph, sub;
+  if (isFullDb) {
+    label = "Full Database";
+    glyph = "DB";
+    const counts = (STATE && STATE.scanPoolCounts) || { air: 0, ground: 0, digital: 0 };
+    let n = 0;
+    let noun = "freq";
+    if (prefix === "dig") { n = counts.digital | 0; noun = "talkgroup"; }
+    else if (prefix === "ground") { n = counts.ground | 0; noun = "freq"; }
+    else { n = counts.air | 0; noun = "freq"; }
+    sub = `${n} ${noun}${n === 1 ? "" : "s"}`;
+    if (zip) sub += ` · ZIP ${zip}`;
+  } else {
+    label = active ? (active.label || active.id || "fav") : "—";
+    glyph = String(label || "—").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "—";
     if (active && countFn) {
       const n = countFn(active);
       sub = `${n} ${bandLabel || "freq"}${n === 1 ? "" : "s"}`;
@@ -5390,8 +5405,13 @@ function paintBandProfile(prefix, list, zip, mode, opts) {
     }
     if (zip) sub += ` · ZIP ${zip}`;
     if (mode) sub += ` · ${mode} mode`;
-    sEl.textContent = sub;
   }
+
+  const gEl = $(prefix + "-glyph");
+  const nEl = $(prefix + "-pname");
+  const sEl = $(prefix + "-psub");
+  if (nEl) nEl.textContent = label;
+  if (sEl) sEl.textContent = sub;
   if (gEl) gEl.textContent = glyph;
 
 }
@@ -9111,7 +9131,30 @@ async function pollBandControls() {
     setTimeout(pollBandControls, POLL_BAND_CONTROLS_MS);
   }
 }
-async function pollWaterfall() {
+  // 2026-06-11 — scan pool count poller (10s).  Drives the "DB · N freqs"
+  // subtitle on band cards in full_database mode.  limit=1 because we only
+  // need the counts; entries are discarded.
+  function pollScanPoolCounts() {
+    fetchJSON("/api/hp/scan-pool-preview?limit=1")
+      .then(function (a) {
+        const status = a[0], res = a[1];
+        if (status === 200 && res && res.ok) {
+          STATE.scanPoolCounts = {
+            air: Number(res.air_channels || 0),
+            ground: Number(res.ground_channels || 0),
+            digital: Number(res.digital_talkgroups || res.trunked_talkgroups || 0),
+          };
+          try {
+            if (STATE.hpState) renderProfile(STATE.hpState, { profiles: STATE.profiles || [] });
+          } catch (_e) {}
+        }
+      })
+      .catch(function () { /* tolerant */ })
+      .then(function () { setTimeout(pollScanPoolCounts, 10000); });
+  }
+  pollScanPoolCounts();
+
+  async function pollWaterfall() {
   try {
     const data = await fetchJSON("/api/waterfall");
     renderWaterfall(data);

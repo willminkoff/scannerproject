@@ -1432,6 +1432,11 @@ def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000
     seen_conventional: set[str] = set()
     trunked_talkgroups = 0
     conventional_channels = 0
+    # 2026-06-11: per-band counts so the UI can show "DB · N freqs" on
+    # each band card when mode == full_database.  Bands are classified by
+    # frequency the same way ui/sb5.html _favAirCount / _favGroundCount do.
+    air_channels = 0
+    ground_channels = 0
 
     for site in trunked_sites:
         if not isinstance(site, dict):
@@ -1488,6 +1493,14 @@ def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000
             continue
         seen_conventional.add(dedupe_key)
         conventional_channels += 1
+        # Band classification: civilian airband (108-137 MHz AM) +
+        # military UHF (225-400 MHz AM) = "air"; everything else
+        # conventional = "ground".
+        _f = float(rounded_frequency)
+        if (108.0 <= _f <= 137.0) or (225.0 <= _f <= 400.0):
+            air_channels += 1
+        else:
+            ground_channels += 1
         conventional_entries.append(
             {
                 "id": f"fulldb-conv-{rounded_frequency:.6f}-{service_tag}-{len(conventional_entries) + 1}",
@@ -1533,6 +1546,9 @@ def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000
         "trunked_sites": len([row for row in trunked_sites if isinstance(row, dict)]),
         "trunked_talkgroups": trunked_talkgroups,
         "conventional_channels": conventional_channels,
+        "air_channels": air_channels,
+        "ground_channels": ground_channels,
+        "digital_talkgroups": trunked_talkgroups,
         "truncated": truncated,
     }
 
