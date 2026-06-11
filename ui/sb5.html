@@ -509,7 +509,7 @@
 
   /* ============ Analog/Digital pane internals ============ */
   .now-row {
-    display: grid; grid-template-columns: 40px 1fr auto; gap: 12px;
+    display: grid; grid-template-columns: 40px 1fr; gap: 12px;
     align-items: center;
     padding: 2px 0 var(--space-md);
   }
@@ -537,7 +537,6 @@
   .now-row .now-line { font-size: var(--type-body-sm); color: var(--text); margin-top: 2px; line-height: 1.35; word-break: break-word; }
   .now-row .now-line .freq { font-family: ui-monospace, monospace; color: var(--sky-2); margin-right: 6px; font-size: var(--type-mono); }
   .now-row .now-line.dim { color: var(--text-3); }
-  .now-row .chev { color: var(--text-4); font-size: var(--type-body); }
 
   .hits-list {
     border-top: 1px solid var(--line);
@@ -3219,7 +3218,6 @@
           <div class="band">Airband · AM</div>
           <div class="now-line dim">Loading…</div>
         </div>
-        <div class="chev">›</div>
       </div>
       <div class="analog-profile">
         <div class="glyph" id="ana-glyph">—</div>
@@ -3344,7 +3342,6 @@
           <div class="band">Ground · NFM</div>
           <div class="now-line dim">Loading…</div>
         </div>
-        <div class="chev">›</div>
       </div>
       <!-- Phase 7g: independent GROUND favorite picker (mirrors AIR).
            Shows the favorite currently flagged enabled_ground=true; the
@@ -3445,7 +3442,6 @@
           <div class="band">Digital · P25</div>
           <div class="now-line dim">Loading…</div>
         </div>
-        <div class="chev">›</div>
       </div>
       <div class="digital-profile">
         <div class="glyph" id="dig-glyph">—</div>
