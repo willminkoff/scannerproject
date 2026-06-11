@@ -9874,7 +9874,14 @@ class Handler(BaseHTTPRequestHandler):
                     }),
                     "application/json; charset=utf-8",
                 )
-            muted = bool(payload_in.get("muted"))
+            # 2026-06-11 fix: bool("false") is True (non-empty string), so
+            # the previous one-liner mapped EVERY POST to muted=True.  Parse
+            # true/false/1/0/on/off explicitly.
+            _raw_muted = payload_in.get("muted")
+            if isinstance(_raw_muted, str):
+                muted = _raw_muted.strip().lower() in ("true", "1", "on", "yes")
+            else:
+                muted = bool(_raw_muted)
             ok, msg = _band_mute_mod.set_band(band, muted)
             # State is persisted regardless of apply success — return the
             # current persisted intent so the UI reflects what's saved.
