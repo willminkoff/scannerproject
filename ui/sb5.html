@@ -9744,13 +9744,20 @@ if (document.readyState === "loading") {
       els.resolveBtn.addEventListener("click", function () {
         const zip = (els.filterZip.value || "").trim();
         if (!zip) { toast("Enter a ZIP first", "err"); return; }
-        fetchJSON("/api/hp/location/reverse?zip=" + encodeURIComponent(zip))
-          .then(function (a) {
-            const status = a[0], res = a[1];
-            if (status === 200 && res && res.ok && res.lat != null) {
-              return applyFilters({ lat: res.lat, lon: res.lon, zip: zip, use_location: true });
+        // 2026-06-11 — the reverse-geocoding endpoint expects lat+lon, not
+        // zip.  ZIP -> coords resolution lives inside POST /api/hp/state
+        // when resolve_zip=true; let applyFilters carry the request, which
+        // also persists the new lat/lon in one round trip.
+        applyFilters({ zip: zip, resolve_zip: true, use_location: true })
+          .then(function () {
+            // applyFilters toasted success; refresh local PB.state coords
+            // for the readout if the backend returned them.
+            if (PB.state && PB.state.lat != null && PB.state.lon != null) {
+              setReadout();
             }
-            toast("ZIP resolve failed", "err");
+          })
+          .catch(function (e) {
+            toast("ZIP resolve failed: " + (e && e.message ? e.message : e), "err");
           });
       });
     }
