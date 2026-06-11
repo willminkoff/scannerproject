@@ -425,8 +425,17 @@ _VLC_STALL_BPS = 500.0
 _VLC_MIN_WINDOW_SEC = 4.0
 
 
-def _read_vlc_rchar(unit: str) -> tuple[int | None, int | None]:
-    """Return (pid, rchar) for the VLC unit's MainPID, or (None, None)."""
+def _read_vlc_socket_bytes(unit: str) -> tuple[int | None, int | None]:
+    """Return (pid, tcp_bytes_received) for the VLC's connection to icecast.
+
+    Why not /proc/<pid>/io rchar?  VLC reads its socket in ways that don't
+    always flow through the read() syscalls rchar counts (splice/iovec/
+    larger buffered reads), so rchar can grow at 100-200 B/s while the
+    TCP socket is receiving 4-10 kB/s -- the false-positive that led to
+    spurious watchdog restarts.  bytes_received in `ss -tnpi` is the
+    kernel-level counter of "TCP delivered this many bytes to this
+    application," which is the real signal.
+    """
     pid = _systemd_show(unit).get("main_pid") or 0
     try:
         pid = int(pid)
@@ -434,12 +443,25 @@ def _read_vlc_rchar(unit: str) -> tuple[int | None, int | None]:
         return None, None
     if pid <= 0:
         return None, None
-    try:
-        with open(f"/proc/{pid}/io") as fh:
-            for line in fh:
-                if line.startswith("rchar:"):
-                    return pid, int(line.split(":", 1)[1].strip())
-    except OSError:
+    # `ss -tnpi` includes the per-socket info block where bytes_received lives.
+    # Filter to lines that mention this pid AND the icecast port (8000).
+    rc, out, _ = _run(["ss", "-tnpi"], timeout=2.0)
+    if rc != 0 or not out:
+        return pid, None
+    pid_marker = f"pid={pid}"
+    icecast_target = ":8000"
+    # ss output: ESTAB line, then an indented info line.  We need both.
+    lines = out.splitlines()
+    for i, line in enumerate(lines):
+        if pid_marker not in line or icecast_target not in line:
+            continue
+        # The info line is the NEXT non-empty line.
+        for j in range(i + 1, min(i + 3, len(lines))):
+            info = lines[j]
+            m = re.search(r"bytes_received:(\d+)", info)
+            if m:
+                return pid, int(m.group(1))
+        # Found the ESTAB but no info block; treat as unknown.
         return pid, None
     return pid, None
 
@@ -475,27 +497,27 @@ def check_vlc(icecast_snap: dict | None = None) -> dict:
             # Clear cached sample so a fresh measurement starts post-recovery.
             _VLC_SAMPLE_CACHE.pop(unit, None)
             continue
-        pid, rchar = _read_vlc_rchar(unit)
+        pid, tcp_bytes = _read_vlc_socket_bytes(unit)
         mount_info = icecast_snap.get(mount) if isinstance(icecast_snap, dict) else None
         mount_publishing = bool(mount_info and mount_info.get("verdict") == "ok")
         entry = {
             "unit": unit,
             "mount": mount,
             "pid": pid,
-            "rchar": rchar,
+            "tcp_bytes_received": tcp_bytes,
             "mount_publishing": mount_publishing,
         }
         prev = _VLC_SAMPLE_CACHE.get(unit)
-        # Always remember the current sample for next call.  Reset cache
-        # when PID changes (restart) so the post-restart delta is clean.
-        if rchar is not None and pid is not None:
+        # Remember the current sample for next call.  Reset cache when PID
+        # changes (restart) so the post-restart delta is clean.
+        if tcp_bytes is not None and pid is not None:
             if prev and prev[2] != pid:
                 _VLC_SAMPLE_CACHE.pop(unit, None)
                 prev = None
-            _VLC_SAMPLE_CACHE[unit] = (now, rchar, pid)
-        if rchar is None:
+            _VLC_SAMPLE_CACHE[unit] = (now, tcp_bytes, pid)
+        if tcp_bytes is None:
             entry["verdict"] = "warn"
-            entry["reason"] = "io_unreadable"
+            entry["reason"] = "socket_unreadable"
         elif not mount_publishing:
             # Source isn't even publishing; not VLC's fault.  Don't
             # flag wedged here -- the icecast check already did.
@@ -506,7 +528,7 @@ def check_vlc(icecast_snap: dict | None = None) -> dict:
             entry["reason"] = "no_prior_sample"
         else:
             dt = now - prev[0]
-            dbytes = rchar - prev[1]
+            dbytes = tcp_bytes - prev[1]
             if dt < _VLC_MIN_WINDOW_SEC:
                 entry["verdict"] = "ok"
                 entry["reason"] = "window_too_short"
@@ -514,9 +536,12 @@ def check_vlc(icecast_snap: dict | None = None) -> dict:
                 rate_bps = dbytes / dt if dt > 0 else 0.0
                 entry["sample_window_sec"] = round(dt, 1)
                 entry["consume_bps"] = round(rate_bps, 1)
+                # Threshold: icecast publishes ~4000 B/s @ 32 kbps; a real
+                # stall sits at 0-200 B/s on the TCP socket.  500 gives 8x
+                # margin for silence-frame compression + clock jitter.
                 if rate_bps < _VLC_STALL_BPS:
                     entry["verdict"] = "wedged"
-                    entry["reason"] = f"stall_consume_{rate_bps:.0f}_bps"
+                    entry["reason"] = f"stall_tcp_recv_{rate_bps:.0f}_bps"
                 else:
                     entry["verdict"] = "ok"
         out[band] = entry
