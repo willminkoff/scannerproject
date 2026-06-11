@@ -9807,12 +9807,38 @@ if (document.readyState === "loading") {
     return Number(freq) < 137.0 ? "am" : "nfm";
   }
 
-  function renderEditor(id) {
+  function renderEditor(id, _refreshed) {
     const wrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
     if (!wrap) return;
-    const fav = _favForId(id);
+    let fav = _favForId(id);
     if (!fav) {
-      wrap.innerHTML = "<div class=\"fp-editor-empty\">Favorite not found</div>";
+      if (_refreshed) {
+        // Already did a fresh GET; the favorite really doesn't exist on disk.
+        wrap.innerHTML = "<div class=\"fp-editor-empty\">Favorite not found</div>";
+        return;
+      }
+      // 2026-06-10: STATE.hpState may be stale (race with a recent save
+      // or activate).  Do a fresh GET and retry the lookup before
+      // declaring "not found."  Mirrors the fresh-GET pattern in
+      // saveFavorite/saveNewFavorite.  The _refreshed flag prevents an
+      // infinite loop if the favorite is genuinely absent.
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">Loading favorite…</div>";
+      fetch("/api/hp/state", { credentials: "same-origin", cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (cur) {
+          if (cur && window.STATE) {
+            const prev = STATE.hpState || {};
+            STATE.hpState = Object.assign({}, prev, {
+              mode: cur.mode != null ? cur.mode : prev.mode,
+              state: cur.state || prev.state,
+              favorites_runtime_sync: cur.favorites_runtime_sync != null ? cur.favorites_runtime_sync : prev.favorites_runtime_sync,
+            });
+          }
+          renderEditor(id, true);
+        })
+        .catch(function () {
+          wrap.innerHTML = "<div class=\"fp-editor-empty\">Failed to load state. Refresh and try again.</div>";
+        });
       return;
     }
     const chans = Array.isArray(fav.custom_favorites) ? fav.custom_favorites.slice() : [];
