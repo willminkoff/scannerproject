@@ -10346,10 +10346,21 @@ if (document.readyState === "loading") {
         };
       });
       // Merge into the editor's working set + persist via saveFavorite.
-      const existing = (target.editorWrap && Array.isArray(target.editorWrap._working))
-        ? target.editorWrap._working
+      const editorWrap = target.editorWrap;
+      const existing = (editorWrap && Array.isArray(editorWrap._working))
+        ? editorWrap._working
         : [];
       const merged = existing.concat(newChannels);
+      // Keep the editor's local working copy in sync so a subsequent
+      // editor Save click can't clobber what we just persisted with the
+      // stale pre-append snapshot.
+      if (editorWrap) {
+        editorWrap._working = merged.slice();
+        // Hide it for now -- the picker re-render after saveFavorite
+        // resolves will rebuild a fresh editor placeholder if the user
+        // clicks Edit again.
+        editorWrap.hidden = true;
+      }
       saveFavorite(target.id, merged);
       WIZ.appendTarget = null;
       closeWizard();
