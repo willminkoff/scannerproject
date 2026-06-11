@@ -9807,19 +9807,40 @@ if (document.readyState === "loading") {
     return Number(freq) < 137.0 ? "am" : "nfm";
   }
 
-  function renderEditor(id, _refreshed) {
+  function renderEditor(id, _fav) {
     const wrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
     if (!wrap) return;
-    let fav = _favForId(id);
-    // 2026-06-10: Always do a fresh GET on first entry, even if STATE.hpState
-    // has the favorite -- the previous behavior raced our save path against
-    // the picker render and we kept landing on "Favorite not found" even when
-    // 3 favorites were rendered.  _refreshed guard prevents recursion.
-    if (!_refreshed) {
+    // 2026-06-10 — Look up the favorite from a fresh GET ourselves, then
+    // call back into renderEditor with the resolved object.  Bypasses
+    // STATE.hpState entirely so no race with the picker render path can
+    // cause "Favorite not found" when the data is actually on disk.
+    if (!_fav) {
       wrap.innerHTML = "<div class=\"fp-editor-empty\">Loading favorite…</div>";
       fetch("/api/hp/state", { credentials: "same-origin", cache: "no-store" })
         .then(function (r) { return r.json(); })
         .then(function (cur) {
+          const favs = (cur && cur.state && Array.isArray(cur.state.favorites)) ? cur.state.favorites : [];
+          // Try a few id variants in case the data-id was HTML-escaped on
+          // the way in (& -> &amp;) but the on-disk id is the raw form.
+          const wanted = String(id);
+          let found = favs.find(function (f) { return String(f.id) === wanted; });
+          if (!found) {
+            // Decode HTML entities and retry.  Belt-and-suspenders.
+            const decoded = wanted.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'");
+            if (decoded !== wanted) {
+              found = favs.find(function (f) { return String(f.id) === decoded; });
+            }
+          }
+          if (!found) {
+            // Log a diagnostic for future debugging.
+            try {
+              console.warn("renderEditor: not found", { wanted: wanted, ids: favs.map(function (f) { return f.id; }) });
+            } catch (_e) {}
+            wrap.innerHTML = "<div class=\"fp-editor-empty\">Favorite not found (id=" + escapeHtml(wanted) + ", on-disk ids: " + escapeHtml(favs.map(function (f) { return String(f.id); }).join(", ")) + ")</div>";
+            return;
+          }
+          // Refresh STATE.hpState as a bonus side effect (save handlers
+          // still use it; this keeps them current).
           if (cur && window.STATE) {
             const prev = STATE.hpState || {};
             STATE.hpState = Object.assign({}, prev, {
@@ -9828,21 +9849,14 @@ if (document.readyState === "loading") {
               favorites_runtime_sync: cur.favorites_runtime_sync != null ? cur.favorites_runtime_sync : prev.favorites_runtime_sync,
             });
           }
-          renderEditor(id, true);
+          renderEditor(id, found);
         })
         .catch(function (err) {
           wrap.innerHTML = "<div class=\"fp-editor-empty\">Failed to load: " + escapeHtml(String(err && err.message || err)) + "</div>";
         });
       return;
     }
-    // _refreshed === true: we just synced STATE.hpState; re-read.
-    fav = _favForId(id);
-    if (!fav) {
-      // Even after fresh GET, no match.  Surface the id we tried so we
-      // can debug if needed.
-      wrap.innerHTML = "<div class=\"fp-editor-empty\">Favorite not found (id=" + escapeHtml(String(id)) + ")</div>";
-      return;
-    }
+    const fav = _fav;
     const chans = Array.isArray(fav.custom_favorites) ? fav.custom_favorites.slice() : [];
     let listHtml = "";
     if (!chans.length) {
