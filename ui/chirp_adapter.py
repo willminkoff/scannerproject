@@ -463,6 +463,170 @@ def _populate_after_reset(band: str, fav_id: str) -> dict:
     }
 
 
+def push_scan_pool_to_chirp(
+    band: str,
+    freqs_hz: list,
+    labels: list | None = None,
+) -> dict:
+    """Reset the chirp daemon for `band` and load it with the given freqs.
+
+    Phase 4 follow-up to the 2026-06-11 'no airband hits in full_database'
+    bug.  `favorites_runtime.sync_scan_pool_to_runtime` already writes the
+    pool's per-band freqs to the legacy `rtl-airband-airband.conf` /
+    `rtl-airband-ground.conf` profiles -- but the chirp daemons read from
+    UDP via the chirp client, not those .conf files.  When you switched
+    from favorites mode to full_database, chirp kept whatever channels
+    were last activated (the Baltimore favorite's 11 freqs in Will's
+    case) and the daemon dutifully scanned them -- ignoring the 252 +
+    229 freqs the new scan pool actually wanted.
+
+    This pushes the per-band scan pool list to the chirp daemon: reset
+    (parks current channels), batch add_channels, re-apply the current
+    preset's thresholds.  Same idempotent shape as activate_favorite_via_chirp.
+
+    Args:
+        band: "airband" or "ground".
+        freqs_hz: list of Hz integers (matches favorites_runtime's
+                  air_freqs / ground_freqs).
+        labels: optional list of same length; index-aligned with freqs_hz.
+                Missing or short -> the freq itself is used as a label.
+    """
+    target = _normalize_band(band)
+    labels = list(labels or [])
+    channels: list[dict] = []
+    seen: set[str] = set()
+    for i, hz in enumerate(freqs_hz or []):
+        # The favorites_runtime path passes already-MHz floats (e.g.
+        # 121.9, 156.8) -- NOT Hz integers despite the legacy parameter
+        # name.  Treat anything < 10000 as MHz directly; anything bigger
+        # is in Hz (defensive against callers we haven't updated).
+        try:
+            v = float(hz)
+        except (TypeError, ValueError):
+            continue
+        mhz = v / 1_000_000.0 if v >= 10_000.0 else v
+        if mhz <= 0.0:
+            continue
+        key = f"{mhz:.4f}"
+        if key in seen:
+            continue
+        seen.add(key)
+        lbl_raw = labels[i] if i < len(labels) else ""
+        lbl = str(lbl_raw or "").strip() or f"{mhz:.3f} MHz"
+        channels.append({
+            "id": (f"fulldb-{target}-{mhz:.4f}")[:64],
+            "freq_mhz": float(mhz),
+            "mode": "am" if target == "airband" else "nfm",
+            "squelch_dbfs": -60.0,
+            "gain_db": 0.0,
+            "label": lbl[:64],
+        })
+
+    if not channels:
+        logger.info(
+            "chirp_adapter: push_scan_pool_to_chirp band=%s no channels (pool empty)",
+            target,
+        )
+        # Still reset so the daemon doesn't keep stale freqs from a prior
+        # activation.  An empty pool == "scan nothing" is a legitimate state.
+        try:
+            client = _chirp_client_for(target)
+            client.reset()
+            return {
+                "ok": True,
+                "target": target,
+                "added_count": 0,
+                "via": "chirp_scan_pool",
+                "note": "empty_pool_reset",
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "target": target,
+                "added_count": 0,
+                "error": f"reset_failed: {exc}",
+                "via": "chirp_scan_pool",
+            }
+
+    client = _chirp_client_for(target)
+
+    # Trim to fit the daemon's max_channels.  add_channels is transactional;
+    # a batch larger than the pool's free slots rejects the whole batch and
+    # the daemon ends up with empty scan list -- the "no hits in full DB"
+    # symptom Will hit.
+    truncated_to: int | None = None
+    try:
+        status = client.get_status()
+        max_channels = int(status.get("max_channels") or 0)
+    except Exception:
+        max_channels = 0
+    if max_channels > 0 and len(channels) > max_channels:
+        truncated_to = max_channels
+        # Stable sort by freq_mhz so the daemon scans the lower (civil
+        # airband) band first; UHF military gets trimmed off the tail
+        # when the pool is bigger than the daemon can hold.
+        channels = sorted(channels, key=lambda c: float(c.get("freq_mhz") or 0.0))[:max_channels]
+        logger.warning(
+            "chirp_adapter: pool size > max_channels for %s -- trimmed %d -> %d",
+            target, len(channels) + (truncated_to - max_channels) if False else 0, max_channels,
+        )
+
+    try:
+        client.reset()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "target": target,
+            "added_count": 0,
+            "error": f"reset_failed: {exc}",
+            "via": "chirp_scan_pool",
+        }
+
+    try:
+        result = client.add_channels(channels)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "target": target,
+            "added_count": 0,
+            "error": f"add_channels_failed: {exc}",
+            "via": "chirp_scan_pool",
+        }
+
+    # Re-apply the current preset's thresholds (mirrors _populate_after_reset).
+    try:
+        mac = _managed_controls_module()
+        try:
+            from .profile_config import resolve_controls_path
+        except ImportError:
+            from ui.profile_config import resolve_controls_path  # type: ignore
+        conf_path = resolve_controls_path(target)
+        rec = mac.recommended_managed_controls(target, conf_path) or {}
+        preset = rec.get("squelch_preset")
+        if preset:
+            apply_squelch_preset_via_chirp(target, str(preset))
+    except Exception:
+        logger.debug(
+            "chirp_adapter: post-pool-push preset restore skipped",
+            exc_info=True,
+        )
+
+    n_loaded = int(result.get("count") or len(channels))
+    logger.info(
+        "chirp_adapter: scan_pool pushed band=%s n_channels=%d truncated_to=%s",
+        target, n_loaded, truncated_to,
+    )
+    out = {
+        "ok": True,
+        "target": target,
+        "added_count": n_loaded,
+        "via": "chirp_scan_pool",
+    }
+    if truncated_to is not None:
+        out["truncated_to"] = truncated_to
+    return out
+
+
 def activate_favorite_via_chirp(band: str, fav_id: str) -> dict:
     """Push the favorite's channel list to the relevant chirp daemon.
 

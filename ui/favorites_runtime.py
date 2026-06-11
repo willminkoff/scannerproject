@@ -1862,12 +1862,45 @@ def sync_scan_pool_to_analog_runtime(
                             restart_error = _err
                             errors.append(f"{_tgt} restart failed: {_err}")
 
+        # 2026-06-11: in full_database mode the legacy rtl-airband .conf
+        # write doesn't reach the chirp daemons (they receive freqs via UDP
+        # add_channels, not from .conf files).  Push the per-band pool to
+        # chirp here so the daemons actually scan what the picker says.
+        # Only fires when chirp is the configured analog backend AND the
+        # freq signature changed -- saves a daemon reset on no-op syncs.
+        chirp_push: dict[str, dict] = {}
+        try:
+            try:
+                from .chirp_client import use_gr_demod as _chirp_active
+                from . import chirp_adapter as _chirp_adapter
+            except ImportError:
+                from ui.chirp_client import use_gr_demod as _chirp_active  # type: ignore
+                from ui import chirp_adapter as _chirp_adapter  # type: ignore
+            if bool(_chirp_active()) and (changed or force):
+                if air_freqs:
+                    chirp_push["airband"] = _chirp_adapter.push_scan_pool_to_chirp(
+                        "airband", air_freqs, air_labels,
+                    )
+                if ground_freqs:
+                    chirp_push["ground"] = _chirp_adapter.push_scan_pool_to_chirp(
+                        "ground", ground_freqs, ground_labels,
+                    )
+                for _tgt, _res in chirp_push.items():
+                    if not _res.get("ok"):
+                        errors.append(
+                            f"chirp scan_pool push {_tgt} failed: {_res.get('error')}"
+                        )
+        except Exception as exc:
+            logger.exception("favorites_runtime: chirp scan_pool push raised")
+            errors.append(f"chirp scan_pool push raised: {exc}")
+
         result = {
             "ok": len(errors) == 0,
             "changed": bool(changed),
             "mode": mode,
             "airband_frequency_count": len(air_freqs),
             "ground_frequency_count": len(ground_freqs),
+            "chirp_scan_pool_push": chirp_push,
             "selected_profiles": selected_profiles,
             "profile_write_changed": profile_write_changed,
             "profile_controls_changed": profile_controls_changed,
