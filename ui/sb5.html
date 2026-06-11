@@ -9139,10 +9139,10 @@ async function pollBandControls() {
   // subtitle on band cards in full_database mode.  limit=1 because we only
   // need the counts; entries are discarded.
   function pollScanPoolCounts() {
+    // Global fetchJSON returns the parsed JSON directly (not [status, json]).
     fetchJSON("/api/hp/scan-pool-preview?limit=1")
-      .then(function (a) {
-        const status = a[0], res = a[1];
-        if (status === 200 && res && res.ok) {
+      .then(function (res) {
+        if (res && res.ok) {
           STATE.scanPoolCounts = {
             air: Number(res.air_channels || 0),
             ground: Number(res.ground_channels || 0),
