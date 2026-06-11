@@ -9765,11 +9765,27 @@ if (document.readyState === "loading") {
       els.useLocBtn.addEventListener("click", function () {
         if (!navigator.geolocation) { toast("Browser has no geolocation", "err"); return; }
         navigator.geolocation.getCurrentPosition(function (pos) {
-          applyFilters({
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-            use_location: true,
-          });
+          // 2026-06-11 — reverse-geocode the GPS coords to get the new ZIP,
+          // then applyFilters with lat+lon+zip together.  Without the ZIP,
+          // POST /api/hp/state leaves state.zip on its previous value
+          // (8243) which is what Will hit when he was actually in 08344.
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          fetchJSON("/api/hp/location/reverse?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon))
+            .then(function (a) {
+              const status = a[0], res = a[1];
+              const patch = { lat: lat, lon: lon, use_location: true };
+              if (status === 200 && res && res.ok && res.zip) {
+                patch.zip = String(res.zip);
+              }
+              return applyFilters(patch);
+            })
+            .catch(function () {
+              // Reverse lookup failed; still apply the coords so at least
+              // lat/lon update.  Will gets the wrong ZIP but won't be
+              // blocked.
+              return applyFilters({ lat: lat, lon: lon, use_location: true });
+            });
         }, function (e) {
           toast("Geolocation refused: " + (e && e.message ? e.message : e), "err");
         });
