@@ -8811,6 +8811,38 @@ function wireBandControls() {
 function renderPaneDisclosure() {
   const hp = STATE.hpState;
   const favList = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
+  // 2026-06-11: in full_database mode the active-favorite contents are
+  // misleading -- the scan pool is HPDB filtered, not the favorite.  Paint
+  // the disclosures with "Full Database" + scan-pool counts and bail.
+  const stateMode = (hp && hp.state && hp.state.mode) || (hp && hp.mode) || "";
+  if (String(stateMode).toLowerCase() === "full_database") {
+    const counts = (STATE && STATE.scanPoolCounts) || { air: 0, ground: 0, digital: 0 };
+    const aFav = $("analog-disc-fav");
+    const aDetail = $("analog-disc-detail");
+    const aBody = $("analog-disc-body");
+    if (aFav) aFav.textContent = "Full Database";
+    if (aDetail) {
+      const parts = [];
+      if (counts.air) parts.push(`${counts.air} airband`);
+      if (counts.ground) parts.push(`${counts.ground} ground`);
+      const segText = parts.length
+        ? `${parts.join(" + ")} freq${(counts.air + counts.ground) === 1 ? "" : "s"} scanning`
+        : "0 conventional channels in pool";
+      const enabledTags = (hp && hp.state && Array.isArray(hp.state.enabled_service_tags))
+        ? hp.state.enabled_service_tags.length
+        : 0;
+      const tagText = enabledTags ? ` · ${enabledTags} service tag${enabledTags === 1 ? "" : "s"} enabled` : "";
+      aDetail.textContent = " · " + segText + tagText;
+    }
+    if (aBody) aBody.textContent = "Full Database mode — scan pool driven by ZIP + range + service tags. Open the picker to switch back to favorites.";
+    const dFav = $("digital-disc-fav");
+    const dDetail = $("digital-disc-detail");
+    const dBody = $("digital-disc-body");
+    if (dFav) dFav.textContent = "Full Database";
+    if (dDetail) dDetail.textContent = ` · ${counts.digital} talkgroup${counts.digital === 1 ? "" : "s"} in pool`;
+    if (dBody) dBody.textContent = "Full Database mode — talkgroups follow HPDB filters, not a favorite.";
+    return;
+  }
   // 2026-06-10: pick a different active favorite per disclosure because
   // per-band enablement means analog (air+ground) and digital can be on
   // different favorites.  Falling back to the legacy `enabled` flag, then
