@@ -6117,8 +6117,13 @@ class Handler(BaseHTTPRequestHandler):
                             json.dumps({"ok": False, "error": "missing system_id"}),
                             "application/json; charset=utf-8",
                         )
-                    limit = _query_int("limit", default=500, required=False)
-                    limit = max(1, min(int(limit or 500), 5000))
+                    # 2026-06-10: default was 500 which truncated NJICS (771 TGs)
+                    # before reaching the alphabetically-later Cape May County
+                    # group (where Sea Isle City PD lives at tgid 5289).  Bump
+                    # default to the existing max (5000) so the wizard sees a
+                    # complete list for any single-system pick.
+                    limit = _query_int("limit", default=5000, required=False)
+                    limit = max(1, min(int(limit or 5000), 5000))
                     system_name, channels = wizard.get_channels(
                         system_type=system_type,
                         system_id=system_id,
