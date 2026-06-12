@@ -1114,6 +1114,13 @@ class ChirpFlowgraph(gr.top_block):
                     # Phase 4-pre: parked channels are dormant on the
                     # LO scheduler's other clusters.
                     "is_parked": snap.get("is_parked", False),
+                    # Phase 1 diagnostic (2026-06-12): the xlating
+                    # filter's center offset (Hz).  Should equal
+                    # (last_freq_mhz * 1e6 - live_center_freq_hz) when
+                    # the LO retunes are landing — disagreement means
+                    # the channel is demodulating the wrong slice of
+                    # spectrum and will never open squelch.
+                    "center_freq_offset_hz": snap.get("center_freq_offset_hz"),
                 })
             data = {
                 "version": PROTOCOL_VERSION,
@@ -1126,6 +1133,22 @@ class ChirpFlowgraph(gr.top_block):
                     "sdr_device_args": self._cfg.sdr_device_args,
                     "sdr_center_freq_hz": self._cfg.sdr_center_freq_hz,
                     "sdr_gain_db": self._cfg.sdr_gain_db,
+                    # Phase 1 diagnostic (2026-06-12): the LIVE SDR center
+                    # frequency, read from the source's gr-osmosdr handle
+                    # via `_src.get_center_freq(0)`.  If this disagrees
+                    # with `sdr_center_freq_hz` (the scheduler's intended
+                    # cluster center after the last retune), then the SDR
+                    # is silently rejecting retune requests (we saw
+                    # `sdrplay_api_RfUpdateError` in the journal) and
+                    # every channel's xlating filter is offset from the
+                    # wrong base — explains identical noise-floor levels
+                    # across channels with different target frequencies.
+                    # Falls back to None when the source isn't SDR-backed.
+                    "live_center_freq_hz": (
+                        float(getattr(self.source, "center_freq_hz", None))
+                        if getattr(self.source, "center_freq_hz", None) is not None
+                        else None
+                    ),
                 },
                 "max_channels": self._cfg.max_channels,
                 "channel_bw_hz": self._cfg.channel_bw_hz,
