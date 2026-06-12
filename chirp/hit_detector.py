@@ -66,6 +66,7 @@ class HitDetector:
         warmup_s: float = 1.0,
         get_cluster_center_hz: Optional[Any] = None,
         priority_gate: Optional[Any] = None,
+        audio_trace_enabled: bool = False,
     ) -> None:
         """Construct a hit detector.
 
@@ -94,6 +95,54 @@ class HitDetector:
         self._in_flight: dict[int, dict[str, Any]] = {}
         # Track last-seen open state per slot to detect transitions.
         self._last_open: dict[int, bool] = {}
+
+        # ---- audio-path diagnostics (2026-06-11) -----------------------------
+        # Per-tick snapshot exposed via :py:meth:`audio_path_snapshot` and
+        # emitted as an `audio_path_state` event each tick when
+        # ``audio_trace_enabled`` is True.  Field meanings:
+        #   tick_lag_ms     time since the prior tick.  poll_s * 1000 in
+        #                   steady state; large values (>500 ms with
+        #                   poll_s=0.2) signal Python thread starvation
+        #                   under GR scheduler load.
+        #   open_count      live channels with squelch open this tick.
+        #   muted_count     live channels with priority_muted=True after
+        #                   the gate update.  When priority_gate is
+        #                   disabled this stays 0.
+        #   parked_count    channels skipped because the LO scheduler has
+        #                   them parked.  These are NOT included in
+        #                   muted_count (they're outside the gate).
+        #   live_count      claimed channels not parked this tick.
+        #   selected_id     priority gate selection (None if no opens).
+        #   audio_path_health
+        #       "live"               at least one live, non-muted channel
+        #                            is squelch-open → audio should flow
+        #       "all_muted"          all live channels are priority-muted
+        #                            but at least one is squelch-open.
+        #                            THIS IS THE BUG SIGNATURE — gate
+        #                            failed to unmute the open channel.
+        #       "no_open"            channels are live but none are
+        #                            squelch open right now.  Expected
+        #                            quiet state; mp3 mount is silent
+        #                            because nothing is keying, not
+        #                            because the gate is broken.
+        #       "no_live"            every claimed channel is parked.
+        #                            LO scheduler hasn't unparked any
+        #                            cluster yet (cold start) or in a
+        #                            plan_failed degraded state.
+        self._audio_trace_enabled = bool(audio_trace_enabled)
+        self._last_tick_ts: Optional[float] = None
+        # Latest tick snapshot (updated atomically per-tick by _tick()).
+        # Reads do not lock: dict assignment is GIL-atomic in CPython, and
+        # a slightly-stale read for an introspection endpoint is fine.
+        self._audio_path: dict[str, Any] = {
+            "tick_lag_ms": None,
+            "open_count": 0,
+            "muted_count": 0,
+            "parked_count": 0,
+            "live_count": 0,
+            "selected_id": None,
+            "audio_path_health": "no_live",
+        }
 
         # Resolve log path; create parent dir lazily.
         self._log_path: Optional[Path] = None
@@ -223,6 +272,7 @@ class HitDetector:
             self._last_open[s.index] = is_open
 
         # Priority gate: select one open channel; mute the rest (live only).
+        selected: Optional[str] = None
         if self._priority_gate is not None:
             try:
                 selected = self._priority_gate.update(open_ids, now)
@@ -230,6 +280,63 @@ class HitDetector:
                     ch.set_priority_muted(cid != selected)
             except Exception:
                 log.exception("priority gate update failed")
+
+        # ---- audio-path diagnostics (2026-06-11) -----------------------------
+        # Recompute the audio_path snapshot after the priority gate has
+        # had its say.  Cheap: walks the slot list once, no GR work.
+        # Always updates (even with audio_trace disabled) so get_status
+        # callers see fresh data; the event emit is what trace gates.
+        try:
+            parked_count = 0
+            muted_count = 0
+            for s in self._slots:
+                if s.user_id is None:
+                    continue
+                if getattr(s.channel, "is_parked", False):
+                    parked_count += 1
+                    continue
+                # is_priority_muted is a property on Channel; treat absent
+                # attribute as not-muted so older Channel instances don't
+                # crash this counter.
+                try:
+                    if bool(getattr(s.channel, "is_priority_muted", False)):
+                        muted_count += 1
+                except Exception:
+                    pass
+            live_count = len(live_channels)
+            open_count = len(open_ids)
+            if live_count == 0:
+                health = "no_live"
+            elif open_count == 0:
+                health = "no_open"
+            elif muted_count >= live_count:
+                # Every live channel is muted yet at least one is open.
+                # This is the silent-mp3-while-hits-fire signature.
+                health = "all_muted"
+            else:
+                health = "live"
+            tick_lag_ms: Optional[float] = None
+            if self._last_tick_ts is not None:
+                tick_lag_ms = round((now - self._last_tick_ts) * 1000.0, 1)
+            self._last_tick_ts = now
+
+            self._audio_path = {
+                "tick_lag_ms": tick_lag_ms,
+                "open_count": open_count,
+                "muted_count": muted_count,
+                "parked_count": parked_count,
+                "live_count": live_count,
+                "selected_id": selected,
+                "audio_path_health": health,
+            }
+
+            if self._audio_trace_enabled:
+                self._server.emit_event(
+                    "audio_path_state",
+                    **self._audio_path,
+                )
+        except Exception:
+            log.exception("audio_path snapshot failed")
 
     # -- Phase 4-pre helper -------------------------------------------------
 
@@ -274,6 +381,15 @@ class HitDetector:
     @property
     def log_disabled(self) -> bool:
         return self._log_disabled
+
+    def audio_path_snapshot(self) -> dict[str, Any]:
+        """Return the latest audio-path diagnostic snapshot.
+
+        See the docstring on ``self._audio_path`` for field meanings.
+        Always returns the most-recent tick's data; safe to call from
+        any thread (dict read is GIL-atomic).
+        """
+        return dict(self._audio_path)
 
 
 __all__ = ["HitDetector", "DEFAULT_HIT_LOG", "DEFAULT_POLL_S"]

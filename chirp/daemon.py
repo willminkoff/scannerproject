@@ -61,8 +61,6 @@ from chirp.cmd.schema import (
     SetGainArgs,
     SetMasterGainArgs,
     SetSquelchArgs,
-    SetVadThresholdArgs,
-    SetVadBypassArgs,
 )
 from chirp.cmd.server import CommandServer, ServerConfig
 from chirp.dsp.channel import Channel
@@ -208,6 +206,15 @@ class DaemonConfig:
     # at a time (most-recently-opened latch).  Opt-in per band; independent
     # of scan_hold so the two can be tested separately.
     priority_gate_enabled: bool = False
+    # Audio-path tracing (2026-06-11).  When enabled the hit_detector tick
+    # emits an `audio_path_state` event per tick with `tick_lag_ms`,
+    # `open_count`, `muted_count`, `parked_count`, `audio_path_health`.
+    # Also surfaces the same fields in `get_status` so the dashboard /
+    # `chirp-cli get_status` can see them at any time.  Cheap (a handful of
+    # ints per tick) so leaving it on in production is fine.  Env override:
+    # `CHIRP_AUDIO_TRACE=1`.  Default off only to avoid log volume during
+    # initial roll-out — flip to True once trace events are validated.
+    audio_trace_enabled: bool = False
 
 
 def _parse_event_sink(spec: Optional[str]) -> Optional[tuple[str, int]]:
@@ -463,6 +470,10 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
             "CHIRP_PRIORITY_GATE_ENABLED",
             raw.get("priority_gate_enabled", False),
         )),
+        audio_trace_enabled=_as_bool(os.environ.get(
+            "CHIRP_AUDIO_TRACE",
+            raw.get("audio_trace_enabled", False),
+        )),
     )
 
 
@@ -483,9 +494,6 @@ class _Slot:
     last_freq_mhz: Optional[float] = None
     # Set when channel was claimed; HitDetector uses this for warmup gating.
     claimed_at: Optional[float] = None
-    # SB5 2026-06-09 squelch redesign: per-channel VAD gate state.
-    last_vad_threshold: float = 50.0
-    last_vad_bypass: bool = False
 
 
 class ChirpFlowgraph(gr.top_block):
@@ -703,6 +711,7 @@ class ChirpFlowgraph(gr.top_block):
             warmup_s=1.0,
             get_cluster_center_hz=self.lo_scheduler.current_cluster_center_hz,
             priority_gate=self.priority_gate,
+            audio_trace_enabled=cfg.audio_trace_enabled,
         )
 
     # -- pool helpers -------------------------------------------------------
@@ -730,10 +739,6 @@ class ChirpFlowgraph(gr.top_block):
                 return self._cmd_remove_channel(env, args)
             if cmd == "set_squelch":
                 return self._cmd_set_squelch(env, args)
-            if cmd == "set_vad_threshold":
-                return self._cmd_set_vad_threshold(env, args)
-            if cmd == "set_vad_bypass":
-                return self._cmd_set_vad_bypass(env, args)
             if cmd == "set_freq":
                 return self._cmd_set_freq(env, args)
             if cmd == "set_gain":
@@ -782,8 +787,6 @@ class ChirpFlowgraph(gr.top_block):
                     squelch_dbfs=s.last_squelch_dbfs,
                     gain_db=s.last_gain_db,
                     label=s.label,
-                    vad_threshold=float(getattr(s, "last_vad_threshold", 50.0)),
-                    vad_bypass=bool(getattr(s, "last_vad_bypass", False)),
                 ))
             st = ChirpState(
                 band=self._cfg.band,
@@ -850,14 +853,6 @@ class ChirpFlowgraph(gr.top_block):
         slot.mode = ch.mode
         slot.last_squelch_dbfs = ch.squelch_dbfs
         slot.last_gain_db = ch.gain_db
-        # SB5 2026-06-11 — restore VAD per-channel state from persistence.
-        slot.last_vad_threshold = float(getattr(ch, "vad_threshold", 50.0))
-        slot.last_vad_bypass = bool(getattr(ch, "vad_bypass", False))
-        try:
-            slot.channel.set_vad_threshold(slot.last_vad_threshold)
-            slot.channel.set_vad_bypass(slot.last_vad_bypass)
-        except Exception:
-            log.exception("VAD restore failed for slot %s", slot.user_id)
         slot.last_freq_mhz = ch.freq_mhz
         slot.claimed_at = time.time()
         self._by_id[ch.id] = slot.index
@@ -978,28 +973,6 @@ class ChirpFlowgraph(gr.top_block):
             self._persist_state()
             return Response.make_ok(env.id, {"dbfs": args.dbfs})
 
-    def _cmd_set_vad_threshold(self, env: Envelope, args: SetVadThresholdArgs) -> Response:
-        """SB5 squelch redesign: set per-channel VAD score threshold."""
-        with self._lock:
-            slot = self._slot_for(args.id)
-            if slot is None:
-                return Response.make_rejected(env.id, f"unknown channel: {args.id}")
-            slot.channel.set_vad_threshold(args.threshold)
-            slot.last_vad_threshold = float(args.threshold)
-            self._persist_state()
-            return Response.make_ok(env.id, {"threshold": float(args.threshold)})
-
-    def _cmd_set_vad_bypass(self, env: Envelope, args: SetVadBypassArgs) -> Response:
-        """SB5 squelch redesign: bypass the VAD gate (passthrough)."""
-        with self._lock:
-            slot = self._slot_for(args.id)
-            if slot is None:
-                return Response.make_rejected(env.id, f"unknown channel: {args.id}")
-            slot.channel.set_vad_bypass(bool(args.bypass))
-            slot.last_vad_bypass = bool(args.bypass)
-            self._persist_state()
-            return Response.make_ok(env.id, {"bypass": bool(args.bypass)})
-
     def _cmd_set_freq(self, env: Envelope, args: SetFreqArgs) -> Response:
         with self._lock:
             slot = self._slot_for(args.id)
@@ -1066,11 +1039,6 @@ class ChirpFlowgraph(gr.top_block):
                 if s.user_id is None:
                     continue
                 snap = s.channel.snapshot()
-                vad_snap = {}
-                try:
-                    vad_snap = s.channel.vad_snapshot()
-                except Exception:
-                    pass
                 channels.append({
                     "id": s.user_id,
                     "label": s.label,
@@ -1084,11 +1052,6 @@ class ChirpFlowgraph(gr.top_block):
                     # Phase 4-pre: parked channels are dormant on the
                     # LO scheduler's other clusters.
                     "is_parked": snap.get("is_parked", False),
-                    # SB5 2026-06-09 squelch redesign — per-channel VAD gate.
-                    "vad_threshold": float(vad_snap.get("threshold", s.last_vad_threshold)),
-                    "vad_bypass": bool(vad_snap.get("bypass", s.last_vad_bypass)),
-                    "vad_last_score": float(vad_snap.get("last_score", 0.0)),
-                    "vad_last_open": bool(vad_snap.get("last_open", False)),
                 })
             data = {
                 "version": PROTOCOL_VERSION,
@@ -1145,6 +1108,23 @@ class ChirpFlowgraph(gr.top_block):
                     else None
                 ),
             }
+            # 2026-06-11 audio-path tracing: cheap per-tick snapshot from
+            # the hit detector.  Always present in get_status so dashboards
+            # can read it without enabling the event stream.  Field meanings
+            # are documented on HitDetector._audio_path.
+            try:
+                data["audio_path"] = self.hit_detector.audio_path_snapshot()
+            except Exception:
+                log.exception("audio_path snapshot in get_status failed")
+                data["audio_path"] = {
+                    "tick_lag_ms": None,
+                    "open_count": 0,
+                    "muted_count": 0,
+                    "parked_count": 0,
+                    "live_count": 0,
+                    "selected_id": None,
+                    "audio_path_health": "unknown",
+                }
             return Response.make_ok(env.id, data)
 
     # -- LO scheduler callbacks (Phase 4-pre) -----------------------------
