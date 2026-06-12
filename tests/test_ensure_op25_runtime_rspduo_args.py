@@ -226,5 +226,92 @@ class BuildDongleArgMapTests(unittest.TestCase):
         )
 
 
+class BuildRuntimeProcessPlansTests(unittest.TestCase):
+    """Process-partitioning logic for RSPduo-anchored systems.
+
+    Confirms the chirp pattern: each RSPduo-anchored system gets its own
+    ``multi_rx.py`` process, even when two anchors share one physical
+    RSPduo.  Single-process MA/SL fails because gr-osmosdr cannot attach
+    Master + Slave from the same Python process; split-process MA/SL with
+    a launch gap (``OP25_RSPDUO_LAUNCH_GAP_SEC``) is the working pattern.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_runtime_module()
+
+    @staticmethod
+    def _sys(name):
+        return {"name": name}
+
+    def test_two_anchors_same_device_split_into_two_processes(self):
+        # MTRTRS on Tuner 1, TACN on Tuner 2 — same physical RSPduo.
+        # Must split: in-process MA + SL fails with SelectDevice().
+        systems = [self._sys("MTRTRS"), self._sys("TN TACN")]
+        dongle_map = {
+            "MTRTRS": "RSPduo Tuner 1 SER#180903EF32",
+            "TN TACN": "RSPduo Tuner 2 SER#180903EF32",
+        }
+        plans = self.mod._build_runtime_process_plans(
+            systems, dongle_map, traffic_followers=[]
+        )
+        self.assertEqual(len(plans), 2, f"expected 2 plans, got {plans}")
+        names_per_plan = [{s["name"] for s in p["systems"]} for p in plans]
+        self.assertEqual(len(names_per_plan[0]), 1)
+        self.assertEqual(len(names_per_plan[1]), 1)
+        self.assertEqual(set().union(*names_per_plan), {"MTRTRS", "TN TACN"})
+
+    def test_different_device_anchors_split_into_two_processes(self):
+        # MTRTRS on RSPduo A Tuner 1, TACN on RSPduo B Tuner 1 — different
+        # physical devices → one process per device.
+        systems = [self._sys("MTRTRS"), self._sys("TN TACN")]
+        dongle_map = {
+            "MTRTRS": "RSPduo Tuner 1 SER#180903EF32",
+            "TN TACN": "RSPduo Tuner 1 SER#1809063632",
+        }
+        plans = self.mod._build_runtime_process_plans(
+            systems, dongle_map, traffic_followers=[]
+        )
+        self.assertEqual(len(plans), 2, f"expected 2 plans, got {plans}")
+        names_per_plan = [{s["name"] for s in p["systems"]} for p in plans]
+        self.assertEqual(len(names_per_plan[0]), 1)
+        self.assertEqual(len(names_per_plan[1]), 1)
+        self.assertEqual(set().union(*names_per_plan), {"MTRTRS", "TN TACN"})
+
+    def test_single_anchor_is_one_process(self):
+        systems = [self._sys("MTRTRS")]
+        dongle_map = {"MTRTRS": "RSPduo Tuner 1 SER#180903EF32"}
+        plans = self.mod._build_runtime_process_plans(
+            systems, dongle_map, traffic_followers=[]
+        )
+        self.assertEqual(len(plans), 1)
+        self.assertEqual([s["name"] for s in plans[0]["systems"]], ["MTRTRS"])
+
+    def test_split_disabled_keeps_everything_in_one_process(self):
+        # OP25_RSPDUO_SPLIT_PROCESSES=0 forces single-process even when
+        # multiple anchors are present.  This is an escape hatch for
+        # operators investigating regressions — the default is split=1.
+        systems = [self._sys("MTRTRS"), self._sys("TN TACN")]
+        dongle_map = {
+            "MTRTRS": "RSPduo Tuner 1 SER#180903EF32",
+            "TN TACN": "RSPduo Tuner 2 SER#180903EF32",
+        }
+        orig = os.environ.get("OP25_RSPDUO_SPLIT_PROCESSES")
+        os.environ["OP25_RSPDUO_SPLIT_PROCESSES"] = "0"
+        try:
+            plans = self.mod._build_runtime_process_plans(
+                systems, dongle_map, traffic_followers=[]
+            )
+        finally:
+            if orig is None:
+                os.environ.pop("OP25_RSPDUO_SPLIT_PROCESSES", None)
+            else:
+                os.environ["OP25_RSPDUO_SPLIT_PROCESSES"] = orig
+        self.assertEqual(len(plans), 1)
+        self.assertEqual(
+            {s["name"] for s in plans[0]["systems"]}, {"MTRTRS", "TN TACN"}
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -66,8 +66,18 @@ class RspduoDiscoveryTests(unittest.TestCase):
     def setUp(self):
         self.mp = _MonkeyPatch()
         _install_fake_soapy(self.mp)
+        # Force the sysfs probe to return nothing so the SoapySDR enumeration
+        # path is exercised even when the test runner has a real RSPduo
+        # attached (e.g. running on the Micro itself).  Without this the
+        # sysfs probe short-circuits the function before our fake SoapySDR
+        # is consulted.
+        self._usb_patcher = mock.patch.object(
+            favorites_runtime, "_rspduo_usb_serials", return_value=[]
+        )
+        self._usb_patcher.start()
 
     def tearDown(self):
+        self._usb_patcher.stop()
         self.mp.undo()
 
     # ----------------------------------------------------------------------
@@ -121,14 +131,20 @@ class RspduoDiscoveryTests(unittest.TestCase):
     # Successful discovery
     # ----------------------------------------------------------------------
 
-    def test_one_rspduo_yields_only_tuner_1(self):
-        """Tuner 2 is intentionally suppressed — same-process MA/SL is broken."""
+    def test_one_rspduo_yields_both_tuners(self):
+        """Both Tuner 1 (Master) and Tuner 2 (Slave) are emitted for each box
+        so the digital allocator can pair systems in Dual-Tuner MA/SL within
+        one OP25 process — the safe single-process pattern proven by chirp.
+        """
         _FakeSoapyDevice.enumerate_return = [
             {"driver": "sdrplay", "serial": "180903ef32", "label": "SDRplay Dev0 RSPduo 180903EF32 - Single Tuner"},
         ]
         self.assertEqual(
             favorites_runtime._rspduo_tuner_ids(),
-            ["RSPduo Tuner 1 SER#180903EF32"],
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
         )
 
     def test_serial_normalised_to_uppercase(self):
@@ -136,11 +152,17 @@ class RspduoDiscoveryTests(unittest.TestCase):
             {"driver": "sdrplay", "serial": "abcdef0123", "label": "RSPduo something"},
         ]
         ids = favorites_runtime._rspduo_tuner_ids()
-        self.assertEqual(ids, ["RSPduo Tuner 1 SER#ABCDEF0123"])
+        self.assertEqual(
+            ids,
+            [
+                "RSPduo Tuner 1 SER#ABCDEF0123",
+                "RSPduo Tuner 2 SER#ABCDEF0123",
+            ],
+        )
 
     def test_dedupes_repeated_enumeration_entries(self):
         """SoapySDR returns one entry per RSPduo *mode* (ST, DT, MA, SL).
-        All four reference the same physical device — emit Tuner 1 once.
+        All four reference the same physical device — emit each tuner once.
         """
         _FakeSoapyDevice.enumerate_return = [
             {"driver": "sdrplay", "serial": "180903EF32", "label": "RSPduo - Single Tuner", "mode": "ST"},
@@ -150,23 +172,31 @@ class RspduoDiscoveryTests(unittest.TestCase):
         ]
         self.assertEqual(
             favorites_runtime._rspduo_tuner_ids(),
-            ["RSPduo Tuner 1 SER#180903EF32"],
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
         )
 
-    def test_two_rspduos_each_get_tuner_1(self):
+    def test_two_rspduos_each_get_both_tuners(self):
         _FakeSoapyDevice.enumerate_return = [
             {"driver": "sdrplay", "serial": "180903EF32", "label": "RSPduo A"},
             {"driver": "sdrplay", "serial": "9F00112233", "label": "RSPduo B"},
         ]
+        # All Tuner 1s (Masters, top-priority control receivers) first,
+        # then all Tuner 2s (Slaves).
         self.assertEqual(
             favorites_runtime._rspduo_tuner_ids(),
             [
                 "RSPduo Tuner 1 SER#180903EF32",
                 "RSPduo Tuner 1 SER#9F00112233",
+                "RSPduo Tuner 2 SER#180903EF32",
+                "RSPduo Tuner 2 SER#9F00112233",
             ],
         )
 
     def test_two_rspduos_two_slots_prefer_both_tuner_1s(self):
+        # Two control slots needed → both Tuner 1s (Masters); no Slave.
         _FakeSoapyDevice.enumerate_return = [
             {"driver": "sdrplay", "serial": "180903EF32", "label": "RSPduo A"},
             {"driver": "sdrplay", "serial": "9F00112233", "label": "RSPduo B"},
@@ -180,6 +210,7 @@ class RspduoDiscoveryTests(unittest.TestCase):
         )
 
     def test_second_tuner_only_appears_after_all_tuner_1_slots(self):
+        # Three slots, two boxes → both Masters first, then first box's Slave.
         _FakeSoapyDevice.enumerate_return = [
             {"driver": "sdrplay", "serial": "180903EF32", "label": "RSPduo A"},
             {"driver": "sdrplay", "serial": "9F00112233", "label": "RSPduo B"},
@@ -200,7 +231,10 @@ class RspduoDiscoveryTests(unittest.TestCase):
         ]
         self.assertEqual(
             favorites_runtime._rspduo_tuner_ids(),
-            ["RSPduo Tuner 1 SER#GOOD123"],
+            [
+                "RSPduo Tuner 1 SER#GOOD123",
+                "RSPduo Tuner 2 SER#GOOD123",
+            ],
         )
 
     def test_uses_hardware_field_when_label_absent(self):
@@ -210,7 +244,10 @@ class RspduoDiscoveryTests(unittest.TestCase):
         ]
         self.assertEqual(
             favorites_runtime._rspduo_tuner_ids(),
-            ["RSPduo Tuner 1 SER#1234"],
+            [
+                "RSPduo Tuner 1 SER#1234",
+                "RSPduo Tuner 2 SER#1234",
+            ],
         )
 
     def test_handles_real_soapy_kwargs_string_form(self):
@@ -229,7 +266,10 @@ class RspduoDiscoveryTests(unittest.TestCase):
         # Clean serial (no trailing brace) and dedup across the 4 modes.
         self.assertEqual(
             favorites_runtime._rspduo_tuner_ids(),
-            ["RSPduo Tuner 1 SER#180903EF32"],
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
         )
 
 

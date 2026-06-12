@@ -13,6 +13,7 @@ and :func:`_system_has_operator_intent` — without touching hardware.
 """
 
 import unittest
+from unittest import mock
 
 from ui import favorites_runtime as fr
 
@@ -99,6 +100,85 @@ class CapSystemsToTunersTests(unittest.TestCase):
         systems = [_sys(TURNPIKE), _sys(NJICS), _sys("Other")]
         kept = fr._cap_systems_to_tuners(systems, 2, SIC_OVERRIDES)
         self.assertEqual([s["name"] for s in kept], [NJICS, TURNPIKE])
+
+
+class AvailableDigitalTunerCountTests(unittest.TestCase):
+    """``_available_digital_tuner_count`` must count both tuners per RSPduo.
+
+    Regression guard for the 2026-06-12 Nashville TACN drop: the prior
+    cap counted only Tuner 1 per box, so a one-RSPduo box couldn't host
+    MTRTRS + TACN simultaneously even though Dual-Tuner MA/SL inside one
+    OP25 process is the safe pattern (chirp uses it for airband+ground).
+    """
+
+    def test_two_rspduo_ids_one_box_count_as_two(self):
+        # One physical RSPduo, both tuners enumerated → 2 logical tuners.
+        ids = [
+            "RSPduo Tuner 1 SER#180903EF32",
+            "RSPduo Tuner 2 SER#180903EF32",
+        ]
+        with mock.patch.object(fr, "_digital_serials", return_value=[]):
+            self.assertEqual(fr._available_digital_tuner_count(ids), 2)
+
+    def test_one_rspduo_id_counts_as_one(self):
+        ids = ["RSPduo Tuner 1 SER#180903EF32"]
+        with mock.patch.object(fr, "_digital_serials", return_value=[]):
+            self.assertEqual(fr._available_digital_tuner_count(ids), 1)
+
+    def test_rspduo_plus_rtl(self):
+        # Two RSPduo tuners + one RTL serial → 3 tuners.
+        ids = [
+            "RSPduo Tuner 1 SER#180903EF32",
+            "RSPduo Tuner 2 SER#180903EF32",
+        ]
+        with mock.patch.object(fr, "_digital_serials", return_value=["14306619"]):
+            self.assertEqual(fr._available_digital_tuner_count(ids), 3)
+
+
+class RspduoTunerIdsEnumerationTests(unittest.TestCase):
+    """``_rspduo_tuner_ids`` must emit Tuner 1 + Tuner 2 of every box.
+
+    Pre-2026-06-12 the function would emit Tuner 2 only when the caller
+    passed ``max_tuners >= 2`` AND the ``OP25_RSPDUO_SPLIT_PROCESSES``
+    env flag was set.  Both gates were artifacts of the split-process
+    assumption.  Now Tuner 2 is always emitted so the digital allocator
+    can pair MA/SL systems on the same physical RSPduo.
+    """
+
+    def test_default_emits_both_tuners(self):
+        with mock.patch.object(fr, "_rspduo_usb_serials", return_value=["180903EF32"]):
+            ids = fr._rspduo_tuner_ids()
+        self.assertEqual(
+            ids,
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
+        )
+
+    def test_max_tuners_one_truncates_to_master_only(self):
+        with mock.patch.object(fr, "_rspduo_usb_serials", return_value=["180903EF32"]):
+            ids = fr._rspduo_tuner_ids(max_tuners=1)
+        self.assertEqual(ids, ["RSPduo Tuner 1 SER#180903EF32"])
+
+    def test_two_boxes_master_first_then_slaves(self):
+        with mock.patch.object(
+            fr,
+            "_rspduo_usb_serials",
+            return_value=["180903EF32", "1809063632"],
+        ):
+            ids = fr._rspduo_tuner_ids()
+        # All Tuner 1s first (Masters → highest-priority control receivers),
+        # then all Tuner 2s (Slaves).
+        self.assertEqual(
+            ids,
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 1 SER#1809063632",
+                "RSPduo Tuner 2 SER#180903EF32",
+                "RSPduo Tuner 2 SER#1809063632",
+            ],
+        )
 
 
 if __name__ == "__main__":
