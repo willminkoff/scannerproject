@@ -453,6 +453,9 @@ _DIGITAL_STREAM_ROUTE_CACHE: dict[str, object] = {
     "tgids": set(),
 }
 _ANALOG_LABEL_CACHE: dict[str, dict] = {}
+_CHIRP_LABEL_CACHE: dict[str, dict] = {}
+_CHIRP_STATE_DIR = "/var/lib/chirp"
+
 _LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
 _NOAA_LABELS_BY_FREQ = {
     "162.5500": "NOAA 1",
@@ -1682,6 +1685,55 @@ def _fallback_noaa_label(freq_text: str) -> str:
     return ""
 
 
+def _chirp_band_from_conf_path(conf_path) -> str:
+    """Infer chirp band ('airband' or 'ground') from a legacy conf path."""
+    name = str(conf_path or "").lower()
+    if "airband" in name:
+        return "airband"
+    if "ground" in name:
+        return "ground"
+    return ""
+
+
+def _load_chirp_label_map(band: str) -> dict[str, str]:
+    """Read freq->label mapping from the live chirp daemon state file.
+
+    Source of truth for hit labeling after the rtl_airband -> chirp cutover.
+    The chirp daemon rewrites /var/lib/chirp/<band>.state.json on every
+    activate_favorite_via_chirp call, so this stays in sync with whatever
+    favorite is actually loaded into the demod.
+    """
+    band = (band or "").strip().lower()
+    if band not in ("airband", "ground"):
+        return {}
+    path = os.path.join(_CHIRP_STATE_DIR, f"{band}.state.json")
+    if not os.path.isfile(path):
+        return {}
+    try:
+        mtime = os.path.getmtime(path)
+    except Exception:
+        return {}
+
+    cached = _CHIRP_LABEL_CACHE.get(path)
+    if cached and cached.get("mtime") == mtime:
+        return dict(cached.get("map") or {})
+
+    mapping: dict[str, str] = {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            data = json.load(f)
+        for ch in (data or {}).get("channels") or []:
+            key = _normalize_freq_key(ch.get("freq_mhz"))
+            label = str(ch.get("label") or "").strip()
+            if key and label:
+                mapping[key] = label
+    except Exception:
+        pass
+
+    _CHIRP_LABEL_CACHE[path] = {"mtime": mtime, "map": mapping}
+    return dict(mapping)
+
+
 def _load_profile_label_map(conf_path: str) -> dict[str, str]:
     path = os.path.realpath(str(conf_path or ""))
     if not path or not os.path.isfile(path):
@@ -1715,6 +1767,16 @@ def _load_profile_label_map(conf_path: str) -> dict[str, str]:
 
 
 def _resolve_analog_label_map(conf_path: str, profile_id: str, profile_rows: list[dict]) -> dict[str, str]:
+    # Chirp state (live demod) is the authoritative source of freq->label
+    # mapping post-rtl_airband cutover. Try it first; fall back to legacy .conf
+    # parsing only if the chirp state file is missing (e.g. during early boot
+    # before any favorite has been activated).
+    chirp_band = _chirp_band_from_conf_path(conf_path)
+    if chirp_band:
+        chirp_map = _load_chirp_label_map(chirp_band)
+        if chirp_map:
+            return chirp_map
+
     mapping = _load_profile_label_map(conf_path)
     if mapping:
         return mapping
