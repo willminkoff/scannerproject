@@ -771,6 +771,68 @@ class ChirpFlowgraph(gr.top_block):
             return (freq_mhz * 1e6) - float(self._cfg.sdr_center_freq_hz)
         return freq_mhz * 1e6
 
+    # -- Phase 1: source contract validation -------------------------------
+
+    def validate_source_contract(self) -> dict:
+        """Wait for the source validator window to fill, then evaluate.
+
+        Returns the evaluation result dict for journalctl logging
+        regardless of pass/fail.  Raises :class:`SourceContractViolation`
+        on envelope violation — the caller (main) handles that by
+        exiting non-zero so systemd's restart sees a deterministic
+        failure rather than a stuck "alive but useless" daemon.
+
+        No-op (returns ``{"skipped": True, ...}``) when the source is
+        not the SDR source kind or when ``CHIRP_SOURCE_VALIDATE`` is
+        off — the latter is the default Phase 1 ship state.
+        """
+        if self._cfg.source_kind != "sdr":
+            return {"skipped": True, "reason": "source_kind!=sdr"}
+        validator = getattr(self.source, "validator", None)
+        if validator is None:
+            return {"skipped": True, "reason": "CHIRP_SOURCE_VALIDATE off"}
+
+        # Local imports keep the validator module optional for non-SDR
+        # daemon configurations (e.g. test runners that use FileIQSource).
+        from chirp.dsp.source_validator import (
+            SourceContractViolation,
+            SourceEnvelope,
+            evaluate_capture,
+        )
+
+        envelope = SourceEnvelope()  # Phase 1 defaults (deliberately loose)
+        samples, elapsed = validator.wait_for_window()
+        result = evaluate_capture(
+            samples=samples,
+            elapsed_s=elapsed,
+            expected_samples=validator.expected_samples,
+            envelope=envelope,
+        )
+
+        # Emit the result on the event bus regardless of pass/fail so
+        # dashboards + soak tests can audit what the validator saw.
+        self._server.emit_event(
+            "source_contract_result",
+            band=self._cfg.band,
+            **result.as_dict(),
+        )
+
+        if not result.ok:
+            log.error(
+                "source contract violated band=%s violations=%s stats=%s",
+                self._cfg.band,
+                result.violations,
+                result.stats.as_dict(),
+            )
+            raise SourceContractViolation(result)
+
+        log.info(
+            "source contract OK band=%s stats=%s",
+            self._cfg.band,
+            result.stats.as_dict(),
+        )
+        return result.as_dict()
+
     # -- state persistence helper ------------------------------------------
 
     def _persist_state(self) -> None:
@@ -1300,6 +1362,28 @@ def main() -> int:
         tb.stop()
         tb.wait()
         raise
+
+    # Phase 1: validate the source contract BEFORE we tell systemd we're
+    # ready.  If the SDR is returning junk (constant wedge, all-ones
+    # saturation, starved arrival), exit non-zero now so systemd's
+    # restart sees a deterministic failure — not a stuck "alive but
+    # useless" daemon that keeps the icecast mount silent for hours.
+    # The validator is opt-in via CHIRP_SOURCE_VALIDATE=1; default off
+    # for Phase 1 so we can calibrate the envelope before flipping it on.
+    try:
+        contract_result = tb.validate_source_contract()
+        if not contract_result.get("skipped"):
+            log.info("source contract validation: %s", contract_result)
+    except Exception as contract_err:  # SourceContractViolation lands here
+        log.error("source contract validation FAILED — exiting: %s", contract_err)
+        _sd_notify(None, f"source contract failed: {contract_err}")
+        try:
+            tb.stop_health()
+            tb.stop()
+            tb.wait()
+        except Exception:
+            log.exception("shutdown after contract failure also raised")
+        return 2  # distinct exit code so systemd journalctl can grep it
 
     server.emit_event("daemon_ready", band=cfg.band, cmd_port=cfg.cmd_port)
 

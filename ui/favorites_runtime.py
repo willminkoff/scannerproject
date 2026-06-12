@@ -223,12 +223,23 @@ def _chirp_dedicated_rspduo_serials() -> set[str]:
     the daemon at open or causes the chirp ground SL to fail with
     ``RSPduo slave mode not available``.
 
-    Source-of-truth precedence (later wins / unions with earlier):
+    Source-of-truth precedence (union — all sources are merged):
       1. ``chirp/config/airband.json`` ``sdr.device_args``
       2. ``chirp/config/ground.json`` ``sdr.device_args``
-      3. ``CHIRP_RSPDUO_SERIAL`` env var (comma- or semicolon-separated;
-         operator escape hatch for setups where the config can't be read
-         e.g. chirp is on a sibling host).
+      3. ``CHIRP_SDR_DEVICE_ARGS`` env var (matches the daemon's own
+         override at ``chirp/daemon.py:load_config`` — if the operator
+         points chirp at a different serial via env, the exclusion has
+         to follow or we silently hand the wrong RSPduo to OP25).
+      4. ``CHIRP_RSPDUO_SERIAL`` env var (comma- or semicolon-separated;
+         operator escape hatch for setups where the config can't be read,
+         e.g. ``airband-ui.service`` runs at ``/opt/airband-ui`` with no
+         ``WorkingDirectory`` and the repo-relative path doesn't resolve).
+
+    Logs a WARNING when the resolved set is empty — an empty exclusion
+    is a deployment defect (the operator's intent was "chirp owns its
+    RSPduo, OP25 must not steal it") and the only honest response is to
+    say so loudly.  See ``ui/favorites_runtime.py`` rule 4 ("no silent
+    empty results") in the chirp rebuild scope doc.
 
     Mirrors :py:func:`_rtl_airband_dedicated_rspduo_serials` so the
     allocator carries a single exclusion contract for both analog
@@ -246,18 +257,33 @@ def _chirp_dedicated_rspduo_serials() -> set[str]:
                 return kv.split("=", 1)[1].strip().upper()
         return ""
 
-    # 1) + 2) — chirp config files.  Mirror the band loader's path discovery
-    # so a CHIRP_CONFIG_DIR override (used by tests / dev) is honoured.
+    # 1) + 2) — chirp config files.  Honor ``CHIRP_CONFIG_DIR`` if the
+    # operator has set it (test / dev override), then fall back to
+    # repo-relative.  Errors reading the files are surfaced at INFO so
+    # an operator can grep for "chirp config unreadable" — silent
+    # exceptions here were the P1-8 finding from the 2026-06-12 review.
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     config_dir = os.environ.get(
         "CHIRP_CONFIG_DIR",
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "chirp", "config"),
+        os.path.join(repo_root, "chirp", "config"),
     )
     for band_file in ("airband.json", "ground.json"):
         path = os.path.join(config_dir, band_file)
         try:
             with open(path, "r", encoding="utf-8") as f:
                 raw = json.load(f) or {}
-        except (OSError, json.JSONDecodeError):
+        except FileNotFoundError:
+            logger.info(
+                "_chirp_dedicated_rspduo_serials: %s not found "
+                "(skipping); set CHIRP_RSPDUO_SERIAL if chirp owns an "
+                "RSPduo here", path,
+            )
+            continue
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "_chirp_dedicated_rspduo_serials: cannot read %s: %s",
+                path, exc,
+            )
             continue
         sdr = raw.get("sdr") if isinstance(raw, dict) else None
         if not isinstance(sdr, dict):
@@ -266,13 +292,35 @@ def _chirp_dedicated_rspduo_serials() -> set[str]:
         if serial:
             out.add(serial)
 
-    # 3) — env override / belt-and-suspenders.
+    # 3) — ``CHIRP_SDR_DEVICE_ARGS`` env override.  Mirrors the daemon's
+    # own override path — if chirp boots with this env set, the digital
+    # allocator MUST exclude that serial too or it'll race chirp.
+    env_args = os.getenv("CHIRP_SDR_DEVICE_ARGS")
+    if env_args:
+        serial = _serial_from_device_args(env_args)
+        if serial:
+            out.add(serial)
+
+    # 4) — ``CHIRP_RSPDUO_SERIAL`` env override / belt-and-suspenders.
     raw = str(os.getenv("CHIRP_RSPDUO_SERIAL", "") or "").strip()
     if raw:
         for token in raw.replace(";", ",").split(","):
             token = token.strip().upper()
             if token:
                 out.add(token)
+
+    if not out:
+        # An empty result is almost always a deployment bug:
+        # airband-ui's CWD doesn't include the repo, no env override was
+        # set, and the operator's intent was "chirp owns its RSPduo."
+        # Log once per call at WARNING so it's grep-able.
+        logger.warning(
+            "_chirp_dedicated_rspduo_serials: resolved EMPTY — chirp's "
+            "RSPduo (if any) will not be excluded from the digital pool. "
+            "Set CHIRP_RSPDUO_SERIAL or CHIRP_SDR_DEVICE_ARGS in "
+            "/etc/airband-ui.conf (or run airband-ui with the repo as "
+            "its CWD)."
+        )
     return out
 
 

@@ -39,15 +39,15 @@ stopping op25) so the open succeeds.
 
 from __future__ import annotations
 
-import logging
 import os
-import re
-import sys
-import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
 from gnuradio import gr
+
+from chirp.dsp.source_validator import (
+    SourceContractValidator,
+)
 
 try:  # pragma: no cover — osmocom is system-installed on Micro
     import osmosdr
@@ -55,70 +55,17 @@ except ImportError:  # pragma: no cover
     osmosdr = None  # type: ignore[assignment]
 
 
-log = logging.getLogger("chirp.source_sdr")
-
-
-_SERIAL_RE = re.compile(r"serial=([A-Za-z0-9_-]+)")
-
-
-def _preflight_check_sdr_serial(device_args: str) -> None:
-    """Verify the SDR serial in device_args is enumerated by the kernel.
-
-    Returns silently if the serial is found (or device_args has no serial —
-    e.g. file source).  Raises SystemExit(100) if the serial is declared but
-    not present, so systemd's restart-on-failure cycles in seconds instead
-    of waiting for the 60 s SoapySDR open timeout.
+def _validate_enabled() -> bool:
+    """``CHIRP_SOURCE_VALIDATE`` is on by default off so deploys without
+    the env var have zero validator overhead.  Phase 1 ships off; we
+    flip it on once the envelope is calibrated against healthy traffic.
     """
-    m = _SERIAL_RE.search(device_args or "")
-    if not m:
-        return
-    serial = m.group(1)
-    base = "/sys/bus/usb/devices"
-    if not os.path.isdir(base):
-        return
-    for entry in os.listdir(base):
-        try:
-            with open(os.path.join(base, entry, "serial")) as f:
-                if f.read().strip() == serial:
-                    return
-        except OSError:
-            continue
-    log.error(
-        "SDR serial %s NOT enumerated in /sys/bus/usb/devices — exiting fast. "
-        "Likely needs physical reconnect of the dongle.",
-        serial,
+    return str(os.getenv("CHIRP_SOURCE_VALIDATE", "0")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
     )
-    sys.exit(100)
-
-
-def _open_osmosdr_with_timeout(device_args: str, timeout_sec: float):
-    """Call osmosdr.source(args=...) under a watchdog timer.
-
-    Runs the open in a thread; the main thread waits up to ``timeout_sec``
-    for completion.  If it doesn't return, log and SystemExit(100) so the
-    restart cycles fast instead of dragging in the SoapySDR open hang.
-    """
-    box: dict = {}
-
-    def _runner():
-        try:
-            box["src"] = osmosdr.source(args=device_args)
-        except Exception as exc:  # noqa: BLE001
-            box["err"] = exc
-
-    t = threading.Thread(target=_runner, name="sdr-open", daemon=True)
-    t.start()
-    t.join(timeout=timeout_sec)
-    if t.is_alive():
-        log.error(
-            "osmosdr.source open did not return within %.1f s for args=%r — "
-            "exiting fast (likely sdrplay_api wedged; needs daemon bounce).",
-            timeout_sec, device_args,
-        )
-        sys.exit(100)
-    if "err" in box:
-        raise box["err"]
-    return box["src"]
 
 
 @dataclass
@@ -188,16 +135,7 @@ class SdrIQSource(gr.hier_block2):
             )
 
         self._cfg = cfg
-        # Phase C reliability — pre-flight + timeout-protected open.
-        # See _preflight_check_sdr_serial and _open_osmosdr_with_timeout above.
-        # The bare osmosdr.source() call below would block ~60 s on the
-        # sdrplay_api wedge before systemd killed gr-demod; now we exit code 100
-        # in <10 s so the watchdog/operator can act on a meaningful failure.
-        _preflight_check_sdr_serial(cfg.device_args)
-        self._src = _open_osmosdr_with_timeout(
-            cfg.device_args,
-            timeout_sec=float(os.environ.get("SDR_OPEN_TIMEOUT_SEC", "10.0")),
-        )
+        self._src = osmosdr.source(args=cfg.device_args)
 
         # Order matters: rate first, then bandwidth, then freq + gain.
         self._src.set_sample_rate(float(cfg.sample_rate))
@@ -227,6 +165,27 @@ class SdrIQSource(gr.hier_block2):
         # No throttle: SDR drives the clock.
         self.connect(self._src, self)
 
+        # Optional source-contract validator (Phase 1).  When enabled,
+        # wires a parallel branch source -> head(N) -> vector_sink_c
+        # that captures the first ~200 ms of samples after start().  The
+        # daemon reads + evaluates the capture, then either continues
+        # normally or aborts with a structured diagnostic if the sample
+        # stream is outside the envelope (constant wedge, all-ones
+        # saturation, DC-only, starved arrival).  Zero overhead when
+        # disabled — the branch isn't even constructed.
+        self._validator: Optional[SourceContractValidator] = None
+        if _validate_enabled():
+            self._validator = SourceContractValidator(
+                sample_rate=cfg.sample_rate,
+            )
+            # IMPORTANT: this is a PARALLEL branch off the source.  It
+            # never sits between the source and the production output
+            # port (see chirp/dsp/source_validator.py for why — the
+            # P0-1 lesson from 2026-06-12).  After N samples, head emits
+            # EOS to its vector_sink and stops consuming; the production
+            # branch is unaffected.
+            self._validator.connect_to(self, self._src)
+
     # -- introspection ------------------------------------------------------
 
     @property
@@ -251,6 +210,16 @@ class SdrIQSource(gr.hier_block2):
 
     def set_gain(self, db: float) -> None:
         self._src.set_gain(float(db), 0)
+
+    # -- Phase 1: source contract validator ---------------------------------
+
+    @property
+    def validator(self) -> Optional[SourceContractValidator]:
+        """The wired validator instance, or None when CHIRP_SOURCE_VALIDATE
+        is off.  Caller (daemon) inspects this AFTER the flowgraph has
+        ``start()``ed to read the captured window and compare to envelope.
+        """
+        return self._validator
 
 
 __all__ = ["SdrIQSource", "SdrSourceConfig"]
