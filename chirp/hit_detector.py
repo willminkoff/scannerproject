@@ -11,8 +11,13 @@ hit) + `duration_s`. Hits are also appended one-per-line to a JSON Lines log
 at `hit_log_path` (default /var/log/chirp/hits.jsonl), enabling Phase 4
 historical analysis without depending on the live event subscriber.
 
-Threading: runs in a single background thread that takes the daemon's lock
-when reading slot state. Stop() joins the thread (bounded).
+Threading: runs in a single background thread.  Reads `self._slots` and
+each slot's `channel` attribute WITHOUT taking the daemon's lock — slot
+add/remove/set_freq under the lock can race the read, and the tick is
+written to tolerate that: counters are derived from the SAME walked set
+(`live_channels`) so diagnostics can't disagree with themselves, and any
+slot whose state read raises is silently skipped for the tick.  Stop()
+joins the thread (bounded).
 
 Warmup: a channel that has been alive for less than `warmup_s` is allowed to
 see squelch transitions BUT the hit metadata records the warmup flag so
@@ -192,6 +197,12 @@ class HitDetector:
         # loop so exactly one passes audio.
         live_channels: dict[str, Any] = {}
         open_ids: list[str] = []
+        # Audio-path diagnostics counters: tracked DURING walk 1 so they
+        # describe the same slot set as live_channels.  Previously a second
+        # lock-free walk drove parked_count + muted_count, producing the
+        # false `all_muted` health classification when a slot errored in
+        # walk 1 but appeared as muted in walk 2.
+        parked_count = 0
         for s in self._slots:
             if s.user_id is None:
                 # Slot empty: clean up any stale in-flight state.
@@ -208,6 +219,10 @@ class HitDetector:
                 if s.index in self._in_flight:
                     self._in_flight.pop(s.index, None)
                 self._last_open[s.index] = False
+                # Tracked during walk 1 (NOT in a second lock-free walk)
+                # so parked_count is consistent with live_channels — fixing
+                # the 2026-06-12 false-`all_muted` classifier.
+                parked_count += 1
                 continue
             try:
                 is_open = bool(s.channel.get_squelch_open())
@@ -281,28 +296,22 @@ class HitDetector:
             except Exception:
                 log.exception("priority gate update failed")
 
-        # ---- audio-path diagnostics (2026-06-11) -----------------------------
-        # Recompute the audio_path snapshot after the priority gate has
-        # had its say.  Cheap: walks the slot list once, no GR work.
-        # Always updates (even with audio_trace disabled) so get_status
-        # callers see fresh data; the event emit is what trace gates.
+        # ---- audio-path diagnostics (2026-06-11, fixed 2026-06-12) ----------
+        # Snapshot of the audio path after the priority gate has had its
+        # say.  `parked_count` is tracked during walk 1.  `muted_count` is
+        # counted over `live_channels` (same set used for live_count) so
+        # no slot can appear in one counter but not the other — the false
+        # `all_muted` classifier came from drift between independent walks.
+        # No GR work; cheap.  Always updates (even with audio_trace
+        # disabled) so get_status callers see fresh data.
         try:
-            parked_count = 0
             muted_count = 0
-            for s in self._slots:
-                if s.user_id is None:
-                    continue
-                if getattr(s.channel, "is_parked", False):
-                    parked_count += 1
-                    continue
-                # is_priority_muted is a property on Channel; treat absent
-                # attribute as not-muted so older Channel instances don't
-                # crash this counter.
-                try:
-                    if bool(getattr(s.channel, "is_priority_muted", False)):
-                        muted_count += 1
-                except Exception:
-                    pass
+            for ch in live_channels.values():
+                # `is_priority_muted` is a property on Channel; treat
+                # absent attribute as not-muted so older Channel instances
+                # don't crash this counter.
+                if bool(getattr(ch, "is_priority_muted", False)):
+                    muted_count += 1
             live_count = len(live_channels)
             open_count = len(open_ids)
             if live_count == 0:

@@ -118,13 +118,18 @@ def main() -> int:
             continue
 
         data = resp.get("data") or resp
-        ap = data.get("audio_path") or {}
+        # Daemon key is `audio_path_state` (the per-tick diagnostics dict);
+        # the `audio_path` field at top-level is the audio output file path
+        # string, which we don't want here.  Pre-2026-06-13 daemons emitted
+        # the dict under `audio_path`; fall back so this probe still works
+        # against an older daemon during rollouts.
+        ap = data.get("audio_path_state") or data.get("audio_path") or {}
         pg = data.get("priority_gate") or {}
         if args.json:
             row = {
                 "ts": t0,
                 "host_port": f"{args.host}:{args.port}",
-                "audio_path": ap,
+                "audio_path_state": ap,
                 "priority_gate": pg,
             }
             print(json.dumps(row, separators=(",", ":")))

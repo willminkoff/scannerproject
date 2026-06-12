@@ -1112,17 +1112,25 @@ class ChirpFlowgraph(gr.top_block):
             # the hit detector.  Always present in get_status so dashboards
             # can read it without enabling the event stream.  Field meanings
             # are documented on HitDetector._audio_path.
+            #
+            # Key is `audio_path_state` (not `audio_path`) to avoid silently
+            # clobbering the audio_out_path string set at the top of `data`
+            # — that bug shipped on 2026-06-12 and was caught in review the
+            # same day.  Matches the `audio_path_state` event-stream name.
             try:
-                data["audio_path"] = self.hit_detector.audio_path_snapshot()
+                data["audio_path_state"] = self.hit_detector.audio_path_snapshot()
             except Exception:
-                log.exception("audio_path snapshot in get_status failed")
-                data["audio_path"] = {
+                log.exception("audio_path_state snapshot in get_status failed")
+                data["audio_path_state"] = {
                     "tick_lag_ms": None,
                     "open_count": 0,
                     "muted_count": 0,
                     "parked_count": 0,
                     "live_count": 0,
                     "selected_id": None,
+                    # "unknown" is intentionally outside the documented enum
+                    # (live/all_muted/no_open/no_live) so probe scripts can
+                    # bucket "snapshot failed" separately from a real state.
                     "audio_path_health": "unknown",
                 }
             return Response.make_ok(env.id, data)
