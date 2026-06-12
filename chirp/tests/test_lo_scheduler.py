@@ -100,6 +100,48 @@ class TestChannelParked:
         ch.set_parked(True)
         assert ch.snapshot()["is_parked"] is True
 
+    def test_park_disables_input_gate(self):
+        """2026-06-12: parked channels MUST stop GR work on the FIR chain.
+
+        Regression: prior to the input_gate patch, parked channels still
+        ran their xlating + decim FIRs at full sample rate.  With 20
+        ground channels that was ~6 cores of pure DSP burn even with the
+        LO tuned far from every channel.  The input_gate's set_enabled
+        toggle is what makes parking actually free.
+        """
+        ch = _mk_channel(-40.0)
+        # Initial state: gate is enabled (pass-through).
+        assert ch.input_gate.enabled() is True
+        assert ch.snapshot()["input_gated"] is False
+        # Park → gate disables → snapshot reflects.
+        ch.set_parked(True)
+        assert ch.input_gate.enabled() is False
+        assert ch.snapshot()["input_gated"] is True
+        # Unpark → gate re-enables.
+        ch.set_parked(False)
+        assert ch.input_gate.enabled() is True
+        assert ch.snapshot()["input_gated"] is False
+
+    def test_park_unpark_input_gate_order(self):
+        """Ordering invariant: gate disables BEFORE squelch slam (so the
+        last in-flight sample can't sneak through a still-open squelch),
+        and re-enables AFTER squelch restore (so the first re-flowed
+        sample sees the operator threshold, not the parked floor).
+
+        We can't observe ordering from the public API directly, but we
+        CAN observe that the post-call state is consistent: gate state
+        matches park state.
+        """
+        ch = _mk_channel(-37.0)
+        ch.set_parked(True)
+        # Gate disabled, squelch slammed — consistent parked state.
+        assert ch.input_gate.enabled() is False
+        assert ch.pwr_squelch.threshold() == pytest.approx(0.0)
+        ch.set_parked(False)
+        # Gate re-enabled, squelch restored.
+        assert ch.input_gate.enabled() is True
+        assert ch.pwr_squelch.threshold() == pytest.approx(-37.0)
+
 
 # ---------------------------------------------------------------------------
 # 2. LoScheduler state machine

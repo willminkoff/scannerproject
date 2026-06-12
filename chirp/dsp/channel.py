@@ -52,7 +52,6 @@ from __future__ import annotations
 import math
 from typing import Literal, Optional
 
-from chirp.dsp.audio_vad_block import AudioVADGate
 from gnuradio import analog, blocks, gr
 from gnuradio import filter as grfilter
 from gnuradio.fft import window
@@ -177,6 +176,29 @@ class Channel(gr.hier_block2):
             1.0, 1.0, 0.090, 0.010, window.WIN_HAMMING
         )
 
+        # --- Input gate (parked-channel CPU savings, 2026-06-12) -----------
+        # A ``blocks.copy`` block sitting at the entry of the channel chain.
+        # ``set_enabled(True)`` (default) → pass-through; ``set_enabled(False)``
+        # → consume samples without emitting → every downstream block
+        # (the two FIRs, squelch, demod, audio filter, resampler, trim,
+        # priority_gate) gets ZERO input and does ZERO work for that channel
+        # this scheduler tick.  Driven by :py:meth:`set_parked` so the LO
+        # scheduler's park/unpark transitions also disable / enable the
+        # GR work on inactive channels.
+        #
+        # Why: with N channels wired into the SDR source's tee, every
+        # channel's FIR chain runs every tick regardless of whether the LO
+        # is tuned to its cluster.  At 2 Msps complex × 3 FIRs × N=20
+        # channels that's ~6 cores of pure DSP burn even on a quiet band.
+        # Disabling the gate on parked channels drops the burn to live
+        # channels only (typically 1-3 in a multi-cluster plan).
+        #
+        # Backward-compat: existing tests / callers that don't touch the
+        # gate see an always-enabled copy block (one-sample-per-tick
+        # overhead is negligible vs. the FIR chain it gates).
+        self.input_gate = blocks.copy(gr.sizeof_gr_complex)
+        self.input_gate.set_enabled(True)
+
         # --- Front-end (identical for AM and NFM) ---------------------------
         self.freq_xlating = grfilter.freq_xlating_fir_filter_ccc(
             decims[0], taps_stage_0, self._center_freq_offset, self._samp_rate
@@ -267,18 +289,6 @@ class Channel(gr.hier_block2):
         # initial multiplier = 1.0 (0 dB).  Updated via ``_apply_gain``.
         self.audio_trim = blocks.multiply_const_ff(1.0)
 
-        # --- VAD gate (SB5 2026-06-09 squelch redesign) ---------------------
-        # Voice-activity detector that mutes audio blocks that don't look
-        # like voice (high envelope variance, low spectral flatness, voice-
-        # band ZCR). Replaces power-only RF squelch for the audible output;
-        # the pwr_squelch above still drives hit detection + scan_hold +
-        # priority gate so the per-channel state machine is untouched.
-        self.vad_gate = AudioVADGate(
-            audio_rate=self._audio_rate,
-            threshold=50.0,
-            bypass=False,
-        )
-
         # --- Priority gate (scan single-active-channel) ---------------------
         # A 0/1 multiplier the priority-gate controller flips to mute
         # non-selected channels even when their squelch is open, so only ONE
@@ -289,7 +299,11 @@ class Channel(gr.hier_block2):
         self.priority_gate = blocks.multiply_const_ff(1.0)
 
         # --- Wiring ---------------------------------------------------------
-        self.connect(self, self.freq_xlating)
+        # Input flows through ``input_gate`` before the FIR chain so the LO
+        # scheduler can stop GR work on parked channels (see input_gate
+        # docstring above).
+        self.connect(self, self.input_gate)
+        self.connect(self.input_gate, self.freq_xlating)
         self.connect(self.freq_xlating, self.fir_stage1)
         self.connect(self.fir_stage1, self.fir_stage2)
         # tee fir_stage2 -> squelch (audio path) and -> level_probe
@@ -311,8 +325,7 @@ class Channel(gr.hier_block2):
         # than something that perturbs the AM AGC or the NFM
         # discriminator output.
         self.connect(self.audio_resamp, self.audio_trim)
-        self.connect(self.audio_trim, self.vad_gate)
-        self.connect(self.vad_gate, self.priority_gate)
+        self.connect(self.audio_trim, self.priority_gate)
         self.connect(self.priority_gate, self)
 
         # Apply gain (after demod wiring is complete).
@@ -361,37 +374,25 @@ class Channel(gr.hier_block2):
         if parked == self._is_parked:
             return
         if parked:
-            # Save current operator-intended threshold, slam gate shut.
+            # Save current operator-intended threshold, slam gate shut, and
+            # stop GR work on the front-end FIR chain (input_gate disabled
+            # consumes samples without producing → downstream blocks get
+            # zero input → zero work this tick).  Order matters: disable
+            # the GR gate FIRST so the slammed-shut squelch never sees a
+            # transient open from a sample already in flight when we close.
+            self.input_gate.set_enabled(False)
             self._parked_saved_squelch_dbfs = self._squelch_dbfs
             self._is_parked = True
             self.pwr_squelch.set_threshold(self._PARKED_SQUELCH_DBFS)
         else:
-            # Restore operator-intended threshold.
+            # Restore operator-intended threshold THEN re-enable the GR
+            # input flow.  Order matters: restore squelch first so the
+            # first sample through the re-enabled gate sees the operator's
+            # threshold, not the parked floor.
             self._is_parked = False
             self._squelch_dbfs = self._parked_saved_squelch_dbfs
             self.pwr_squelch.set_threshold(self._parked_saved_squelch_dbfs)
-
-    # -- VAD gate setters (SB5 2026-06-09) ----------------------------------
-
-    def set_vad_threshold(self, threshold: float) -> None:
-        """Set the per-channel VAD score threshold (0-100).
-
-        Higher = stricter (only strong voice passes); lower = more
-        permissive (hiss may bleed through).  Default 50.
-        """
-        self.vad_gate.set_threshold(float(threshold))
-
-    def set_vad_bypass(self, bypass: bool) -> None:
-        """Bypass the VAD gate (passthrough audio).
-
-        Used by the 'Test' / wide-open UI button to verify the audio path
-        is intact independently of voice-detection.
-        """
-        self.vad_gate.set_bypass(bool(bypass))
-
-    def vad_snapshot(self) -> dict:
-        """Return the gate's current state for /api/chirp status."""
-        return self.vad_gate.snapshot()
+            self.input_gate.set_enabled(True)
 
     @classmethod
     def _clamp_gain_db(cls, db: float) -> float:
@@ -521,6 +522,13 @@ class Channel(gr.hier_block2):
             "squelch_open": self.get_squelch_open(),
             "is_parked": self._is_parked,
             "priority_muted": self._priority_muted,
+            # Whether the input_gate is currently passing samples through
+            # (True) or consuming-without-emitting (False, the
+            # CPU-saving parked state).  Always False ↔ is_parked True
+            # after Phase 4-pre 2026-06-12 — exposed separately so
+            # diagnostics can detect drift between the squelch slam and
+            # the GR gate state.
+            "input_gated": not self.input_gate.enabled(),
         }
 
 
