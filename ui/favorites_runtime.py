@@ -470,15 +470,34 @@ def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
         logger.debug("SoapySDR RSPduo enumeration failed", exc_info=True)
         return out
 
+    # The chirp / rtl-airband exclusion set MUST apply on this fallback
+    # path too — otherwise, when sysfs returns [] precisely BECAUSE the
+    # only attached RSPduo is chirp's (and got filtered), or during the
+    # boot-time USB enum race, we'd silently hand chirp's RSPduo to the
+    # OP25 allocator and race chirp on sdrplay_api_Open.  Use the same
+    # union as `_rspduo_usb_serials`.
+    excluded = _rtl_airband_dedicated_rspduo_serials() | _chirp_dedicated_rspduo_serials()
+
     seen_serials: set[str] = set()
+    excluded_hits = 0
     for kw in (results or []):
         kvs = _parse_soapy_kwargs(kw)
         serial = kvs.get("serial", "").strip().upper()
         hardware = kvs.get("label") or kvs.get("hardware") or ""
         if not serial or "RSPduo" not in hardware or serial in seen_serials:
             continue
+        if serial in excluded:
+            excluded_hits += 1
+            continue
         seen_serials.add(serial)
         out.append(serial)
+    if excluded_hits:
+        logger.info(
+            "RSPduo Soapy fallback: excluding %d serial(s) reserved for "
+            "chirp/rtl-airband: %s",
+            excluded_hits,
+            sorted(excluded),
+        )
     return _expand_rspduo_ids(out)
 
 

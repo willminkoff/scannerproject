@@ -250,6 +250,67 @@ class RspduoDiscoveryTests(unittest.TestCase):
             ],
         )
 
+    def test_soapy_fallback_honors_chirp_exclusion(self):
+        """The chirp/rtl-airband serial exclusion MUST apply on the SoapySDR
+        fallback path too — not only on the sysfs path.  Pre-2026-06-13 a
+        sysfs-empty case (e.g. all attached RSPduos are chirp's) caused the
+        Soapy fallback to enumerate the excluded box and hand it to the
+        OP25 allocator, racing chirp on sdrplay_api_Open.
+        """
+        _FakeSoapyDevice.enumerate_return = [
+            {"driver": "sdrplay", "serial": "180903EF32", "label": "RSPduo A"},
+            {"driver": "sdrplay", "serial": "1809063632", "label": "RSPduo B (chirp)"},
+        ]
+        with mock.patch.object(
+            favorites_runtime,
+            "_chirp_dedicated_rspduo_serials",
+            return_value={"1809063632"},
+        ):
+            ids = favorites_runtime._rspduo_tuner_ids()
+        # Only the non-chirp RSPduo's tuners should be emitted.
+        self.assertEqual(
+            ids,
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
+        )
+
+    def test_soapy_fallback_honors_rtl_airband_exclusion(self):
+        """rtl-airband-claimed serials are filtered on the Soapy fallback path."""
+        _FakeSoapyDevice.enumerate_return = [
+            {"driver": "sdrplay", "serial": "180903EF32", "label": "RSPduo A"},
+            {"driver": "sdrplay", "serial": "1809063632", "label": "RSPduo B"},
+        ]
+        with mock.patch.object(
+            favorites_runtime,
+            "_rtl_airband_dedicated_rspduo_serials",
+            return_value={"1809063632"},
+        ):
+            ids = favorites_runtime._rspduo_tuner_ids()
+        self.assertEqual(
+            ids,
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
+        )
+
+    def test_soapy_fallback_excludes_all_when_only_chirp_present(self):
+        """If the ONLY attached RSPduo is chirp's, the exclusion MUST yield
+        an empty list — handing it to OP25 would race chirp at boot.
+        """
+        _FakeSoapyDevice.enumerate_return = [
+            {"driver": "sdrplay", "serial": "1809063632", "label": "RSPduo chirp"},
+        ]
+        with mock.patch.object(
+            favorites_runtime,
+            "_chirp_dedicated_rspduo_serials",
+            return_value={"1809063632"},
+        ):
+            ids = favorites_runtime._rspduo_tuner_ids()
+        self.assertEqual(ids, [])
+
     def test_handles_real_soapy_kwargs_string_form(self):
         """Regression: SoapySDRKwargs has no .get() — must parse via str()."""
         class _RealKwargsFake:

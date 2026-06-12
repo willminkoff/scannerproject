@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import unittest
+from unittest import mock
 
 
 _MODULE_PATH = os.path.join(
@@ -287,30 +288,92 @@ class BuildRuntimeProcessPlansTests(unittest.TestCase):
         self.assertEqual(len(plans), 1)
         self.assertEqual([s["name"] for s in plans[0]["systems"]], ["MTRTRS"])
 
-    def test_split_disabled_keeps_everything_in_one_process(self):
-        # OP25_RSPDUO_SPLIT_PROCESSES=0 forces single-process even when
-        # multiple anchors are present.  This is an escape hatch for
-        # operators investigating regressions — the default is split=1.
+    def test_split_disabled_drops_same_box_tuner_2_anchor(self):
+        # Regression for the 2026-06-12 escape-hatch bug: when split=0
+        # with two anchors on the same physical RSPduo, the prior code
+        # packed both into one process and triggered SelectDevice().
+        # The fix degrades to the pre-2026-06-12 "one tuner per box"
+        # behavior: keep the Tuner 1 anchor, drop the Tuner 2 anchor,
+        # so the single process never opens MA+SL on the same device.
         systems = [self._sys("MTRTRS"), self._sys("TN TACN")]
         dongle_map = {
             "MTRTRS": "RSPduo Tuner 1 SER#180903EF32",
             "TN TACN": "RSPduo Tuner 2 SER#180903EF32",
         }
-        orig = os.environ.get("OP25_RSPDUO_SPLIT_PROCESSES")
-        os.environ["OP25_RSPDUO_SPLIT_PROCESSES"] = "0"
-        try:
+        with mock.patch.dict(
+            os.environ, {"OP25_RSPDUO_SPLIT_PROCESSES": "0"}
+        ):
             plans = self.mod._build_runtime_process_plans(
                 systems, dongle_map, traffic_followers=[]
             )
-        finally:
-            if orig is None:
-                os.environ.pop("OP25_RSPDUO_SPLIT_PROCESSES", None)
-            else:
-                os.environ["OP25_RSPDUO_SPLIT_PROCESSES"] = orig
+        self.assertEqual(len(plans), 1)
+        # MTRTRS (Tuner 1) survives; TACN (Tuner 2 of the same box) is dropped.
+        self.assertEqual(
+            {s["name"] for s in plans[0]["systems"]}, {"MTRTRS"}
+        )
+
+    def test_split_disabled_two_distinct_devices_both_kept(self):
+        # When split is disabled but the two anchors are on DIFFERENT
+        # physical RSPduos, both can safely live in one process (each
+        # opens its own device).  The same-box drop logic only fires
+        # when anchors collide on one physical device.
+        systems = [self._sys("MTRTRS"), self._sys("TN TACN")]
+        dongle_map = {
+            "MTRTRS": "RSPduo Tuner 1 SER#180903EF32",
+            "TN TACN": "RSPduo Tuner 1 SER#1809063632",
+        }
+        with mock.patch.dict(
+            os.environ, {"OP25_RSPDUO_SPLIT_PROCESSES": "0"}
+        ):
+            plans = self.mod._build_runtime_process_plans(
+                systems, dongle_map, traffic_followers=[]
+            )
         self.assertEqual(len(plans), 1)
         self.assertEqual(
             {s["name"] for s in plans[0]["systems"]}, {"MTRTRS", "TN TACN"}
         )
+
+
+class DetectTrafficDongleTests(unittest.TestCase):
+    """``_detect_traffic_dongle`` must skip RSPduo tuners.
+
+    Regression guard for P0-2 (2026-06-12): with one system + one RSPduo
+    where both tuners are enumerated, the prior code returned the orphan
+    RSPduo Tuner 2 as the traffic follower.  In single-system mode that
+    follower lives in the SAME multi_rx.py as the control channel, so
+    gr-osmosdr tried to open Master (Tuner 1, control) + Slave (Tuner 2,
+    follower) on the same physical device and crashed with
+    SelectDevice().  Traffic followers must be RTLs.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = _load_runtime_module()
+
+    def test_skips_rspduo_tuner_in_traffic_pool(self):
+        assignments = {
+            "traffic_pool": ["RSPduo Tuner 2 SER#180903EF32", "70613472"],
+        }
+        self.assertEqual(
+            self.mod._detect_traffic_dongle(assignments), "70613472"
+        )
+
+    def test_returns_empty_when_pool_is_all_rspduo(self):
+        assignments = {
+            "traffic_pool": [
+                "RSPduo Tuner 2 SER#180903EF32",
+                "RSPduo Tuner 2 SER#1809063632",
+            ],
+        }
+        self.assertEqual(self.mod._detect_traffic_dongle(assignments), "")
+
+    def test_handles_empty_pool(self):
+        self.assertEqual(
+            self.mod._detect_traffic_dongle({"traffic_pool": []}), ""
+        )
+
+    def test_handles_none_assignments(self):
+        self.assertEqual(self.mod._detect_traffic_dongle(None), "")
 
 
 if __name__ == "__main__":
