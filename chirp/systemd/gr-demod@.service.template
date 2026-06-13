@@ -50,7 +50,18 @@ Environment="PYTHONUNBUFFERED=1"
 ExecStart=/usr/bin/python3 -m chirp.daemon
 
 Restart=on-failure
-RestartSec=2
+# RestartSec=15 (was 2): when sdrplay_apiService is in an open-race window
+# (e.g. scanner-digital-op25 starting in parallel), a 2 s back-off can land
+# the retry inside the same window and re-fail. 15 s lets OP25 finish its
+# own startup gap (~2 s per multi_rx child × N) plus settles sdrplay_api.
+# Bounded by StartLimitBurst/Interval below — arithmetic (required for any
+# change to RestartSec/StartLimitBurst/StartLimitIntervalSec):
+#   burst x (RestartSec + min_start_time) < interval must hold for the
+#   fast-fail case or the limit can never trip.
+#   10 x (15 + ~1) = ~160 s < 300 s  ✓  (with the old interval of 60 s the
+#   bound was unreachable: 10 x 15 = 150 s > 60 s, so a permanently wedged
+#   unit restart-looped forever instead of entering failed state).
+RestartSec=15
 # Generous startup budget: typical chirp boot is ~5-15 s (flowgraph
 # build + cmd server + state restore). 60 s covers slow boots while
 # still bounding sdrplay_api_Open hangs.
@@ -65,9 +76,12 @@ KillSignal=SIGTERM
 KillMode=mixed
 
 # rtl-airband-style hardening: bound the restart loop so a wedged hardware
-# state doesn't burn CPU forever.
+# state doesn't burn CPU forever. Interval raised 60 -> 300 alongside
+# RestartSec 2 -> 15 so the bound stays reachable (see arithmetic at
+# RestartSec above). A fast-failing unit trips after ~10 attempts in
+# ~160 s; slow-hang failures are bounded by TimeoutStartSec instead.
 StartLimitBurst=10
-StartLimitIntervalSec=60
+StartLimitIntervalSec=300
 
 # Make state + log dirs available without manual mkdir. ReadWritePaths keeps
 # the daemon out of unrelated parts of the filesystem.
