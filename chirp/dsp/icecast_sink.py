@@ -493,7 +493,19 @@ class IcecastSink(gr.sync_block):
         stdout = self._encoder.stdout
         while not self._stop.is_set():
             try:
-                chunk = stdout.read(self.INPUT_CHUNK_BYTES)
+                # read1, NOT read: BufferedReader.read(n) blocks until n
+                # bytes accumulate — at 32 kbps CBR a 4096-byte chunk takes
+                # ~1.0 s of real time to encode. shout.sync() below then
+                # sleeps ANOTHER chunk-duration to pace the send. With a
+                # full-chunk blocking read those two waits SERIALIZE and the
+                # loop tops out at ~50% of real-time throughput; the pipe
+                # backs up, ffmpeg stalls, GR work() blocks on encoder
+                # stdin, and the SOURCE silently drops ~60% of samples
+                # (observed 2026-06-12: mounts at 37% duty, "airband audio
+                # poor"). read1 returns whatever is already buffered (>=1
+                # byte), so the encoder fills the pipe WHILE sync() sleeps
+                # and the waits overlap. Throughput = real-time.
+                chunk = stdout.read1(self.INPUT_CHUNK_BYTES)
             except Exception:
                 log.exception("encoder stdout read failed")
                 break
