@@ -227,6 +227,11 @@ class EnsureOp25RuntimeTests(unittest.TestCase):
                 rc = module.main()
 
             self.assertEqual(0, rc)
+            # MTRTRS + TACN sharing one RSPduo MUST run as two processes
+            # (one MA + one SL) — single-process MA/SL through gr-osmosdr
+            # fails with SelectDevice() on the second source.  The launch
+            # gap (OP25_RSPDUO_LAUNCH_GAP_SEC) serialises sdrplay_api_Open
+            # across processes.  This mirrors the chirp deployment.
             summary = json.loads((runtime_dir / "multi_rx.json").read_text(encoding="utf-8"))
             self.assertTrue(summary["split_processes"])
             self.assertEqual(2, summary["process_count"])

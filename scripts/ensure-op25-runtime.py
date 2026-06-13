@@ -321,7 +321,23 @@ def _build_runtime_process_plans(
     *,
     traffic_followers: list[tuple[str, str]],
 ) -> list[dict[str, object]]:
-    """Partition systems into one or more runtime process plans."""
+    """Partition systems into one or more runtime process plans.
+
+    Rationale (2026-06-12 update — same-device split, NOT same-process):
+    Each RSPduo-anchored system gets its own ``multi_rx.py`` process,
+    even when two anchors share one physical RSPduo.  This mirrors the
+    chirp daemon's deployment (gr-demod@airband + gr-demod@ground each
+    open the *same* RSPduo as separate Master/Slave processes) which has
+    been the rock-solid pattern for weeks.
+
+    A single ``multi_rx.py`` process cannot open MA and SL on the same
+    physical device through gr-osmosdr — the second ``osmosdr.source``
+    raises ``SelectDevice() failed`` because SoapySDRPlay3 disallows
+    in-process Master+Slave attach.  Split-process MA/SL is the only
+    working pattern, and the launch gap (``OP25_RSPDUO_LAUNCH_GAP_SEC``)
+    serialises the sdrplay_api opens to avoid the well-known
+    open-then-close race that wedges sdrplay-api.
+    """
     ordered_systems = [
         dict(system)
         for system in systems
@@ -332,9 +348,43 @@ def _build_runtime_process_plans(
 
     rspduo_anchors = _rspduo_anchor_systems(ordered_systems, dongle_map)
     if not (_rspduo_split_processes_enabled() and len(rspduo_anchors) >= 2):
+        # Single-process branch.  When the caller has explicitly disabled
+        # the split (OP25_RSPDUO_SPLIT_PROCESSES=0) or there's only one
+        # RSPduo anchor, all systems live in one multi_rx.py.  But: if
+        # two anchors share a physical RSPduo, packing them into the same
+        # process triggers the same SelectDevice() failure the split was
+        # designed to avoid (gr-osmosdr cannot open Master + Slave in one
+        # Python process).  Degrade safely by dropping every same-box
+        # Tuner-2 anchor — preserves the pre-2026-06-12 "one tuner per
+        # physical box" behavior in the escape-hatch case.
+        kept_systems = ordered_systems
+        if len(rspduo_anchors) >= 2:
+            seen_devices: set[str] = set()
+            kept_systems = []
+            dropped: list[str] = []
+            for system in ordered_systems:
+                name = str(system.get("name") or "").strip()
+                serial = str(dongle_map.get(name) or "").strip()
+                parts = _rspduo_uid_parts(serial)
+                if parts is None:
+                    # Not RSPduo-anchored — always kept.
+                    kept_systems.append(system)
+                    continue
+                _tuner_n, device_serial = parts
+                if device_serial in seen_devices:
+                    dropped.append(name)
+                    continue
+                seen_devices.add(device_serial)
+                kept_systems.append(system)
+            if dropped:
+                print(
+                    "OP25 runtime: single-process mode (split disabled or single "
+                    f"anchor) — dropping {len(dropped)} same-box Tuner-2 anchor(s) "
+                    f"to avoid in-process MA+SL collision: {dropped}",
+                )
         return [{
             "label": "op25-main",
-            "systems": ordered_systems,
+            "systems": kept_systems,
             "traffic_followers": list(traffic_followers),
         }]
 
@@ -345,6 +395,10 @@ def _build_runtime_process_plans(
             return "op25-aux"
         return f"op25-aux{index}"
 
+    # One plan per RSPduo-anchored system.  This is the chirp pattern:
+    # split processes even when two anchors share one physical RSPduo,
+    # because gr-osmosdr cannot open Master+Slave in the same Python
+    # process.  The launch-gap serialises sdrplay_api_Open across plans.
     plans: list[dict[str, object]] = [
         {"label": _plan_label(idx), "systems": [], "traffic_followers": []}
         for idx, _system_name in enumerate(rspduo_anchors)
@@ -393,12 +447,31 @@ def _build_runtime_process_plans(
 
 
 def _detect_traffic_dongle(dongle_assignments: dict | None) -> str:
-    """Find a traffic-pool dongle for use as traffic follower."""
+    """Find a traffic-pool dongle for use as traffic follower.
+
+    RSPduo tuners are explicitly excluded.  In the single-system code path
+    the traffic follower runs in the SAME ``multi_rx.py`` as the control
+    channel; if the pool's first entry is an RSPduo Tuner 2 belonging to
+    the same physical box as the control's Tuner 1, gr-osmosdr opens
+    Master + Slave in one process and raises ``SelectDevice() failed``
+    (and can wedge ``sdrplay_apiService``).  Traffic followers must be
+    RTLs.  Falls through the pool until it finds a non-RSPduo entry; if
+    none exist, returns "" (no follower) — safer than the alternative.
+    """
     if not dongle_assignments:
         return ""
     pool = dongle_assignments.get("traffic_pool") or []
-    if pool:
-        return str(pool[0]).strip()
+    for entry in pool:
+        candidate = str(entry or "").strip()
+        if not candidate:
+            continue
+        if _rspduo_uid_parts(candidate):
+            # An RSPduo tuner in the traffic pool is fine as long as it
+            # doesn't become an in-process follower for the same physical
+            # device's other tuner.  Skip it here; future work could route
+            # same-box RSPduo Tuner 2 followers into their own plan.
+            continue
+        return candidate
     return ""
 
 

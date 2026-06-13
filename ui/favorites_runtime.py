@@ -212,6 +212,118 @@ def _rspduo_usb_sample() -> tuple[int, list[str]]:
     return count, sorted(serials)
 
 
+def _chirp_dedicated_rspduo_serials() -> set[str]:
+    """Return RSPduo serials currently claimed by chirp's gr-demod daemons.
+
+    Chirp's analog daemon (gr-demod@airband + gr-demod@ground) opens an
+    RSPduo in dual-tuner Master/Slave mode and holds it for the lifetime
+    of the unit.  The digital allocator MUST NOT hand that serial out as
+    an OP25 control receiver — doing so produces an sdrplay_api race
+    (the same one ``ensure-op25-runtime.py`` documents) and either wedges
+    the daemon at open or causes the chirp ground SL to fail with
+    ``RSPduo slave mode not available``.
+
+    Source-of-truth precedence (union — all sources are merged):
+      1. ``chirp/config/airband.json`` ``sdr.device_args``
+      2. ``chirp/config/ground.json`` ``sdr.device_args``
+      3. ``CHIRP_SDR_DEVICE_ARGS`` env var (matches the daemon's own
+         override at ``chirp/daemon.py:load_config`` — if the operator
+         points chirp at a different serial via env, the exclusion has
+         to follow or we silently hand the wrong RSPduo to OP25).
+      4. ``CHIRP_RSPDUO_SERIAL`` env var (comma- or semicolon-separated;
+         operator escape hatch for setups where the config can't be read,
+         e.g. ``airband-ui.service`` runs at ``/opt/airband-ui`` with no
+         ``WorkingDirectory`` and the repo-relative path doesn't resolve).
+
+    Logs a WARNING when the resolved set is empty — an empty exclusion
+    is a deployment defect (the operator's intent was "chirp owns its
+    RSPduo, OP25 must not steal it") and the only honest response is to
+    say so loudly.  See ``ui/favorites_runtime.py`` rule 4 ("no silent
+    empty results") in the chirp rebuild scope doc.
+
+    Mirrors :py:func:`_rtl_airband_dedicated_rspduo_serials` so the
+    allocator carries a single exclusion contract for both analog
+    backends.
+    """
+    out: set[str] = set()
+
+    def _serial_from_device_args(args: str) -> str:
+        """Pull ``serial=XXXX`` out of a SoapySDR-style device_args string."""
+        if not isinstance(args, str):
+            return ""
+        for token in args.replace(";", ",").split(","):
+            kv = token.strip()
+            if kv.lower().startswith("serial="):
+                return kv.split("=", 1)[1].strip().upper()
+        return ""
+
+    # 1) + 2) — chirp config files.  Honor ``CHIRP_CONFIG_DIR`` if the
+    # operator has set it (test / dev override), then fall back to
+    # repo-relative.  Errors reading the files are surfaced at INFO so
+    # an operator can grep for "chirp config unreadable" — silent
+    # exceptions here were the P1-8 finding from the 2026-06-12 review.
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_dir = os.environ.get(
+        "CHIRP_CONFIG_DIR",
+        os.path.join(repo_root, "chirp", "config"),
+    )
+    for band_file in ("airband.json", "ground.json"):
+        path = os.path.join(config_dir, band_file)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = json.load(f) or {}
+        except FileNotFoundError:
+            logger.info(
+                "_chirp_dedicated_rspduo_serials: %s not found "
+                "(skipping); set CHIRP_RSPDUO_SERIAL if chirp owns an "
+                "RSPduo here", path,
+            )
+            continue
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "_chirp_dedicated_rspduo_serials: cannot read %s: %s",
+                path, exc,
+            )
+            continue
+        sdr = raw.get("sdr") if isinstance(raw, dict) else None
+        if not isinstance(sdr, dict):
+            continue
+        serial = _serial_from_device_args(str(sdr.get("device_args") or ""))
+        if serial:
+            out.add(serial)
+
+    # 3) — ``CHIRP_SDR_DEVICE_ARGS`` env override.  Mirrors the daemon's
+    # own override path — if chirp boots with this env set, the digital
+    # allocator MUST exclude that serial too or it'll race chirp.
+    env_args = os.getenv("CHIRP_SDR_DEVICE_ARGS")
+    if env_args:
+        serial = _serial_from_device_args(env_args)
+        if serial:
+            out.add(serial)
+
+    # 4) — ``CHIRP_RSPDUO_SERIAL`` env override / belt-and-suspenders.
+    raw = str(os.getenv("CHIRP_RSPDUO_SERIAL", "") or "").strip()
+    if raw:
+        for token in raw.replace(";", ",").split(","):
+            token = token.strip().upper()
+            if token:
+                out.add(token)
+
+    if not out:
+        # An empty result is almost always a deployment bug:
+        # airband-ui's CWD doesn't include the repo, no env override was
+        # set, and the operator's intent was "chirp owns its RSPduo."
+        # Log once per call at WARNING so it's grep-able.
+        logger.warning(
+            "_chirp_dedicated_rspduo_serials: resolved EMPTY — chirp's "
+            "RSPduo (if any) will not be excluded from the digital pool. "
+            "Set CHIRP_RSPDUO_SERIAL or CHIRP_SDR_DEVICE_ARGS in "
+            "/etc/airband-ui.conf (or run airband-ui with the repo as "
+            "its CWD)."
+        )
+    return out
+
+
 def _rtl_airband_dedicated_rspduo_serials() -> set[str]:
     """Return device serials currently claimed by rtl-airband.
 
@@ -265,11 +377,16 @@ def _rspduo_usb_serials() -> list[str]:
 
     Retry sleep is overridable via ``RSPDUO_USB_ENUM_RETRY_SLEEP_SEC``.
 
-    Serials listed in ``RTL_AIRBAND_RSPDUO_SERIAL`` are filtered out
-    of the result so the digital allocator can't claim a tuner that
-    rtl-airband already owns in DT mode.
+    Serials listed in ``RTL_AIRBAND_RSPDUO_SERIAL`` (or claimed by the
+    active rtl-airband combined config) are filtered out so the digital
+    allocator can't claim a tuner that rtl-airband already owns in DT mode.
+    Same for serials claimed by chirp's gr-demod daemons (read from
+    ``chirp/config/{airband,ground}.json`` or ``CHIRP_RSPDUO_SERIAL``) —
+    that prevents OP25 from racing the chirp daemons on sdrplay_api_Open
+    against the same physical box.
     """
     excluded = _rtl_airband_dedicated_rspduo_serials()
+    excluded |= _chirp_dedicated_rspduo_serials()
 
     def _filter(serials: list[str]) -> list[str]:
         if not excluded:
@@ -336,20 +453,24 @@ def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
     SoapySDR enumeration.
 
     Returns ``"RSPduo Tuner 1 SER#<serial>"`` for each attached device
-    first. When the caller requests more control slots than there are
-    physical RSPduos, and the OP25 split-process path is enabled, the
-    corresponding ``"RSPduo Tuner 2 SER#<serial>"`` identifiers are
-    appended after all Tuner 1 entries.
+    first, then ``"RSPduo Tuner 2 SER#<serial>"`` for each attached device.
+    Both tuners of a single RSPduo are enumerated so the digital allocator
+    can address them as two independent control receivers under
+    split-process Dual-Tuner Master/Slave — exactly the chirp deployment
+    pattern (gr-demod@airband as MA, gr-demod@ground as SL, both bound to
+    the same physical RSPduo).
 
     The 12-bit ADC and lower noise figure make the RSPduo a higher-quality
     control-channel receiver than the 8-bit RTL-SDRs it joins in the pool,
     so its tuner identifiers are passed as priority entries to the allocator.
 
-    Tuner 2 is withheld unless ``OP25_RSPDUO_SPLIT_PROCESSES`` is enabled
-    because the current single-process multi_rx.py path cannot safely open
-    Master and Slave back-to-back in one process. With multiple physical
-    RSPduos we prefer independent Tuner 1 receivers across boxes before
-    reaching for any Slave tuner.
+    Prior versions withheld Tuner 2 unless ``OP25_RSPDUO_SPLIT_PROCESSES``
+    was enabled.  The 2026-06-12 fix drops that gate: Tuner 2 is always
+    emitted so a single RSPduo can host two trunked systems via the
+    split-process MA/SL pattern.  ``OP25_RSPDUO_LAUNCH_GAP_SEC`` (default
+    2.0 s) serialises the sdrplay_api_Open calls across processes,
+    avoiding the open-then-close race that wedged sdrplay-api in earlier
+    deployments.
 
     Returns an empty list when SoapySDR isn't installed, when no RSPduo
     is attached, or on any enumeration failure — the allocator then runs
@@ -363,22 +484,24 @@ def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
             tuner_limit = 1
 
     out: list[str] = []
-    allow_dual = tuner_limit is not None and tuner_limit >= 2 and _env_flag("OP25_RSPDUO_SPLIT_PROCESSES", "1")
 
     def _expand_rspduo_ids(serials: list[str]) -> list[str]:
-        limit = len(serials) if tuner_limit is None else tuner_limit
+        # Every box exposes two tuners; cap by tuner_limit (None = no cap).
+        limit = (2 * len(serials)) if tuner_limit is None else tuner_limit
         if limit <= 0:
             return []
         expanded: list[str] = []
+        # Tuner 1 of every box first (Masters), then Tuner 2 of every box
+        # (Slaves).  When the allocator has fewer systems than tuners, this
+        # ordering means it picks the higher-quality Master receivers first.
         for serial in serials:
             expanded.append(f"RSPduo Tuner 1 SER#{serial}")
             if len(expanded) >= limit:
                 return expanded
-        if allow_dual:
-            for serial in serials:
-                expanded.append(f"RSPduo Tuner 2 SER#{serial}")
-                if len(expanded) >= limit:
-                    return expanded
+        for serial in serials:
+            expanded.append(f"RSPduo Tuner 2 SER#{serial}")
+            if len(expanded) >= limit:
+                return expanded
         return expanded
 
     sysfs_serials = _rspduo_usb_serials()
@@ -395,15 +518,34 @@ def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
         logger.debug("SoapySDR RSPduo enumeration failed", exc_info=True)
         return out
 
+    # The chirp / rtl-airband exclusion set MUST apply on this fallback
+    # path too — otherwise, when sysfs returns [] precisely BECAUSE the
+    # only attached RSPduo is chirp's (and got filtered), or during the
+    # boot-time USB enum race, we'd silently hand chirp's RSPduo to the
+    # OP25 allocator and race chirp on sdrplay_api_Open.  Use the same
+    # union as `_rspduo_usb_serials`.
+    excluded = _rtl_airband_dedicated_rspduo_serials() | _chirp_dedicated_rspduo_serials()
+
     seen_serials: set[str] = set()
+    excluded_hits = 0
     for kw in (results or []):
         kvs = _parse_soapy_kwargs(kw)
         serial = kvs.get("serial", "").strip().upper()
         hardware = kvs.get("label") or kvs.get("hardware") or ""
         if not serial or "RSPduo" not in hardware or serial in seen_serials:
             continue
+        if serial in excluded:
+            excluded_hits += 1
+            continue
         seen_serials.add(serial)
         out.append(serial)
+    if excluded_hits:
+        logger.info(
+            "RSPduo Soapy fallback: excluding %d serial(s) reserved for "
+            "chirp/rtl-airband: %s",
+            excluded_hits,
+            sorted(excluded),
+        )
     return _expand_rspduo_ids(out)
 
 
@@ -1020,6 +1162,85 @@ def _primary_site_distance_sort_value(system: dict[str, Any]) -> float:
     return _site_distance_sort_value(primary.get("distance_miles"))
 
 
+def _apply_avoid_site_ids(
+    systems: list[dict[str, Any]],
+    overrides: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Hard-exclude sites whose ``site_id`` appears in the per-system
+    ``site_policy.avoid_site_ids`` list from the operator's
+    ``op25_system_config.json`` sidecar.
+
+    Background (2026-06-11): the scan-pool sync queries HPDB by lat/lon
+    bounding box (``ui/hp_scan_pool.py``), which can pull in geographically
+    wide-radius sites the operator does not want — e.g. a VA STARS
+    "Mobile Site - Appomattox Division" entry with 800 MHz control channels
+    that wins the trunk.tsv ordering and prevents OP25 from ever finding
+    the VHF lock the operator actually wanted.
+
+    ``avoid_site_ids`` previously only soft-penalized site selection at the
+    OP25 site-selector layer (``ui/op25_adapter.py``: -80 score).  That is
+    too weak when no preferred site exists yet.  This pass drops the site
+    BEFORE it lands in ``systems.json``, so it never reaches the OP25
+    runtime or trunk.tsv.
+
+    Empty systems (every site filtered out) are dropped.  Non-trunked
+    overrides (e.g. a legacy entry with no ``site_policy``) are tolerated.
+    """
+    if not systems or not isinstance(overrides, dict) or not overrides:
+        return systems
+
+    # Shared shape normalization with the soft-penalty path (op25_adapter):
+    # accepts both the JSON-list and comma/space-string sidecar forms.
+    try:
+        from .op25_adapter import coerce_site_id_list
+    except ImportError:
+        from ui.op25_adapter import coerce_site_id_list
+
+    avoid_by_name: dict[str, set[str]] = {}
+    for name, entry in overrides.items():
+        if not isinstance(entry, dict):
+            continue
+        policy = entry.get("site_policy")
+        if not isinstance(policy, dict):
+            continue
+        keyed = set(coerce_site_id_list(policy.get("avoid_site_ids")))
+        if keyed:
+            avoid_by_name[str(name).strip()] = keyed
+    if not avoid_by_name:
+        return systems
+
+    out: list[dict[str, Any]] = []
+    for system in systems:
+        if not isinstance(system, dict):
+            out.append(system)
+            continue
+        name = str(system.get("name") or "").strip()
+        avoid = avoid_by_name.get(name)
+        if not avoid:
+            out.append(system)
+            continue
+        kept_sites: list[dict[str, Any]] = []
+        for site in system.get("sites") or []:
+            site_id = str(site.get("site_id") or "").strip() if isinstance(site, dict) else ""
+            if site_id and site_id in avoid:
+                logger.info(
+                    "sync_scan_pool: dropping site %r from system %r (avoid_site_ids)",
+                    site.get("site_name") or site_id, name,
+                )
+                continue
+            kept_sites.append(site)
+        if not kept_sites:
+            logger.info(
+                "sync_scan_pool: every site of system %r filtered by avoid_site_ids; dropping system",
+                name,
+            )
+            continue
+        filtered = dict(system)
+        filtered["sites"] = kept_sites
+        out.append(filtered)
+    return out
+
+
 def _normalize_digital_pool(
     pool: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str], dict[str, int]]:
@@ -1186,15 +1407,30 @@ def _normalize_digital_pool(
 def _available_digital_tuner_count(rspduo_ids: list[str] | None = None) -> int:
     """Number of *independent* digital control receivers currently available.
 
-    One receiver per non-airband RSPduo box (its Tuner 1) plus any RTL-SDR
-    serials in the digital pool.  Deliberately does **not** count an RSPduo's
-    second tuner: op25's split-process path opens each child on the *physical*
-    device, so a single RSPduo cannot host two independent control receivers
-    without the Master/Slave collision that opens-then-closes the Slave
-    (``status=1/FAILURE`` restart loop) and wedges the sdrplay-api daemon.
+    Counts every enumerated RSPduo tuner (Tuner 1 *and* Tuner 2 of each
+    physical box) plus every RTL-SDR serial in the digital pool.  Both
+    tuners of one RSPduo can host independent P25 control receivers when
+    each runs in its own OP25 process — Tuner 1 as ``mode=MA``, Tuner 2
+    as ``mode=SL`` — with the launch gap serialising the sdrplay_api
+    opens.  This is exactly how chirp's gr-demod@airband and gr-demod@ground
+    daemons share the chirp RSPduo: two systemd units, two processes, one
+    physical device, weeks of stable runtime.
+
+    ``scripts/ensure-op25-runtime.py`` picks MA/SL automatically via
+    ``_select_rspduo_modes`` and partitions anchors into separate plans
+    via ``_build_runtime_process_plans`` (one ``multi_rx.py`` per anchor,
+    even when two anchors share a physical RSPduo).  Single-process MA/SL
+    is *not* viable for OP25 because gr-osmosdr cannot attach Master and
+    Slave from the same Python process (``SelectDevice() failed`` on the
+    second source); split-process MA/SL is the working pattern.
+
+    The prior cap (1 per box) over-corrected for a stale failure mode: it
+    assumed split-process MA/SL was wedging sdrplay-api, when in reality
+    the launch gap (``OP25_RSPDUO_LAUNCH_GAP_SEC``) is sufficient to
+    serialise opens across processes — proven daily by chirp.
 
     ``rspduo_ids`` may be passed to reuse a prior ``_rspduo_tuner_ids`` probe;
-    when omitted it is sampled here (one Tuner 1 per box, no Tuner 2).
+    when omitted it is sampled here (every tuner of every available box).
     """
     if rspduo_ids is None:
         try:
@@ -1348,6 +1584,40 @@ def sync_scan_pool_to_digital_runtime(
         active_pool_applied_at_ms = int(_LAST_ACTIVE_POOL_APPLIED_AT_MS or 0)
         active_pool_entry_count = int(len(pool.get("trunked_sites") or []) + len(pool.get("conventional") or []))
         systems, talkgroups, controls_flat, counts = _normalize_digital_pool(pool)
+
+        # Hard-exclude operator-avoided sites BEFORE they reach systems.json.
+        # The op25_system_config.json sidecar is hand-maintained per favorite.
+        # Reads:  /etc/scannerproject/digital/profiles/<id>/op25_system_config.json
+        # Schema: { "<System Name>": { "site_policy": { "avoid_site_ids": ["<id>", ...] } } }
+        # This complements the soft -80 score penalty in op25_adapter.py with a
+        # hard pre-OP25 exclusion so unwanted wide-radius sites can't pollute
+        # trunk.tsv or the CC scan order.
+        try:
+            try:
+                from .config import DIGITAL_PROFILES_DIR as _DPD
+            except ImportError:
+                from ui.config import DIGITAL_PROFILES_DIR as _DPD
+            try:
+                from .op25_adapter import _read_op25_system_config as _read_cfg
+            except ImportError:
+                from ui.op25_adapter import _read_op25_system_config as _read_cfg
+            _managed_dir = os.path.join(str(_DPD), _MANAGED_DIGITAL_ID)
+            _site_overrides = _read_cfg(_managed_dir) or {}
+        except Exception:
+            _site_overrides = {}
+        if _site_overrides:
+            _before_systems = len(systems)
+            _before_sites = sum(len(s.get("sites") or []) for s in systems if isinstance(s, dict))
+            systems = _apply_avoid_site_ids(systems, _site_overrides)
+            _after_systems = len(systems)
+            _after_sites = sum(len(s.get("sites") or []) for s in systems if isinstance(s, dict))
+            if (_after_systems, _after_sites) != (_before_systems, _before_sites):
+                counts = dict(counts)
+                counts["systems"] = _after_systems
+                logger.info(
+                    "sync_scan_pool: avoid_site_ids filter: systems %d->%d, sites %d->%d",
+                    _before_systems, _after_systems, _before_sites, _after_sites,
+                )
 
         signature_payload = {
             "mode": mode,

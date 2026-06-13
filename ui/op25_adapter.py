@@ -489,6 +489,32 @@ def _read_system_definitions(profile_dir: str) -> list[dict]:
     return systems
 
 
+def coerce_site_id_list(raw_values: Any) -> list[str]:
+    """Normalize a sidecar site-id list to a deduped list of strings.
+
+    Accepts BOTH shapes the ``op25_system_config.json`` sidecar has in the
+    wild: a JSON list (``["758", "759"]``) and a comma/space-separated
+    string (``"758, 759"``). Single shared implementation per coding
+    standard #6 (one schema per sidecar key) — the 2026-06-12 review found
+    the hard avoid-filter accepting only the list form while the soft
+    penalty here accepted both, so string-form configs silently lost the
+    hard exclusion.
+    """
+    if isinstance(raw_values, str):
+        raw_values = [token.strip() for token in raw_values.replace(",", " ").split() if token.strip()]
+    if not isinstance(raw_values, list):
+        return []
+    seen: set[str] = set()
+    items: list[str] = []
+    for raw in raw_values:
+        site_id = str(raw or "").strip()
+        if not site_id or site_id in seen:
+            continue
+        seen.add(site_id)
+        items.append(site_id)
+    return items
+
+
 def _normalize_site_policy(raw_policy: Any, site_ids: set[str]) -> tuple[dict[str, Any], list[str]]:
     policy = dict(_DEFAULT_SITE_POLICY)
     warnings: list[str] = []
@@ -503,18 +529,8 @@ def _normalize_site_policy(raw_policy: Any, site_ids: set[str]) -> tuple[dict[st
     policy["pinned_site_id"] = pinned_site_id
 
     def _norm_site_list(name: str) -> list[str]:
-        seen: set[str] = set()
         items: list[str] = []
-        raw_values = raw_policy.get(name)
-        if isinstance(raw_values, str):
-            raw_values = [token.strip() for token in raw_values.replace(",", " ").split() if token.strip()]
-        if not isinstance(raw_values, list):
-            raw_values = []
-        for raw in raw_values:
-            site_id = str(raw or "").strip()
-            if not site_id or site_id in seen:
-                continue
-            seen.add(site_id)
+        for site_id in coerce_site_id_list(raw_policy.get(name)):
             if site_id not in site_ids:
                 warnings.append(f"unknown {name} entry {site_id}")
             items.append(site_id)
