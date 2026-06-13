@@ -39,15 +39,36 @@ stopping op25) so the open succeeds.
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 
 from gnuradio import gr
 
+log = logging.getLogger("chirp.source_sdr")
+
+from chirp.dsp.source_validator import (
+    SourceContractValidator,
+)
+
 try:  # pragma: no cover — osmocom is system-installed on Micro
     import osmosdr
 except ImportError:  # pragma: no cover
     osmosdr = None  # type: ignore[assignment]
+
+
+def _validate_enabled() -> bool:
+    """``CHIRP_SOURCE_VALIDATE`` is on by default off so deploys without
+    the env var have zero validator overhead.  Phase 1 ships off; we
+    flip it on once the envelope is calibrated against healthy traffic.
+    """
+    return str(os.getenv("CHIRP_SOURCE_VALIDATE", "0")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 @dataclass
@@ -68,8 +89,14 @@ class SdrSourceConfig:
         bandwidth_hz: optional analog bandwidth (Hz). 0 means "driver default"
             (driver picks closest filter to sample_rate).
         ppm: optional frequency correction in PPM. 0 means no correction.
-        antenna: optional antenna selector. SDRplay accepts 'Antenna A',
-            'Antenna B', 'Antenna C', 'Hi-Z'. None means "driver default".
+        antenna: optional antenna selector. Valid names are driver-specific
+            and MUST match the driver's own list exactly — for SoapySDRPlay3
+            on the RSPduo they are 'Tuner 1 50 ohm', 'Tuner 1 Hi-Z', and
+            'Tuner 2 50 ohm' ('Antenna A'-style names are NOT valid and were
+            previously accepted silently, leaving the driver default port
+            selected — the 2026-06-12 no-RF incident). Selection is verified
+            by read-back after set; a mismatch raises at construction.
+            None means "driver default".
     """
 
     device_args: str
@@ -130,12 +157,41 @@ class SdrIQSource(gr.hier_block2):
         self._src.set_gain_mode(bool(cfg.gain_mode_auto), 0)
         self._src.set_gain(float(cfg.gain_db), 0)
         if cfg.antenna:
+            # Verified antenna selection (2026-06-12 no-RF incident).  An
+            # invalid name (e.g. 'Antenna A' on SoapySDRPlay3) used to fail
+            # silently inside the driver, leaving the default port selected
+            # while the config CLAIMED another — the daemon then ran "alive
+            # but useless" on a port with no coax.  Contract now: set, read
+            # back, and refuse to boot on a mismatch so systemd surfaces a
+            # deterministic failure instead of a silent wrong-port runtime.
+            requested = str(cfg.antenna).strip()
             try:
-                self._src.set_antenna(cfg.antenna, 0)
+                self._src.set_antenna(requested, 0)
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(
+                    f"SdrIQSource: set_antenna({requested!r}) failed: {exc}; "
+                    f"available: {self._list_antennas_safe()}"
+                ) from exc
+            applied = ""
+            try:
+                applied = str(self._src.get_antenna(0) or "").strip()
             except Exception:  # noqa: BLE001
-                # Not fatal: some drivers reject set_antenna entirely; leave
-                # the driver's default in place.
-                pass
+                # Driver without antenna read-back: nothing to verify
+                # against; log the gap rather than guessing.
+                log.warning(
+                    "SdrIQSource: driver does not support get_antenna(); "
+                    "cannot verify %r was applied", requested,
+                )
+            if applied and applied != requested:
+                raise RuntimeError(
+                    f"SdrIQSource: antenna read-back mismatch: requested "
+                    f"{requested!r} but driver reports {applied!r}; "
+                    f"available: {self._list_antennas_safe()}. Fix the "
+                    f"config/CHIRP_SDR_ANTENNA to one of the available "
+                    f"names exactly."
+                )
+            if applied:
+                log.info("SdrIQSource: antenna %r verified active", applied)
         # Per-element overrides (IFGR/RFGR for SDRplay) applied last so they
         # win over the unified set_gain() call.
         for elem, val in cfg.element_gains.items():
@@ -146,6 +202,34 @@ class SdrIQSource(gr.hier_block2):
 
         # No throttle: SDR drives the clock.
         self.connect(self._src, self)
+
+        # Optional source-contract validator (Phase 1).  When enabled,
+        # wires a parallel branch source -> head(N) -> vector_sink_c
+        # that captures the first ~200 ms of samples after start().  The
+        # daemon reads + evaluates the capture, then either continues
+        # normally or aborts with a structured diagnostic if the sample
+        # stream is outside the envelope (constant wedge, all-ones
+        # saturation, DC-only, starved arrival).  Zero overhead when
+        # disabled — the branch isn't even constructed.
+        self._validator: Optional[SourceContractValidator] = None
+        if _validate_enabled():
+            self._validator = SourceContractValidator(
+                sample_rate=cfg.sample_rate,
+            )
+            # IMPORTANT: this is a PARALLEL branch off the source.  It
+            # never sits between the source and the production output
+            # port (see chirp/dsp/source_validator.py for why — the
+            # P0-1 lesson from 2026-06-12).  After N samples, head emits
+            # EOS to its vector_sink and stops consuming; the production
+            # branch is unaffected.
+            self._validator.connect_to(self, self._src)
+
+    def _list_antennas_safe(self) -> list[str]:
+        """Available antenna names, or [] when the driver can't say."""
+        try:
+            return [str(a) for a in (self._src.get_antennas(0) or [])]
+        except Exception:  # noqa: BLE001
+            return []
 
     # -- introspection ------------------------------------------------------
 
@@ -171,6 +255,16 @@ class SdrIQSource(gr.hier_block2):
 
     def set_gain(self, db: float) -> None:
         self._src.set_gain(float(db), 0)
+
+    # -- Phase 1: source contract validator ---------------------------------
+
+    @property
+    def validator(self) -> Optional[SourceContractValidator]:
+        """The wired validator instance, or None when CHIRP_SOURCE_VALIDATE
+        is off.  Caller (daemon) inspects this AFTER the flowgraph has
+        ``start()``ed to read the captured window and compare to envelope.
+        """
+        return self._validator
 
 
 __all__ = ["SdrIQSource", "SdrSourceConfig"]
