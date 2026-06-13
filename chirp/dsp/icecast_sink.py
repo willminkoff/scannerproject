@@ -535,12 +535,19 @@ class IcecastSink(gr.sync_block):
                     self._set_state(STATE_CONNECTED)
                 else:
                     self._set_state(STATE_CONNECTED)
-                # Pace via libshout so we don't outrun Icecast's input queue.
-                if hasattr(self.publisher, "sync"):
-                    try:
-                        self.publisher.sync()
-                    except Exception:
-                        pass
+                # NO shout.sync() pacing here — deliberately. Two reasons
+                # (2026-06-12, mounts measured at 37-54% of real-time):
+                # 1. The pipeline is already paced upstream by the SDR
+                #    sample clock; the GR work() -> encoder stdin path
+                #    cannot outrun real time, so sync() adds delay without
+                #    bounding anything that needs bounding.
+                # 2. libshout times our 16 kHz MPEG-2 frames wrong (treats
+                #    576-sample frames as 1152), so sync() paces at ~half
+                #    real-time; the pipe backs up, GR blocks on encoder
+                #    stdin, and the SOURCE silently drops the deficit.
+                # Post-reconnect bursts are bounded by the OS pipe sizes
+                # (~64 kB ≈ 16 s of 32 kbps audio), well inside icecast's
+                # default 512 kB source queue.
 
         # Loop exit.
         self._set_state(STATE_DISCONNECTED)
