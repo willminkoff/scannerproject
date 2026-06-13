@@ -23,6 +23,17 @@ After=network-online.target sdrplay.service icecast2.service
 Wants=network-online.target
 Requires=icecast2.service sdrplay.service
 
+# Restart circuit-breaker. MUST live in [Unit]: the Micro's systemd (255,
+# Ubuntu 24.04) rejects StartLimit* in [Service] with "Unknown key name
+# ... ignoring" — observed live 2026-06-12, meaning the limit was NEVER
+# in effect while these keys sat in [Service]. Arithmetic (required for
+# any change to RestartSec/StartLimitBurst/StartLimitIntervalSec):
+#   burst x (RestartSec + min_start_time) < interval must hold for the
+#   fast-fail case or the limit can never trip.
+#   10 x (15 + ~1) = ~160 s < 300 s  ✓
+StartLimitBurst=10
+StartLimitIntervalSec=300
+
 [Service]
 # Type=notify so systemd can detect a startup hang in the SDR open
 # path (osmosdr.source() → sdrplay_api_Open). The daemon signals
@@ -75,13 +86,8 @@ WatchdogSec=30
 KillSignal=SIGTERM
 KillMode=mixed
 
-# rtl-airband-style hardening: bound the restart loop so a wedged hardware
-# state doesn't burn CPU forever. Interval raised 60 -> 300 alongside
-# RestartSec 2 -> 15 so the bound stays reachable (see arithmetic at
-# RestartSec above). A fast-failing unit trips after ~10 attempts in
-# ~160 s; slow-hang failures are bounded by TimeoutStartSec instead.
-StartLimitBurst=10
-StartLimitIntervalSec=300
+# Restart circuit-breaker moved to [Unit] (top of file) — this systemd
+# ignores StartLimit* keys in [Service]. See arithmetic comment there.
 
 # Make state + log dirs available without manual mkdir. ReadWritePaths keeps
 # the daemon out of unrelated parts of the filesystem.
