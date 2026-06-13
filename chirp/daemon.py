@@ -206,6 +206,15 @@ class DaemonConfig:
     # at a time (most-recently-opened latch).  Opt-in per band; independent
     # of scan_hold so the two can be tested separately.
     priority_gate_enabled: bool = False
+    # Audio-path tracing (2026-06-11).  When enabled the hit_detector tick
+    # emits an `audio_path_state` event per tick with `tick_lag_ms`,
+    # `open_count`, `muted_count`, `parked_count`, `audio_path_health`.
+    # Also surfaces the same fields in `get_status` so the dashboard /
+    # `chirp-cli get_status` can see them at any time.  Cheap (a handful of
+    # ints per tick) so leaving it on in production is fine.  Env override:
+    # `CHIRP_AUDIO_TRACE=1`.  Default off only to avoid log volume during
+    # initial roll-out — flip to True once trace events are validated.
+    audio_trace_enabled: bool = False
 
 
 def _parse_event_sink(spec: Optional[str]) -> Optional[tuple[str, int]]:
@@ -461,6 +470,10 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
             "CHIRP_PRIORITY_GATE_ENABLED",
             raw.get("priority_gate_enabled", False),
         )),
+        audio_trace_enabled=_as_bool(os.environ.get(
+            "CHIRP_AUDIO_TRACE",
+            raw.get("audio_trace_enabled", False),
+        )),
     )
 
 
@@ -698,6 +711,7 @@ class ChirpFlowgraph(gr.top_block):
             warmup_s=1.0,
             get_cluster_center_hz=self.lo_scheduler.current_cluster_center_hz,
             priority_gate=self.priority_gate,
+            audio_trace_enabled=cfg.audio_trace_enabled,
         )
 
     # -- pool helpers -------------------------------------------------------
@@ -756,6 +770,68 @@ class ChirpFlowgraph(gr.top_block):
         if self._cfg.source_kind == "sdr":
             return (freq_mhz * 1e6) - float(self._cfg.sdr_center_freq_hz)
         return freq_mhz * 1e6
+
+    # -- Phase 1: source contract validation -------------------------------
+
+    def validate_source_contract(self) -> dict:
+        """Wait for the source validator window to fill, then evaluate.
+
+        Returns the evaluation result dict for journalctl logging
+        regardless of pass/fail.  Raises :class:`SourceContractViolation`
+        on envelope violation — the caller (main) handles that by
+        exiting non-zero so systemd's restart sees a deterministic
+        failure rather than a stuck "alive but useless" daemon.
+
+        No-op (returns ``{"skipped": True, ...}``) when the source is
+        not the SDR source kind or when ``CHIRP_SOURCE_VALIDATE`` is
+        off — the latter is the default Phase 1 ship state.
+        """
+        if self._cfg.source_kind != "sdr":
+            return {"skipped": True, "reason": "source_kind!=sdr"}
+        validator = getattr(self.source, "validator", None)
+        if validator is None:
+            return {"skipped": True, "reason": "CHIRP_SOURCE_VALIDATE off"}
+
+        # Local imports keep the validator module optional for non-SDR
+        # daemon configurations (e.g. test runners that use FileIQSource).
+        from chirp.dsp.source_validator import (
+            SourceContractViolation,
+            SourceEnvelope,
+            evaluate_capture,
+        )
+
+        envelope = SourceEnvelope()  # Phase 1 defaults (deliberately loose)
+        samples, elapsed = validator.wait_for_window()
+        result = evaluate_capture(
+            samples=samples,
+            elapsed_s=elapsed,
+            expected_samples=validator.expected_samples,
+            envelope=envelope,
+        )
+
+        # Emit the result on the event bus regardless of pass/fail so
+        # dashboards + soak tests can audit what the validator saw.
+        self._server.emit_event(
+            "source_contract_result",
+            band=self._cfg.band,
+            **result.as_dict(),
+        )
+
+        if not result.ok:
+            log.error(
+                "source contract violated band=%s violations=%s stats=%s",
+                self._cfg.band,
+                result.violations,
+                result.stats.as_dict(),
+            )
+            raise SourceContractViolation(result)
+
+        log.info(
+            "source contract OK band=%s stats=%s",
+            self._cfg.band,
+            result.stats.as_dict(),
+        )
+        return result.as_dict()
 
     # -- state persistence helper ------------------------------------------
 
@@ -1038,6 +1114,13 @@ class ChirpFlowgraph(gr.top_block):
                     # Phase 4-pre: parked channels are dormant on the
                     # LO scheduler's other clusters.
                     "is_parked": snap.get("is_parked", False),
+                    # Phase 1 diagnostic (2026-06-12): the xlating
+                    # filter's center offset (Hz).  Should equal
+                    # (last_freq_mhz * 1e6 - live_center_freq_hz) when
+                    # the LO retunes are landing — disagreement means
+                    # the channel is demodulating the wrong slice of
+                    # spectrum and will never open squelch.
+                    "center_freq_offset_hz": snap.get("center_freq_offset_hz"),
                 })
             data = {
                 "version": PROTOCOL_VERSION,
@@ -1050,6 +1133,22 @@ class ChirpFlowgraph(gr.top_block):
                     "sdr_device_args": self._cfg.sdr_device_args,
                     "sdr_center_freq_hz": self._cfg.sdr_center_freq_hz,
                     "sdr_gain_db": self._cfg.sdr_gain_db,
+                    # Phase 1 diagnostic (2026-06-12): the LIVE SDR center
+                    # frequency, read from the source's gr-osmosdr handle
+                    # via `_src.get_center_freq(0)`.  If this disagrees
+                    # with `sdr_center_freq_hz` (the scheduler's intended
+                    # cluster center after the last retune), then the SDR
+                    # is silently rejecting retune requests (we saw
+                    # `sdrplay_api_RfUpdateError` in the journal) and
+                    # every channel's xlating filter is offset from the
+                    # wrong base — explains identical noise-floor levels
+                    # across channels with different target frequencies.
+                    # Falls back to None when the source isn't SDR-backed.
+                    "live_center_freq_hz": (
+                        float(getattr(self.source, "center_freq_hz", None))
+                        if getattr(self.source, "center_freq_hz", None) is not None
+                        else None
+                    ),
                 },
                 "max_channels": self._cfg.max_channels,
                 "channel_bw_hz": self._cfg.channel_bw_hz,
@@ -1094,6 +1193,31 @@ class ChirpFlowgraph(gr.top_block):
                     else None
                 ),
             }
+            # 2026-06-11 audio-path tracing: cheap per-tick snapshot from
+            # the hit detector.  Always present in get_status so dashboards
+            # can read it without enabling the event stream.  Field meanings
+            # are documented on HitDetector._audio_path.
+            #
+            # Key is `audio_path_state` (not `audio_path`) to avoid silently
+            # clobbering the audio_out_path string set at the top of `data`
+            # — that bug shipped on 2026-06-12 and was caught in review the
+            # same day.  Matches the `audio_path_state` event-stream name.
+            try:
+                data["audio_path_state"] = self.hit_detector.audio_path_snapshot()
+            except Exception:
+                log.exception("audio_path_state snapshot in get_status failed")
+                data["audio_path_state"] = {
+                    "tick_lag_ms": None,
+                    "open_count": 0,
+                    "muted_count": 0,
+                    "parked_count": 0,
+                    "live_count": 0,
+                    "selected_id": None,
+                    # "unknown" is intentionally outside the documented enum
+                    # (live/all_muted/no_open/no_live) so probe scripts can
+                    # bucket "snapshot failed" separately from a real state.
+                    "audio_path_health": "unknown",
+                }
             return Response.make_ok(env.id, data)
 
     # -- LO scheduler callbacks (Phase 4-pre) -----------------------------
@@ -1261,6 +1385,28 @@ def main() -> int:
         tb.stop()
         tb.wait()
         raise
+
+    # Phase 1: validate the source contract BEFORE we tell systemd we're
+    # ready.  If the SDR is returning junk (constant wedge, all-ones
+    # saturation, starved arrival), exit non-zero now so systemd's
+    # restart sees a deterministic failure — not a stuck "alive but
+    # useless" daemon that keeps the icecast mount silent for hours.
+    # The validator is opt-in via CHIRP_SOURCE_VALIDATE=1; default off
+    # for Phase 1 so we can calibrate the envelope before flipping it on.
+    try:
+        contract_result = tb.validate_source_contract()
+        if not contract_result.get("skipped"):
+            log.info("source contract validation: %s", contract_result)
+    except Exception as contract_err:  # SourceContractViolation lands here
+        log.error("source contract validation FAILED — exiting: %s", contract_err)
+        _sd_notify(None, f"source contract failed: {contract_err}")
+        try:
+            tb.stop_health()
+            tb.stop()
+            tb.wait()
+        except Exception:
+            log.exception("shutdown after contract failure also raised")
+        return 2  # distinct exit code so systemd journalctl can grep it
 
     server.emit_event("daemon_ready", band=cfg.band, cmd_port=cfg.cmd_port)
 
