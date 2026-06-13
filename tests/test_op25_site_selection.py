@@ -1144,6 +1144,7 @@ class StatusTelemetryTests(unittest.TestCase):
     def test_digital_status_rows_include_selector_fields(self):
         mgr = digital.DigitalManager.__new__(digital.DigitalManager)
         mgr._scheduler_system_health = {}
+        mgr._scheduler_pool_system_labels = {}
         mgr._scheduler_last_apply_error = ""
         mgr._scheduler_last_apply_error_system = ""
         mgr._scheduler_last_switch_time_ms = 0
