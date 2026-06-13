@@ -193,8 +193,12 @@ class TestIcecastSinkUnit:
         # is a passthrough, so the publisher should see >= 16 000 bytes.
         assert pub.bytes_sent >= n * 2 - sink.INPUT_CHUNK_BYTES, \
             f"publisher received only {pub.bytes_sent} bytes for {n} samples"
-        # Pacing was called.
-        assert pub.sync_calls >= 1
+        # NOTE: pacing via shout.sync() was deliberately removed from
+        # _publish_loop on 2026-06-12 after mounts measured at 37-54% of
+        # real-time throughput (libshout times 16 kHz MPEG-2 frames
+        # wrong, doubling delay). The pipeline is paced upstream by the
+        # SDR sample clock; sync() is now a no-op contract. sync_calls
+        # may legitimately be 0; do not assert. See _publish_loop comment.
         sink.stop()
 
     def test_snapshot_keys_present(self):
@@ -579,3 +583,64 @@ class TestMp3SmokeRate:
                 "no MP3 sync word in published bytes"
         finally:
             sink.stop()
+
+
+# ============================================================================
+# Regression: subprocess.Popen(..., bufsize=0).stdout is a raw _io.FileIO,
+# which has no .read1(). _publish_loop calls .read1() for throughput pacing.
+# If IcecastSink does not wrap the encoder stdout in a BufferedReader, the
+# publisher dies on first iteration with AttributeError and the mount stays
+# disconnected (regression from commit 0eada16). 2026-06-13 cutover bug.
+# ============================================================================
+
+
+class TestRegressionPopenStdoutRead1:
+    """Lock the contract: IcecastSink._spawn_encoder must leave self._encoder.stdout
+    supporting .read1() even when the underlying subprocess is bufsize=0."""
+
+    def test_raw_fileio_gets_wrapped_with_read1(self) -> None:
+        """Direct test of the wrapper helper on a real Popen FileIO."""
+        import io as _io
+        from chirp.dsp.icecast_sink import IcecastSink, IcecastSinkConfig
+
+        # Spawn cat with bufsize=0 → stdout is _io.FileIO, no read1.
+        proc = subprocess.Popen(
+            ["cat"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, bufsize=0,
+        )
+        try:
+            assert proc.stdout is not None
+            # Confirm the precondition: raw FileIO with no read1.
+            assert isinstance(proc.stdout, _io.FileIO), (
+                f"unexpected stdout type: {type(proc.stdout)}")
+            assert not hasattr(proc.stdout, "read1"), (
+                "FileIO unexpectedly grew read1 — re-evaluate this regression test")
+
+            # Build a minimal IcecastSink without going through __init__: we
+            # only need _encoder set so the helper has something to wrap.
+            sink = IcecastSink.__new__(IcecastSink)
+            sink._encoder = proc  # type: ignore[attr-defined]
+
+            sink._ensure_stdout_read1()
+
+            # Now stdout must support read1.
+            assert hasattr(proc.stdout, "read1"), (
+                "_ensure_stdout_read1 did not give stdout a read1 attribute")
+            # And read1 must actually work on real data.
+            proc.stdin.write(b"hello-icecast\n")
+            proc.stdin.flush()
+            # Tiny timeout race — give cat a beat to echo.
+            time.sleep(0.05)
+            chunk = proc.stdout.read1(4096)
+            assert b"hello-icecast" in chunk
+        finally:
+            try:
+                proc.stdin.close()
+            except Exception:
+                pass
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=2)

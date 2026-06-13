@@ -49,6 +49,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import io
 import subprocess
 import threading
 import time
@@ -309,6 +310,12 @@ class IcecastSink(gr.sync_block):
         if self._encoder is None:
             self._spawn_encoder()
 
+        # _publish_loop calls encoder.stdout.read1() for throughput pacing.
+        # subprocess.Popen(bufsize=0) returns a raw _io.FileIO that has no
+        # read1; ensure_stdout_read1 wraps it (or shims a test fake) so the
+        # loop does not crash on first iteration. Regression from 0eada16.
+        self._ensure_stdout_read1()
+
         # Start initial connection + publisher thread.
         if autostart_publisher:
             self._set_state(STATE_RECONNECTING)
@@ -339,6 +346,43 @@ class IcecastSink(gr.sync_block):
             self._spawn_ffmpeg_eq()
         else:
             self._spawn_lame()
+
+    def _ensure_stdout_read1(self) -> None:
+        """Ensure self._encoder.stdout supports .read1(n).
+
+        Background: subprocess.Popen(..., bufsize=0) returns a raw
+        _io.FileIO on stdout which exposes .read() but NOT .read1().
+        _publish_loop wants .read1() so the encoder fills the pipe while
+        shout.sync() sleeps — see the throughput comment at the read1
+        call site. Without this wrap the publisher dies on first iter
+        with AttributeError and the icecast mount stays disconnected.
+        Regression from commit 0eada16, surfaced on the 2026-06-13 SB5
+        cutover.
+
+        Behavior:
+          * stdout already has .read1 → no-op.
+          * stdout is a raw FileIO         → wrap in io.BufferedReader.
+          * stdout is a Python object that allows attribute assignment
+            and has .read but not .read1 → shim .read1 := .read. (read()
+            on an unbuffered raw stream returns whatever is available
+            up to n bytes, which matches read1 semantics.)
+        """
+        if self._encoder is None or self._encoder.stdout is None:
+            return
+        stdout = self._encoder.stdout
+        if hasattr(stdout, "read1"):
+            return
+        if isinstance(stdout, io.FileIO):
+            self._encoder.stdout = io.BufferedReader(stdout)  # type: ignore[assignment]
+            return
+        try:
+            stdout.read1 = stdout.read  # type: ignore[attr-defined]
+        except (AttributeError, TypeError):
+            # Fall back to BufferedReader; may still fail if the object
+            # does not satisfy RawIOBase, but at that point the caller
+            # injected a stub that is not a real raw stream and the
+            # publish loop will surface the issue.
+            self._encoder.stdout = io.BufferedReader(stdout)  # type: ignore[assignment]
 
     @staticmethod
     def _ffmpeg_base_cmd(sample_rate: int, bitrate_kbps: int, af: str) -> list:
