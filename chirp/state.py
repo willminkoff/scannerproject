@@ -45,6 +45,11 @@ class ChannelState(BaseModel):
     squelch_dbfs: float = -60.0
     gain_db: float = 0.0
     label: Optional[str] = None
+    # SB5 2026-06-11 VAD persistence: per-channel voice-activity gate
+    # threshold (0..100) and bypass flag.  Defaults match daemon defaults
+    # so older state files continue to load unchanged.
+    vad_threshold: float = 50.0
+    vad_bypass: bool = False
 
     @field_validator("freq_mhz")
     @classmethod
@@ -65,6 +70,13 @@ class ChannelState(BaseModel):
     def _v_gain(cls, v: float) -> float:
         if not (-20.0 <= v <= 40.0):
             raise ValueError("gain_db must be in [-20, 40]")
+        return float(v)
+
+    @field_validator("vad_threshold")
+    @classmethod
+    def _v_vad_th(cls, v: float) -> float:
+        if not (0.0 <= v <= 100.0):
+            raise ValueError("vad_threshold must be in [0, 100]")
         return float(v)
 
     @field_validator("mode")

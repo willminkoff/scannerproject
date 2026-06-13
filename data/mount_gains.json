@@ -1,7 +1,7 @@
 {
-  "ANALOG": 4.0,
-  "ANALOG_GROUND": 0.14,
-  "DIGITAL": 1.0,
-  "VFO": 1.91,
+  "ANALOG": 3.02,
+  "ANALOG_GROUND": 0.589,
+  "DIGITAL": 2.0,
+  "VFO": 2.0,
   "target_lufs": -18.0
 }

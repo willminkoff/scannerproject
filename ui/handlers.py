@@ -453,6 +453,9 @@ _DIGITAL_STREAM_ROUTE_CACHE: dict[str, object] = {
     "tgids": set(),
 }
 _ANALOG_LABEL_CACHE: dict[str, dict] = {}
+_CHIRP_LABEL_CACHE: dict[str, dict] = {}
+_CHIRP_STATE_DIR = "/var/lib/chirp"
+
 _LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
 _NOAA_LABELS_BY_FREQ = {
     "162.5500": "NOAA 1",
@@ -794,6 +797,13 @@ def parse_service_tags(raw_value) -> list[int]:
     return out
 
 
+class FavoritesShrinkBlocked(ValueError):
+    """Raised when an incoming hp/state POST would drop favorites without an
+    explicit intent override.  Maps to a 409 in the request handler so the
+    frontend can distinguish "would erase data" from a generic 400 validation
+    error.  Phase 4 guard from the 2026-06-10 data-loss incident."""
+
+
 def _apply_hp_state_form(
     state: "HPState",
     form: dict[str, Any],
@@ -858,6 +868,24 @@ def _apply_hp_state_form(
 
     if "favorites" in form:
         incoming_favorites = _parse_json_like_list(form.get("favorites"))
+        # 2026-06-10 data-loss guard: an incoming list shorter than the
+        # existing list silently drops favorites because
+        # merge_favorites_preserving_custom only iterates incoming.  Today
+        # we collapsed 12 favorites to 1 through this path.  Require an
+        # explicit `intent` whitelist before letting a write shrink the
+        # favorites array.  Same-size or larger lists pass through (an
+        # additive save concatenates existing+new, so it never shrinks).
+        existing_len = len(state.favorites) if isinstance(state.favorites, list) else 0
+        incoming_len = len(incoming_favorites) if isinstance(incoming_favorites, list) else 0
+        if incoming_len < existing_len:
+            intent_raw = form.get("intent")
+            intent = str(intent_raw or "").strip().lower()
+            if intent not in {"replace_all", "delete_favorites"}:
+                raise FavoritesShrinkBlocked(
+                    f"refusing to drop {existing_len - incoming_len} favorite(s) "
+                    f"from {existing_len} -> {incoming_len}: set intent=replace_all "
+                    "or intent=delete_favorites to override"
+                )
         state.favorites = merge_favorites_preserving_custom(state.favorites, incoming_favorites)
 
     if "favorites_name" in form:
@@ -1407,6 +1435,11 @@ def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000
     seen_conventional: set[str] = set()
     trunked_talkgroups = 0
     conventional_channels = 0
+    # 2026-06-11: per-band counts so the UI can show "DB · N freqs" on
+    # each band card when mode == full_database.  Bands are classified by
+    # frequency the same way ui/sb5.html _favAirCount / _favGroundCount do.
+    air_channels = 0
+    ground_channels = 0
 
     for site in trunked_sites:
         if not isinstance(site, dict):
@@ -1463,6 +1496,14 @@ def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000
             continue
         seen_conventional.add(dedupe_key)
         conventional_channels += 1
+        # Band classification: civilian airband (108-137 MHz AM) +
+        # military UHF (225-400 MHz AM) = "air"; everything else
+        # conventional = "ground".
+        _f = float(rounded_frequency)
+        if (108.0 <= _f <= 137.0) or (225.0 <= _f <= 400.0):
+            air_channels += 1
+        else:
+            ground_channels += 1
         conventional_entries.append(
             {
                 "id": f"fulldb-conv-{rounded_frequency:.6f}-{service_tag}-{len(conventional_entries) + 1}",
@@ -1508,6 +1549,9 @@ def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000
         "trunked_sites": len([row for row in trunked_sites if isinstance(row, dict)]),
         "trunked_talkgroups": trunked_talkgroups,
         "conventional_channels": conventional_channels,
+        "air_channels": air_channels,
+        "ground_channels": ground_channels,
+        "digital_talkgroups": trunked_talkgroups,
         "truncated": truncated,
     }
 
@@ -1641,6 +1685,55 @@ def _fallback_noaa_label(freq_text: str) -> str:
     return ""
 
 
+def _chirp_band_from_conf_path(conf_path) -> str:
+    """Infer chirp band ('airband' or 'ground') from a legacy conf path."""
+    name = str(conf_path or "").lower()
+    if "airband" in name:
+        return "airband"
+    if "ground" in name:
+        return "ground"
+    return ""
+
+
+def _load_chirp_label_map(band: str) -> dict[str, str]:
+    """Read freq->label mapping from the live chirp daemon state file.
+
+    Source of truth for hit labeling after the rtl_airband -> chirp cutover.
+    The chirp daemon rewrites /var/lib/chirp/<band>.state.json on every
+    activate_favorite_via_chirp call, so this stays in sync with whatever
+    favorite is actually loaded into the demod.
+    """
+    band = (band or "").strip().lower()
+    if band not in ("airband", "ground"):
+        return {}
+    path = os.path.join(_CHIRP_STATE_DIR, f"{band}.state.json")
+    if not os.path.isfile(path):
+        return {}
+    try:
+        mtime = os.path.getmtime(path)
+    except Exception:
+        return {}
+
+    cached = _CHIRP_LABEL_CACHE.get(path)
+    if cached and cached.get("mtime") == mtime:
+        return dict(cached.get("map") or {})
+
+    mapping: dict[str, str] = {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            data = json.load(f)
+        for ch in (data or {}).get("channels") or []:
+            key = _normalize_freq_key(ch.get("freq_mhz"))
+            label = str(ch.get("label") or "").strip()
+            if key and label:
+                mapping[key] = label
+    except Exception:
+        pass
+
+    _CHIRP_LABEL_CACHE[path] = {"mtime": mtime, "map": mapping}
+    return dict(mapping)
+
+
 def _load_profile_label_map(conf_path: str) -> dict[str, str]:
     path = os.path.realpath(str(conf_path or ""))
     if not path or not os.path.isfile(path):
@@ -1674,6 +1767,16 @@ def _load_profile_label_map(conf_path: str) -> dict[str, str]:
 
 
 def _resolve_analog_label_map(conf_path: str, profile_id: str, profile_rows: list[dict]) -> dict[str, str]:
+    # Chirp state (live demod) is the authoritative source of freq->label
+    # mapping post-rtl_airband cutover. Try it first; fall back to legacy .conf
+    # parsing only if the chirp state file is missing (e.g. during early boot
+    # before any favorite has been activated).
+    chirp_band = _chirp_band_from_conf_path(conf_path)
+    if chirp_band:
+        chirp_map = _load_chirp_label_map(chirp_band)
+        if chirp_map:
+            return chirp_map
+
     mapping = _load_profile_label_map(conf_path)
     if mapping:
         return mapping
@@ -5140,6 +5243,18 @@ _SITREP_ACTIONS: dict[str, dict] = {
         "cmd": ["sudo", "-n", "/bin/systemctl", "restart",
                 "airband-ui.service"],
     },
+    "connect_bt_speaker": {
+        "label": "Connect BT Speaker",
+        # Runs bt-connect-speaker.sh which handles three states:
+        # (a) already paired+connected — re-route sinks only,
+        # (b) paired but disconnected — connect + re-route,
+        # (c) NOT paired — assume speaker is in pairing mode and do
+        #     the full pair+trust+connect+route sequence.
+        # Idempotent — clicking twice is safe.
+        "cmd": [
+            "/home/ubuntu/scannerproject/scripts/bt-connect-speaker.sh",
+        ],
+    },
 }
 
 _SITREP_ACTION_SUDOERS_HINT = (
@@ -6080,8 +6195,13 @@ class Handler(BaseHTTPRequestHandler):
                             json.dumps({"ok": False, "error": "missing system_id"}),
                             "application/json; charset=utf-8",
                         )
-                    limit = _query_int("limit", default=500, required=False)
-                    limit = max(1, min(int(limit or 500), 5000))
+                    # 2026-06-10: default was 500 which truncated NJICS (771 TGs)
+                    # before reaching the alphabetically-later Cape May County
+                    # group (where Sea Isle City PD lives at tgid 5289).  Bump
+                    # default to the existing max (5000) so the wizard sees a
+                    # complete list for any single-system pick.
+                    limit = _query_int("limit", default=5000, required=False)
+                    limit = max(1, min(int(limit or 5000), 5000))
                     system_name, channels = wizard.get_channels(
                         system_type=system_type,
                         system_id=system_id,
@@ -6113,6 +6233,55 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": str(e)}),
                     "application/json; charset=utf-8",
                 )
+
+        # ============ /api/reliability/status — SB5 2026-06-12 ============
+        # Single-call snapshot of every system that can wedge.  Powers a
+        # SITREP reliability panel that lights up red/yellow/green per area
+        # so we can SEE failure modes instead of probing them by hand.
+        if p == "/api/reliability/status":
+            try:
+                try:
+                    from .reliability import snapshot as _rel_snapshot
+                except ImportError:
+                    from ui.reliability import snapshot as _rel_snapshot  # type: ignore
+                payload = _rel_snapshot()
+            except Exception as e:
+                logger.exception("reliability snapshot failed")
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"snapshot_failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        # ============ /api/chirp/{band}/status — SB5 2026-06-11 ============
+        # Lightweight read-only proxy for chirp_client.get_status (UDP).
+        # Used by the sb5 UI to load current per-channel state (VAD threshold,
+        # signal level, squelch open, etc.) so the Sensitivity slider can
+        # reflect reality across page reloads.
+        if p in ("/api/chirp/airband/status", "/api/chirp/ground/status"):
+            target = "airband" if p.endswith("/airband/status") else "ground"
+            try:
+                if target == "airband":
+                    from .chirp_client import get_airband_client as _get
+                else:
+                    from .chirp_client import get_ground_client as _get
+            except ImportError:
+                if target == "airband":
+                    from ui.chirp_client import get_airband_client as _get  # type: ignore
+                else:
+                    from ui.chirp_client import get_ground_client as _get  # type: ignore
+            try:
+                s = _get().get_status()
+            except Exception as e:
+                return self._send(
+                    503,
+                    json.dumps({"ok": False, "error": f"chirp_daemon_unreachable: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            payload = {"ok": True}
+            payload.update(s or {})
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/hp/service-types":
             try:
@@ -7658,6 +7827,21 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 _apply_hp_state_form(state, form)
+            except FavoritesShrinkBlocked as e:
+                # 2026-06-10 guard.  409 is the right code: the request was
+                # well-formed but conflicts with the current state (the
+                # operator would be deleting favorites).  Frontend can
+                # detect this status and either prompt the user or
+                # retry with intent=replace_all.
+                return self._send(
+                    409,
+                    json.dumps({
+                        "ok": False,
+                        "error": str(e),
+                        "code": "favorites_shrink_blocked",
+                    }),
+                    "application/json; charset=utf-8",
+                )
             except ValueError as e:
                 return self._send(
                     400,
@@ -8732,6 +8916,173 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
 
+        # ============ /api/squelch/sensitivity — SB5 2026-06-09 ============
+        # Single "Sensitivity" knob (0-10) replaces the legacy preset chips
+        # + Auto-tune in the new VAD-gated audio architecture.  Pushes a
+        # VAD score threshold to every channel in the band (threshold =
+        # 100 - sensitivity * 10).  Higher slider = more permissive (lets
+        # quieter / fainter audio pass); lower slider = stricter (only
+        # strong voice).  Default UI position 5 → threshold 50.
+        if p == "/api/squelch/sensitivity":
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown band"}), "application/json; charset=utf-8")
+            try:
+                sensitivity = float(form.get("sensitivity", 5.0))
+            except (TypeError, ValueError):
+                return self._send(400, json.dumps({"ok": False, "error": "sensitivity must be numeric"}), "application/json; charset=utf-8")
+            use_chirp = False
+            try:
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("squelch_sensitivity: use_gr_demod probe failed", exc_info=True)
+            if not use_chirp:
+                return self._send(503, json.dumps({"ok": False, "error": "sensitivity requires SB5_USE_GR_DEMOD=true"}), "application/json; charset=utf-8")
+            try:
+                result = _chirp_adapter.set_audio_vad_sensitivity_via_chirp(band=target, sensitivity=sensitivity)
+            except Exception as e:
+                logger.exception("squelch_sensitivity failed")
+                return self._send(500, json.dumps({"ok": False, "error": f"failed: {e}"}), "application/json; charset=utf-8")
+            if result.get("error"):
+                return self._send(500, json.dumps({"ok": False, **result}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps({"ok": True, **result}), "application/json; charset=utf-8")
+
+        # ============ /api/squelch/calibrate — SB5 2026-06-09 ============
+        # Better-than-SB3 per-channel noise-floor calibration.  Where the
+        # legacy auto_squelch + chirp preset apply read signal_level_dbfs
+        # ONCE and added a fixed margin, this samples per-channel over a
+        # window (default 15 s @ 10 Hz = 150 samples each), takes the 90th
+        # percentile of the noise distribution, and sets threshold = p90 +
+        # margin_db.  Robust against momentary noise spikes, doesn't gate
+        # voice that briefly peaks during sampling (channels open during
+        # sampling are skipped, operator re-runs when quiet).
+        if p == "/api/squelch/calibrate":
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown band (expected 'air' or 'ground')"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                sample_sec = float(form.get("sample_sec", 15.0))
+                margin_db = float(form.get("margin_db", 3.0))
+            except (TypeError, ValueError):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "sample_sec and margin_db must be numeric"}),
+                    "application/json; charset=utf-8",
+                )
+            use_chirp = False
+            try:
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("squelch_calibrate: use_gr_demod probe failed", exc_info=True)
+            if not use_chirp:
+                return self._send(
+                    503,
+                    json.dumps({"ok": False, "error": "calibrate requires SB5_USE_GR_DEMOD=true (chirp backend)"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                result = _chirp_adapter.calibrate_squelch_via_chirp(
+                    band=target, sample_sec=sample_sec, margin_db=margin_db,
+                )
+            except Exception as e:
+                logger.exception("squelch_calibrate apply failed")
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"calibrate_failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            if result.get("error"):
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, **result}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, **result}),
+                "application/json; charset=utf-8",
+            )
+
+        # ============ /api/squelch/wide_open — SB5 2026-06-09 ============
+        # Test mode: set every channel to a pass-everything dbfs (-120 by
+        # default) so the operator can verify the demod + audio path is
+        # intact end-to-end.  Not persistent — re-apply a preset or
+        # /api/squelch/calibrate to restore noise-floor-based thresholds.
+        if p == "/api/squelch/wide_open":
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown band"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                dbfs = float(form.get("dbfs", -120.0))
+            except (TypeError, ValueError):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "dbfs must be numeric"}),
+                    "application/json; charset=utf-8",
+                )
+            use_chirp = False
+            try:
+                use_chirp = bool(_chirp_use_gr_demod())
+            except Exception:
+                logger.debug("squelch_wide_open: use_gr_demod probe failed", exc_info=True)
+            if not use_chirp:
+                return self._send(
+                    503,
+                    json.dumps({"ok": False, "error": "wide_open requires SB5_USE_GR_DEMOD=true"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                # In the VAD-gated model, "wide open" means bypassing the
+                # gate entirely (passthrough).  The legacy dbfs path still
+                # works underneath for power-only-squelch fallback callers,
+                # but the operator-facing button hits the bypass path.
+                if str(form.get("mode", "vad")).lower() == "dbfs":
+                    result = _chirp_adapter.wide_open_squelch_via_chirp(band=target, dbfs=dbfs)
+                else:
+                    # 2026-06-10 bugfix: read bypass from body so the slider's
+                    # "clear bypass before pushing threshold" POST actually
+                    # clears bypass.  Previously this was hardcoded True, so
+                    # every slider move silently re-enabled wide-open and the
+                    # gate had no effect regardless of threshold.
+                    bypass_raw = form.get("bypass", True)
+                    if isinstance(bypass_raw, str):
+                        bypass_val = bypass_raw.strip().lower() not in ("false", "0", "off", "no", "")
+                    else:
+                        bypass_val = bool(bypass_raw)
+                    result = _chirp_adapter.set_audio_vad_bypass_via_chirp(band=target, bypass=bypass_val)
+            except Exception as e:
+                logger.exception("squelch_wide_open failed")
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"wide_open_failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            if result.get("error"):
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, **result}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, **result}),
+                "application/json; charset=utf-8",
+            )
+
         # ============ /api/airband/squelch_preset — Phase 1 SB5 ============
         # Replaces the legacy per-band squelch dBFS slider with a 3-state
         # preset (Sensitive / Balanced / Selective).  See ui/squelch_preset.py
@@ -9585,7 +9936,14 @@ class Handler(BaseHTTPRequestHandler):
                     }),
                     "application/json; charset=utf-8",
                 )
-            muted = bool(payload_in.get("muted"))
+            # 2026-06-11 fix: bool("false") is True (non-empty string), so
+            # the previous one-liner mapped EVERY POST to muted=True.  Parse
+            # true/false/1/0/on/off explicitly.
+            _raw_muted = payload_in.get("muted")
+            if isinstance(_raw_muted, str):
+                muted = _raw_muted.strip().lower() in ("true", "1", "on", "yes")
+            else:
+                muted = bool(_raw_muted)
             ok, msg = _band_mute_mod.set_band(band, muted)
             # State is persisted regardless of apply success — return the
             # current persisted intent so the UI reflects what's saved.

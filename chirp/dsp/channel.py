@@ -52,6 +52,7 @@ from __future__ import annotations
 import math
 from typing import Literal, Optional
 
+from chirp.dsp.audio_vad_block import AudioVADGate
 from gnuradio import analog, blocks, gr
 from gnuradio import filter as grfilter
 from gnuradio.fft import window
@@ -266,6 +267,18 @@ class Channel(gr.hier_block2):
         # initial multiplier = 1.0 (0 dB).  Updated via ``_apply_gain``.
         self.audio_trim = blocks.multiply_const_ff(1.0)
 
+        # --- VAD gate (SB5 2026-06-09 squelch redesign) ---------------------
+        # Voice-activity detector that mutes audio blocks that don't look
+        # like voice (high envelope variance, low spectral flatness, voice-
+        # band ZCR). Replaces power-only RF squelch for the audible output;
+        # the pwr_squelch above still drives hit detection + scan_hold +
+        # priority gate so the per-channel state machine is untouched.
+        self.vad_gate = AudioVADGate(
+            audio_rate=self._audio_rate,
+            threshold=50.0,
+            bypass=False,
+        )
+
         # --- Priority gate (scan single-active-channel) ---------------------
         # A 0/1 multiplier the priority-gate controller flips to mute
         # non-selected channels even when their squelch is open, so only ONE
@@ -298,7 +311,8 @@ class Channel(gr.hier_block2):
         # than something that perturbs the AM AGC or the NFM
         # discriminator output.
         self.connect(self.audio_resamp, self.audio_trim)
-        self.connect(self.audio_trim, self.priority_gate)
+        self.connect(self.audio_trim, self.vad_gate)
+        self.connect(self.vad_gate, self.priority_gate)
         self.connect(self.priority_gate, self)
 
         # Apply gain (after demod wiring is complete).
@@ -356,6 +370,28 @@ class Channel(gr.hier_block2):
             self._is_parked = False
             self._squelch_dbfs = self._parked_saved_squelch_dbfs
             self.pwr_squelch.set_threshold(self._parked_saved_squelch_dbfs)
+
+    # -- VAD gate setters (SB5 2026-06-09) ----------------------------------
+
+    def set_vad_threshold(self, threshold: float) -> None:
+        """Set the per-channel VAD score threshold (0-100).
+
+        Higher = stricter (only strong voice passes); lower = more
+        permissive (hiss may bleed through).  Default 50.
+        """
+        self.vad_gate.set_threshold(float(threshold))
+
+    def set_vad_bypass(self, bypass: bool) -> None:
+        """Bypass the VAD gate (passthrough audio).
+
+        Used by the 'Test' / wide-open UI button to verify the audio path
+        is intact independently of voice-detection.
+        """
+        self.vad_gate.set_bypass(bool(bypass))
+
+    def vad_snapshot(self) -> dict:
+        """Return the gate's current state for /api/chirp status."""
+        return self.vad_gate.snapshot()
 
     @classmethod
     def _clamp_gain_db(cls, db: float) -> float:

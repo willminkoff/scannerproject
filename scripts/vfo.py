@@ -1,6 +1,6 @@
 """Live tunable RTL-SDR VFO backend (Phase 6b).
 
-Owns one RTL-SDR (Realtek 2832U serial 80000003, bus 1-3.1.4) via
+Owns one RTL-SDR (RTL-SDR Blog V4 serial 83241970) via
 SoapySDR.  Demodulates AM / NFM / WFM in-process from a single IQ
 stream and publishes:
 
@@ -47,10 +47,15 @@ STATE_DIR = os.environ.get("VFO_STATE_DIR", "/run/scannerproject/vfo")
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
 CONFIG_PATH = os.path.join(STATE_DIR, "config.json")
 
-# Dongle assignment (Phase 6b): VFO = Realtek 2832U / R820T, serial
-# 80000003 on bus 1-3.1.4.  Opened by serial — never by index, which
-# can shift across reboots if other RTL-SDRs come and go.
-SERIAL = os.environ.get("VFO_SERIAL", "80000003")
+# Dongle assignment (Phase 6b → 2026-06-11 re-assigned to RTL-SDR Blog V4):
+# VFO = RTL-SDR Blog V4 / R828D + integrated TCXO + better front-end
+# filtering, serial 83241970.  History: started on Realtek 2832U
+# (80000003 — worse SNR/PLL stability on weak NFM), then NooElec
+# NESDR SMArt v5 (61108285 — improvement but still RF chain bottlenecked
+# the VFO at marginal SNR).  Blog V4 is the highest-quality RTL in the
+# rig and is the right place for the VFO.  Opened by serial — never by
+# index, which can shift across reboots if other RTL-SDRs come and go.
+SERIAL = os.environ.get("VFO_SERIAL", "83241970")
 
 # Hard-coded RTL-SDR tuning range; the POST handler validates too.
 FREQ_MIN_MHZ = 24.0
@@ -220,46 +225,118 @@ class ConfigPoller:
 # SAMPLE_RATE_HZ and return mono float32 PCM at AUDIO_SR.
 # ---------------------------------------------------------------------
 class AMDemod:
-    """Envelope detector + DC block + decimate."""
+    """Channel-filtered envelope detector + DC block.
 
-    # 1st-order DC block: y[n] = x[n] - x[n-1] + 0.995*y[n-1]
-    # As b/a coefficients for scipy.signal.lfilter:
-    #   a[0]*y[n] = b[0]*x[n] + b[1]*x[n-1] - a[1]*y[n-1]
-    # so b=[1, -1], a=[1, -0.995].
+    Like FMDemod, the IQ must be channel-filtered BEFORE envelope
+    detection — otherwise the magnitude detector sees 2.4 MHz of
+    accumulated noise around the AM channel and weak signals get
+    buried (the same 24 dB SNR penalty FMDemod had pre-fix).
+
+    Channel BW for AM ~10 kHz (airband AM occupies ~6 kHz with
+    margin); cutoff 5 kHz one-sided.
+    """
+
+    # 1st-order DC block (post-decimation, 48 kHz rate).
     _DC_B = np.array([1.0, -1.0], dtype=np.float32)
     _DC_A = np.array([1.0, -0.995], dtype=np.float32)
 
-    def __init__(self):
-        # Filter state: max(len(a), len(b))-1 = 1 sample.  Persists
-        # across blocks so the DC block is continuous.
+    def __init__(self, channel_bw_hz: int = 10_000):
+        # Stage 1: 2.4 MS/s -> 240 kHz, anti-alias at 100 kHz
+        self._aa1 = _sig.firwin(
+            31, 100_000, fs=SAMPLE_RATE_HZ, window=("kaiser", 5.0),
+        ).astype(np.float32)
+        # Stage 2: 240 kHz -> 48 kHz, channel-select filter
+        cutoff2 = min(channel_bw_hz / 2, 22_000)
+        self._aa2 = _sig.firwin(
+            63, cutoff2, fs=SAMPLE_RATE_HZ // 10, window=("kaiser", 6.0),
+        ).astype(np.float32)
+        self._aa2_zi_i = np.zeros(len(self._aa2) - 1, dtype=np.float32)
+        self._aa2_zi_q = np.zeros(len(self._aa2) - 1, dtype=np.float32)
+        self._aa2_phase = 0
+
+        # DC block state (audio rate, post-envelope).
         self._dc_zi = np.zeros(1, dtype=np.float32)
 
     def __call__(self, iq: np.ndarray) -> np.ndarray:
-        mag = np.abs(iq).astype(np.float32)
-        # Vectorized DC block via lfilter — same math as the per-sample
-        # Python loop we used to run, but the inner work is in C.  At
-        # 24000 samples/block this is the difference between ~0.5 ms
-        # per block and ~12 ms per block (i.e. it would single-handedly
-        # peg a core if left in Python).
+        if iq.size == 0:
+            return np.zeros(0, dtype=np.float32)
+
+        # Stage 1: channel-filter IQ, decim 10 (stateless upfirdn).
+        i = iq.real.astype(np.float32, copy=False)
+        q = iq.imag.astype(np.float32, copy=False)
+        i = _sig.upfirdn(self._aa1, i, up=1, down=10).astype(np.float32, copy=False)
+        q = _sig.upfirdn(self._aa1, q, up=1, down=10).astype(np.float32, copy=False)
+
+        # Stage 2: channel-select FIR, decim 5 (stateful).
+        i, self._aa2_zi_i = _sig.lfilter(
+            self._aa2, [1.0], i, zi=self._aa2_zi_i,
+        )
+        q, self._aa2_zi_q = _sig.lfilter(
+            self._aa2, [1.0], q, zi=self._aa2_zi_q,
+        )
+        i = i.astype(np.float32, copy=False)
+        q = q.astype(np.float32, copy=False)
+        start = self._aa2_phase
+        i_dec = i[start::5]
+        q_dec = q[start::5]
+        L_in = len(i)
+        K_out = len(i_dec)
+        if K_out > 0:
+            self._aa2_phase = (start + 5 * K_out - L_in) % 5
+        else:
+            self._aa2_phase = (start - L_in) % 5
+            return np.zeros(0, dtype=np.float32)
+
+        # Envelope detection on channel-filtered IQ at 48 kHz.
+        mag = np.sqrt(i_dec * i_dec + q_dec * q_dec).astype(np.float32, copy=False)
+
+        # DC block at audio rate (much cheaper than the old 2.4 MS/s rate).
         out, self._dc_zi = _sig.lfilter(
             self._DC_B, self._DC_A, mag, zi=self._dc_zi,
         )
-        return _decimate(out.astype(np.float32, copy=False), DECIMATION)
+        # Gentle gain — envelope output is small for typical AM modulation.
+        return out.astype(np.float32, copy=False) * 4.0
 
 
 class FMDemod:
-    """Polar discriminator (phase diff) + optional deemphasis + decimate.
+    """IQ channel-filter + polar discriminator + optional deemphasis.
 
-    NFM:  wideband ~12.5 kHz, no deemphasis worth bothering with
-    WFM:  ~200 kHz wide, 75 us deemphasis (NA standard)
+    Critical: the discriminator MUST run on channel-filtered IQ, not
+    the raw 2.4 MS/s stream — otherwise FM-threshold collapses because
+    the discriminator sees 2.4 MHz of noise burden against a 12.5 kHz
+    signal (~24 dB SNR penalty).  Filter chain:
+      2.4 MS/s IQ  →  stage-1 anti-alias (FIR, decim 10)  →  240 kHz
+      240 kHz IQ   →  stage-2 channel filter (FIR, decim 5) → 48 kHz
+      48 kHz IQ    →  polar discriminator                  → 48 kHz audio
+      48 kHz audio →  optional 75 us deemphasis            → output
+
+    NFM channel BW ≈ 12.5 kHz (cutoff 9 kHz, allows ±5 kHz dev + skirt)
+    WFM channel BW ≈ 200 kHz (cap stage-2 cutoff at 22 kHz audio Nyquist;
+        wideband mono FM is recovered up to that audio cutoff)
     """
 
-    def __init__(self, deemph_us: Optional[float] = None):
+    def __init__(
+        self,
+        deemph_us: Optional[float] = None,
+        channel_bw_hz: int = 12_500,
+    ):
+        # Stage 1: 2.4 MS/s → 240 kHz, anti-alias at 100 kHz
+        self._aa1 = _sig.firwin(
+            31, 100_000, fs=SAMPLE_RATE_HZ, window=("kaiser", 5.0),
+        ).astype(np.float32)
+        # Stage 2: 240 kHz → 48 kHz, channel filter at channel_bw_hz/2
+        # Cap cutoff at 22 kHz (audio Nyquist with margin) for wideband WFM.
+        cutoff2 = min(channel_bw_hz / 2, 22_000)
+        self._aa2 = _sig.firwin(
+            63, cutoff2, fs=SAMPLE_RATE_HZ // 10, window=("kaiser", 6.0),
+        ).astype(np.float32)
+        self._aa2_zi_i = np.zeros(len(self._aa2) - 1, dtype=np.float32)
+        self._aa2_zi_q = np.zeros(len(self._aa2) - 1, dtype=np.float32)
+        self._aa2_phase = 0
+
         self._last_sample = np.complex64(1.0 + 0j)
+
         if deemph_us:
-            # 1-pole IIR at corner f = 1/(2 pi tau); use AUDIO_SR.
-            #   y[n] = (1-a)*x[n] + a*y[n-1]
-            # => b = [1-a], a_coef = [1, -a]
             tau = deemph_us * 1e-6
             a = float(np.exp(-1.0 / (AUDIO_SR * tau)))
             self._deemph_b = np.array([1.0 - a], dtype=np.float32)
@@ -273,26 +350,55 @@ class FMDemod:
     def __call__(self, iq: np.ndarray) -> np.ndarray:
         if iq.size == 0:
             return np.zeros(0, dtype=np.float32)
-        prev = self._last_sample
-        # Polar discriminator: phase of z[n]*conj(z[n-1]).  We stitch
-        # against the last sample from the prior block so the phase
-        # diff is continuous across block boundaries — but avoid the
-        # np.concatenate (which allocates+copies a fresh 24k-sample
-        # buffer every block) by computing the first sample's diff
-        # against `prev` directly and the rest as a vectorized slice.
-        phase = np.empty(iq.shape[0], dtype=np.float32)
-        first_prod = iq[0] * np.conj(prev)
-        phase[0] = np.arctan2(float(first_prod.imag), float(first_prod.real))
-        if iq.shape[0] > 1:
-            # vectorized polar discriminator for the rest of the block
-            phase[1:] = np.angle(iq[1:] * np.conj(iq[:-1]))
-        self._last_sample = iq[-1]
-        # Decimate AFTER the phase calc — at 2.4 MS/s -> 48 kHz this is
-        # a 50:1 box filter.  Simple, low-CPU, good enough for scanner
-        # use; ringing is masked by the loudness of typical traffic.
-        audio = _decimate(phase, DECIMATION)
-        # Gentle gain so AM and FM perceive similar.
-        audio *= 6.0
+
+        # Stage 1: anti-alias decimation 10:1, stateless (transient < 1 sample
+        # of audio, inaudible).
+        i = iq.real.astype(np.float32, copy=False)
+        q = iq.imag.astype(np.float32, copy=False)
+        i = _sig.upfirdn(self._aa1, i, up=1, down=10).astype(np.float32, copy=False)
+        q = _sig.upfirdn(self._aa1, q, up=1, down=10).astype(np.float32, copy=False)
+
+        # Stage 2: channel-select decimation 5:1, stateful (filter state
+        # carries across blocks to avoid ~200 us block-edge artifacts).
+        i, self._aa2_zi_i = _sig.lfilter(
+            self._aa2, [1.0], i, zi=self._aa2_zi_i,
+        )
+        q, self._aa2_zi_q = _sig.lfilter(
+            self._aa2, [1.0], q, zi=self._aa2_zi_q,
+        )
+        i = i.astype(np.float32, copy=False)
+        q = q.astype(np.float32, copy=False)
+        # Decimation phase tracking: continuation of the 5:1 sampling grid
+        # across blocks (input lengths aren't guaranteed multiples of 5).
+        start = self._aa2_phase
+        i_dec = i[start::5]
+        q_dec = q[start::5]
+        L_in = len(i)
+        K_out = len(i_dec)
+        if K_out > 0:
+            self._aa2_phase = (start + 5 * K_out - L_in) % 5
+        else:
+            self._aa2_phase = (start - L_in) % 5
+
+        if K_out == 0:
+            return np.zeros(0, dtype=np.float32)
+
+        # Polar discriminator on the 48 kHz channel-filtered IQ.
+        iq48 = (i_dec + 1j * q_dec).astype(np.complex64)
+        audio = np.empty(iq48.shape[0], dtype=np.float32)
+        first_prod = iq48[0] * np.conj(self._last_sample)
+        audio[0] = np.arctan2(float(first_prod.imag), float(first_prod.real))
+        if iq48.shape[0] > 1:
+            audio[1:] = np.angle(iq48[1:] * np.conj(iq48[:-1]))
+        self._last_sample = iq48[-1]
+
+        # Gain: at 48 kHz output, ±5 kHz NFM deviation gives ±0.654 rad
+        # of phase change per sample.  Scale to ~-10 dB peak for typical
+        # traffic so the mp3 encoder has 10 dB of headroom (2026-06-10:
+        # was 1.5 -> NOAA WX and other strong signals clipped at 0 dB,
+        # producing layer3 decode errors in VLC).
+        audio *= 0.5
+
         if self._deemph_b is not None:
             audio, self._deemph_zi = _sig.lfilter(
                 self._deemph_b, self._deemph_a, audio, zi=self._deemph_zi,
@@ -619,6 +725,12 @@ class VFOWorker:
         # Squelch runtime state — current block RMS dBFS and the
         # auto-squelch noise-floor follower.
         self.last_rms_dbfs = -120.0
+        # Rolling envelope-variance for demod quality classification.
+        # 30 windows ~ 3 sec history; recomputed on each block.
+        from collections import deque as _deque
+        self._rms_history = _deque(maxlen=30)
+        self.demod_quality = "unknown"
+        self.demod_envelope_std_db = 0.0
         self.last_squelch_open = True
         self._floor_dbfs = -60.0           # EMA-tracked noise floor for auto squelch
 
@@ -635,7 +747,7 @@ class VFOWorker:
         # Demod instance pool — recreated on mod change so internal
         # state (filter memory) starts fresh.
         self._demod_am = AMDemod()
-        self._demod_nfm = FMDemod(deemph_us=None)
+        self._demod_nfm = FMDemod(deemph_us=75.0)
         self._demod_wfm = FMDemod(deemph_us=75.0)
 
         # Mini-waterfall throttle.
@@ -798,7 +910,7 @@ class VFOWorker:
             )
             # Reset demod state by recreating instances.
             self._demod_am = AMDemod()
-            self._demod_nfm = FMDemod(deemph_us=None)
+            self._demod_nfm = FMDemod(deemph_us=75.0)
             self._demod_wfm = FMDemod(deemph_us=75.0)
             self.applied_mod = want_mod
         if want_muted != self.applied_muted:
@@ -916,6 +1028,42 @@ class VFOWorker:
             self.state = "ok"
 
             audio = self._demod(iq)
+
+            # ---- Demod-quality classifier (AUDIO-based) ----
+            # Voice on AUDIO output modulates 3-15 dB syllable-to-syllable.
+            # Pure noise (open-squelch hash, FM-threshold collapse, no
+            # signal) sits within ~1 dB.  Bucketing 100ms RMS samples
+            # of the AUDIO output gives a meaningful quality signal for
+            # FM as well as AM (IQ envelope is flat for FM voice).
+            if audio.size > 0:
+                a_rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)) + 1e-9)
+                a_rms_db = 20.0 * np.log10(a_rms)
+                self._rms_history.append(a_rms_db)
+                if len(self._rms_history) >= 8:
+                    vals = np.fromiter(self._rms_history, dtype=np.float32)
+                    std = float(vals.std())
+                    mean = float(vals.mean())
+                    self.demod_envelope_std_db = std
+                    # Classification:
+                    # - voice: clear modulation, audible RMS
+                    # - weak_voice: modulation present but low RMS
+                    # - noise: flat envelope at full scale (open-squelch hash)
+                    # - silent: flat envelope at very low RMS (no audio)
+                    # - uncertain: borderline
+                    if std >= 2.5 and mean >= -25.0:
+                        self.demod_quality = "voice"
+                    elif std >= 2.5:
+                        self.demod_quality = "weak_voice"
+                    elif std < 1.0 and mean >= -10.0:
+                        # Full-scale flat audio = open-squelch noise.
+                        # This is the signature of FM-threshold collapse
+                        # (and was the symptom of the missing channel filter).
+                        self.demod_quality = "noise"
+                    elif std < 1.0 and mean < -40.0:
+                        self.demod_quality = "silent"
+                    else:
+                        self.demod_quality = "uncertain"
+
 
             # ---- Squelch gate (Phase 6b.2) ----
             # Cheap power metric — mean |z|^2 of the IQ block in
@@ -1064,6 +1212,8 @@ def main() -> int:
             "gain_db": float(worker.applied_gain_db),
             "squelch_open": bool(worker.last_squelch_open),
             "rms_dbfs": round(float(worker.last_rms_dbfs), 1),
+            "demod_quality": worker.demod_quality,
+            "demod_envelope_std_db": round(float(worker.demod_envelope_std_db), 2),
             "bins": worker.mini_bins,
             "freq_min_mhz": round(f - bw / 2, 4),
             "freq_max_mhz": round(f + bw / 2, 4),

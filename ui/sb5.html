@@ -509,7 +509,7 @@
 
   /* ============ Analog/Digital pane internals ============ */
   .now-row {
-    display: grid; grid-template-columns: 40px 1fr auto; gap: 12px;
+    display: grid; grid-template-columns: 40px 1fr; gap: 12px;
     align-items: center;
     padding: 2px 0 var(--space-md);
   }
@@ -537,7 +537,6 @@
   .now-row .now-line { font-size: var(--type-body-sm); color: var(--text); margin-top: 2px; line-height: 1.35; word-break: break-word; }
   .now-row .now-line .freq { font-family: ui-monospace, monospace; color: var(--sky-2); margin-right: 6px; font-size: var(--type-mono); }
   .now-row .now-line.dim { color: var(--text-3); }
-  .now-row .chev { color: var(--text-4); font-size: var(--type-body); }
 
   .hits-list {
     border-top: 1px solid var(--line);
@@ -1552,6 +1551,35 @@
     background: rgba(138, 155, 181, 0.20);
     color: var(--text);
   }
+  /* SB5 2026-06-09 — primary Auto-tune button styling */
+  /* SB5 2026-06-09 Sensitivity slider */
+  .band-ctl-sens {
+    display: flex; align-items: center; gap: 8px; flex: 1;
+  }
+  .ctl-sens-lbl { font-size: 12px; color: rgba(190,210,225,0.78); }
+  .ctl-sens-slider { flex: 1; min-width: 120px; }
+  .ctl-sens-readout {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    min-width: 1.5em; text-align: right;
+    color: #cfe8ff;
+  }
+  .band-ctl-btn-primary {
+    background: rgba(90,184,255,0.18);
+    color: #cfe8ff;
+    border-color: rgba(90,184,255,0.55);
+    font-weight: 600;
+    padding: 6px 14px;
+  }
+  .band-ctl-btn-primary:hover {
+    background: rgba(90,184,255,0.32);
+    color: #fff;
+  }
+  .ctl-tune-status {
+    font-size: 11px;
+    color: rgba(190,210,225,0.70);
+    margin-top: 2px;
+  }
   /* Phase 1 squelch preset chips.  The three buttons share the
      base .band-ctl-btn look; .ctl-preset.on (set via aria-checked
      mirroring in JS) highlights the active preset. */
@@ -1847,7 +1875,56 @@
   }
 
   /* 11-dot service-health card pattern (lifted from sb3 visual style) */
-  .sitrep-service-list {
+  /* SB5 2026-06-12 — Reliability panel */
+  .sitrep-rel { margin-bottom: 12px; }
+  .sitrep-rel-summary {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    background: rgba(8, 14, 22, 0.6);
+    border: 1px solid rgba(139,167,212,0.18);
+    font-size: 12px;
+    color: rgba(220, 230, 240, 0.85);
+  }
+  .sitrep-rel-summary.ok    { border-color: rgba(52,199,89,0.45); }
+  .sitrep-rel-summary.warn  { border-color: rgba(255,159,10,0.55); color: #ffe1b8; }
+  .sitrep-rel-summary.wedged{ border-color: rgba(255,69,58,0.55); color: #ffd0cc; }
+  .sitrep-rel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px;
+  }
+  .sitrep-rel-tile {
+    padding: 8px 10px;
+    border: 1px solid rgba(139,167,212,0.20);
+    border-radius: 6px;
+    background: rgba(8, 14, 22, 0.55);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .sitrep-rel-tile.ok    { border-color: rgba(52,199,89,0.40); }
+  .sitrep-rel-tile.warn  { border-color: rgba(255,159,10,0.55); background: rgba(255,159,10,0.06); }
+  .sitrep-rel-tile.wedged{ border-color: rgba(255,69,58,0.55); background: rgba(255,69,58,0.08); }
+  .sitrep-rel-tile-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sitrep-rel-tile-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(180, 200, 220, 0.45);
+  }
+  .sitrep-rel-tile.ok .sitrep-rel-tile-dot { background: var(--green); box-shadow: 0 0 6px rgba(52,199,89,0.85); }
+  .sitrep-rel-tile.warn .sitrep-rel-tile-dot { background: var(--amber); box-shadow: 0 0 6px rgba(255,159,10,0.85); }
+  .sitrep-rel-tile.wedged .sitrep-rel-tile-dot { background: var(--red); box-shadow: 0 0 6px rgba(255,69,58,0.85); animation: pulse 1.4s ease-in-out infinite; }
+  .sitrep-rel-tile-meta {
+    font-size: 11px;
+    color: rgba(190, 210, 225, 0.65);
+  }
+
+    .sitrep-service-list {
     display: grid;
     gap: 8px;
   }
@@ -2289,7 +2366,144 @@
   .pane-disclosure .freq-row .f { color: var(--sky-2); }
   .pane-disclosure .freq-row .lab { color: var(--text-2); }
 
-  /* ============ Profile Builder button ============ */
+  /* ============ Profile Settings (Phase 1: Travel Mode + Scan Filters) ============ */
+  .pb-settings {
+    border: 1px solid rgba(139, 167, 212, 0.20);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    background: rgba(8, 14, 22, 0.45);
+    overflow: hidden;
+  }
+  .pb-settings-summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+  }
+  .pb-settings-summary::-webkit-details-marker { display: none; }
+  .pb-settings-summary::before {
+    content: "›";
+    display: inline-block;
+    transition: transform 0.15s ease;
+    font-size: 14px;
+    color: rgba(190, 210, 225, 0.65);
+    line-height: 1;
+  }
+  .pb-settings[open] > .pb-settings-summary::before { transform: rotate(90deg); }
+  .pb-settings-title { font-weight: 600; color: var(--text); font-size: 13px; }
+  .pb-settings-readout {
+    margin-left: auto;
+    font-size: 11px;
+    color: rgba(190, 210, 225, 0.65);
+  }
+  .pb-settings-body {
+    padding: 8px 14px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    border-top: 1px solid rgba(139, 167, 212, 0.10);
+  }
+  .pb-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .pb-row-label { font-size: 11px; color: rgba(190, 210, 225, 0.78); min-width: 110px; }
+  .pb-field {
+    display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  }
+  .pb-field > span { font-size: 11px; color: rgba(190, 210, 225, 0.65); }
+  .pb-field input, .pb-field select {
+    background: rgba(8, 14, 22, 0.65);
+    border: 1px solid rgba(139, 167, 212, 0.30);
+    border-radius: 5px;
+    color: var(--text);
+    padding: 5px 8px;
+    font-size: 13px;
+    min-width: 0;
+  }
+  .pb-field-num input { width: 70px; }
+  .pb-check {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px; color: rgba(220, 230, 240, 0.85);
+    user-select: none;
+  }
+  .pb-check input { accent-color: rgba(90,184,255,0.85); }
+  .pb-toggle {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 10px;
+    border: 1px solid rgba(139, 167, 212, 0.30);
+    border-radius: 999px;
+    background: rgba(8, 14, 22, 0.5);
+    color: rgba(220, 230, 240, 0.85);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .pb-toggle.on {
+    background: rgba(52, 199, 89, 0.16);
+    color: #c6f7c8;
+    border-color: rgba(52, 199, 89, 0.55);
+  }
+  .pb-toggle-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(180, 200, 220, 0.45);
+    box-shadow: 0 0 5px rgba(0,0,0,0.4);
+  }
+  .pb-toggle.on .pb-toggle-dot {
+    background: var(--green);
+    box-shadow: 0 0 6px rgba(52,199,89,0.85);
+  }
+  .pb-travel-state { font-size: 11px; color: rgba(190, 210, 225, 0.65); }
+  .pb-chips {
+    display: flex; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0;
+  }
+  .pb-chip {
+    padding: 3px 9px;
+    border: 1px solid rgba(139, 167, 212, 0.30);
+    border-radius: 999px;
+    background: rgba(8, 14, 22, 0.5);
+    color: rgba(220, 230, 240, 0.78);
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .pb-chip.on {
+    background: rgba(90,184,255,0.18);
+    color: #cfe8ff;
+    border-color: rgba(90,184,255,0.55);
+  }
+  .pb-chip-loading { opacity: 0.6; cursor: default; }
+  .pb-btn {
+    padding: 5px 12px;
+    border: 1px solid rgba(139, 167, 212, 0.32);
+    border-radius: 5px;
+    background: rgba(8, 14, 22, 0.6);
+    color: rgba(220, 230, 240, 0.92);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pb-btn:hover { background: rgba(20, 30, 42, 0.75); }
+  .pb-btn-sub {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+  .pb-btn-primary {
+    background: rgba(90,184,255,0.18);
+    color: #cfe8ff;
+    border-color: rgba(90,184,255,0.55);
+    font-weight: 600;
+  }
+  .pb-btn-primary:hover {
+    background: rgba(90,184,255,0.32);
+    color: #fff;
+  }
+  .pb-loc-meta {
+    margin-left: auto;
+    font-size: 11px;
+    color: rgba(190, 210, 225, 0.65);
+  }
+
+/* ============ Profile Builder button ============ */
   .profile-build-btn {
     background: rgba(90, 184, 255, 0.10);
     border: 1px solid rgba(90, 184, 255, 0.30);
@@ -2412,6 +2626,223 @@
   }
   .modal-profile-builder .pb-btn:hover { background: var(--sky-2); }
 
+  /* ============ Profile Builder — full-screen, large-type, easier-nav (2026-06-10) ============
+     Will: "utilize the whole screen. make the words larger font. make it a
+     little easier to navigate."  These overrides scope to .modal-profile-builder
+     so other modals (sitrep, disco-recent, etc.) keep their compact look.  We
+     bump the modal card to near-full viewport, dial up the font scale inside
+     by one tier (11→13, 12→14, 13→15, 14→16), and grow hit targets so chips
+     and buttons clear 36 px height for easier touch + mouse navigation. */
+  .modal-profile-builder .modal-card {
+    max-width: min(1400px, 96vw);
+    width: 96vw;
+    max-height: 94vh;
+    height: 94vh;
+  }
+  .modal-profile-builder .modal-hd {
+    padding: 20px 28px;
+  }
+  .modal-profile-builder .modal-hd .title {
+    font-size: 22px;
+  }
+  .modal-profile-builder .modal-close {
+    width: 36px; height: 36px;
+    font-size: 20px;
+  }
+  .modal-profile-builder .modal-body {
+    padding: 22px 28px 28px;
+  }
+  /* Larger fonts + breathing room inside the Profile Settings strip. */
+  .modal-profile-builder .pb-settings {
+    margin-bottom: 18px;
+  }
+  .modal-profile-builder .pb-settings-summary {
+    padding: 14px 18px;
+    gap: 12px;
+  }
+  .modal-profile-builder .pb-settings-summary::before {
+    font-size: 18px;
+  }
+  .modal-profile-builder .pb-settings-title {
+    font-size: 16px;
+  }
+  .modal-profile-builder .pb-settings-readout {
+    font-size: 13px;
+  }
+  .modal-profile-builder .pb-settings-body {
+    padding: 14px 18px 18px;
+    gap: 14px;
+  }
+  .modal-profile-builder .pb-row {
+    gap: 14px;
+  }
+  .modal-profile-builder .pb-row-label {
+    font-size: 14px;
+    min-width: 130px;
+  }
+  .modal-profile-builder .pb-field > span {
+    font-size: 13px;
+  }
+  .modal-profile-builder .pb-field input,
+  .modal-profile-builder .pb-field select {
+    font-size: 15px;
+    padding: 8px 12px;
+    min-height: 38px;
+  }
+  .modal-profile-builder .pb-field-num input {
+    width: 92px;
+  }
+  .modal-profile-builder .pb-check {
+    font-size: 14px;
+    gap: 8px;
+  }
+  .modal-profile-builder .pb-check input {
+    width: 18px; height: 18px;
+  }
+  .modal-profile-builder .pb-toggle {
+    padding: 8px 14px;
+    font-size: 14px;
+    min-height: 38px;
+  }
+  .modal-profile-builder .pb-toggle-dot {
+    width: 10px; height: 10px;
+  }
+  .modal-profile-builder .pb-travel-state {
+    font-size: 13px;
+  }
+  .modal-profile-builder .pb-chips {
+    gap: 8px;
+  }
+  .modal-profile-builder .pb-chip {
+    padding: 7px 14px;
+    font-size: 14px;
+    min-height: 34px;
+    display: inline-flex; align-items: center;
+  }
+  .modal-profile-builder .pb-btn {
+    padding: 9px 18px;
+    font-size: 14px;
+    min-height: 38px;
+  }
+  .modal-profile-builder .pb-btn-sub {
+    padding: 6px 12px;
+    font-size: 13px;
+    min-height: 32px;
+  }
+  .modal-profile-builder .pb-loc-meta {
+    font-size: 13px;
+  }
+  /* Favorite rows — bigger so they read like a real list, not a packed picker. */
+  .modal-profile-builder .fp-row {
+    padding: 14px 16px;
+    gap: 16px;
+    border-radius: 12px;
+  }
+  .modal-profile-builder .fp-row .fp-name {
+    font-size: 16px;
+  }
+  .modal-profile-builder .fp-row .fp-meta {
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .modal-profile-builder .fp-row .fp-state {
+    font-size: 12px;
+  }
+  .modal-profile-builder .fp-row .fp-band-tag {
+    font-size: 12px;
+    padding: 3px 8px;
+  }
+  .modal-profile-builder .fp-edit-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    min-height: 32px;
+  }
+  /* Wizard panel — same uplift inside the new-favorite flow. */
+  .modal-profile-builder .fp-wizard {
+    padding: 16px 18px;
+    border-radius: 10px;
+    gap: 14px;
+  }
+  .modal-profile-builder .fp-wizard-title {
+    font-size: 16px;
+  }
+  .modal-profile-builder .fp-wizard-fields {
+    gap: 12px;
+  }
+  .modal-profile-builder .fp-wizard-systems,
+  .modal-profile-builder .fp-wizard-channels {
+    padding: 10px;
+    max-height: 300px;
+    gap: 6px;
+  }
+  .modal-profile-builder .fp-wizard-system,
+  .modal-profile-builder .fp-wizard-channel {
+    padding: 8px 12px;
+    font-size: 14px;
+    gap: 10px;
+  }
+  .modal-profile-builder .fp-wizard-channel-freq {
+    font-size: 13px;
+  }
+  /* Town / department context inline with the channel name.  Subtle so
+     the alpha_tag stays the primary read but the operator sees which
+     municipality (or trunk_groups.group_name) owns this talkgroup. */
+  .modal-profile-builder .fp-wizard-channel-dept {
+    color: rgba(190,210,225,0.62);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+  .fp-wizard-channel-dept {
+    color: rgba(190,210,225,0.55);
+    font-weight: 400;
+    font-size: 0.9em;
+  }
+  /* Filter input above each wizard list (Systems / Channels) — instant
+     client-side filter so the user can search SB3-style as they type. */
+  .fp-wizard-search {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(8, 14, 22, 0.7);
+    border: 1px solid rgba(139, 167, 212, 0.30);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 6px 10px;
+    font-size: 13px;
+    margin-bottom: 6px;
+    font-family: inherit;
+  }
+  .fp-wizard-search:focus {
+    outline: none;
+    border-color: rgba(90, 184, 255, 0.55);
+  }
+  .modal-profile-builder .fp-wizard-search {
+    padding: 9px 12px;
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+  .modal-profile-builder .fp-wizard-counts {
+    font-size: 13px;
+  }
+  .modal-profile-builder .fp-wizard-actions {
+    gap: 10px;
+  }
+  /* Phase 3 hint text at the top of the picker — easier to spot. */
+  .modal-profile-builder .fp-new-hint {
+    font-size: 13px;
+  }
+  /* Service-types chips already promoted via pb-chip rule above; the
+     "All / Default / None" cluster gets a labeled separator so users
+     can see what they apply to. */
+  .modal-profile-builder .pb-row-actions {
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  /* The shared rows of action buttons at bottom of Profile Settings
+     sit on a soft band so they're visually anchored. */
+  .modal-profile-builder .pb-row-actions-main {
+    padding-top: 12px;
+    border-top: 1px solid rgba(139, 167, 212, 0.18);
+  }
+
   /* ============ Sounding pane (Phase 7d — VDL2 + ACARS) ============ */
   .pane-sounding .snd-row {
     display: grid;
@@ -2526,6 +2957,159 @@
     font-weight: 700;
   }
   .fp-row.active .fp-state { color: var(--sky-2); }
+  /* Phase 3 — new-favorite wizard */
+  .fp-new-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 4px;
+    margin-bottom: 8px;
+  }
+  .fp-new-hint {
+    font-size: 11px; color: rgba(190, 210, 225, 0.55);
+  }
+  .fp-wizard {
+    background: rgba(8,14,22,0.55);
+    border: 1px solid rgba(90,184,255,0.30);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .fp-wizard[hidden] { display: none; }
+  .fp-wizard-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .fp-wizard-title { font-weight: 600; color: var(--text); }
+  .fp-wizard-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  @media (max-width: 600px) { .fp-wizard-fields { grid-template-columns: 1fr; } }
+  .fp-wizard-systems, .fp-wizard-channels {
+    background: rgba(0,0,0,0.18);
+    border-radius: 4px;
+    padding: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .fp-wizard-system, .fp-wizard-channel {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(8,14,22,0.45);
+    border: 1px solid rgba(139,167,212,0.15);
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+  }
+  .fp-wizard-system:hover, .fp-wizard-channel:hover {
+    border-color: rgba(90,184,255,0.40);
+    background: rgba(20,30,42,0.6);
+  }
+  .fp-wizard-system.active, .fp-wizard-channel.selected {
+    border-color: rgba(90,184,255,0.55);
+    background: rgba(90,184,255,0.10);
+  }
+  .fp-wizard-channel input { accent-color: rgba(90,184,255,0.85); }
+  .fp-wizard-channel-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .fp-wizard-channel-freq {
+    font-variant-numeric: tabular-nums;
+    color: rgba(190,210,225,0.65);
+    font-size: 11px;
+  }
+  .fp-wizard-counts {
+    font-size: 11px; color: rgba(190,210,225,0.65);
+    margin-left: 4px;
+  }
+  .fp-wizard-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+  }
+
+  /* Phase 2 — inline favorite editor (channels CRUD) */
+  .fp-row-wrap { display: flex; flex-direction: column; gap: 0; }
+  .fp-row-tail { display: inline-flex; align-items: center; gap: 8px; }
+  .fp-edit-btn {
+    padding: 3px 9px;
+    border: 1px solid rgba(139,167,212,0.32);
+    border-radius: 5px;
+    background: rgba(8,14,22,0.55);
+    color: rgba(220,230,240,0.85);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .fp-edit-btn:hover {
+    background: rgba(20,30,42,0.78);
+    border-color: rgba(90,184,255,0.5);
+    color: #cfe8ff;
+  }
+  .fp-editor {
+    margin-top: 6px;
+    padding: 10px;
+    background: rgba(8,14,22,0.55);
+    border: 1px solid rgba(139,167,212,0.22);
+    border-radius: 6px;
+    display: flex; flex-direction: column; gap: 8px;
+    font-size: 12px;
+  }
+  .fp-editor[hidden] { display: none; }
+  .fp-editor-head { font-weight: 600; color: var(--text); font-size: 12px; }
+  .fp-editor-list {
+    display: flex; flex-direction: column; gap: 4px;
+    max-height: 240px; overflow-y: auto;
+    padding: 4px;
+    background: rgba(0,0,0,0.18);
+    border-radius: 4px;
+  }
+  .fp-editor-chan {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(8,14,22,0.5);
+    border: 1px solid rgba(139,167,212,0.15);
+  }
+  .fp-editor-chan-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: rgba(230,238,248,0.92);
+  }
+  .fp-editor-chan-freq {
+    font-variant-numeric: tabular-nums;
+    color: rgba(190,210,225,0.65);
+    font-size: 11px;
+  }
+  .fp-editor-chan-rm {
+    padding: 2px 7px;
+    border: 1px solid rgba(255,69,58,0.40);
+    border-radius: 3px;
+    background: rgba(255,69,58,0.10);
+    color: rgba(255,180,170,0.90);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .fp-editor-chan-rm:hover { background: rgba(255,69,58,0.22); color: #ffd0cc; }
+  .fp-editor-add {
+    display: flex; gap: 6px; align-items: end; flex-wrap: wrap;
+    padding: 6px;
+    background: rgba(8,14,22,0.4);
+    border: 1px dashed rgba(139,167,212,0.30);
+    border-radius: 4px;
+  }
+  .fp-editor-add .pb-field { min-width: 70px; }
+  .fp-editor-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+  }
+  .fp-editor-empty {
+    padding: 8px;
+    text-align: center;
+    color: rgba(190,210,225,0.55);
+    font-size: 11px;
+  }
   .fp-empty {
     padding: 12px 14px;
     color: var(--text-4);
@@ -2634,7 +3218,6 @@
           <div class="band">Airband · AM</div>
           <div class="now-line dim">Loading…</div>
         </div>
-        <div class="chev">›</div>
       </div>
       <div class="analog-profile">
         <div class="glyph" id="ana-glyph">—</div>
@@ -2670,29 +3253,27 @@
              fires reset_radios to restart rtl-airband. -->
         <div class="band-ctl band-ctl-preset" data-band="air">
           <span class="ctl-lbl">Squelch</span>
-          <!-- SB5 Phase 2 — AUTO/MANUAL pill.  ON = continuous noise
-               tracker re-applies the preset margin every 30 s with
-               5 dB hysteresis.  OFF = chip thresholds stay frozen
-               until operator picks a preset again. -->
-          <div class="band-ctl-auto-row" data-role="auto-row">
-            <button type="button" class="band-ctl-auto-pill on"
-                    data-band="air" data-role="auto-toggle"
-                    aria-pressed="true"
-                    title="When AUTO is on, the tracker re-samples noise every 30 s and re-applies the preset margin if any channel drifts >= 5 dB.">AUTO</button>
+          <div class="band-ctl-auto-row" data-role="auto-row" data-legacy="1" style="display:none">
+            <button type="button" class="band-ctl-auto-pill on" data-band="air" data-role="auto-toggle" aria-pressed="true">AUTO</button>
             <span class="auto-status" data-role="auto-status">Auto · waiting for first sync</span>
           </div>
-          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="AIR squelch preset">
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="sensitive"
-                    role="radio" aria-checked="false"
-                    title="Sensitive — opens at 3 dB above per-channel noise floor">Sensitive</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="balanced"
-                    role="radio" aria-checked="true"
-                    title="Balanced — opens at 6 dB above per-channel noise floor (default)">Balanced</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="selective"
-                    role="radio" aria-checked="false"
-                    title="Selective — opens at 12 dB above per-channel noise floor">Selective</button>
+          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="AIR squelch preset" data-legacy="1" style="display:none">
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="sensitive" role="radio" aria-checked="false">Sensitive</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="balanced" role="radio" aria-checked="true">Balanced</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="selective" role="radio" aria-checked="false">Selective</button>
           </div>
-          <span class="ctl-val ctl-preset-readout" data-role="preset-readout">—</span>
+          <div class="band-ctl-row band-ctl-sq-tools">
+            <div class="band-ctl-sens" data-band="air">
+              <span class="ctl-sens-lbl">Sensitivity</span>
+              <input type="range" min="0" max="10" step="1" value="5"
+                     class="ctl-sens-slider" data-band="air"
+                     aria-label="AIR voice-detection sensitivity (0 strict / 10 wide)" title="Voice Activity Detection threshold. Higher = more permissive (lets in more audio, including possible noise). Lower = stricter (only obvious voice passes). 5 = default.">
+              <span class="ctl-sens-readout" data-role="sens-readout" data-band="air">5</span>
+            </div>
+            <button type="button" class="band-ctl-btn ctl-wide-open" data-band="air"
+                    title="Test mode — bypass the voice-detection gate so every channel passes through.  Move Sensitivity to restore.">Test</button>
+          </div>
+          <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="air">—</span>
         </div>
         <div class="band-ctl">
           <span class="ctl-lbl">Gain</span>
@@ -2761,7 +3342,6 @@
           <div class="band">Ground · NFM</div>
           <div class="now-line dim">Loading…</div>
         </div>
-        <div class="chev">›</div>
       </div>
       <!-- Phase 7g: independent GROUND favorite picker (mirrors AIR).
            Shows the favorite currently flagged enabled_ground=true; the
@@ -2782,25 +3362,27 @@
         <!-- SB5 Phase 1 squelch preset.  See AIR card above. -->
         <div class="band-ctl band-ctl-preset" data-band="ground">
           <span class="ctl-lbl">Squelch</span>
-          <div class="band-ctl-auto-row" data-role="auto-row">
-            <button type="button" class="band-ctl-auto-pill on"
-                    data-band="ground" data-role="auto-toggle"
-                    aria-pressed="true"
-                    title="When AUTO is on, the tracker re-samples noise every 30 s and re-applies the preset margin if any channel drifts >= 5 dB.">AUTO</button>
+          <div class="band-ctl-auto-row" data-role="auto-row" data-legacy="1" style="display:none">
+            <button type="button" class="band-ctl-auto-pill on" data-band="ground" data-role="auto-toggle" aria-pressed="true">AUTO</button>
             <span class="auto-status" data-role="auto-status">Auto · waiting for first sync</span>
           </div>
-          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="GROUND squelch preset">
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="sensitive"
-                    role="radio" aria-checked="false"
-                    title="Sensitive — opens at 3 dB above per-channel noise floor">Sensitive</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="balanced"
-                    role="radio" aria-checked="true"
-                    title="Balanced — opens at 6 dB above per-channel noise floor (default)">Balanced</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective"
-                    role="radio" aria-checked="false"
-                    title="Selective — opens at 12 dB above per-channel noise floor">Selective</button>
+          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="GROUND squelch preset" data-legacy="1" style="display:none">
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="sensitive" role="radio" aria-checked="false">Sensitive</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="balanced" role="radio" aria-checked="true">Balanced</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective" role="radio" aria-checked="false">Selective</button>
           </div>
-          <span class="ctl-val ctl-preset-readout" data-role="preset-readout">—</span>
+          <div class="band-ctl-row band-ctl-sq-tools">
+            <div class="band-ctl-sens" data-band="ground">
+              <span class="ctl-sens-lbl">Sensitivity</span>
+              <input type="range" min="0" max="10" step="1" value="5"
+                     class="ctl-sens-slider" data-band="ground"
+                     aria-label="GROUND voice-detection sensitivity (0 strict / 10 wide)" title="Voice Activity Detection threshold. Higher = more permissive (lets in more audio, including possible noise). Lower = stricter (only obvious voice passes). 5 = default.">
+              <span class="ctl-sens-readout" data-role="sens-readout" data-band="ground">5</span>
+            </div>
+            <button type="button" class="band-ctl-btn ctl-wide-open" data-band="ground"
+                    title="Test mode — bypass the voice-detection gate so every channel passes through.  Move Sensitivity to restore.">Test</button>
+          </div>
+          <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="ground">—</span>
         </div>
         <div class="band-ctl">
           <span class="ctl-lbl">Gain</span>
@@ -2860,7 +3442,6 @@
           <div class="band">Digital · P25</div>
           <div class="now-line dim">Loading…</div>
         </div>
-        <div class="chev">›</div>
       </div>
       <div class="digital-profile">
         <div class="glyph" id="dig-glyph">—</div>
@@ -3366,6 +3947,12 @@
       </div>
 
       <div class="sitrep-section">
+        <div class="sitrep-section-hd" id="sitrep-rel-hd">Reliability</div>
+        <div class="sitrep-rel" id="sitrep-rel">
+          <div class="sitrep-rel-summary" id="sitrep-rel-summary">Loading reliability snapshot…</div>
+          <div class="sitrep-rel-grid" id="sitrep-rel-grid"></div>
+        </div>
+
         <div class="sitrep-section-hd" id="sitrep-evidence-hd">Heartbeat evidence</div>
         <div class="sitrep-service-list" id="sitrep-evidence-list">
           <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
@@ -3386,6 +3973,8 @@
                   data-action="reset_disco">Reset Discovery</button>
           <button class="sitrep-ctrl-btn" type="button"
                   data-action="reset_ui">Reset UI</button>
+          <button class="sitrep-ctrl-btn" type="button"
+                  data-action="connect_bt_speaker">Connect BT Speaker</button>
           <button class="sitrep-ctrl-btn ctrl-destructive" type="button"
                   data-action="reboot">Reboot Micro</button>
         </div>
@@ -3448,6 +4037,86 @@
     </div>
     <div class="modal-body">
       <div class="fp-busy" id="fp-busy" hidden>Switching…</div>
+
+      <!-- Profile Settings (Phase 1 of SB3 sidecar port): Travel Mode +
+           Scan Filters live in a collapsible strip at the top of the
+           favorites modal so the operator can adjust location-based
+           scanning without leaving the picker.  Backend already wired
+           via /api/hp/state (POST), /api/hp/travel_mode/toggle, and
+           /api/hp/location/push.  Service-type chips read from
+           /api/hp/service-types. -->
+      <details class="pb-settings" id="pb-settings">
+        <summary class="pb-settings-summary">
+          <span class="pb-settings-title">Profile Settings</span>
+          <span class="pb-settings-readout" data-role="pb-settings-readout">—</span>
+        </summary>
+        <div class="pb-settings-body">
+          <!-- Travel Mode row -->
+          <div class="pb-row pb-row-travel">
+            <button type="button" class="pb-toggle on" id="pb-travel-toggle"
+                    aria-pressed="true"
+                    title="When Travel Mode is ON, location updates auto-push relevant favorites to the daemons.  When OFF, the rig stays on whatever you last picked.">
+              <span class="pb-toggle-dot"></span>
+              <span class="pb-toggle-label">Travel Mode</span>
+            </button>
+            <span class="pb-travel-state" data-role="pb-travel-state">Loading…</span>
+          </div>
+          <!-- Scan Filters: mode + location + range -->
+          <div class="pb-row pb-row-filters">
+            <label class="pb-field">
+              <span>Scan Source</span>
+              <select id="pb-filter-mode">
+                <option value="favorites">Favorites</option>
+                <option value="full_database">Full Database</option>
+              </select>
+            </label>
+            <label class="pb-field">
+              <span>ZIP</span>
+              <input id="pb-filter-zip" type="text" inputmode="numeric"
+                     maxlength="12" placeholder="08243" autocomplete="postal-code">
+            </label>
+            <label class="pb-field pb-field-num">
+              <span>Range (mi)</span>
+              <input id="pb-filter-range" type="number" min="0" max="500"
+                     step="5" value="50">
+            </label>
+            <label class="pb-check">
+              <input id="pb-filter-strict" type="checkbox">
+              <span>Strict</span>
+            </label>
+            <label class="pb-check">
+              <input id="pb-filter-nationwide" type="checkbox">
+              <span>Nationwide</span>
+            </label>
+          </div>
+          <!-- Service type chips: multi-select. -->
+          <div class="pb-row pb-row-services">
+            <span class="pb-row-label">Service Types</span>
+            <div class="pb-chips" id="pb-services-chips">
+              <span class="pb-chip pb-chip-loading">Loading service types…</span>
+            </div>
+            <div class="pb-row-actions">
+              <button type="button" class="pb-btn pb-btn-sub" id="pb-services-all">All</button>
+              <button type="button" class="pb-btn pb-btn-sub" id="pb-services-default">Default</button>
+              <button type="button" class="pb-btn pb-btn-sub" id="pb-services-none">None</button>
+            </div>
+          </div>
+          <!-- Apply / location actions -->
+          <div class="pb-row pb-row-actions-main">
+            <button type="button" class="pb-btn pb-btn-primary" id="pb-filters-apply">Apply Filters</button>
+            <button type="button" class="pb-btn" id="pb-resolve-zip">Resolve ZIP → Apply</button>
+            <button type="button" class="pb-btn" id="pb-use-current-loc">Use Current Location</button>
+            <span class="pb-loc-meta" data-role="pb-loc-meta"></span>
+          </div>
+        </div>
+      </details>
+
+      <div class="fp-new-row">
+        <button type="button" class="pb-btn pb-btn-primary" id="fp-new-fav">+ New favorite</button>
+        <span class="fp-new-hint">Build from HPDB (country → state → county → system → channels)</span>
+      </div>
+      <div class="fp-wizard" id="fp-wizard" hidden></div>
+
       <div class="fp-rows" id="fp-rows">
         <div class="fp-empty">Loading favorites…</div>
       </div>
@@ -4263,7 +4932,7 @@ const SPEC_PANE = new Map();   // key -> { canvas, target, display, freqLo, freq
 
 function specSubmitFrame(canvas, bins, freqLo, freqHi, scaleKey) {
   if (!canvas) return;
-  if (!Array.isArray(bins) || bins.length === 0) return;
+  if ((!Array.isArray(bins) && !ArrayBuffer.isView(bins)) || bins.length === 0) return;
   if (!Number.isFinite(freqLo) || !Number.isFinite(freqHi) || freqHi <= freqLo) return;
   const key = scaleKey || canvas.id;
   const N = bins.length;
@@ -4398,6 +5067,10 @@ const STATE = {
   hits: [],
   profiles: [],
   hpState: null,
+  // 2026-06-11: per-band counts from /api/hp/scan-pool-preview so the
+  // band cards can show "DB · N freqs" in full_database mode.  Refreshed
+  // by pollScanPoolCounts on a 10s timer.
+  scanPoolCounts: { air: 0, ground: 0, digital: 0 },
 };
 
 // Phase 5c: heartbeat state collapses into one of four categories that drive
@@ -4704,15 +5377,26 @@ function paintBandProfile(prefix, list, zip, mode, opts) {
   const bandLabel = (opts && opts.bandLabel) || "";
 
   const active = list.find(f => f && f[enabledFlag]) || null;
-  const label = active ? (active.label || active.id || "fav") : "—";
-  const glyph = String(label || "—").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "—";
+  const isFullDb = String(mode || "").toLowerCase() === "full_database";
 
-  const gEl = $(prefix + "-glyph");
-  const nEl = $(prefix + "-pname");
-  const sEl = $(prefix + "-psub");
-  if (nEl) nEl.textContent = label;
-  if (sEl) {
-    let sub;
+  // 2026-06-11 — in full_database mode the favorite tile is misleading
+  // (favorites don't drive scanning).  Show "Full Database" + the live
+  // scan-pool count for this band instead.
+  let label, glyph, sub;
+  if (isFullDb) {
+    label = "Full Database";
+    glyph = "DB";
+    const counts = (STATE && STATE.scanPoolCounts) || { air: 0, ground: 0, digital: 0 };
+    let n = 0;
+    let noun = "freq";
+    if (prefix === "dig") { n = counts.digital | 0; noun = "talkgroup"; }
+    else if (prefix === "ground") { n = counts.ground | 0; noun = "freq"; }
+    else { n = counts.air | 0; noun = "freq"; }
+    sub = `${n} ${noun}${n === 1 ? "" : "s"}`;
+    if (zip) sub += ` · ZIP ${zip}`;
+  } else {
+    label = active ? (active.label || active.id || "fav") : "—";
+    glyph = String(label || "—").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "—";
     if (active && countFn) {
       const n = countFn(active);
       sub = `${n} ${bandLabel || "freq"}${n === 1 ? "" : "s"}`;
@@ -4721,8 +5405,13 @@ function paintBandProfile(prefix, list, zip, mode, opts) {
     }
     if (zip) sub += ` · ZIP ${zip}`;
     if (mode) sub += ` · ${mode} mode`;
-    sEl.textContent = sub;
   }
+
+  const gEl = $(prefix + "-glyph");
+  const nEl = $(prefix + "-pname");
+  const sEl = $(prefix + "-psub");
+  if (nEl) nEl.textContent = label;
+  if (sEl) sEl.textContent = sub;
   if (gEl) gEl.textContent = glyph;
 
 }
@@ -4739,7 +5428,11 @@ function renderProfile(hpState, profiles) {
 
   const favList = (hpState && hpState.state && Array.isArray(hpState.state.favorites)) ? hpState.state.favorites : [];
   const zip = (hpState && hpState.state && hpState.state.zip) || "";
-  const mode = (hpState && hpState.mode) || "";
+  // 2026-06-11: the top-level `mode` field is the scan_mode_controller's
+  // mode (e.g. "expert"), NOT the HPState scan source.  Use state.mode
+  // for the favorites-vs-full_database decision; fall back to top-level
+  // only if state.mode is missing.
+  const mode = (hpState && hpState.state && hpState.state.mode) || (hpState && hpState.mode) || "";
 
   // Each pane has its own active favorite: AIR -> enabled_air,
   // GROUND -> enabled_ground, Digital -> enabled_digital.  Independently
@@ -4747,6 +5440,13 @@ function renderProfile(hpState, profiles) {
   // ground-routed channel count.
   paintBandProfile("dig", favList.filter(favIsDigital), zip, mode, {
     enabledFlag: "enabled_digital",
+    // 2026-06-10: count trunked talkgroups in the active digital favorite
+    // so the tile shows e.g. "7 talkgroups" instead of "3 favorites".
+    countFn: function (f) {
+      const cf = (f && Array.isArray(f.custom_favorites)) ? f.custom_favorites : [];
+      return cf.filter(c => String(c.kind || "").toLowerCase() === "trunked").length;
+    },
+    bandLabel: "talkgroup",
   });
   paintBandProfile("ana", favList.filter(favIsAir), zip, mode, {
     enabledFlag: "enabled_air",
@@ -6801,11 +7501,12 @@ async function renderSitrepModal() {
 // to come back so we can flip the toast from "Restarting" to "ok".
 // -------------------------------------------------------------------------
 const SITREP_ACTION_LABELS = {
-  reboot:        "Reboot Micro",
-  reset_radios:  "Reset Radios",
-  reset_live_iq: "Reset Live IQ",
-  reset_disco:   "Reset Discovery",
-  reset_ui:      "Reset UI",
+  reboot:               "Reboot Micro",
+  reset_radios:         "Reset Radios",
+  reset_live_iq:        "Reset Live IQ",
+  reset_disco:          "Reset Discovery",
+  reset_ui:             "Reset UI",
+  connect_bt_speaker:   "Connect BT Speaker",
 };
 
 function showSitrepToast(text, variant /* "busy" | "ok" | "err" */, duration_ms) {
@@ -7450,20 +8151,38 @@ function _favPickerRenderRows(pane) {
     const tagHtml = tags.length ? `<span class="fp-band-tags">${tags.join("")}</span>` : "";
     let cls = "fp-row";
     if (isActive) cls += " active active-" + (pane === "dig" ? "both" : pane);
-    return `<div class="${cls}" data-id="${id}" role="button" tabindex="0">
-      <div>
-        <div class="fp-name">${label}${tagHtml}</div>
-        <div class="fp-meta">${meta}</div>
+    return `<div class="fp-row-wrap" data-id="${id}">
+      <div class="${cls}" data-id="${id}" role="button" tabindex="0">
+        <div>
+          <div class="fp-name">${label}${tagHtml}</div>
+          <div class="fp-meta">${meta}</div>
+        </div>
+        <div class="fp-row-tail">
+          <button type="button" class="fp-edit-btn" title="Edit channels in this favorite" data-id="${id}">Edit</button>
+          <span class="fp-state">${stateTxt}</span>
+        </div>
       </div>
-      <span class="fp-state">${stateTxt}</span>
+      <div class="fp-editor" data-id="${id}" hidden></div>
     </div>`;
   }).join("");
   wrap.querySelectorAll(".fp-row").forEach(row => {
     const id = row.getAttribute("data-id") || "";
     const fire = () => _favPickerSwitch(id, pane);
-    row.addEventListener("click", fire);
+    row.addEventListener("click", (e) => {
+      // Don't activate when the inline Edit button was clicked.
+      if (e.target && e.target.classList && e.target.classList.contains("fp-edit-btn")) return;
+      fire();
+    });
     row.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fire(); }
+    });
+  });
+  // Wire Edit buttons to toggle the inline editor.
+  wrap.querySelectorAll(".fp-edit-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute("data-id") || "";
+      window._pbToggleEditor(id);
     });
   });
 }
@@ -8092,11 +8811,57 @@ function wireBandControls() {
 function renderPaneDisclosure() {
   const hp = STATE.hpState;
   const favList = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
-  const active = favList.find(f => f.enabled) || favList[0] || null;
-  const favLabel = active ? (active.label || active.id || "fav") : "—";
-  const customs = (active && Array.isArray(active.custom_favorites)) ? active.custom_favorites : [];
-  const conv = customs.filter(c => String(c.kind || "").toLowerCase() === "conventional");
-  const trunked = customs.filter(c => String(c.kind || "").toLowerCase() === "trunked");
+  // 2026-06-11: in full_database mode the active-favorite contents are
+  // misleading -- the scan pool is HPDB filtered, not the favorite.  Paint
+  // the disclosures with "Full Database" + scan-pool counts and bail.
+  const stateMode = (hp && hp.state && hp.state.mode) || (hp && hp.mode) || "";
+  if (String(stateMode).toLowerCase() === "full_database") {
+    const counts = (STATE && STATE.scanPoolCounts) || { air: 0, ground: 0, digital: 0 };
+    const aFav = $("analog-disc-fav");
+    const aDetail = $("analog-disc-detail");
+    const aBody = $("analog-disc-body");
+    if (aFav) aFav.textContent = "Full Database";
+    if (aDetail) {
+      const parts = [];
+      if (counts.air) parts.push(`${counts.air} airband`);
+      if (counts.ground) parts.push(`${counts.ground} ground`);
+      const segText = parts.length
+        ? `${parts.join(" + ")} freq${(counts.air + counts.ground) === 1 ? "" : "s"} scanning`
+        : "0 conventional channels in pool";
+      const enabledTags = (hp && hp.state && Array.isArray(hp.state.enabled_service_tags))
+        ? hp.state.enabled_service_tags.length
+        : 0;
+      const tagText = enabledTags ? ` · ${enabledTags} service tag${enabledTags === 1 ? "" : "s"} enabled` : "";
+      aDetail.textContent = " · " + segText + tagText;
+    }
+    if (aBody) aBody.textContent = "Full Database mode — scan pool driven by ZIP + range + service tags. Open the picker to switch back to favorites.";
+    const dFav = $("digital-disc-fav");
+    const dDetail = $("digital-disc-detail");
+    const dBody = $("digital-disc-body");
+    if (dFav) dFav.textContent = "Full Database";
+    if (dDetail) dDetail.textContent = ` · ${counts.digital} talkgroup${counts.digital === 1 ? "" : "s"} in pool`;
+    if (dBody) dBody.textContent = "Full Database mode — talkgroups follow HPDB filters, not a favorite.";
+    return;
+  }
+  // 2026-06-10: pick a different active favorite per disclosure because
+  // per-band enablement means analog (air+ground) and digital can be on
+  // different favorites.  Falling back to the legacy `enabled` flag, then
+  // to the first favorite, preserves behavior when nothing has migrated
+  // to per-band flags yet.
+  const activeAnalog = favList.find(f => f && (f.enabled_air || f.enabled_ground))
+                    || favList.find(f => f && f.enabled)
+                    || favList[0]
+                    || null;
+  const activeDigital = favList.find(f => f && f.enabled_digital)
+                    || favList.find(f => f && f.enabled)
+                    || favList[0]
+                    || null;
+  const aLabel = activeAnalog ? (activeAnalog.label || activeAnalog.id || "fav") : "—";
+  const dLabel = activeDigital ? (activeDigital.label || activeDigital.id || "fav") : "—";
+  const aCustoms = (activeAnalog && Array.isArray(activeAnalog.custom_favorites)) ? activeAnalog.custom_favorites : [];
+  const dCustoms = (activeDigital && Array.isArray(activeDigital.custom_favorites)) ? activeDigital.custom_favorites : [];
+  const conv = aCustoms.filter(c => String(c.kind || "").toLowerCase() === "conventional");
+  const trunked = dCustoms.filter(c => String(c.kind || "").toLowerCase() === "trunked");
   const air = conv.filter(c => {
     const f = Number(c.frequency || 0);
     return f >= 118 && f <= 137;
@@ -8113,7 +8878,7 @@ function renderPaneDisclosure() {
   const aFav = $("analog-disc-fav");
   const aDetail = $("analog-disc-detail");
   const aBody = $("analog-disc-body");
-  if (aFav) aFav.textContent = favLabel;
+  if (aFav) aFav.textContent = aLabel;
   if (aDetail) {
     const parts = [];
     if (air.length || gnd.length) {
@@ -8142,7 +8907,7 @@ function renderPaneDisclosure() {
   const dFav = $("digital-disc-fav");
   const dDetail = $("digital-disc-detail");
   const dBody = $("digital-disc-body");
-  if (dFav) dFav.textContent = favLabel;
+  if (dFav) dFav.textContent = dLabel;
   if (dDetail) {
     // Try to derive control channel + count.
     let ccText = "";
@@ -8256,7 +9021,6 @@ function _wsRefreshIndicator() {
 setInterval(_wsRefreshIndicator, 500);
 
 function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
-  lastWsFrameAt[paneId] = Date.now();
   if (paneId === WS_PANE_WATERFALL) {
     const min = centerMhz - spanMhz / 2;
     const max = centerMhz + spanMhz / 2;
@@ -8287,6 +9051,7 @@ function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
     }
     pushWaterfallRow("wf-canvas", renderIntensity, wfColormap);
     specSubmitFrame($("wf-spec"), renderBins, renderMin, renderMax, "wf-canvas");
+    lastWsFrameAt[paneId] = Date.now();
     if (_wfDesktop) {
       updateWfNeedle();
     }
@@ -8402,7 +9167,30 @@ async function pollBandControls() {
     setTimeout(pollBandControls, POLL_BAND_CONTROLS_MS);
   }
 }
-async function pollWaterfall() {
+  // 2026-06-11 — scan pool count poller (10s).  Drives the "DB · N freqs"
+  // subtitle on band cards in full_database mode.  limit=1 because we only
+  // need the counts; entries are discarded.
+  function pollScanPoolCounts() {
+    // Global fetchJSON returns the parsed JSON directly (not [status, json]).
+    fetchJSON("/api/hp/scan-pool-preview?limit=1")
+      .then(function (res) {
+        if (res && res.ok) {
+          STATE.scanPoolCounts = {
+            air: Number(res.air_channels || 0),
+            ground: Number(res.ground_channels || 0),
+            digital: Number(res.digital_talkgroups || res.trunked_talkgroups || 0),
+          };
+          try {
+            if (STATE.hpState) renderProfile(STATE.hpState, { profiles: STATE.profiles || [] });
+          } catch (_e) {}
+        }
+      })
+      .catch(function () { /* tolerant */ })
+      .then(function () { setTimeout(pollScanPoolCounts, 10000); });
+  }
+  pollScanPoolCounts();
+
+  async function pollWaterfall() {
   try {
     const data = await fetchJSON("/api/waterfall");
     renderWaterfall(data);
@@ -8658,6 +9446,1263 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
+</script>
+<!-- SB5 2026-06-09 squelch Calibrate + Test wiring -->
+<script>
+(function() {
+  "use strict";
+  var bandMap = { air: "air", airband: "air", ground: "ground", gnd: "ground" };
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+      credentials: "same-origin",
+    }).then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); });
+  }
+  function showToast(text, variant) {
+    try {
+      if (typeof showSitrepToast === "function") {
+        showSitrepToast(text, variant || "busy", 6000);
+        return;
+      }
+    } catch (e) {}
+    console.log("[squelch]", variant || "info", text);
+  }
+  function summarizeCalibrate(res) {
+    var n = res.channels_applied | 0;
+    var sk = res.channels_skipped | 0;
+    var samples = res.polls | 0;
+    return "Calibrated " + n + " ch (" + samples + " polls, " +
+      (res.elapsed_sec || 0) + "s)" +
+      (sk ? ", skipped " + sk + " active" : "");
+  }
+  document.addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (!t || !t.dataset) return;
+    var cls = t.className || "";
+
+    if (cls.indexOf("ctl-wide-open") !== -1) {
+      ev.preventDefault();
+      var band2 = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
+      t.disabled = true;
+      postJSON("/api/squelch/wide_open", { band: band2, dbfs: -120 })
+        .then(function (a) {
+          var status = a[0], res = a[1];
+          if (status === 200 && res.ok) {
+            showToast(band2 + " WIDE OPEN (" + (res.channels_applied | 0) +
+              " ch) — re-pick a preset to restore", "ok");
+          } else {
+            showToast("Wide-open failed: " + (res.error || "status " + status), "err");
+          }
+        })
+        .catch(function (e) {
+          showToast("Wide-open error: " + (e && e.message ? e.message : e), "err");
+        })
+        .then(function () { t.disabled = false; });
+      return;
+    }
+  }, true);
+  // Sensitivity slider: send sensitivity 0-10 → backend converts to threshold.
+  function debounce(fn, ms) {
+    var t = null;
+    return function () {
+      var args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function () { fn.apply(null, args); }, ms);
+    };
+  }
+  var sendSensitivity = debounce(function (band, value) {
+    // Slider movement always clears VAD bypass — if Test mode was left
+    // sticky, the slider would have no audible effect (gate disabled
+    // regardless of threshold).  Clear bypass first, then push the new
+    // threshold; keep it atomic so the UI status reflects reality.
+    var apiBand = band === "air" ? "air" : (band === "ground" ? "ground" : band);
+    postJSON("/api/squelch/wide_open", { band: apiBand, bypass: false })
+      .catch(function () { /* tolerant — endpoint may be in transition */ })
+      .then(function () {
+        return postJSON("/api/squelch/sensitivity", { band: apiBand, sensitivity: value });
+      })
+      .then(function (a) {
+        if (!a) return;
+        var status = a[0], res = a[1];
+        var statusEl = document.querySelector("[data-role=\"tune-status\"][data-band=\"" + band + "\"]");
+        if (status === 200 && res.ok) {
+          if (statusEl) statusEl.textContent = "Sensitivity " + value + " · " + (res.channels_applied | 0) + " ch updated";
+        } else if (res) {
+          if (statusEl) statusEl.textContent = "Sensitivity failed: " + (res.error || "status " + status);
+        }
+      });
+  }, 200);
+
+  // SB5 2026-06-11 — Load current VAD threshold from chirp on init so the
+  // slider reflects reality across page reloads.  Median of all channel
+  // vad_threshold values is the band-level setting (per chirp_adapter:
+  // set_audio_vad_sensitivity_via_chirp pushes the SAME threshold to every
+  // channel, so any channel's value is canonical, but median is robust to
+  // a stale channel mid-add).
+  function loadVadSensitivity(band) {
+    var endpoint = band === "ground" ? "/api/chirp/ground/status" : "/api/chirp/airband/status";
+    fetch(endpoint, { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.channels || !j.channels.length) return;
+        var thresholds = j.channels.map(function (c) {
+          return Number(c.vad_threshold || 50);
+        }).sort(function (a, b) { return a - b; });
+        var median = thresholds[Math.floor(thresholds.length / 2)];
+        // threshold = 100 - sensitivity * 10  =>  sensitivity = (100 - threshold) / 10
+        var sensitivity = Math.round((100 - median) / 10);
+        sensitivity = Math.max(0, Math.min(10, sensitivity));
+        var slider = document.querySelector('.ctl-sens-slider[data-band="' + band + '"]');
+        var ro = document.querySelector('[data-role="sens-readout"][data-band="' + band + '"]');
+        if (slider) slider.value = String(sensitivity);
+        if (ro) ro.textContent = String(sensitivity) + " (th " + Math.round(median) + ")";
+      })
+      .catch(function (e) { /* silent — chirp may be down, slider keeps default 5 */ });
+  }
+  // Run once when the script loads.
+  document.addEventListener("DOMContentLoaded", function () {
+    loadVadSensitivity("air");
+    loadVadSensitivity("ground");
+  });
+
+  document.addEventListener("input", function (ev) {
+    var t = ev.target;
+    if (!t || !t.classList || !t.classList.contains("ctl-sens-slider")) return;
+    var band = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
+    var val = parseInt(t.value || "5", 10);
+    var ro = document.querySelector('[data-role="sens-readout"][data-band="' + band + '"]');
+    var threshold = 100 - val * 10;
+    if (ro) ro.textContent = String(val) + " (th " + threshold + ")";
+    sendSensitivity(band, val);
+  }, true);
+
+})();
+</script>
+<!-- Phase 1 Profile Settings (Travel Mode + Scan Filters) wiring -->
+<script>
+(function () {
+  "use strict";
+
+  const PB = {
+    initialized: false,
+    state: null,
+    serviceTypes: [],
+    selectedTypes: new Set(),
+    defaultTypes: new Set(),
+  };
+
+  const els = {
+    settings: null,
+    summary: null,
+    readout: null,
+    travelToggle: null,
+    travelState: null,
+    filterMode: null,
+    filterZip: null,
+    filterRange: null,
+    filterStrict: null,
+    filterNationwide: null,
+    chips: null,
+    chipAll: null,
+    chipDefault: null,
+    chipNone: null,
+    applyBtn: null,
+    resolveBtn: null,
+    useLocBtn: null,
+    locMeta: null,
+  };
+
+  function cacheEls() {
+    els.settings = document.getElementById("pb-settings");
+    if (!els.settings) return false;
+    els.summary = els.settings.querySelector(".pb-settings-summary");
+    els.readout = els.settings.querySelector('[data-role="pb-settings-readout"]');
+    els.travelToggle = document.getElementById("pb-travel-toggle");
+    els.travelState = els.settings.querySelector('[data-role="pb-travel-state"]');
+    els.filterMode = document.getElementById("pb-filter-mode");
+    els.filterZip = document.getElementById("pb-filter-zip");
+    els.filterRange = document.getElementById("pb-filter-range");
+    els.filterStrict = document.getElementById("pb-filter-strict");
+    els.filterNationwide = document.getElementById("pb-filter-nationwide");
+    els.chips = document.getElementById("pb-services-chips");
+    els.chipAll = document.getElementById("pb-services-all");
+    els.chipDefault = document.getElementById("pb-services-default");
+    els.chipNone = document.getElementById("pb-services-none");
+    els.applyBtn = document.getElementById("pb-filters-apply");
+    els.resolveBtn = document.getElementById("pb-resolve-zip");
+    els.useLocBtn = document.getElementById("pb-use-current-loc");
+    els.locMeta = els.settings.querySelector('[data-role="pb-loc-meta"]');
+    return true;
+  }
+
+  function fetchJSON(url, opts) {
+    return fetch(url, Object.assign({ credentials: "same-origin" }, opts || {}))
+      .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); });
+  }
+
+  function postJSON(url, body) {
+    return fetchJSON(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+  }
+
+  function toast(text, variant) {
+    try {
+      if (typeof showSitrepToast === "function") {
+        showSitrepToast(text, variant || "ok", 5000);
+        return;
+      }
+    } catch (e) {}
+    console.log("[profile]", variant || "info", text);
+  }
+
+  function setReadout() {
+    if (!els.readout) return;
+    const s = PB.state || {};
+    const parts = [];
+    if (s.travel_mode_enabled) parts.push("Travel ON"); else parts.push("Travel OFF");
+    if (s.mode === "full_database") parts.push("Full DB");
+    else parts.push("Favorites");
+    if (s.zip) parts.push("ZIP " + s.zip);
+    if (s.range_miles != null) parts.push(s.range_miles + " mi");
+    els.readout.textContent = parts.join(" · ");
+  }
+
+  function setTravelUI(enabled, lastPush) {
+    if (els.travelToggle) {
+      els.travelToggle.classList.toggle("on", !!enabled);
+      els.travelToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+    }
+    if (els.travelState) {
+      if (enabled) {
+        if (lastPush && lastPush.ts) {
+          const when = new Date(lastPush.ts * 1000).toLocaleTimeString();
+          els.travelState.textContent = "Last push: " + (lastPush.reason || "ok") + " · " + when;
+        } else {
+          els.travelState.textContent = "Auto-push on location change";
+        }
+      } else {
+        els.travelState.textContent = "Auto-push disabled — manual favorite pick only";
+      }
+    }
+  }
+
+  function setFiltersUI(s) {
+    if (!s) return;
+    if (els.filterMode) els.filterMode.value = (s.mode === "full_database") ? "full_database" : "favorites";
+    if (els.filterZip) els.filterZip.value = s.zip || "";
+    if (els.filterRange) els.filterRange.value = (s.range_miles != null) ? String(s.range_miles) : "";
+    if (els.filterStrict) els.filterStrict.checked = !!s.strict_location;
+    if (els.filterNationwide) els.filterNationwide.checked = !!(s.nationwide_systems && s.nationwide_systems.length);
+    if (els.locMeta) {
+      if (s.lat != null && s.lon != null) {
+        els.locMeta.textContent = "lat " + Number(s.lat).toFixed(3) + ", lon " + Number(s.lon).toFixed(3);
+      } else {
+        els.locMeta.textContent = "";
+      }
+    }
+  }
+
+  function renderChips() {
+    if (!els.chips) return;
+    els.chips.innerHTML = "";
+    PB.serviceTypes.forEach(function (st) {
+      const chip = document.createElement("span");
+      chip.className = "pb-chip" + (PB.selectedTypes.has(st.id) ? " on" : "");
+      chip.textContent = st.label || st.name || String(st.id);
+      chip.dataset.id = String(st.id);
+      chip.addEventListener("click", function () {
+        if (PB.selectedTypes.has(st.id)) PB.selectedTypes.delete(st.id);
+        else PB.selectedTypes.add(st.id);
+        chip.classList.toggle("on");
+      });
+      els.chips.appendChild(chip);
+    });
+    if (PB.serviceTypes.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "pb-chip pb-chip-loading";
+      empty.textContent = "No service types from server";
+      els.chips.appendChild(empty);
+    }
+  }
+
+  function loadServiceTypes() {
+    return fetchJSON("/api/hp/service-types").then(function (a) {
+      const status = a[0], res = a[1];
+      if (status !== 200) {
+        PB.serviceTypes = [];
+        renderChips();
+        return;
+      }
+      const types = (res && (res.service_types || res.types)) || [];
+      PB.serviceTypes = types.map(function (t) {
+        return {
+          id: t.service_tag != null ? t.service_tag : (t.id != null ? t.id : t.code),
+          label: t.name || t.label || String(t.service_tag || t.id),
+          default: !!(t.enabled_by_default || t.default),
+        };
+      });
+      PB.defaultTypes = new Set(PB.serviceTypes.filter(function (t) { return t.default; }).map(function (t) { return t.id; }));
+      // Initial selected = whatever HPState says or defaults
+      const cur = (PB.state && PB.state.enabled_service_tags) || [];
+      PB.selectedTypes = new Set(cur.length ? cur : PB.serviceTypes.filter(function (t) { return t.default; }).map(function (t) { return t.id; }));
+      renderChips();
+    }).catch(function (e) {
+      console.warn("[profile] service-types failed:", e);
+    });
+  }
+
+  function loadState() {
+    return fetchJSON("/api/hp/state").then(function (a) {
+      const status = a[0], res = a[1];
+      if (status !== 200 || !res || !res.ok) {
+        toast("Could not load HP state", "err");
+        return;
+      }
+      PB.state = res.state || res;
+      setTravelUI(PB.state.travel_mode_enabled, res.travel_mode_last_push || null);
+      setFiltersUI(PB.state);
+      setReadout();
+    });
+  }
+
+  function applyFilters(extra) {
+    if (!PB.state) return Promise.resolve();
+    const body = {
+      mode: els.filterMode ? els.filterMode.value : PB.state.mode,
+      zip: els.filterZip ? (els.filterZip.value || "").trim() : PB.state.zip,
+      range_miles: els.filterRange ? Number(els.filterRange.value || PB.state.range_miles || 0) : PB.state.range_miles,
+      strict_location: !!(els.filterStrict && els.filterStrict.checked),
+      enabled_service_tags: Array.from(PB.selectedTypes),
+    };
+    if (els.filterNationwide) {
+      body.include_nationwide = !!els.filterNationwide.checked;
+    }
+    if (extra) Object.assign(body, extra);
+    return postJSON("/api/hp/state", body).then(function (a) {
+      const status = a[0], res = a[1];
+      if (status === 200 && res && (res.ok || res.state)) {
+        PB.state = res.state || PB.state;
+        setFiltersUI(PB.state);
+        setReadout();
+        toast("Filters applied", "ok");
+      } else {
+        toast("Apply failed: " + (res && res.error ? res.error : "status " + status), "err");
+      }
+    }).catch(function (e) {
+      toast("Apply error: " + (e && e.message ? e.message : e), "err");
+    });
+  }
+
+  function bindEvents() {
+    if (els.travelToggle) {
+      els.travelToggle.addEventListener("click", function () {
+        const newEnabled = !els.travelToggle.classList.contains("on");
+        els.travelToggle.disabled = true;
+        postJSON("/api/hp/travel_mode/toggle", { enabled: newEnabled })
+          .then(function (a) {
+            const status = a[0], res = a[1];
+            if (status === 200 && res && res.ok) {
+              if (PB.state) PB.state.travel_mode_enabled = newEnabled;
+              setTravelUI(newEnabled, res.travel_mode_last_push || null);
+              setReadout();
+              toast("Travel Mode " + (newEnabled ? "ON" : "OFF"), "ok");
+            } else {
+              toast("Toggle failed: " + (res && res.error ? res.error : "status " + status), "err");
+            }
+          })
+          .then(function () { els.travelToggle.disabled = false; });
+      });
+    }
+    if (els.applyBtn) els.applyBtn.addEventListener("click", function () { applyFilters(); });
+    if (els.resolveBtn) {
+      els.resolveBtn.addEventListener("click", function () {
+        const zip = (els.filterZip.value || "").trim();
+        if (!zip) { toast("Enter a ZIP first", "err"); return; }
+        // 2026-06-11 — the reverse-geocoding endpoint expects lat+lon, not
+        // zip.  ZIP -> coords resolution lives inside POST /api/hp/state
+        // when resolve_zip=true; let applyFilters carry the request, which
+        // also persists the new lat/lon in one round trip.
+        applyFilters({ zip: zip, resolve_zip: true, use_location: true })
+          .then(function () {
+            // applyFilters toasted success; refresh local PB.state coords
+            // for the readout if the backend returned them.
+            if (PB.state && PB.state.lat != null && PB.state.lon != null) {
+              setReadout();
+            }
+          })
+          .catch(function (e) {
+            toast("ZIP resolve failed: " + (e && e.message ? e.message : e), "err");
+          });
+      });
+    }
+    if (els.useLocBtn) {
+      els.useLocBtn.addEventListener("click", function () {
+        if (!navigator.geolocation) { toast("Browser has no geolocation", "err"); return; }
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          // 2026-06-11 — reverse-geocode the GPS coords to get the new ZIP,
+          // then applyFilters with lat+lon+zip together.  Without the ZIP,
+          // POST /api/hp/state leaves state.zip on its previous value
+          // (8243) which is what Will hit when he was actually in 08344.
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          fetchJSON("/api/hp/location/reverse?lat=" + encodeURIComponent(lat) + "&lon=" + encodeURIComponent(lon))
+            .then(function (a) {
+              const status = a[0], res = a[1];
+              const patch = { lat: lat, lon: lon, use_location: true };
+              if (status === 200 && res && res.ok && res.zip) {
+                patch.zip = String(res.zip);
+              }
+              return applyFilters(patch);
+            })
+            .catch(function () {
+              // Reverse lookup failed; still apply the coords so at least
+              // lat/lon update.  Will gets the wrong ZIP but won't be
+              // blocked.
+              return applyFilters({ lat: lat, lon: lon, use_location: true });
+            });
+        }, function (e) {
+          toast("Geolocation refused: " + (e && e.message ? e.message : e), "err");
+        });
+      });
+    }
+    if (els.chipAll) els.chipAll.addEventListener("click", function () {
+      PB.selectedTypes = new Set(PB.serviceTypes.map(function (t) { return t.id; }));
+      renderChips();
+    });
+    if (els.chipNone) els.chipNone.addEventListener("click", function () {
+      PB.selectedTypes = new Set();
+      renderChips();
+    });
+    if (els.chipDefault) els.chipDefault.addEventListener("click", function () {
+      PB.selectedTypes = new Set(PB.defaultTypes);
+      renderChips();
+    });
+  }
+
+  function initOnce() {
+    if (PB.initialized) return;
+    if (!cacheEls()) return;
+    PB.initialized = true;
+    bindEvents();
+    Promise.resolve()
+      .then(loadState)
+      .then(loadServiceTypes)
+      .then(renderChips)
+      .then(bindNewFavButton)
+      .catch(function (e) { console.warn("[profile] init:", e); });
+  }
+
+  // Phase 2 — Favorite channel editor (window._pbToggleEditor)
+  function _favForId(id) {
+    const hp = (window.STATE && STATE.hpState) || {};
+    const all = (hp.state && hp.state.favorites) || [];
+    return all.find(function (f) { return String(f.id) === String(id); }) || null;
+  }
+
+  function _bandForFreq(freq) {
+    if (!freq || isNaN(freq)) return "am";
+    return Number(freq) < 137.0 ? "am" : "nfm";
+  }
+
+  function renderEditor(id, _fav) {
+    const wrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
+    if (!wrap) return;
+    // 2026-06-10 — Look up the favorite from a fresh GET ourselves, then
+    // call back into renderEditor with the resolved object.  Bypasses
+    // STATE.hpState entirely so no race with the picker render path can
+    // cause "Favorite not found" when the data is actually on disk.
+    if (!_fav) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">Loading favorite…</div>";
+      fetch("/api/hp/state", { credentials: "same-origin", cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (cur) {
+          const favs = (cur && cur.state && Array.isArray(cur.state.favorites)) ? cur.state.favorites : [];
+          // Try a few id variants in case the data-id was HTML-escaped on
+          // the way in (& -> &amp;) but the on-disk id is the raw form.
+          const wanted = String(id);
+          let found = favs.find(function (f) { return String(f.id) === wanted; });
+          if (!found) {
+            // Decode HTML entities and retry.  Belt-and-suspenders.
+            const decoded = wanted.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'");
+            if (decoded !== wanted) {
+              found = favs.find(function (f) { return String(f.id) === decoded; });
+            }
+          }
+          if (!found) {
+            // Log a diagnostic for future debugging.
+            try {
+              console.warn("renderEditor: not found", { wanted: wanted, ids: favs.map(function (f) { return f.id; }) });
+            } catch (_e) {}
+            wrap.innerHTML = "<div class=\"fp-editor-empty\">Favorite not found (id=" + escapeHtml(wanted) + ", on-disk ids: " + escapeHtml(favs.map(function (f) { return String(f.id); }).join(", ")) + ")</div>";
+            return;
+          }
+          // Refresh STATE.hpState as a bonus side effect (save handlers
+          // still use it; this keeps them current).
+          if (cur && window.STATE) {
+            const prev = STATE.hpState || {};
+            STATE.hpState = Object.assign({}, prev, {
+              mode: cur.mode != null ? cur.mode : prev.mode,
+              state: cur.state || prev.state,
+              favorites_runtime_sync: cur.favorites_runtime_sync != null ? cur.favorites_runtime_sync : prev.favorites_runtime_sync,
+            });
+          }
+          renderEditor(id, found);
+        })
+        .catch(function (err) {
+          wrap.innerHTML = "<div class=\"fp-editor-empty\">Failed to load: " + escapeHtml(String(err && err.message || err)) + "</div>";
+        });
+      return;
+    }
+    const fav = _fav;
+    const chans = Array.isArray(fav.custom_favorites) ? fav.custom_favorites.slice() : [];
+    let listHtml = "";
+    if (!chans.length) {
+      listHtml = "<div class=\"fp-editor-empty\">No channels in this favorite yet.</div>";
+    } else {
+      listHtml = chans.map(function (ch, idx) {
+        const label = ch.alpha_tag || ch.department_name || ch.system_name || ch.id || "?";
+        const freq = (ch.frequency != null) ? (Number(ch.frequency).toFixed(4) + " MHz") : "";
+        return "<div class=\"fp-editor-chan\" data-idx=\"" + idx + "\">" +
+          "<span class=\"fp-editor-chan-name\">" + escapeHtml(label) + "</span>" +
+          "<span class=\"fp-editor-chan-freq\">" + escapeHtml(freq) + "</span>" +
+          "<button type=\"button\" class=\"fp-editor-chan-rm\" data-idx=\"" + idx + "\">Remove</button>" +
+          "</div>";
+      }).join("");
+    }
+    wrap.innerHTML =
+      "<div class=\"fp-editor-head\">Edit channels — " + escapeHtml(fav.label || fav.id) + "</div>" +
+      "<div class=\"fp-editor-list\">" + listHtml + "</div>" +
+      "<div class=\"fp-editor-add\">" +
+        "<label class=\"pb-field\"><span>Label</span>" +
+          "<input type=\"text\" class=\"pb-input fp-add-label\" placeholder=\"e.g. Marine Ch 6\" maxlength=\"64\"></label>" +
+        "<label class=\"pb-field pb-field-num\"><span>Freq (MHz)</span>" +
+          "<input type=\"number\" step=\"0.001\" class=\"pb-input fp-add-freq\" placeholder=\"156.300\"></label>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary fp-add-btn\">Add channel</button>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary fp-add-hpdb-btn\" title=\"Open the HPDB picker to add multiple channels from an existing system\">+ Add from HPDB</button>" +
+      "</div>" +
+      "<div class=\"fp-editor-actions\">" +
+        "<button type=\"button\" class=\"pb-btn fp-editor-cancel\">Cancel</button>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary fp-editor-save\">Save</button>" +
+      "</div>";
+    // Wire remove buttons (operate on a local working copy held on the wrap)
+    wrap._working = chans.slice();
+    wrap.querySelectorAll(".fp-editor-chan-rm").forEach(function (b) {
+      b.addEventListener("click", function () {
+        const i = parseInt(b.getAttribute("data-idx"), 10);
+        wrap._working.splice(i, 1);
+        rebuildList(wrap);
+      });
+    });
+    const addBtn = wrap.querySelector(".fp-add-btn");
+    if (addBtn) addBtn.addEventListener("click", function () {
+      const labEl = wrap.querySelector(".fp-add-label");
+      const freqEl = wrap.querySelector(".fp-add-freq");
+      const label = (labEl.value || "").trim();
+      const freq = Number(freqEl.value);
+      if (!label || !freq) { toast("Need both label and frequency", "err"); return; }
+      const safeId = "freq:custom:" + label.replace(/[^A-Za-z0-9._-]+/g, "_") + ":" + freq.toFixed(4);
+      wrap._working.push({
+        id: safeId,
+        alpha_tag: label,
+        department_name: label,
+        frequency: freq,
+        kind: "conventional",
+        service_tag: 0,
+        system_id: 0,
+        system_key: "custom",
+        system_name: "Custom",
+        talkgroup: "",
+        control_channels: [],
+      });
+      labEl.value = "";
+      freqEl.value = "";
+      rebuildList(wrap);
+    });
+    const hpdbBtn = wrap.querySelector(".fp-add-hpdb-btn");
+    if (hpdbBtn) hpdbBtn.addEventListener("click", function () {
+      // Open the wizard in "append-to-favorite" mode.  Pass the current
+      // favorite id + label so the save path appends instead of creating a
+      // new favorite.  Existing working channels stay; new picks get
+      // concatenated after the user clicks Save in the wizard.
+      WIZ.appendTarget = {
+        id: id,
+        label: (fav.label || fav.id || "this favorite"),
+        editorWrap: wrap,
+      };
+      renderWizard();
+    });
+    wrap.querySelector(".fp-editor-cancel").addEventListener("click", function () {
+      wrap.hidden = true;
+    });
+    wrap.querySelector(".fp-editor-save").addEventListener("click", function () {
+      saveFavorite(id, wrap._working);
+    });
+  }
+
+  function rebuildList(wrap) {
+    const id = wrap.getAttribute("data-id");
+    const fav = _favForId(id);
+    if (!fav) return;
+    // Temporarily swap in the working set, re-render, restore reference.
+    const realCF = fav.custom_favorites;
+    fav.custom_favorites = wrap._working;
+    const saved = wrap._working;
+    renderEditor(id);
+    // After re-render, fp-editor element is the same DOM node but contents reset.
+    const newWrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
+    if (newWrap) {
+      newWrap._working = saved;
+      newWrap.hidden = false;
+    }
+    fav.custom_favorites = realCF;
+  }
+
+  function saveFavorite(id, channels) {
+    // 2026-06-10 — same fresh-GET pattern as saveNewFavorite to avoid
+    // racing a stale STATE.hpState against the on-disk favorites array.
+    fetch("/api/hp/state", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (cur) {
+        const all = (cur && cur.state && Array.isArray(cur.state.favorites)) ? cur.state.favorites : [];
+        const idx = all.findIndex(function (f) { return String(f.id) === String(id); });
+        if (idx < 0) { toast("Favorite not found in state", "err"); return null; }
+        const updated = Object.assign({}, all[idx], { custom_favorites: channels.slice() });
+        const newFavs = all.slice();
+        newFavs[idx] = updated;
+        return postJSON("/api/hp/state", { favorites: newFavs, intent: "replace_all" });
+      })
+      .then(function (a) {
+        if (!a) return;
+        const status = a[0], res = a[1];
+        if (status === 200 && res && (res.ok || res.state)) {
+          if (res.state) {
+            // Merge into existing hpState so top-level fields (mode,
+            // travel_mode_last_push, favorites_runtime_sync) are preserved
+            // for downstream readers that key off them.
+            if (window.STATE) {
+              const prev = STATE.hpState || {};
+              STATE.hpState = Object.assign({}, prev, {
+                mode: res.state.mode != null ? res.state.mode : prev.mode,
+                state: res.state,
+                favorites_runtime_sync: res.favorites_runtime_sync != null ? res.favorites_runtime_sync : prev.favorites_runtime_sync,
+              });
+            }
+          } else {
+            // Just patch our local copy
+            all[idx] = updated;
+          }
+          toast("Saved " + channels.length + " channels in " + (updated.label || updated.id), "ok");
+          // Re-render the favorites list (best-effort: re-call the renderer)
+          try {
+            const pane = (document.getElementById("pb-modal").getAttribute("data-pane") || "air");
+            _favPickerRenderRows(pane);
+          } catch (e) {}
+        } else {
+          toast("Save failed: " + (res && res.error ? res.error : "status " + status), "err");
+        }
+      });
+  }
+
+  function cssEscape(s) {
+    if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(String(s));
+    return String(s).replace(/[^\w-]/g, "\\$&");
+  }
+
+  window._pbToggleEditor = function (id) {
+    const wrap = document.querySelector('.fp-editor[data-id="' + cssEscape(id) + '"]');
+    if (!wrap) return;
+    if (wrap.hidden) {
+      renderEditor(id);
+      wrap.hidden = false;
+    } else {
+      wrap.hidden = true;
+    }
+  };
+
+    // Phase 3 — new-favorite wizard
+  const WIZ = {
+    countries: [],
+    states: [],
+    counties: [],
+    systems: [],
+    channels: [],
+    selectedSystemId: null,
+    selectedSystemType: "analog",
+    selectedChannels: new Map(), // id -> channel object
+    name: "",
+  };
+
+  function wizQS(params) {
+    return Object.keys(params)
+      .filter(function (k) { return params[k] != null && params[k] !== ""; })
+      .map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); })
+      .join("&");
+  }
+
+  function renderWizard() {
+    const wrap = document.getElementById("fp-wizard");
+    if (!wrap) return;
+    wrap.hidden = false;
+    const isAppend = !!(WIZ.appendTarget && WIZ.appendTarget.id);
+    const headTitle = isAppend
+      ? ("Add channels to " + escapeHtml(WIZ.appendTarget.label || "favorite"))
+      : "Build a new favorite";
+    const nameRow = isAppend
+      ? ""
+      : ("<label class=\"pb-field\"><span>Favorite name</span>" +
+          "<input type=\"text\" id=\"wiz-name\" placeholder=\"e.g. Miami Marine\" maxlength=\"64\" value=\"" + escapeHtml(WIZ.name) + "\"></label>");
+    wrap.innerHTML =
+      "<div class=\"fp-wizard-head\">" +
+        "<div class=\"fp-wizard-title\">" + headTitle + "</div>" +
+        "<button type=\"button\" class=\"pb-btn\" id=\"wiz-close\">Cancel</button>" +
+      "</div>" +
+      nameRow +
+      "<div class=\"fp-wizard-fields\">" +
+        "<label class=\"pb-field\"><span>Country</span>" +
+          "<select id=\"wiz-country\"></select></label>" +
+        "<label class=\"pb-field\"><span>State</span>" +
+          "<select id=\"wiz-state\"></select></label>" +
+        "<label class=\"pb-field\"><span>County</span>" +
+          "<select id=\"wiz-county\"></select></label>" +
+        "<label class=\"pb-field\"><span>System Type</span>" +
+          "<select id=\"wiz-system-type\">" +
+            "<option value=\"analog\"" + (WIZ.selectedSystemType === "analog" ? " selected" : "") + ">Analog (conventional)</option>" +
+            "<option value=\"digital\"" + (WIZ.selectedSystemType === "digital" ? " selected" : "") + ">Digital (trunked)</option>" +
+          "</select></label>" +
+      "</div>" +
+      "<div class=\"fp-wizard-fields\">" +
+        "<div>" +
+          "<div class=\"pb-row-label\">Systems <span class=\"fp-wizard-counts\" id=\"wiz-systems-count\"></span></div>" +
+          "<input type=\"search\" class=\"fp-wizard-search\" id=\"wiz-systems-search\" placeholder=\"Filter systems (name, type)…\" autocomplete=\"off\" />" +
+          "<div class=\"fp-wizard-systems\" id=\"wiz-systems-list\"><div class=\"fp-editor-empty\">Pick a state & county first</div></div>" +
+        "</div>" +
+        "<div>" +
+          "<div class=\"pb-row-label\">Channels <span class=\"fp-wizard-counts\" id=\"wiz-channels-count\"></span></div>" +
+          "<input type=\"search\" class=\"fp-wizard-search\" id=\"wiz-channels-search\" placeholder=\"Filter channels (town, tag, TGID)…\" autocomplete=\"off\" />" +
+          "<div class=\"fp-wizard-channels\" id=\"wiz-channels-list\"><div class=\"fp-editor-empty\">Pick a system to see its channels</div></div>" +
+        "</div>" +
+      "</div>" +
+      "<div class=\"fp-wizard-actions\">" +
+        "<button type=\"button\" class=\"pb-btn\" id=\"wiz-cancel\">Cancel</button>" +
+        "<button type=\"button\" class=\"pb-btn pb-btn-primary\" id=\"wiz-save\">" + (isAppend ? "Add to favorite" : "Save Favorite") + "</button>" +
+      "</div>";
+    // Initial population
+    populateCountries();
+    bindWizardEvents();
+    // Live-filter inputs (Systems + Channels lists).  Re-rendered the
+    // matching wizard list as the user types; click bindings on the
+    // resulting rows are re-attached inside renderWizard*().
+    const sysSearch = document.getElementById("wiz-systems-search");
+    if (sysSearch) sysSearch.addEventListener("input", renderWizardSystems);
+    const chSearch = document.getElementById("wiz-channels-search");
+    if (chSearch) chSearch.addEventListener("input", renderWizardChannels);
+  }
+
+  function populateCountries() {
+    fetchJSON("/api/hp/favorites-wizard/countries").then(function (a) {
+      const res = a[1] || {};
+      WIZ.countries = res.countries || [];
+      const sel = document.getElementById("wiz-country");
+      if (!sel) return;
+      sel.innerHTML = WIZ.countries.map(function (cc) {
+        return "<option value=\"" + cc.country_id + "\">" + escapeHtml(cc.name) + "</option>";
+      }).join("");
+      if (WIZ.countries.length) {
+        sel.value = String(WIZ.countries[0].country_id);
+        loadStates(WIZ.countries[0].country_id);
+      }
+    });
+  }
+
+  function loadStates(countryId) {
+    return fetchJSON("/api/hp/favorites-wizard/states?country_id=" + countryId).then(function (a) {
+      const res = a[1] || {};
+      WIZ.states = res.states || [];
+      const sel = document.getElementById("wiz-state");
+      if (!sel) return;
+      sel.innerHTML = "<option value=\"\">— pick state —</option>" + WIZ.states.map(function (s) {
+        return "<option value=\"" + s.state_id + "\">" + escapeHtml(s.abbr + " — " + s.name) + "</option>";
+      }).join("");
+    });
+  }
+
+  function loadCounties(countryId, stateId) {
+    if (!stateId) return Promise.resolve();
+    return fetchJSON("/api/hp/favorites-wizard/counties?" + wizQS({ country_id: countryId, state_id: stateId })).then(function (a) {
+      const res = a[1] || {};
+      WIZ.counties = res.counties || [];
+      const sel = document.getElementById("wiz-county");
+      if (!sel) return;
+      sel.innerHTML = WIZ.counties.map(function (cc) {
+        return "<option value=\"" + cc.county_id + "\">" + escapeHtml(cc.name) + "</option>";
+      }).join("");
+    });
+  }
+
+  function loadSystems() {
+    const country = document.getElementById("wiz-country").value;
+    const state = document.getElementById("wiz-state").value;
+    const county = document.getElementById("wiz-county").value;
+    const type = document.getElementById("wiz-system-type").value || "analog";
+    WIZ.selectedSystemType = type;
+    if (!state) return;
+    const params = { country_id: country, state_id: state, county_id: county || 0, system_type: type };
+    if (Number(county || 0) > 0) params.scope = "county";
+    fetchJSON("/api/hp/favorites-wizard/systems?" + wizQS(params)).then(function (a) {
+      const res = a[1] || {};
+      WIZ.systems = res.systems || [];
+      renderWizardSystems();
+    });
+  }
+
+  // 2026-06-10 — instant client-side filter so the operator can search SB3-style.
+  // Matches against system name (case-insensitive) and protocol/system_type.
+  function renderWizardSystems() {
+    const wrap = document.getElementById("wiz-systems-list");
+    const count = document.getElementById("wiz-systems-count");
+    const search = document.getElementById("wiz-systems-search");
+    if (!wrap) return;
+    const total = (WIZ.systems || []).length;
+    const q = String((search && search.value) || "").trim().toLowerCase();
+    const matches = q
+      ? WIZ.systems.filter(function (s) {
+          return (
+            String(s.name || "").toLowerCase().indexOf(q) !== -1 ||
+            String(s.protocol || "").toLowerCase().indexOf(q) !== -1 ||
+            String(s.system_type || "").toLowerCase().indexOf(q) !== -1
+          );
+        })
+      : WIZ.systems;
+    if (count) count.textContent = q ? "(" + matches.length + " of " + total + ")" : "(" + total + ")";
+    if (!total) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">No systems for this scope</div>";
+      return;
+    }
+    if (!matches.length) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">No match for \"" + escapeHtml(q) + "\"</div>";
+      return;
+    }
+    wrap.innerHTML = matches.map(function (s) {
+      return "<div class=\"fp-wizard-system\" data-id=\"" + s.id + "\" data-name=\"" + escapeHtml(s.name) + "\">" +
+        "<span class=\"fp-wizard-channel-name\">" + escapeHtml(s.name) + "</span>" +
+        "<span class=\"fp-wizard-channel-freq\">" + escapeHtml(s.protocol || s.system_type) + "</span>" +
+      "</div>";
+    }).join("");
+    wrap.querySelectorAll(".fp-wizard-system").forEach(function (el) {
+      el.addEventListener("click", function () {
+        wrap.querySelectorAll(".fp-wizard-system.active").forEach(function (x) { x.classList.remove("active"); });
+        el.classList.add("active");
+        WIZ.selectedSystemId = el.getAttribute("data-id");
+        loadChannels(WIZ.selectedSystemId, el.getAttribute("data-name"));
+      });
+    });
+  }
+
+  function loadChannels(systemId, systemName) {
+    const params = { system_id: systemId, system_type: WIZ.selectedSystemType };
+    fetchJSON("/api/hp/favorites-wizard/channels?" + wizQS(params)).then(function (a) {
+      const res = a[1] || {};
+      WIZ.channels = res.channels || [];
+      WIZ.channelsSystemName = systemName || "";
+      renderWizardChannels();
+    });
+  }
+
+  // 2026-06-10 — same SB3-style instant filter, applied to the channel
+  // list.  Matches against alpha_tag, department_name (town/group_name),
+  // talkgroup/tgid, and frequency.  Selection state for already-checked
+  // channels is preserved across filter changes (WIZ.selectedChannels).
+  function renderWizardChannels() {
+    const wrap = document.getElementById("wiz-channels-list");
+    const count = document.getElementById("wiz-channels-count");
+    const search = document.getElementById("wiz-channels-search");
+    const systemName = WIZ.channelsSystemName || "";
+    if (!wrap) return;
+    const all = (WIZ.channels || []);
+    const total = all.length;
+    const q = String((search && search.value) || "").trim().toLowerCase();
+    const matches = q
+      ? all.filter(function (ch) {
+          const tg = (ch.talkgroup != null && ch.talkgroup !== "") ? String(ch.talkgroup) : (ch.tgid != null ? String(ch.tgid) : "");
+          const freq = ch.frequency != null ? String(ch.frequency) : "";
+          return (
+            String(ch.alpha_tag || "").toLowerCase().indexOf(q) !== -1 ||
+            String(ch.department_name || "").toLowerCase().indexOf(q) !== -1 ||
+            String(ch.system_name || "").toLowerCase().indexOf(q) !== -1 ||
+            tg.toLowerCase().indexOf(q) !== -1 ||
+            freq.toLowerCase().indexOf(q) !== -1
+          );
+        })
+      : all;
+    if (count) count.textContent = q ? "(" + matches.length + " of " + total + ")" : "(" + total + ")";
+    if (!total) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">No channels for this system</div>";
+      return;
+    }
+    if (!matches.length) {
+      wrap.innerHTML = "<div class=\"fp-editor-empty\">No match for \"" + escapeHtml(q) + "\"</div>";
+      return;
+    }
+    wrap.innerHTML = matches.map(function (ch, idx) {
+        const tg = (ch.talkgroup != null && ch.talkgroup !== "") ? ch.talkgroup : ch.tgid;
+        const label = ch.alpha_tag || ch.department_name || (tg != null ? "TG " + tg : null) || ch.id || "?";
+        const freq = ch.frequency != null ? Number(ch.frequency).toFixed(4) + " MHz" : (tg != null ? "TG " + tg : "");
+        // 2026-06-10 — show department/town context (HPDB trunk_groups.group_name)
+        // so the operator can tell which town "Police 1" belongs to in
+        // multi-municipality systems like Atlantic County or NJICS.  Skip
+        // when department_name duplicates the alpha_tag or system_name.
+        const dept = String(ch.department_name || "").trim();
+        const sys = String(ch.system_name || "").trim();
+        const showDept = dept && dept !== label && dept !== sys;
+        const chId = ch.id || (systemName + "/" + idx);
+        const checked = WIZ.selectedChannels.has(chId) ? "checked" : "";
+        return "<label class=\"fp-wizard-channel\" data-id=\"" + escapeHtml(chId) + "\">" +
+          "<input type=\"checkbox\" data-idx=\"" + idx + "\" " + checked + ">" +
+          "<span class=\"fp-wizard-channel-name\">" + escapeHtml(label) +
+            (showDept ? "<span class=\"fp-wizard-channel-dept\"> · " + escapeHtml(dept) + "</span>" : "") +
+          "</span>" +
+          "<span class=\"fp-wizard-channel-freq\">" + escapeHtml(freq) + "</span>" +
+        "</label>";
+      }).join("");
+      wrap.querySelectorAll(".fp-wizard-channel input").forEach(function (cb) {
+        cb.addEventListener("change", function () {
+          const lbl = cb.closest(".fp-wizard-channel");
+          const id = lbl.getAttribute("data-id");
+          const idx = parseInt(cb.getAttribute("data-idx"), 10);
+          const ch = WIZ.channels[idx];
+          if (cb.checked) {
+            WIZ.selectedChannels.set(id, Object.assign({}, ch, { id: id, system_name: systemName }));
+            lbl.classList.add("selected");
+          } else {
+            WIZ.selectedChannels.delete(id);
+            lbl.classList.remove("selected");
+          }
+        });
+      });
+  }
+
+  function bindWizardEvents() {
+    document.getElementById("wiz-country").addEventListener("change", function (ev) {
+      loadStates(ev.target.value).then(function () {
+        // reset downstream
+        const county = document.getElementById("wiz-county");
+        if (county) county.innerHTML = "";
+      });
+    });
+    document.getElementById("wiz-state").addEventListener("change", function (ev) {
+      const country = document.getElementById("wiz-country").value;
+      loadCounties(country, ev.target.value).then(loadSystems);
+    });
+    document.getElementById("wiz-county").addEventListener("change", loadSystems);
+    document.getElementById("wiz-system-type").addEventListener("change", loadSystems);
+    const nameEl = document.getElementById("wiz-name");
+    if (nameEl) nameEl.addEventListener("input", function (ev) {
+      WIZ.name = ev.target.value;
+    });
+    document.getElementById("wiz-close").addEventListener("click", closeWizard);
+    document.getElementById("wiz-cancel").addEventListener("click", closeWizard);
+    document.getElementById("wiz-save").addEventListener("click", saveNewFavorite);
+  }
+
+  function closeWizard() {
+    const wrap = document.getElementById("fp-wizard");
+    if (wrap) { wrap.hidden = true; wrap.innerHTML = ""; }
+    WIZ.selectedChannels.clear();
+    WIZ.name = "";
+    WIZ.appendTarget = null;
+    WIZ.states = [];
+    WIZ.counties = [];
+    WIZ.systems = [];
+    WIZ.channels = [];
+    WIZ.selectedSystemId = null;
+    WIZ.selectedSystemType = "analog";
+  }
+
+  function saveNewFavorite() {
+    if (WIZ.appendTarget && WIZ.appendTarget.id) {
+      // Append-to-existing mode.  Skip the name check (target's name
+      // stays); just collect the picked channels and concat to working set.
+      if (WIZ.selectedChannels.size === 0) { toast("Pick at least one channel", "err"); return; }
+      const target = WIZ.appendTarget;
+      const newChannels = Array.from(WIZ.selectedChannels.values()).map(function (ch) {
+        const kind = ch.kind || (WIZ.selectedSystemType === "digital" ? "trunked" : "conventional");
+        const rawTg = (ch.talkgroup != null && ch.talkgroup !== "") ? ch.talkgroup : ch.tgid;
+        const freqNum = ch.frequency != null ? Number(ch.frequency) : (kind === "trunked" ? 0.0 : null);
+        return {
+          id: String(ch.id),
+          alpha_tag: ch.alpha_tag || ch.tag || "",
+          department_name: ch.department_name || ch.system_name || "",
+          frequency: freqNum,
+          kind: kind,
+          service_tag: ch.service_tag || 0,
+          system_id: ch.system_id || 0,
+          system_key: ch.system_key || "",
+          system_name: ch.system_name || "",
+          talkgroup: rawTg != null ? String(rawTg) : "",
+          control_channels: Array.isArray(ch.control_channels) ? ch.control_channels : [],
+        };
+      });
+      // Merge into the editor's working set + persist via saveFavorite.
+      const editorWrap = target.editorWrap;
+      const existing = (editorWrap && Array.isArray(editorWrap._working))
+        ? editorWrap._working
+        : [];
+      const merged = existing.concat(newChannels);
+      // Keep the editor's local working copy in sync so a subsequent
+      // editor Save click can't clobber what we just persisted with the
+      // stale pre-append snapshot.
+      if (editorWrap) {
+        editorWrap._working = merged.slice();
+        // Hide it for now -- the picker re-render after saveFavorite
+        // resolves will rebuild a fresh editor placeholder if the user
+        // clicks Edit again.
+        editorWrap.hidden = true;
+      }
+      saveFavorite(target.id, merged);
+      WIZ.appendTarget = null;
+      closeWizard();
+      return;
+    }
+    const name = (WIZ.name || "").trim();
+    if (!name) { toast("Give the favorite a name", "err"); return; }
+    if (WIZ.selectedChannels.size === 0) { toast("Pick at least one channel", "err"); return; }
+    const safeId = "fav-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+    const channels = Array.from(WIZ.selectedChannels.values()).map(function (ch) {
+      const kind = ch.kind || (WIZ.selectedSystemType === "digital" ? "trunked" : "conventional");
+      // Match the on-disk shape for trunked custom favorites: frequency 0.0
+      // (not null) and talkgroup stringified.  Conventional entries keep
+      // their MHz frequency as a Number.
+      const rawTg = (ch.talkgroup != null && ch.talkgroup !== "") ? ch.talkgroup : ch.tgid;
+      const freqNum = ch.frequency != null ? Number(ch.frequency) : (kind === "trunked" ? 0.0 : null);
+      return {
+        id: String(ch.id),
+        alpha_tag: ch.alpha_tag || ch.tag || name,
+        department_name: ch.department_name || ch.system_name || "",
+        frequency: freqNum,
+        kind: kind,
+        service_tag: ch.service_tag || 0,
+        system_id: ch.system_id || 0,
+        system_key: ch.system_key || "",
+        system_name: ch.system_name || "",
+        talkgroup: rawTg != null ? String(rawTg) : "",
+        control_channels: Array.isArray(ch.control_channels) ? ch.control_channels : [],
+      };
+    });
+    const hasAir = channels.some(function (c) { return c.kind === "conventional" && c.frequency != null && c.frequency > 0 && c.frequency < 137; });
+    const hasGround = channels.some(function (c) { return c.kind === "conventional" && c.frequency != null && c.frequency >= 137; });
+    const hasDigital = channels.some(function (c) { return c.kind === "trunked"; });
+    const newFav = {
+      id: safeId,
+      label: name,
+      type: "custom",
+      target: "all",
+      profile_id: "",
+      enabled: false,
+      enabled_air: hasAir,
+      enabled_ground: hasGround,
+      enabled_digital: hasDigital,
+      custom_favorites: channels,
+    };
+    // 2026-06-10 — fetch fresh hp/state right before save so we never
+    // POST a stale (or empty) favorites array.  The previous code read
+    // STATE.hpState which can be a few seconds behind disk (or empty on
+    // first paint), and the new shrink guard correctly 409s a save that
+    // would silently drop favorites.  This GET makes the save atomic
+    // from the operator's perspective: existing favorites are guaranteed
+    // current at write time, and intent=replace_all marks our submission
+    // as a known full-list replace.
+    fetch("/api/hp/state", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (cur) {
+        const all = (cur && cur.state && Array.isArray(cur.state.favorites)) ? cur.state.favorites : [];
+        // If a favorite with the same id somehow already exists, replace
+        // it instead of appending a duplicate.
+        const idx = all.findIndex(function (f) { return String(f.id) === String(newFav.id); });
+        const newFavs = idx >= 0
+          ? all.slice(0, idx).concat([newFav], all.slice(idx + 1))
+          : all.concat([newFav]);
+        return postJSON("/api/hp/state", { favorites: newFavs, intent: "replace_all" });
+      })
+      .then(function (a) {
+        const status = a[0], res = a[1];
+        if (status === 200 && res && (res.ok || res.state)) {
+          toast("Saved favorite " + name + " (" + channels.length + " channels)", "ok");
+          if (res.state && window.STATE) {
+            const prev = STATE.hpState || {};
+            STATE.hpState = Object.assign({}, prev, {
+              mode: res.state.mode != null ? res.state.mode : prev.mode,
+              state: res.state,
+              favorites_runtime_sync: res.favorites_runtime_sync != null ? res.favorites_runtime_sync : prev.favorites_runtime_sync,
+            });
+          }
+          closeWizard();
+          try {
+            const pane = (document.getElementById("pb-modal").getAttribute("data-pane") || "air");
+            _favPickerRenderRows(pane);
+          } catch (e) {}
+        } else {
+          toast("Save failed: " + (res && res.error ? res.error : "status " + status), "err");
+        }
+      });
+  }
+
+  // Wire the "+ New favorite" button
+  function bindNewFavButton() {
+    const btn = document.getElementById("fp-new-fav");
+    if (!btn || btn.__bound) return;
+    btn.__bound = true;
+    btn.addEventListener("click", function () {
+      const wrap = document.getElementById("fp-wizard");
+      if (wrap && !wrap.hidden) { closeWizard(); return; }
+      renderWizard();
+    });
+  }
+
+  // Lazy init: when the pb-modal opens, do init. Hook by observing class on
+  // the overlay; if not feasible, also init on first details open.
+  function tryInitOnModalOpen() {
+    const ov = document.getElementById("pb-modal");
+    if (!ov) return;
+    const mo = new MutationObserver(function () {
+      // pb-modal uses class "show" to display; .hidden is never set.
+      if (ov.classList.contains("show")) initOnce();
+    });
+    mo.observe(ov, { attributes: true, attributeFilter: ["class"] });
+    // also init immediately if it's already open
+    if (ov.classList.contains("show")) initOnce();
+  }
+  document.addEventListener("DOMContentLoaded", tryInitOnModalOpen);
+  // Also init on first expand of the details panel.
+  document.addEventListener("toggle", function (ev) {
+    if (ev.target && ev.target.id === "pb-settings" && ev.target.open) initOnce();
+  }, true);
+})();
+</script>
+<!-- SB5 2026-06-12 Reliability panel renderer -->
+<script>
+(function () {
+  "use strict";
+  function fetchJSON(url) {
+    return fetch(url, { credentials: "same-origin" })
+      .then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); });
+  }
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c];
+    });
+  }
+  function fmtAge(sec) {
+    sec = Math.round(Number(sec) || 0);
+    if (sec < 60) return sec + "s";
+    if (sec < 3600) return Math.floor(sec/60) + "m " + (sec%60) + "s";
+    return Math.floor(sec/3600) + "h " + Math.floor((sec%3600)/60) + "m";
+  }
+  function tile(name, verdict, metaLines) {
+    var safeName = escapeHtml(name);
+    var lines = (metaLines || []).map(function (l) {
+      return "<div class=\"sitrep-rel-tile-meta\">" + escapeHtml(l) + "</div>";
+    }).join("");
+    return "<div class=\"sitrep-rel-tile " + verdict + "\">" +
+      "<div class=\"sitrep-rel-tile-name\"><span class=\"sitrep-rel-tile-dot\"></span>" + safeName + "</div>" +
+      lines +
+    "</div>";
+  }
+  function render(snap) {
+    var summary = document.getElementById("sitrep-rel-summary");
+    var grid = document.getElementById("sitrep-rel-grid");
+    if (!summary || !grid) return;
+    var verdict = (snap.verdict || "wedged");
+    summary.className = "sitrep-rel-summary " + verdict;
+    var summaryText = verdict.toUpperCase() + " · checked in " + (snap.elapsed_ms||0) + "ms · " + new Date(snap.checked_at_ms).toLocaleTimeString();
+    summary.textContent = summaryText;
+    var tiles = [];
+    // Per-band chirp
+    var chirp = snap.chirp || {};
+    Object.keys(chirp).forEach(function (k) {
+      var c = chirp[k];
+      var meta = [];
+      if (c.channels != null) meta.push(c.channels + " channels");
+      if (c.responsive_ms != null) meta.push("daemon " + c.responsive_ms + "ms");
+      if (c.median_signal_dbfs != null) meta.push("med sig " + Math.round(c.median_signal_dbfs) + " dBFS");
+      if (c.all_dead_silence) meta.push("ALL DEAD");
+      if (c.error) meta.push(c.error);
+      tiles.push(tile("Chirp " + k, c.verdict, meta));
+    });
+    // OP25
+    var op = snap.op25 || {};
+    var opMeta = [];
+    if (op.log_age_sec != null) opMeta.push("log age " + fmtAge(op.log_age_sec));
+    if (op.multi_rx_cpu != null) opMeta.push("multi_rx " + Math.round(op.multi_rx_cpu) + "% CPU");
+    if (op.error) opMeta.push(op.error);
+    tiles.push(tile("OP25", op.verdict || "wedged", opMeta));
+    // VFO
+    var vfo = snap.vfo || {};
+    var vfoMeta = [];
+    if (vfo.freq_mhz != null) vfoMeta.push(vfo.freq_mhz + " MHz " + (vfo.mod||"") );
+    if (vfo.dongle_serial) vfoMeta.push("dongle " + vfo.dongle_serial);
+    if (vfo.last_frame_age_ms != null) vfoMeta.push("frame age " + vfo.last_frame_age_ms + "ms");
+    tiles.push(tile("VFO", vfo.verdict || "wedged", vfoMeta));
+    // Dongles
+    var d = snap.dongles || {};
+    var dMeta = [];
+    dMeta.push((d.enumerated_rtl||[]).length + "/" + (d.expected_rtl||[]).length + " RTL");
+    dMeta.push((d.rspduo_enumerated||0) + "/" + (d.rspduo_expected||0) + " RSPduo");
+    if ((d.missing_rtl||[]).length) dMeta.push("missing: " + d.missing_rtl.join(", "));
+    tiles.push(tile("Dongles", d.verdict || "wedged", dMeta));
+    // BT
+    var bt = snap.bt || {};
+    var btMeta = [];
+    btMeta.push(bt.paired ? "paired" : "unpaired");
+    btMeta.push(bt.connected ? "connected" : "disconnected");
+    if (bt.transport_state) btMeta.push("transport " + bt.transport_state);
+    tiles.push(tile("BT BOOM", bt.verdict || "wedged", btMeta));
+    // Icecast — one tile per mount
+    var ic = snap.icecast || {};
+    Object.keys(ic).forEach(function (mount) {
+      var m = ic[mount];
+      if (!m || typeof m !== "object" || !m.verdict) return;
+      var meta = [];
+      if (m.bitrate_kbps) meta.push(m.bitrate_kbps + " kbps");
+      if (m.listeners != null) meta.push(m.listeners + " listener" + (m.listeners === 1 ? "" : "s"));
+      tiles.push(tile(mount.replace(".mp3",""), m.verdict, meta));
+    });
+    // Services — compact list of WARN/WEDGED only.
+    var svcs = snap.services || {};
+    Object.keys(svcs).forEach(function (unit) {
+      var s = svcs[unit];
+      if (!s || s.verdict === "ok") return;
+      var meta = [];
+      meta.push(s.active_state);
+      if (s.n_restarts) meta.push(s.n_restarts + " restarts");
+      tiles.push(tile(s.label || unit, s.verdict, meta));
+    });
+    grid.innerHTML = tiles.join("");
+  }
+  function poll() {
+    fetchJSON("/api/reliability/status").then(function (a) {
+      var status = a[0], snap = a[1];
+      if (status === 200 && snap && snap.ok !== false) render(snap);
+    }).catch(function () {});
+  }
+  // Poll when SITREP modal opens.
+  var modal = document.getElementById("sitrep-modal");
+  if (modal) {
+    var mo = new MutationObserver(function () {
+      if (!modal.classList.contains("hidden")) {
+        poll();
+      }
+    });
+    mo.observe(modal, { attributes: true, attributeFilter: ["class"] });
+    if (!modal.classList.contains("hidden")) poll();
+  }
+  // Also expose for ad-hoc refresh.
+  window._refreshReliability = poll;
+})();
 </script>
 </body>
 </html>

@@ -463,6 +463,170 @@ def _populate_after_reset(band: str, fav_id: str) -> dict:
     }
 
 
+def push_scan_pool_to_chirp(
+    band: str,
+    freqs_hz: list,
+    labels: list | None = None,
+) -> dict:
+    """Reset the chirp daemon for `band` and load it with the given freqs.
+
+    Phase 4 follow-up to the 2026-06-11 'no airband hits in full_database'
+    bug.  `favorites_runtime.sync_scan_pool_to_runtime` already writes the
+    pool's per-band freqs to the legacy `rtl-airband-airband.conf` /
+    `rtl-airband-ground.conf` profiles -- but the chirp daemons read from
+    UDP via the chirp client, not those .conf files.  When you switched
+    from favorites mode to full_database, chirp kept whatever channels
+    were last activated (the Baltimore favorite's 11 freqs in Will's
+    case) and the daemon dutifully scanned them -- ignoring the 252 +
+    229 freqs the new scan pool actually wanted.
+
+    This pushes the per-band scan pool list to the chirp daemon: reset
+    (parks current channels), batch add_channels, re-apply the current
+    preset's thresholds.  Same idempotent shape as activate_favorite_via_chirp.
+
+    Args:
+        band: "airband" or "ground".
+        freqs_hz: list of Hz integers (matches favorites_runtime's
+                  air_freqs / ground_freqs).
+        labels: optional list of same length; index-aligned with freqs_hz.
+                Missing or short -> the freq itself is used as a label.
+    """
+    target = _normalize_band(band)
+    labels = list(labels or [])
+    channels: list[dict] = []
+    seen: set[str] = set()
+    for i, hz in enumerate(freqs_hz or []):
+        # The favorites_runtime path passes already-MHz floats (e.g.
+        # 121.9, 156.8) -- NOT Hz integers despite the legacy parameter
+        # name.  Treat anything < 10000 as MHz directly; anything bigger
+        # is in Hz (defensive against callers we haven't updated).
+        try:
+            v = float(hz)
+        except (TypeError, ValueError):
+            continue
+        mhz = v / 1_000_000.0 if v >= 10_000.0 else v
+        if mhz <= 0.0:
+            continue
+        key = f"{mhz:.4f}"
+        if key in seen:
+            continue
+        seen.add(key)
+        lbl_raw = labels[i] if i < len(labels) else ""
+        lbl = str(lbl_raw or "").strip() or f"{mhz:.3f} MHz"
+        channels.append({
+            "id": (f"fulldb-{target}-{mhz:.4f}")[:64],
+            "freq_mhz": float(mhz),
+            "mode": "am" if target == "airband" else "nfm",
+            "squelch_dbfs": -60.0,
+            "gain_db": 0.0,
+            "label": lbl[:64],
+        })
+
+    if not channels:
+        logger.info(
+            "chirp_adapter: push_scan_pool_to_chirp band=%s no channels (pool empty)",
+            target,
+        )
+        # Still reset so the daemon doesn't keep stale freqs from a prior
+        # activation.  An empty pool == "scan nothing" is a legitimate state.
+        try:
+            client = _chirp_client_for(target)
+            client.reset()
+            return {
+                "ok": True,
+                "target": target,
+                "added_count": 0,
+                "via": "chirp_scan_pool",
+                "note": "empty_pool_reset",
+            }
+        except Exception as exc:
+            return {
+                "ok": False,
+                "target": target,
+                "added_count": 0,
+                "error": f"reset_failed: {exc}",
+                "via": "chirp_scan_pool",
+            }
+
+    client = _chirp_client_for(target)
+
+    # Trim to fit the daemon's max_channels.  add_channels is transactional;
+    # a batch larger than the pool's free slots rejects the whole batch and
+    # the daemon ends up with empty scan list -- the "no hits in full DB"
+    # symptom Will hit.
+    truncated_to: int | None = None
+    try:
+        status = client.get_status()
+        max_channels = int(status.get("max_channels") or 0)
+    except Exception:
+        max_channels = 0
+    if max_channels > 0 and len(channels) > max_channels:
+        truncated_to = max_channels
+        # Stable sort by freq_mhz so the daemon scans the lower (civil
+        # airband) band first; UHF military gets trimmed off the tail
+        # when the pool is bigger than the daemon can hold.
+        channels = sorted(channels, key=lambda c: float(c.get("freq_mhz") or 0.0))[:max_channels]
+        logger.warning(
+            "chirp_adapter: pool size > max_channels for %s -- trimmed %d -> %d",
+            target, len(channels) + (truncated_to - max_channels) if False else 0, max_channels,
+        )
+
+    try:
+        client.reset()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "target": target,
+            "added_count": 0,
+            "error": f"reset_failed: {exc}",
+            "via": "chirp_scan_pool",
+        }
+
+    try:
+        result = client.add_channels(channels)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "target": target,
+            "added_count": 0,
+            "error": f"add_channels_failed: {exc}",
+            "via": "chirp_scan_pool",
+        }
+
+    # Re-apply the current preset's thresholds (mirrors _populate_after_reset).
+    try:
+        mac = _managed_controls_module()
+        try:
+            from .profile_config import resolve_controls_path
+        except ImportError:
+            from ui.profile_config import resolve_controls_path  # type: ignore
+        conf_path = resolve_controls_path(target)
+        rec = mac.recommended_managed_controls(target, conf_path) or {}
+        preset = rec.get("squelch_preset")
+        if preset:
+            apply_squelch_preset_via_chirp(target, str(preset))
+    except Exception:
+        logger.debug(
+            "chirp_adapter: post-pool-push preset restore skipped",
+            exc_info=True,
+        )
+
+    n_loaded = int(result.get("count") or len(channels))
+    logger.info(
+        "chirp_adapter: scan_pool pushed band=%s n_channels=%d truncated_to=%s",
+        target, n_loaded, truncated_to,
+    )
+    out = {
+        "ok": True,
+        "target": target,
+        "added_count": n_loaded,
+        "via": "chirp_scan_pool",
+    }
+    if truncated_to is not None:
+        out["truncated_to"] = truncated_to
+    return out
+
+
 def activate_favorite_via_chirp(band: str, fav_id: str) -> dict:
     """Push the favorite's channel list to the relevant chirp daemon.
 
@@ -633,6 +797,93 @@ def reset_radios_via_chirp(*, unconditional_repopulate: bool = True) -> tuple[bo
     elapsed = time.monotonic() - t0
     all_ok = all(r.get("ok") for r in results.values())
 
+    # ----- Escalation: comms failure → safe_restart_rtl_airband ----------
+    # If any band's UDP reset failed with a comms-style error (timeout,
+    # refused, no response), the daemon is likely wedged at a syscall
+    # (canonical case: stuck in sdrplay_api_Open with the SoapySDR
+    # daemon hung; UDP socket isn't being serviced).  Fall back to
+    # safe_restart_rtl_airband, which sequences the systemd restart
+    # with an sdrplay-daemon bounce on probe failure.  Without this
+    # escalation, "Reset Radios" returns red and the operator has to
+    # SSH in and run the recovery by hand (which is what happened on
+    # 2026-06-08; commit history has the manual sequence).
+    restart_summary = None
+    if not all_ok:
+        comms_failed = [
+            name for name, r in results.items()
+            if not r.get("ok") and _looks_like_comms_failure(r.get("error"))
+        ]
+        if comms_failed:
+            try:
+                try:
+                    from .airband_restart import safe_restart_rtl_airband
+                except ImportError:
+                    from ui.airband_restart import safe_restart_rtl_airband  # type: ignore
+                logger.info(
+                    "chirp_adapter: reset_radios escalating to safe_restart "
+                    "for bands=%s (comms-failed)", comms_failed,
+                )
+                sr = safe_restart_rtl_airband(
+                    bands=tuple(comms_failed),
+                    reason="chirp_reset_unresponsive",
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "chirp_adapter: safe_restart_rtl_airband raised during "
+                    "reset_radios escalation"
+                )
+                sr = {"status": "raised", "error": f"raised: {exc}", "results": {}}
+            restart_summary = {
+                "status": sr.get("status"),
+                "restarted_sdrplay": bool(sr.get("restarted_sdrplay")),
+                "bands": comms_failed,
+            }
+            per_band = sr.get("results") or {}
+            for band in comms_failed:
+                band_sr = per_band.get(band, {})
+                if band_sr.get("ok"):
+                    # Restart succeeded — band is back.  Mark ok, note
+                    # escalation, attempt repopulate (the per-band repop
+                    # was skipped earlier because reset_failed).
+                    results[band]["ok"] = True
+                    results[band]["escalated"] = "safe_restart"
+                    if unconditional_repopulate:
+                        fav_id = _enabled_fav_id_for_band(band)
+                        if not fav_id:
+                            results[band]["repopulate"] = {
+                                "skipped": "no_enabled_favorite",
+                            }
+                        else:
+                            try:
+                                rp = _populate_after_reset(band, fav_id)
+                                results[band]["repopulate"] = {
+                                    "ok": bool(rp.get("ok")),
+                                    "fav_id": fav_id,
+                                    "added_count": rp.get("added_count"),
+                                    "error": rp.get("error"),
+                                }
+                            except Exception as exc:  # noqa: BLE001
+                                logger.exception(
+                                    "chirp_adapter: post-escalation repop "
+                                    "raised band=%s fav_id=%s", band, fav_id,
+                                )
+                                results[band]["repopulate"] = {
+                                    "ok": False,
+                                    "fav_id": fav_id,
+                                    "error": f"unexpected: {exc}",
+                                }
+                else:
+                    # Restart also failed — propagate combined error.
+                    sr_err = band_sr.get("error") or sr.get("error") or "restart_failed"
+                    results[band]["error"] = (
+                        f"reset+restart both failed: "
+                        f"{results[band].get('error')} → {sr_err}"
+                    )
+            # Recompute after escalation.
+            all_ok = all(r.get("ok") for r in results.values())
+
+    elapsed = time.monotonic() - t0  # recompute after possible escalation
+
     def _repop_summary(b: str) -> str:
         rp = results[b].get("repopulate")
         if rp is None:
@@ -643,6 +894,15 @@ def reset_radios_via_chirp(*, unconditional_repopulate: bool = True) -> tuple[bo
             return f"repop={rp.get('added_count')}"
         return f"repop-fail({rp.get('error') or 'unknown'})"
 
+    def _escal_summary() -> str:
+        if not restart_summary:
+            return ""
+        sd = " (sdrplay bounced)" if restart_summary["restarted_sdrplay"] else ""
+        return (
+            f" [escalated:safe_restart status={restart_summary['status']}"
+            f" bands={','.join(restart_summary['bands'])}{sd}]"
+        )
+
     if all_ok:
         msg = (
             f"Reset Radios (chirp) triggered in {elapsed:.2f}s "
@@ -650,17 +910,368 @@ def reset_radios_via_chirp(*, unconditional_repopulate: bool = True) -> tuple[bo
             f"{_repop_summary('airband')}, "
             f"ground pool_free={results['ground'].get('pool_free')} "
             f"{_repop_summary('ground')})"
+            f"{_escal_summary()}"
         )
         return True, msg, ""
     detail = "; ".join(
         f"{b}: {('ok' if r.get('ok') else (r.get('error') or 'fail'))}"
         for b, r in results.items()
     )
-    return False, "", f"Reset Radios (chirp) partial fail after {elapsed:.2f}s — {detail}"
+    return False, "", (
+        f"Reset Radios (chirp) partial fail after {elapsed:.2f}s — {detail}"
+        f"{_escal_summary()}"
+    )
+
+
+def _looks_like_comms_failure(err: Optional[str]) -> bool:
+    """Heuristic: does an error string look like a UDP comms failure
+    rather than a logic / parse error?  UDP-comms failures are the
+    signature of a wedged daemon and warrant escalation to
+    safe_restart_rtl_airband.  Logic errors (HPState corrupt,
+    add_channel rejected, etc.) would not be helped by a systemd
+    restart and we let them bubble up as-is.
+    """
+    if not err:
+        return False
+    s = err.lower()
+    return any(
+        token in s
+        for token in (
+            "timed out", "timeout",
+            "refused", "no response", "no reply",
+            "broken pipe", "connection reset", "connection",
+            "unreachable", "errno 111", "errno 113",
+        )
+    )
+
+
+
+
+def calibrate_squelch_via_chirp(
+    band: str,
+    sample_sec: float = 15.0,
+    margin_db: float = 3.0,
+    poll_hz: float = 10.0,
+    skip_open: bool = True,
+) -> dict:
+    """Per-channel noise-floor calibration via signal_level_dbfs sampling.
+
+    The existing preset apply (`apply_squelch_preset_via_chirp`) reads
+    ``signal_level_dbfs`` ONCE and adds margin_db.  If the snapshot
+    happens during a brief signal peak, the resulting threshold is too
+    high and gates real voice (we hit this on marine VHF 2026-06-09).
+
+    This sampler polls at ``poll_hz`` for ``sample_sec`` seconds, builds
+    a distribution per channel, and sets ``squelch = p90_noise + margin_db``.
+    p90 (90th-percentile) of the measured noise is robust against noise
+    fluctuations while still discriminating voice (which would push the
+    percentile much higher when it occurs).
+
+    Channels that were open at ANY sample tick are skipped — voice during
+    sampling would contaminate the noise estimate.  Operator can re-run
+    later when the channel is quiet.
+
+    Returns a plan dict with per-channel measurements + applied thresholds.
+    """
+    import time as _time_mod
+    import statistics as _stats_mod
+
+    sp = _squelch_preset_module()
+    target = _normalize_band(band)
+
+    # Validate/clamp inputs.
+    sample_sec = float(max(2.0, min(60.0, sample_sec)))
+    margin_db = float(max(-10.0, min(30.0, margin_db)))
+    poll_hz = float(max(1.0, min(20.0, poll_hz)))
+    poll_interval = 1.0 / poll_hz
+
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target,
+            "sample_sec": sample_sec,
+            "margin_db": margin_db,
+            "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_calibrate",
+        }
+
+    # Sample loop.
+    samples_per_channel: dict[str, list[float]] = {}
+    labels: dict[str, str] = {}
+    open_seen: set[str] = set()
+    last_status: dict = {}
+    n_polls = 0
+    t0 = _time_mod.monotonic()
+    end_time = t0 + sample_sec
+
+    while _time_mod.monotonic() < end_time:
+        try:
+            status = client.get_status()
+        except Exception as exc:
+            return {
+                "target": target,
+                "sample_sec": sample_sec,
+                "margin_db": margin_db,
+                "polls": n_polls,
+                "changed": False,
+                "error": f"chirp_daemon_unreachable: {exc}",
+                "via": "chirp_calibrate",
+            }
+        last_status = status
+        n_polls += 1
+        for ch in status.get("channels", []) or []:
+            cid = ch.get("id")
+            if not cid:
+                continue
+            lvl = ch.get("signal_level_dbfs")
+            try:
+                lvl_f = float(lvl)
+            except (TypeError, ValueError):
+                continue
+            labels[cid] = ch.get("label") or cid
+            if ch.get("squelch_open"):
+                open_seen.add(cid)
+            samples_per_channel.setdefault(cid, []).append(lvl_f)
+        # Sleep until next poll tick (compensates for get_status latency).
+        next_t = t0 + (n_polls * poll_interval)
+        sleep_for = next_t - _time_mod.monotonic()
+        if sleep_for > 0:
+            _time_mod.sleep(sleep_for)
+
+    elapsed = _time_mod.monotonic() - t0
+
+    # Build per-channel report and apply thresholds.
+    per_channel: list[dict] = []
+    applied_count = 0
+    skipped_count = 0
+    for cid in sorted(samples_per_channel.keys()):
+        samples = samples_per_channel[cid]
+        label = labels.get(cid, cid)
+        if not samples:
+            continue
+        if skip_open and cid in open_seen:
+            per_channel.append({
+                "id": cid,
+                "label": label,
+                "samples": len(samples),
+                "skipped": True,
+                "reason": "was_open_during_sampling",
+                "applied_squelch_dbfs": None,
+            })
+            skipped_count += 1
+            continue
+        sorted_s = sorted(samples)
+        n = len(sorted_s)
+        # 90th percentile (linear interpolation between nearest indices)
+        idx_f = 0.9 * (n - 1)
+        i = int(idx_f)
+        frac = idx_f - i
+        p90 = sorted_s[i] if i + 1 >= n else (sorted_s[i] + frac * (sorted_s[i + 1] - sorted_s[i]))
+        median = _stats_mod.median(sorted_s)
+        threshold = int(round(p90 + margin_db))
+        # Clamp to a sane operating range.
+        threshold = max(-100, min(-1, threshold))
+        try:
+            client.set_squelch(id=cid, dbfs=float(threshold))
+            applied_count += 1
+            per_channel.append({
+                "id": cid,
+                "label": label,
+                "samples": n,
+                "median_noise_dbfs": round(float(median), 1),
+                "p90_noise_dbfs": round(float(p90), 1),
+                "noise_min_dbfs": round(float(sorted_s[0]), 1),
+                "noise_max_dbfs": round(float(sorted_s[-1]), 1),
+                "threshold_dbfs": threshold,
+                "applied_squelch_dbfs": threshold,
+            })
+        except Exception as exc:
+            per_channel.append({
+                "id": cid,
+                "label": label,
+                "samples": n,
+                "median_noise_dbfs": round(float(median), 1),
+                "p90_noise_dbfs": round(float(p90), 1),
+                "threshold_dbfs": threshold,
+                "applied_squelch_dbfs": None,
+                "error": f"set_squelch_failed: {exc}",
+            })
+
+    return {
+        "target": target,
+        "sample_sec": round(sample_sec, 1),
+        "elapsed_sec": round(elapsed, 1),
+        "margin_db": margin_db,
+        "poll_hz": poll_hz,
+        "polls": n_polls,
+        "channels_total": len(samples_per_channel),
+        "channels_applied": applied_count,
+        "channels_skipped": skipped_count,
+        "channels": per_channel,
+        "changed": applied_count > 0,
+        "via": "chirp_calibrate",
+    }
+
+
+def wide_open_squelch_via_chirp(band: str, dbfs: float = -120.0) -> dict:
+    """Test mode: set every channel in the band to a pass-everything dbfs.
+
+    Used to verify the demod + audio path is intact (e.g., after a config
+    change you want to confirm audio reaches the speaker before tightening
+    the squelch back up).  After testing, the operator re-applies a
+    preset (or runs calibrate) to restore noise-floor-based thresholds.
+
+    Returns plan dict with the count of channels touched.
+    """
+    target = _normalize_band(band)
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target,
+            "applied_dbfs": dbfs,
+            "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_wide_open",
+        }
+    try:
+        status = client.get_status()
+    except Exception as exc:
+        return {
+            "target": target,
+            "applied_dbfs": dbfs,
+            "changed": False,
+            "error": f"chirp_daemon_unreachable: {exc}",
+            "via": "chirp_wide_open",
+        }
+    dbfs = float(max(-120.0, min(-1.0, dbfs)))
+    applied = 0
+    failed: list[str] = []
+    for ch in status.get("channels", []) or []:
+        cid = ch.get("id")
+        if not cid:
+            continue
+        try:
+            client.set_squelch(id=cid, dbfs=dbfs)
+            applied += 1
+        except Exception as exc:
+            failed.append(f"{cid}: {exc}")
+    return {
+        "target": target,
+        "applied_dbfs": dbfs,
+        "channels_total": len(status.get("channels", []) or []),
+        "channels_applied": applied,
+        "changed": applied > 0,
+        "errors": failed,
+        "via": "chirp_wide_open",
+    }
+
+
+
+
+def set_audio_vad_sensitivity_via_chirp(band: str, sensitivity: float) -> dict:
+    """Push the VAD threshold to every channel in the band.
+
+    The UI exposes a 0-10 Sensitivity slider; we map that linearly to a
+    0-100 VAD score threshold (10 = 0 threshold = let everything pass,
+    0 = 100 threshold = strict voice only).  Default operator position 5
+    maps to threshold 50.
+
+    Returns a per-channel report dict similar to other chirp_adapter
+    helpers so handlers.py can surface counts/errors uniformly.
+    """
+    target = _normalize_band(band)
+    sensitivity = float(max(0.0, min(10.0, sensitivity)))
+    # 10 = threshold 0 (very permissive), 0 = threshold 100 (very strict).
+    threshold = float(round(100.0 - sensitivity * 10.0))
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target, "sensitivity": sensitivity, "threshold": threshold,
+            "changed": False, "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_vad_sensitivity",
+        }
+    try:
+        status = client.get_status()
+    except Exception as exc:
+        return {
+            "target": target, "sensitivity": sensitivity, "threshold": threshold,
+            "changed": False, "error": f"chirp_daemon_unreachable: {exc}",
+            "via": "chirp_vad_sensitivity",
+        }
+    applied = 0
+    failed: list[str] = []
+    for ch in status.get("channels", []) or []:
+        cid = ch.get("id")
+        if not cid:
+            continue
+        try:
+            client.set_vad_threshold(id=cid, threshold=threshold)
+            applied += 1
+        except Exception as exc:
+            failed.append(f"{cid}: {exc}")
+    return {
+        "target": target, "sensitivity": sensitivity, "threshold": threshold,
+        "channels_total": len(status.get("channels", []) or []),
+        "channels_applied": applied,
+        "changed": applied > 0,
+        "errors": failed,
+        "via": "chirp_vad_sensitivity",
+    }
+
+
+def set_audio_vad_bypass_via_chirp(band: str, bypass: bool) -> dict:
+    """Set every channel's VAD gate to bypass=True (passthrough) or False.
+
+    Used by the Test/wide-open UI to verify the audio path.
+    """
+    target = _normalize_band(band)
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target, "bypass": bool(bypass), "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_vad_bypass",
+        }
+    try:
+        status = client.get_status()
+    except Exception as exc:
+        return {
+            "target": target, "bypass": bool(bypass), "changed": False,
+            "error": f"chirp_daemon_unreachable: {exc}",
+            "via": "chirp_vad_bypass",
+        }
+    applied = 0
+    failed: list[str] = []
+    for ch in status.get("channels", []) or []:
+        cid = ch.get("id")
+        if not cid:
+            continue
+        try:
+            client.set_vad_bypass(id=cid, bypass=bool(bypass))
+            applied += 1
+        except Exception as exc:
+            failed.append(f"{cid}: {exc}")
+    return {
+        "target": target, "bypass": bool(bypass),
+        "channels_total": len(status.get("channels", []) or []),
+        "channels_applied": applied,
+        "changed": applied > 0,
+        "errors": failed,
+        "via": "chirp_vad_bypass",
+    }
 
 
 __all__ = [
     "apply_squelch_preset_via_chirp",
+    "calibrate_squelch_via_chirp",
+    "wide_open_squelch_via_chirp",
+    "set_audio_vad_sensitivity_via_chirp",
+    "set_audio_vad_bypass_via_chirp",
     "set_squelch_auto_via_chirp",
     "activate_favorite_via_chirp",
     "reset_radios_via_chirp",
