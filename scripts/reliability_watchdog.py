@@ -7,7 +7,13 @@ its escalation threshold, fires the corresponding recovery action and
 enters a cooldown so we don't loop.
 
 Recovery actions (each can be disabled individually via env):
-  chirp_wedged   -> safe_restart_rtl_airband(bands=("airband","ground"))
+  chirp_wedged   -> OBSERVE ONLY (retired 2026-06-12): the watchdog logs
+                    chirp band wedges but no longer restarts them. systemd's
+                    native Restart=on-failure + StartLimit on gr-demod@ owns
+                    band recovery. The old safe_restart_rtl_airband path
+                    stopped the live gr-demod@ units but started legacy
+                    rtl-airband-* ghost units (stale UNITS names), fighting
+                    systemd and causing a 30-minute outage.
   op25_wedged    -> systemctl restart scanner-digital-op25
   vfo_wedged     -> systemctl restart scanner-vfo
   bt_warn        -> bt-connect-speaker.sh
@@ -60,7 +66,10 @@ JOURNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # Per-area individual disable env vars (default: enabled).
 ENABLE_RECOVERY = {
-    "chirp": os.environ.get("WATCHDOG_RECOVER_CHIRP", "1") != "0",
+    # 2026-06-12: RETIRED. Band recovery belongs to systemd's native
+    # Restart=on-failure on gr-demod@. Default OFF; recover_chirp() below is
+    # observe-only even if this is force-enabled via WATCHDOG_RECOVER_CHIRP=1.
+    "chirp": os.environ.get("WATCHDOG_RECOVER_CHIRP", "0") != "0",
     "op25": os.environ.get("WATCHDOG_RECOVER_OP25", "1") != "0",
     "vfo": os.environ.get("WATCHDOG_RECOVER_VFO", "1") != "0",
     "bt": os.environ.get("WATCHDOG_RECOVER_BT", "1") != "0",
@@ -149,25 +158,31 @@ def _run_cmd(cmd: list[str], timeout: float = 60.0) -> tuple[int, str, str]:
 # ---------------------------------------------------------------------------
 
 def recover_chirp() -> dict:
-    """Bounce the analog chirp daemons via safe_restart_rtl_airband.
+    """OBSERVE ONLY — the watchdog no longer restarts the chirp bands.
 
-    This wraps the existing escalation path which knows about MA/SL
-    sequencing and sdrplay-daemon recovery on probe failure.
+    2026-06-12: the previous implementation called
+    ``safe_restart_rtl_airband``, which STOPPED the live ``gr-demod@``
+    units but STARTED legacy ``rtl-airband-*`` ghost units (stale names
+    from ui/config.py UNITS, a pre-chirp-migration artifact).  The start
+    failed every cycle, leaving airband+ground dead while the watchdog
+    looped — a 30-minute outage.
+
+    Band recovery now belongs entirely to systemd: ``Restart=on-failure``
+    plus the StartLimit circuit breaker on ``gr-demod@.service`` bounce
+    the daemons on real crashes, and removing the watchdog's requested
+    stop/start of the MA/SL pair eliminates the hung-shutdown→failed
+    cascade that turned a routine restart into an outage.
+
+    This function is retained ONLY so a force-enabled
+    ``WATCHDOG_RECOVER_CHIRP=1`` can't resurrect the ghost-unit path: it
+    records the observation and takes no action.
     """
-    log.warning("recovery: chirp daemons -> safe_restart_rtl_airband")
-    try:
-        from ui.airband_restart import safe_restart_rtl_airband
-    except Exception as exc:
-        return {"ok": False, "error": f"import_failed: {exc}"}
-    try:
-        result = safe_restart_rtl_airband(
-            bands=("airband", "ground"),
-            reason="watchdog_chirp_wedge",
-        )
-        return {"ok": result.get("status") == "ok", "detail": result}
-    except Exception as exc:
-        log.exception("safe_restart_rtl_airband raised")
-        return {"ok": False, "error": str(exc)}
+    log.warning(
+        "chirp wedge observed — NOT restarting (band recovery retired "
+        "2026-06-12; systemd Restart=on-failure on gr-demod@ owns it)"
+    )
+    return {"ok": True, "action": "observe_only",
+            "note": "band recovery delegated to systemd"}
 
 
 def recover_op25() -> dict:
