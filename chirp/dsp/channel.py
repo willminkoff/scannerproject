@@ -115,6 +115,7 @@ class Channel(gr.hier_block2):
         agc_decay: float = 1e-4,
         am_agc_enabled: bool = False,
         am_fixed_gain: float = 10.0,
+        vad_enabled: bool = True,
         audio_bandpass_low_hz: float = 300.0,
         audio_bandpass_high_hz: float = 3500.0,
     ) -> None:
@@ -157,6 +158,13 @@ class Channel(gr.hier_block2):
         # audio_trim/mixer handle leveling.
         self._am_agc_enabled = bool(am_agc_enabled)
         self._am_fixed_gain = float(am_fixed_gain)
+        # VAD gate enable. The SB5 voice-activity gate (below) mutes audio
+        # blocks it scores as non-voice. 2026-06-14: confirmed it MUTES clean
+        # AM voice (it passed corrupted noise but silenced real voice once the
+        # stream was clean) — verified by mount capture going rms=0 -> rms>0
+        # the instant the gate was bypassed. Disable to pass squelch-gated
+        # audio straight through. Default True for back-compat; airband off.
+        self._vad_enabled = bool(vad_enabled)
         # AM voice band-pass edges (Hz): low ~300 strips envelope-detector DC +
         # rumble; high trims hiss above the voice band. AM-only (config-tunable).
         self._audio_bandpass_low_hz = float(audio_bandpass_low_hz)
@@ -298,7 +306,7 @@ class Channel(gr.hier_block2):
         self.vad_gate = AudioVADGate(
             audio_rate=self._audio_rate,
             threshold=50.0,
-            bypass=False,
+            bypass=not self._vad_enabled,
         )
 
         # --- Priority gate (scan single-active-channel) ---------------------
