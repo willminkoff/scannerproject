@@ -758,6 +758,10 @@ class ChirpFlowgraph(gr.top_block):
                 return self._cmd_set_freq(env, args)
             if cmd == "set_gain":
                 return self._cmd_set_gain(env, args)
+            if cmd == "set_vad_bypass":
+                return self._cmd_set_vad_bypass(env, args)
+            if cmd == "set_vad_threshold":
+                return self._cmd_set_vad_threshold(env, args)
             if cmd == "set_master_gain":
                 return self._cmd_set_master_gain(env, args)
             if cmd == "reset":
@@ -1071,6 +1075,24 @@ class ChirpFlowgraph(gr.top_block):
             slot.last_gain_db = args.db
             self._persist_state()
             return Response.make_ok(env.id, {"db": args.db})
+
+    def _cmd_set_vad_bypass(self, env: Envelope, args: Any) -> Response:
+        """Wire the half-finished SB5 VAD bypass cmd (schema existed, dispatch
+        did not). bypass=True passes raw demod audio (no VAD gating)."""
+        with self._lock:
+            slot = self._slot_for(args.id)
+            if slot is None:
+                return Response.make_rejected(env.id, f"unknown channel: {args.id}")
+            slot.channel.set_vad_bypass(bool(args.bypass))
+            return Response.make_ok(env.id, {"id": args.id, "bypass": bool(args.bypass)})
+
+    def _cmd_set_vad_threshold(self, env: Envelope, args: Any) -> Response:
+        with self._lock:
+            slot = self._slot_for(args.id)
+            if slot is None:
+                return Response.make_rejected(env.id, f"unknown channel: {args.id}")
+            slot.channel.set_vad_threshold(float(args.threshold))
+            return Response.make_ok(env.id, {"id": args.id, "threshold": float(args.threshold)})
 
     def _cmd_set_master_gain(self, env: Envelope, args: SetMasterGainArgs) -> Response:
         with self._lock:
