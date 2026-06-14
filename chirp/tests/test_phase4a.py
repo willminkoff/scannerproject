@@ -58,13 +58,18 @@ class TestChannelNFM:
         assert ch.am_demod is None
 
     def test_instantiate_am_still_works(self):
-        # Regression: AM path is unchanged.
+        # Default AM path uses FIXED GAIN (no adaptive AGC — a fast AGC erases
+        # the AM modulation; 2026-06-14). The agc slot holds a multiply_const_cc.
         ch = Channel(samp_rate=1e6, mode="am")
         assert ch.mode == "am"
         assert ch.agc is not None
+        assert not hasattr(ch.agc, "reference")  # fixed-gain block, not agc3_cc
         assert ch.am_demod is not None
         assert ch.quad_demod is None
         assert ch.nfm_audio_gain is None
+        # Opt-in AGC (must be slow if used) restores the agc3_cc.
+        ch_agc = Channel(samp_rate=1e6, mode="am", am_agc_enabled=True)
+        assert hasattr(ch_agc.agc, "reference")
 
     def test_rejects_bad_mode(self):
         with pytest.raises(ValueError):
@@ -561,7 +566,9 @@ class TestPhase4dGainSeparation:
             ``gain_db``.
           - Both modes: ``audio_trim.k()`` follows ``10 ** (gain_db/20)``.
         """
-        ch_am = Channel(samp_rate=1e6, mode="am", gain_db=0.0)
+        # am_agc_enabled=True: this test asserts the AGC *reference* invariant,
+        # so it needs the actual agc3_cc (default is now fixed-gain, no AGC).
+        ch_am = Channel(samp_rate=1e6, mode="am", gain_db=0.0, am_agc_enabled=True)
         ch_nfm = Channel(samp_rate=1e6, mode="nfm", gain_db=0.0)
 
         # Baseline: gain_db=0 → audio_trim=1.0, AGC ref=_AGC_REF_0DB,
@@ -623,7 +630,7 @@ class TestPhase4dGainSeparation:
         """``Channel(gain_db=...)`` also clamps to the legal range so the
         Phase-4c migration's 32.8 dB cannot reach the AGC reference at
         construction time either."""
-        ch = Channel(samp_rate=1e6, mode="am", gain_db=32.8)
+        ch = Channel(samp_rate=1e6, mode="am", gain_db=32.8, am_agc_enabled=True)
         assert ch.gain_db == 20.0
         assert abs(float(ch.agc.reference()) - Channel._AGC_REF_0DB) < 1e-6
         # Sanity: the trim landed at +20 dB.

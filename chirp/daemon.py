@@ -168,9 +168,10 @@ class DaemonConfig:
     agc_attack: float = 0.1
     # AGC decay rate (lower = slower ramp-up on signal loss ~= hang/hold).
     agc_decay: float = 1e-4
-    # AM AGC enable. Fast AM AGC erases the amplitude modulation (the voice);
-    # disable -> fixed gain. Default True for back-compat; airband sets False.
-    am_agc_enabled: bool = True
+    # AM AGC enable. DEFAULT OFF: a fast AM AGC erases the amplitude modulation
+    # (the voice) -> noise; FM never used an AGC. Off -> fixed gain. Only opt in
+    # for a properly-SLOW AM AGC (tiny agc_attack/agc_decay). AM-only knob.
+    am_agc_enabled: bool = False
     am_fixed_gain: float = 10.0
     # AM voice band-pass edges (Hz). Defaults match the prior hardcoded values.
     audio_bandpass_low_hz: float = 300.0

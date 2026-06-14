@@ -113,7 +113,7 @@ class Channel(gr.hier_block2):
         agc_max_gain: float = 1000.0,
         agc_attack: float = 0.1,
         agc_decay: float = 1e-4,
-        am_agc_enabled: bool = True,
+        am_agc_enabled: bool = False,
         am_fixed_gain: float = 10.0,
         audio_bandpass_low_hz: float = 300.0,
         audio_bandpass_high_hz: float = 3500.0,
@@ -144,13 +144,17 @@ class Channel(gr.hier_block2):
         # AGC decay rate: lower = slower gain ramp-up when signal drops,
         # approximating a hang/hold so inter-syllable gaps stay quiet. AM-only.
         self._agc_decay = float(agc_decay)
-        # AM AGC enable. A FAST adaptive AGC on AM is destructive: it holds the
-        # IF amplitude constant, which erases the amplitude MODULATION that
-        # carries the voice -> the envelope detector outputs mush (heard as
-        # pure noise). Proven 2026-06-14 by A/B of chirp's Channel vs a textbook
-        # demod on captured BNA IQ (judged by ear; chirp=noise, no-AGC=clean).
-        # When disabled, a fixed-gain multiply replaces the AGC so the
-        # modulation survives; downstream audio_trim/mixer handle leveling.
+        # AM AGC enable. DEFAULT OFF. A FAST adaptive AGC on AM is destructive:
+        # it holds the IF amplitude constant, which erases the amplitude
+        # MODULATION that carries the voice -> the envelope detector outputs
+        # mush (heard as pure noise). Proven 2026-06-14 by A/B of chirp's
+        # Channel vs a textbook demod on captured BNA IQ (judged by ear;
+        # chirp=noise, no-AGC=clean). FM never used an AGC (amplitude-
+        # insensitive). So the only valid use of this flag is to opt into a
+        # PROPERLY SLOW AM AGC (sub-audio time constant, to level near/far
+        # signals without touching the modulation) — set agc_attack/agc_decay
+        # tiny if you enable it. Off -> fixed-gain multiply; downstream
+        # audio_trim/mixer handle leveling.
         self._am_agc_enabled = bool(am_agc_enabled)
         self._am_fixed_gain = float(am_fixed_gain)
         # AM voice band-pass edges (Hz): low ~300 strips envelope-detector DC +
