@@ -113,6 +113,8 @@ class Channel(gr.hier_block2):
         agc_max_gain: float = 1000.0,
         agc_attack: float = 0.1,
         agc_decay: float = 1e-4,
+        am_agc_enabled: bool = True,
+        am_fixed_gain: float = 10.0,
         audio_bandpass_low_hz: float = 300.0,
         audio_bandpass_high_hz: float = 3500.0,
     ) -> None:
@@ -142,6 +144,15 @@ class Channel(gr.hier_block2):
         # AGC decay rate: lower = slower gain ramp-up when signal drops,
         # approximating a hang/hold so inter-syllable gaps stay quiet. AM-only.
         self._agc_decay = float(agc_decay)
+        # AM AGC enable. A FAST adaptive AGC on AM is destructive: it holds the
+        # IF amplitude constant, which erases the amplitude MODULATION that
+        # carries the voice -> the envelope detector outputs mush (heard as
+        # pure noise). Proven 2026-06-14 by A/B of chirp's Channel vs a textbook
+        # demod on captured BNA IQ (judged by ear; chirp=noise, no-AGC=clean).
+        # When disabled, a fixed-gain multiply replaces the AGC so the
+        # modulation survives; downstream audio_trim/mixer handle leveling.
+        self._am_agc_enabled = bool(am_agc_enabled)
+        self._am_fixed_gain = float(am_fixed_gain)
         # AM voice band-pass edges (Hz): low ~300 strips envelope-detector DC +
         # rumble; high trims hiss above the voice band. AM-only (config-tunable).
         self._audio_bandpass_low_hz = float(audio_bandpass_low_hz)
@@ -207,9 +218,16 @@ class Channel(gr.hier_block2):
 
         # --- Mode-specific demod --------------------------------------------
         if mode == "am":
-            # AGC. agc3_cc(attack, decay, reference, gain_init, max_gain_floor).
-            self.agc = analog.agc3_cc(self._agc_attack, self._agc_decay, self._AGC_REF_0DB, 10, 1)
-            self.agc.set_max_gain(int(self._agc_max_gain))
+            if self._am_agc_enabled:
+                # agc3_cc(attack, decay, reference, gain_init, max_gain_floor).
+                # WARNING: a fast attack here flattens the AM modulation (the
+                # voice) into noise — see _am_agc_enabled note above. Only use
+                # with a very slow attack/decay if enabled at all.
+                self.agc = analog.agc3_cc(self._agc_attack, self._agc_decay, self._AGC_REF_0DB, 10, 1)
+                self.agc.set_max_gain(int(self._agc_max_gain))
+            else:
+                # Fixed gain — preserves the AM envelope (= the voice).
+                self.agc = blocks.multiply_const_cc(self._am_fixed_gain)
             # AM envelope detector (ham2mon's choice for N>2 parallel demods).
             self.am_demod = blocks.complex_to_mag(1)
             # NFM members exist as None so introspection code can branch

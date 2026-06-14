@@ -168,6 +168,10 @@ class DaemonConfig:
     agc_attack: float = 0.1
     # AGC decay rate (lower = slower ramp-up on signal loss ~= hang/hold).
     agc_decay: float = 1e-4
+    # AM AGC enable. Fast AM AGC erases the amplitude modulation (the voice);
+    # disable -> fixed gain. Default True for back-compat; airband sets False.
+    am_agc_enabled: bool = True
+    am_fixed_gain: float = 10.0
     # AM voice band-pass edges (Hz). Defaults match the prior hardcoded values.
     audio_bandpass_low_hz: float = 300.0
     audio_bandpass_high_hz: float = 3500.0
@@ -374,6 +378,14 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         agc_decay=float(os.environ.get(
             "CHIRP_AGC_DECAY",
             raw.get("agc_decay", 1e-4),
+        )),
+        am_agc_enabled=str(os.environ.get(
+            "CHIRP_AM_AGC_ENABLED",
+            str(raw.get("am_agc_enabled", True)),
+        )).strip().lower() in ("1", "true", "yes", "on"),
+        am_fixed_gain=float(os.environ.get(
+            "CHIRP_AM_FIXED_GAIN",
+            raw.get("am_fixed_gain", 10.0),
         )),
         audio_bandpass_low_hz=float(os.environ.get(
             "CHIRP_AUDIO_BANDPASS_LOW_HZ",
@@ -646,6 +658,8 @@ class ChirpFlowgraph(gr.top_block):
                 agc_max_gain=cfg.agc_max_gain,
                 agc_attack=cfg.agc_attack,
                 agc_decay=cfg.agc_decay,
+                am_agc_enabled=cfg.am_agc_enabled,
+                am_fixed_gain=cfg.am_fixed_gain,
                 audio_bandpass_low_hz=cfg.audio_bandpass_low_hz,
                 audio_bandpass_high_hz=cfg.audio_bandpass_high_hz,
                 center_freq_offset=0.0,

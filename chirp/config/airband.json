@@ -11,6 +11,8 @@
   "agc_max_gain": 1000,
   "agc_attack": 0.1,
   "agc_decay": 0.0001,
+  "am_agc_enabled": false,
+  "am_fixed_gain": 10.0,
   "audio_bandpass_low_hz": 300,
   "audio_bandpass_high_hz": 3500,
   "denoise": false,
