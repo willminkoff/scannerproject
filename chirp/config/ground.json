@@ -18,7 +18,7 @@
     "center_freq_hz": 138050000.0,
     "gain_db": 32.8,
     "gain_mode_auto": false,
-    "bandwidth_hz": 0.0,
+    "bandwidth_hz": 1536000.0,
     "ppm": 0.0,
     "antenna": null,
     "element_gains": {}
