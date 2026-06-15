@@ -3263,17 +3263,12 @@
             <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="selective" role="radio" aria-checked="false">Selective</button>
           </div>
           <div class="band-ctl-row band-ctl-sq-tools">
-            <div class="band-ctl-sens" data-band="air">
-              <span class="ctl-sens-lbl">Sensitivity</span>
-              <input type="range" min="0" max="10" step="1" value="5"
-                     class="ctl-sens-slider" data-band="air"
-                     aria-label="AIR voice-detection sensitivity (0 strict / 10 wide)" title="Voice Activity Detection threshold. Higher = more permissive (lets in more audio, including possible noise). Lower = stricter (only obvious voice passes). 5 = default.">
-              <span class="ctl-sens-readout" data-role="sens-readout" data-band="air">5</span>
-            </div>
-            <button type="button" class="band-ctl-btn ctl-wide-open" data-band="air"
-                    title="Test mode — bypass the voice-detection gate so every channel passes through.  Move Sensitivity to restore.">Test</button>
+            <input type="range" min="-80" max="0" step="1" value="-58"
+                   class="ctl-sq-dbfs ctl-sens-slider" data-band="air"
+                   aria-label="AIR squelch threshold in dBFS (more negative = more sensitive)">
+            <span class="ctl-sens-readout" data-role="sq-dbfs-readout" data-band="air">-58 dBFS</span>
           </div>
-          <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="air">—</span>
+          <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="air">manual · dBFS</span>
         </div>
         <div class="band-ctl">
           <span class="ctl-lbl">Gain</span>
@@ -3372,17 +3367,12 @@
             <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective" role="radio" aria-checked="false">Selective</button>
           </div>
           <div class="band-ctl-row band-ctl-sq-tools">
-            <div class="band-ctl-sens" data-band="ground">
-              <span class="ctl-sens-lbl">Sensitivity</span>
-              <input type="range" min="0" max="10" step="1" value="5"
-                     class="ctl-sens-slider" data-band="ground"
-                     aria-label="GROUND voice-detection sensitivity (0 strict / 10 wide)" title="Voice Activity Detection threshold. Higher = more permissive (lets in more audio, including possible noise). Lower = stricter (only obvious voice passes). 5 = default.">
-              <span class="ctl-sens-readout" data-role="sens-readout" data-band="ground">5</span>
-            </div>
-            <button type="button" class="band-ctl-btn ctl-wide-open" data-band="ground"
-                    title="Test mode — bypass the voice-detection gate so every channel passes through.  Move Sensitivity to restore.">Test</button>
+            <input type="range" min="-80" max="0" step="1" value="-52"
+                   class="ctl-sq-dbfs ctl-sens-slider" data-band="ground"
+                   aria-label="GROUND squelch threshold in dBFS (more negative = more sensitive)">
+            <span class="ctl-sens-readout" data-role="sq-dbfs-readout" data-band="ground">-52 dBFS</span>
           </div>
-          <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="ground">—</span>
+          <span class="ctl-val ctl-tune-status" data-role="tune-status" data-band="ground">manual · dBFS</span>
         </div>
         <div class="band-ctl">
           <span class="ctl-lbl">Gain</span>
@@ -9541,30 +9531,55 @@ if (document.readyState === "loading") {
   // set_audio_vad_sensitivity_via_chirp pushes the SAME threshold to every
   // channel, so any channel's value is canonical, but median is robust to
   // a stale channel mid-add).
-  function loadVadSensitivity(band) {
+  // SB5 2026-06-15 — true dBFS manual squelch (replaced the VAD "Sensitivity"
+  // relic).  Reads the live per-channel squelch_dbfs from chirp (median is
+  // canonical since every channel shares the band threshold) and paints it on
+  // the band card's dBFS slider + readout, so the UI reflects the real squelch.
+  function loadSquelchDbfs(band) {
     var endpoint = band === "ground" ? "/api/chirp/ground/status" : "/api/chirp/airband/status";
     fetch(endpoint, { credentials: "same-origin" })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (!j || !j.channels || !j.channels.length) return;
-        var thresholds = j.channels.map(function (c) {
-          return Number(c.vad_threshold || 50);
-        }).sort(function (a, b) { return a - b; });
-        var median = thresholds[Math.floor(thresholds.length / 2)];
-        // threshold = 100 - sensitivity * 10  =>  sensitivity = (100 - threshold) / 10
-        var sensitivity = Math.round((100 - median) / 10);
-        sensitivity = Math.max(0, Math.min(10, sensitivity));
-        var slider = document.querySelector('.ctl-sens-slider[data-band="' + band + '"]');
-        var ro = document.querySelector('[data-role="sens-readout"][data-band="' + band + '"]');
-        if (slider) slider.value = String(sensitivity);
-        if (ro) ro.textContent = String(sensitivity) + " (th " + Math.round(median) + ")";
+        var vals = j.channels.map(function (c) { return Number(c.squelch_dbfs); })
+          .filter(function (v) { return isFinite(v); })
+          .sort(function (a, b) { return a - b; });
+        if (!vals.length) return;
+        var med = Math.round(vals[Math.floor(vals.length / 2)]);
+        var slider = document.querySelector('.ctl-sq-dbfs[data-band="' + band + '"]');
+        var ro = document.querySelector('[data-role="sq-dbfs-readout"][data-band="' + band + '"]');
+        if (slider && !slider.matches(":active")) slider.value = String(med);
+        if (ro) ro.textContent = med + " dBFS";
       })
-      .catch(function (e) { /* silent — chirp may be down, slider keeps default 5 */ });
+      .catch(function () { /* silent — chirp may be down, slider keeps its value */ });
+  }
+  // Wire the dBFS sliders: live readout on drag, POST threshold_dbfs on release.
+  // auto:false pins it as a true manual squelch (the SNR tracker stays off).
+  function wireSquelchDbfs() {
+    var sendDbfs = debounce(function (band, dbfs) {
+      var apiBand = band === "ground" ? "ground" : "air";
+      fetch("/api/airband/squelch", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "band=" + apiBand + "&threshold_dbfs=" + dbfs + "&auto=false"
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        var statusEl = document.querySelector('[data-role="tune-status"][data-band="' + band + '"]');
+        if (statusEl) statusEl.textContent = (res && res.ok) ? ("manual · " + dbfs + " dBFS") : "squelch update failed";
+      }).catch(function () { /* tolerant */ });
+    }, 250);
+    ["air", "ground"].forEach(function (band) {
+      var slider = document.querySelector('.ctl-sq-dbfs[data-band="' + band + '"]');
+      if (!slider) return;
+      var ro = document.querySelector('[data-role="sq-dbfs-readout"][data-band="' + band + '"]');
+      slider.addEventListener("input", function () { if (ro) ro.textContent = Math.round(slider.value) + " dBFS"; });
+      slider.addEventListener("change", function () { sendDbfs(band, Math.round(slider.value)); });
+    });
   }
   // Run once when the script loads.
   document.addEventListener("DOMContentLoaded", function () {
-    loadVadSensitivity("air");
-    loadVadSensitivity("ground");
+    wireSquelchDbfs();
+    loadSquelchDbfs("air");
+    loadSquelchDbfs("ground");
   });
 
   document.addEventListener("input", function (ev) {
