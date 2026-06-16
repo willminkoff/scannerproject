@@ -1,0 +1,48 @@
+# SB6 Phase 0 -- Prometheus alerting rules for the Micro.
+#
+# Deploy target: /etc/prometheus/rules/alerts.yml
+# Validate before reload:  promtool check rules /etc/prometheus/rules/alerts.yml
+#
+# Phase 0 ships ONE rule: the icecast consumer-wedge canary. Additional rules
+# from the SB6 plan (chirp_config_load_status==0, sdrplay_open_failures spike,
+# op25_freq_error drift) depend on exporters that don't exist until Phase 1+.
+
+groups:
+  - name: icecast
+    rules:
+      # The VLC-wedge canary. When a consumer (e.g. scanner-vlc-analog) stays
+      # connected but stops draining the stream, Icecast can no longer push
+      # bytes to it, so total_bytes_sent stalls and the derived byte rate
+      # collapses toward zero while the listener count stays > 0.
+      #
+      # 1000 B/s is well below any real mp3 stream (a 64 kbps mount is ~8000
+      # B/s, a 32 kbps mount ~4000 B/s), so this only fires on a true stall.
+      - alert: IcecastConsumerWedge
+        expr: icecast_listener_byte_rate < 1000 and icecast_listener_count > 0
+        for: 2m
+        labels:
+          severity: warning
+          component: icecast
+        annotations:
+          summary: "Icecast mount {{ $labels.mount }} has listeners but byte rate < 1000 B/s"
+          description: >-
+            Mount {{ $labels.mount }} is sending only {{ $value | printf "%.0f" }}
+            B/s to its listener(s) for 2m, while listener count is > 0. Likely a
+            wedged consumer (TCP connected, not draining). Restart only the
+            wedged consumer unit, not the source chain. See
+            docs/sb6-phase0-install.md.
+
+      # Companion: alert if the exporter itself can't reach Icecast, so a wedge
+      # alert silenced by a dead exporter doesn't pass unnoticed.
+      - alert: IcecastExporterDown
+        expr: icecast_up == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: icecast
+        annotations:
+          summary: "icecast_exporter cannot poll Icecast /admin/stats"
+          description: >-
+            icecast_up has been 0 for 2m. The exporter is running but its poll
+            of /admin/stats is failing (auth, port, or Icecast down). The
+            consumer-wedge canary is blind until this clears.

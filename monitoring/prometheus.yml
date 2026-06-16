@@ -1,0 +1,57 @@
+# SB6 Phase 0 -- Prometheus scrape config for the Micro (100.67.20.40).
+#
+# Deploy target: /etc/prometheus/prometheus.yml
+# Reload after edit:  curl -X POST http://localhost:9090/-/reload
+#                     (requires prometheus started with --web.enable-lifecycle;
+#                      otherwise `systemctl reload prometheus`)
+#
+# Retention is a CLI flag, not a config key. The Debian package sets it in
+# /etc/default/prometheus via ARGS. Phase 0 target: --storage.tsdb.retention.time=14d
+# (see docs/sb6-phase0-install.md).
+#
+# Phase 0 scrapes only the host + icecast. The chirp/op25/disco/sdrplay
+# exporters (ports 9101-9104) arrive in later phases -- their jobs are listed
+# here commented out so the wiring is obvious when those phases land.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    host: micro
+
+rule_files:
+  - /etc/prometheus/rules/alerts.yml
+
+# Alertmanager is NOT installed in Phase 0. Notification delivery is decided
+# with Will (see runbook). When an Alertmanager exists, uncomment:
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["localhost:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["localhost:9100"]
+        labels:
+          host: micro
+
+  - job_name: icecast
+    static_configs:
+      - targets: ["localhost:9146"]
+        labels:
+          host: micro
+
+  # --- Later SB6 phases (not installed in Phase 0) ---
+  # - job_name: chirp        # Phase 1: gr-demod self-instrumentation
+  #     static_configs: [{ targets: ["localhost:9101"] }]
+  # - job_name: op25
+  #     static_configs: [{ targets: ["localhost:9102"] }]
+  # - job_name: disco
+  #     static_configs: [{ targets: ["localhost:9103"] }]
+  # - job_name: sdrplay_supervisor   # Phase 3
+  #     static_configs: [{ targets: ["localhost:9104"] }]

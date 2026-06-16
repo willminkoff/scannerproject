@@ -1,0 +1,17 @@
+# SB6 Phase 0 -- Grafana dashboard provider.
+# Deploy target: /etc/grafana/provisioning/dashboards/sb6.yml
+# Dashboards are read from the path below; copy
+# monitoring/grafana/dashboards/*.json there (see runbook).
+apiVersion: 1
+
+providers:
+  - name: sb6
+    orgId: 1
+    folder: SB6
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/sb6
+      foldersFromFilesStructure: false

@@ -1,0 +1,14 @@
+# SB6 Phase 0 -- Grafana datasource provisioning.
+# Deploy target: /etc/grafana/provisioning/datasources/prometheus.yml
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    uid: prometheus
+    url: http://localhost:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s

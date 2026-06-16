@@ -1,0 +1,48 @@
+# SB6 Phase 0 -- Prometheus sidecar exporter for Icecast2.
+#
+# Deploy target: /etc/systemd/system/icecast-exporter.service
+#
+# HOST-SPECIFIC VALUES TO VERIFY BEFORE ENABLING (see docs/sb6-phase0-install.md):
+#   User=          -- the deploy user on the Micro. scanner-vfo.service uses
+#                     `ubuntu` with repo at /home/ubuntu/scannerproject; the
+#                     dispatch says `will`. CONFIRM via SSH, do not assume.
+#   ExecStart path -- absolute path to monitoring/icecast_exporter.py on the host.
+#
+# The exporter is pure stdlib -- it runs on the system python3, no venv needed.
+#
+# Secrets are NOT in this file or the repo. The Icecast admin password lives in
+# /etc/icecast-exporter.env (chmod 600, root:root), e.g.:
+#   ICECAST_ADMIN_USER=source
+#   ICECAST_ADMIN_PASSWORD=<real admin-password from /etc/icecast2/icecast.xml>
+#
+# Rollback: `sudo systemctl disable --now icecast-exporter` -- nothing else is
+# touched.
+
+[Unit]
+Description=Prometheus exporter for Icecast2 (SB6 Phase 0)
+Documentation=file:///home/ubuntu/scannerproject/docs/sb6-phase0-install.md
+After=network-online.target icecast2.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+# --- env: non-secret defaults here; secrets in the EnvironmentFile below ---
+Environment=ICECAST_STATS_URL=http://localhost:8000/admin/stats
+Environment=ICECAST_EXPORTER_BIND=127.0.0.1
+Environment=ICECAST_EXPORTER_PORT=9146
+Environment=ICECAST_POLL_INTERVAL_SEC=15
+EnvironmentFile=/etc/icecast-exporter.env
+ExecStart=/usr/bin/python3 /home/ubuntu/scannerproject/monitoring/icecast_exporter.py
+Restart=on-failure
+RestartSec=5
+
+# Hardening -- this process only reads a local HTTP endpoint and serves metrics.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=
+
+[Install]
+WantedBy=multi-user.target
