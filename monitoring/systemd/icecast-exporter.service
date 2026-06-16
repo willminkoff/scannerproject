@@ -38,11 +38,13 @@ Restart=on-failure
 RestartSec=5
 
 # Hardening -- this process only reads a local HTTP endpoint and serves metrics.
+# Writes nothing to disk (metrics are served from memory; logs go to journald).
+# ProtectHome=read-only (NOT true): the exporter script lives under /home/ubuntu,
+# so it must remain readable; read-only blocks writes without hiding it.
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=true
+ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=
 
 [Install]
 WantedBy=multi-user.target
