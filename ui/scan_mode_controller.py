@@ -401,14 +401,24 @@ class ScanModeController:
     def get_last_stripped_custom_favorites(self) -> dict[int, dict]:
         """Returns {tag_id: {'tag_label': str, 'entries': [name, ...]}} from
         the most recent get_scan_pool() call.  Empty when not in favorites mode
-        or when all custom favorites match the enabled service-tag set."""
-        return {
-            tag: {
-                'tag_label': str(payload.get('tag_label') or ''),
-                'entries': list(payload.get('entries') or []),
-            }
-            for tag, payload in (self._last_stripped_custom_favorites or {}).items()
-        }
+        or when all custom favorites match the enabled service-tag set.
+
+        Defensive: tolerates a payload stored as a bare list of entry names —
+        an earlier per-band merge path did ``list(v)`` on the dict bucket,
+        collapsing it to its keys and making this method raise
+        ``AttributeError`` (which crashed /api/status). The writer is fixed,
+        but this guard keeps a malformed payload from ever taking down the
+        status endpoint again. 2026-06-17."""
+        out: dict[int, dict] = {}
+        for tag, payload in (self._last_stripped_custom_favorites or {}).items():
+            if isinstance(payload, dict):
+                out[tag] = {
+                    'tag_label': str(payload.get('tag_label') or ''),
+                    'entries': list(payload.get('entries') or []),
+                }
+            elif isinstance(payload, (list, tuple)):
+                out[tag] = {'tag_label': '', 'entries': list(payload)}
+        return out
 
     @classmethod
     def _normalize_control_channels(cls, value) -> list[float]:
@@ -1080,12 +1090,29 @@ class ScanModeController:
                 filtered_air, _stripped_air = self._split_favorites_by_service_tag(air_entries, service_tags)
                 filtered_ground, _stripped_ground = self._split_favorites_by_service_tag(ground_entries, service_tags)
                 # Track stripped-by-tag from the union for the existing
-                # /api/hp telemetry path.
-                _merged_stripped: dict = {}
-                for k, v in (_stripped_air or {}).items():
-                    _merged_stripped[k] = list(v)
-                for k, v in (_stripped_ground or {}).items():
-                    _merged_stripped.setdefault(k, []).extend(v)
+                # /api/hp telemetry path.  Merge MUST preserve each tag's
+                # {tag_label, entries} bucket shape that
+                # get_last_stripped_custom_favorites expects — an earlier
+                # version did `list(v)` on the dict bucket, which collapsed it
+                # to the bucket's KEYS (['tag_label','entries']) and crashed
+                # /api/status with AttributeError. 2026-06-17.
+                _merged_stripped: dict[int, dict] = {}
+
+                def _merge_stripped(src):
+                    for k, v in (src or {}).items():
+                        if not isinstance(v, dict):
+                            continue
+                        ents = list(v.get('entries') or [])
+                        if k in _merged_stripped:
+                            _merged_stripped[k]['entries'].extend(ents)
+                        else:
+                            _merged_stripped[k] = {
+                                'tag_label': str(v.get('tag_label') or ''),
+                                'entries': ents,
+                            }
+
+                _merge_stripped(_stripped_air)
+                _merge_stripped(_stripped_ground)
                 self._last_stripped_custom_favorites = _merged_stripped
                 air_pool = self._build_custom_favorites_pool(filtered_air)
                 ground_pool = self._build_custom_favorites_pool(filtered_ground)
@@ -1100,8 +1127,7 @@ class ScanModeController:
                     filtered_digital, _stripped_digital = self._split_favorites_by_service_tag(
                         digital_entries, service_tags
                     )
-                    for k, v in (_stripped_digital or {}).items():
-                        _merged_stripped.setdefault(k, []).extend(v)
+                    _merge_stripped(_stripped_digital)
                     self._last_stripped_custom_favorites = _merged_stripped
                     digital_pool = self._build_custom_favorites_pool(filtered_digital)
                     trunk_source = list(digital_pool.get("trunked_sites") or [])
