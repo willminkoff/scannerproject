@@ -112,8 +112,21 @@ sudo systemctl restart gr-demod@airband
 # Within ~60s in Prometheus: ALERTS{alertname="ChirpConfigLoadFailed"} is firing
 #   (config_load_status==0 during the grace window, then up==0 after exit)
 cp /tmp/airband.json.bak chirp/config/airband.json   # restore
-sudo systemctl restart gr-demod@airband              # alert clears
+sudo systemctl reset-failed gr-demod@airband         # clear the StartLimit trip
+sudo systemctl start gr-demod@airband                # alert clears
 ```
+
+> **Operational note — broken config + StartLimit.** The Phase-2 hard-fail
+> flaps a broken-config daemon (publish `status=0` → `CHIRP_CONFIG_FAIL_GRACE_S`
+> grace → exit 3 → systemd restart). After ~3 cycles systemd's StartLimit trips
+> ("start request repeated too quickly") and stops the flap — the daemon stays
+> failed and `ChirpConfigLoadFailed` keeps firing (desired). **But this means a
+> plain `systemctl restart` after you fix the config is rejected** until you
+> `systemctl reset-failed gr-demod@<band>` first. This is also why the alert is
+> band-stable (`count by (band)`): without it the flap alternates alert label
+> sets and resets the `for:` timer (measured: fired at ~90s instead of ~40s).
+> **Bonus safety:** the hard-fail returns *before* opening the SDR, so a
+> broken-config flap never touches sdrplay — it can't trigger the wedge spiral.
 
 **Phase 2 audio gate (needs Will + the Micro):** with `airband.json` loaded
 clean (`chirp_config_load_status==1`), listen to **BNA Approach West (119.35)**
