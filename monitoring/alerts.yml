@@ -63,10 +63,17 @@ groups:
       #      bound /metrics), so the status series is gone; the scrape target is
       #      down. Without this arm a hard-failed daemon would silence the alert.
       #
-      # `for: 45s` + the 15s scrape interval => fires within ~60s of a break,
-      # meeting the SB6 done-gate ("broken airband.json triggers the alert <=60s").
+      # WHY `count by (band)`: a hard-failing daemon FLAPS (publish 0 -> 20s
+      # grace -> exit 3 -> systemd restart). That alternates the active arm
+      # between arm 1 (carries a `daemon` label) and arm 2 (does not), so the
+      # raw two-arm expr produces a DIFFERENT alert series each flap and the
+      # `for:` timer keeps resetting (observed: fired at ~90s, not <=60s).
+      # Collapsing both arms to a stable {band} identity keeps one continuous
+      # pending series across the flap, so `for: 45s` + the 15s scrape interval
+      # fires within ~60s -- meeting the done-gate. (A normal ~12s restart stays
+      # well under 45s, so this does not false-fire on deploys.)
       - alert: ChirpConfigLoadFailed
-        expr: chirp_config_load_status == 0 or up{job="chirp"} == 0
+        expr: count by (band) ((chirp_config_load_status == 0) or (up{job="chirp"} == 0)) > 0
         for: 45s
         labels:
           severity: critical
