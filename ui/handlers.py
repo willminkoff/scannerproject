@@ -8690,6 +8690,16 @@ class Handler(BaseHTTPRequestHandler):
             if muted is None:
                 return self._send(400, json.dumps({"ok": False, "error": "invalid muted"}), "application/json; charset=utf-8")
             get_digital_manager().setMuted(muted)
+            # 2026-06-17: setMuted() only writes a JSON state file that nothing
+            # consumes -- it never silenced the digital audio on BOOM. Route
+            # through the working band_mute path so this endpoint actually mutes
+            # the scanner-vlc-digital sink-input (same path as the band-card
+            # toggle). Response shape unchanged for backward compat.
+            try:
+                from . import band_mute as _band_mute_mod
+                _band_mute_mod.set_band("digital", bool(muted))
+            except Exception:
+                logger.debug("/api/digital/mute: band_mute.set_band failed", exc_info=True)
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/digital/profile/create":
@@ -8897,6 +8907,21 @@ class Handler(BaseHTTPRequestHandler):
                 use_chirp = bool(_chirp_use_gr_demod())
             except Exception:
                 logger.debug("%s: use_gr_demod probe failed", p, exc_info=True)
+            # Manual dbfs squelch under chirp: the SNR tracker is the only
+            # thing that propagates managed-controls values into the live
+            # daemon, and it SKIPS bands with auto OFF — so a manual slider
+            # change would never reach the radio. Push it straight to chirp
+            # (set_squelch on every channel). No-op for the gain endpoint and
+            # for rtl-airband (chirp client unavailable). 2026-06-15.
+            if use_chirp and p == "/api/airband/squelch" and new_mode == "dbfs":
+                try:
+                    try:
+                        from .chirp_adapter import wide_open_squelch_via_chirp
+                    except ImportError:
+                        from ui.chirp_adapter import wide_open_squelch_via_chirp  # type: ignore
+                    wide_open_squelch_via_chirp(target, new_dbfs)
+                except Exception:
+                    logger.debug("%s: manual squelch chirp push failed", p, exc_info=True)
             resp = {
                 "ok": True,
                 "band": "air" if target == "airband" else "ground",
