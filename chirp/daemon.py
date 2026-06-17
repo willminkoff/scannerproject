@@ -60,6 +60,7 @@ from chirp.cmd.schema import (
     SetFreqArgs,
     SetGainArgs,
     SetMasterGainArgs,
+    SetSdrGainArgs,
     SetSquelchArgs,
 )
 from chirp.cmd.server import CommandServer, ServerConfig
@@ -491,8 +492,8 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
 # ChirpFlowgraph.dispatch().
 _KNOWN_CMDS = frozenset({
     "add_channel", "remove_channel", "set_squelch", "set_freq", "set_gain",
-    "set_vad_bypass", "set_vad_threshold", "set_master_gain", "reset",
-    "get_status",
+    "set_vad_bypass", "set_vad_threshold", "set_master_gain", "set_sdr_gain",
+    "reset", "get_status",
 })
 
 
@@ -770,6 +771,8 @@ class ChirpFlowgraph(gr.top_block):
                 return self._cmd_set_vad_threshold(env, args)
             if cmd == "set_master_gain":
                 return self._cmd_set_master_gain(env, args)
+            if cmd == "set_sdr_gain":
+                return self._cmd_set_sdr_gain(env, args)
             if cmd == "reset":
                 return self._cmd_reset(env, args)
             if cmd == "get_status":
@@ -1117,6 +1120,21 @@ class ChirpFlowgraph(gr.top_block):
             self._persist_state()
             self._server.emit_event("master_gain_changed", db=args.db)
             return Response.make_ok(env.id, {"db": args.db})
+
+    def _cmd_set_sdr_gain(self, env: Envelope, args: SetSdrGainArgs) -> Response:
+        """SB6 2026-06-17. Hot-set the overall SDR front-end gain on the live
+        osmosdr source. Only valid for the SDR source kind; the driver clamps
+        the request to its real range, so we return the read-back *actual*
+        value (and mirror it into ``_cfg.sdr_gain_db`` so get_status agrees)."""
+        with self._lock:
+            if self._cfg.source_kind != "sdr":
+                return Response.make_rejected(
+                    env.id, f"set_sdr_gain requires source_kind=sdr "
+                            f"(have {self._cfg.source_kind!r})")
+            actual = float(self.source.set_gain(args.db))
+            self._cfg.sdr_gain_db = actual
+            self._server.emit_event("sdr_gain_changed", db=actual)
+            return Response.make_ok(env.id, {"db": actual})
 
     def _cmd_reset(self, env: Envelope, args: ResetArgs) -> Response:
         with self._lock:

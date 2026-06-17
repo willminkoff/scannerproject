@@ -253,8 +253,22 @@ class SdrIQSource(gr.hier_block2):
     def set_center_freq(self, hz: float) -> None:
         self._src.set_center_freq(float(hz), 0)
 
-    def set_gain(self, db: float) -> None:
+    def set_gain(self, db: float) -> float:
+        """Hot-set the overall SDR front-end gain (dB) and return the value
+        the driver actually applied.
+
+        SoapySDRPlay3 / gr-osmosdr clamp the request to the device's real
+        internal range, so the read-back via ``get_gain(0)`` is the truth —
+        the UI gain slider relies on it to display reality, not the request.
+        Also updates ``_cfg.gain_db`` so the config mirrors live state.
+        """
         self._src.set_gain(float(db), 0)
+        try:
+            actual = float(self._src.get_gain(0))
+        except Exception:  # noqa: BLE001 -- read-back is best-effort
+            actual = float(db)
+        self._cfg.gain_db = actual
+        return actual
 
     # -- Phase 1: source contract validator ---------------------------------
 

@@ -1169,6 +1169,49 @@ def wide_open_squelch_via_chirp(band: str, dbfs: float = -120.0) -> dict:
     }
 
 
+def set_sdr_gain_via_chirp(band: str, db: float) -> dict:
+    """SB6 2026-06-17. Push the overall SDR front-end gain (dB) to the live
+    chirp daemon for ``band``.
+
+    This is the missing link the UI gain slider needed: it writes the
+    rtl-airband controls file *and* (now) drives the running chirp osmosdr
+    source. The daemon clamps to the device's real range and reports the
+    applied value back, which we return so the caller can reflect reality in
+    the UI instead of the requested number.
+
+    Returns a small report dict mirroring the other ``*_via_chirp`` helpers.
+    """
+    target = _normalize_band(band)
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target,
+            "requested_db": db,
+            "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_set_sdr_gain",
+        }
+    try:
+        resp = client.set_sdr_gain(float(db))
+    except Exception as exc:
+        return {
+            "target": target,
+            "requested_db": db,
+            "changed": False,
+            "error": f"chirp_set_sdr_gain_failed: {exc}",
+            "via": "chirp_set_sdr_gain",
+        }
+    applied = None
+    if isinstance(resp, dict):
+        applied = resp.get("db")
+    return {
+        "target": target,
+        "requested_db": float(db),
+        "applied_db": applied,
+        "changed": True,
+        "via": "chirp_set_sdr_gain",
+    }
 
 
 def set_audio_vad_sensitivity_via_chirp(band: str, sensitivity: float) -> dict:

@@ -367,6 +367,9 @@ class ChirpClient:
     def set_master_gain(self, db: float) -> dict:
         return self._send("set_master_gain", {"db": float(db)})
 
+    def set_sdr_gain(self, db: float) -> dict:
+        return self._send("set_sdr_gain", {"db": float(db)})
+
     def reset(self) -> dict:
         """Park every channel + zero master gain + clear state file.
 

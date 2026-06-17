@@ -8911,8 +8911,8 @@ class Handler(BaseHTTPRequestHandler):
             # thing that propagates managed-controls values into the live
             # daemon, and it SKIPS bands with auto OFF — so a manual slider
             # change would never reach the radio. Push it straight to chirp
-            # (set_squelch on every channel). No-op for the gain endpoint and
-            # for rtl-airband (chirp client unavailable). 2026-06-15.
+            # (set_squelch on every channel). For rtl-airband (chirp client
+            # unavailable) this is a no-op. 2026-06-15.
             if use_chirp and p == "/api/airband/squelch" and new_mode == "dbfs":
                 try:
                     try:
@@ -8922,11 +8922,40 @@ class Handler(BaseHTTPRequestHandler):
                     wide_open_squelch_via_chirp(target, new_dbfs)
                 except Exception:
                     logger.debug("%s: manual squelch chirp push failed", p, exc_info=True)
+            # Gain under chirp: write_controls + managed-override only touch
+            # the rtl-airband config files; the running chirp daemon never
+            # sees them. Push the front-end gain straight to the live osmosdr
+            # source (set_sdr_gain). This is the fix for the gain slider
+            # snapping back — without it the daemon's runtime gain never
+            # changed. No-op for rtl-airband. SB6 2026-06-17.
+            sdr_gain_applied = None
+            if (use_chirp and p == "/api/airband/gain"
+                    and "gain_db" in form):
+                try:
+                    try:
+                        from .chirp_adapter import set_sdr_gain_via_chirp
+                    except ImportError:
+                        from ui.chirp_adapter import set_sdr_gain_via_chirp  # type: ignore
+                    _gain_report = set_sdr_gain_via_chirp(target, new_gain)
+                    sdr_gain_applied = (_gain_report or {}).get("applied_db")
+                except Exception:
+                    logger.debug("%s: gain chirp push failed", p, exc_info=True)
+            # Report the value the SDR actually applied (driver-clamped
+            # read-back) when chirp accepted the gain push, so the UI slider
+            # snaps to reality instead of the requested number. Falls back to
+            # the requested value otherwise. SB6 2026-06-17.
+            resp_gain = float(new_gain)
+            if sdr_gain_applied is not None:
+                try:
+                    resp_gain = float(sdr_gain_applied)
+                except (TypeError, ValueError):
+                    pass
             resp = {
                 "ok": True,
                 "band": "air" if target == "airband" else "ground",
                 "target": target,
-                "gain_db": float(new_gain),
+                "gain_db": resp_gain,
+                "requested_gain_db": float(new_gain),
                 "threshold_dbfs": float(new_dbfs),
                 "auto": new_mode == "snr",
                 "changed": bool(changed),

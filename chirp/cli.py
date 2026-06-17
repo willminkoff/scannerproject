@@ -139,6 +139,10 @@ def cmd_set_master_gain(args, host: str, port: int) -> int:
     return _emit(_send(port, host, _envelope("set_master_gain", {"db": args.db})))
 
 
+def cmd_set_sdr_gain(args, host: str, port: int) -> int:
+    return _emit(_send(port, host, _envelope("set_sdr_gain", {"db": args.db})))
+
+
 def cmd_reset(args, host: str, port: int) -> int:
     return _emit(_send(port, host, _envelope("reset", {})))
 
@@ -251,6 +255,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("set-master-gain", help="post-mixer master gain trim")
     sp.add_argument("--db", type=float, required=True)
 
+    sp = sub.add_parser("set-sdr-gain",
+                        help="overall SDR front-end gain (live, sdr source only)")
+    sp.add_argument("--db", type=float, required=True)
+
     sub.add_parser("reset", help="clear all channels + reset state")
 
     sp = sub.add_parser("events", help="subscribe to UDP event stream")
@@ -268,6 +276,7 @@ DISPATCH = {
     "set-freq": cmd_set_freq,
     "set-gain": cmd_set_gain,
     "set-master-gain": cmd_set_master_gain,
+    "set-sdr-gain": cmd_set_sdr_gain,
     "reset": cmd_reset,
     "events": cmd_events,
 }
