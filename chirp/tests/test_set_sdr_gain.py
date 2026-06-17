@@ -17,6 +17,9 @@ These tests pin the contract end to end WITHOUT a real SDR or a running daemon
   4. Handler  — _cmd_set_sdr_gain rejects non-sdr sources and, for an sdr
                 source, applies the gain, returns the read-back actual, updates
                 _cfg.sdr_gain_db, and emits the sdr_gain_changed event.
+  5. Read     — get_sdr_gain_via_chirp sources the slider's displayed gain
+                from the daemon's get_status (fixes page-reload snap-back),
+                returning None on any failure so callers keep their fallback.
 
 Requires the daemon's Python env (pydantic + gnuradio importable); it does NOT
 require an SDR device or a live daemon process.
@@ -208,3 +211,46 @@ def test_cmd_set_sdr_gain_applies_and_returns_readback():
     assert d._cfg.sdr_gain_db == 49.0
     assert d.source.calls == [60.0]
     assert ("sdr_gain_changed", {"db": 49.0}) in d._server.events
+
+
+# ---------------------------------------------------------------------------
+# 5. READ path — get_sdr_gain_via_chirp (fixes the gain-slider snap-back)
+#
+# The UI reads the gain on page load from get_status().source.sdr_gain_db,
+# NOT the rtl-airband controls file (which regenerates to the profile default
+# under chirp). These pin that the adapter reads the daemon's value and falls
+# back to None (so callers keep their controls-file value) on any failure.
+# ---------------------------------------------------------------------------
+
+def test_get_sdr_gain_via_chirp_reads_daemon_source(monkeypatch):
+    from ui import chirp_adapter
+
+    class _FakeClient:
+        def get_status(self):
+            return {"source": {"sdr_gain_db": 40.0}, "channels": []}
+
+    monkeypatch.setattr(chirp_adapter, "_chirp_client_for",
+                        lambda band: _FakeClient())
+    assert chirp_adapter.get_sdr_gain_via_chirp("airband") == 40.0
+
+
+def test_get_sdr_gain_via_chirp_none_when_source_missing(monkeypatch):
+    from ui import chirp_adapter
+
+    class _FakeClient:
+        def get_status(self):
+            return {"channels": []}  # no "source" key
+
+    monkeypatch.setattr(chirp_adapter, "_chirp_client_for",
+                        lambda band: _FakeClient())
+    assert chirp_adapter.get_sdr_gain_via_chirp("airband") is None
+
+
+def test_get_sdr_gain_via_chirp_none_when_daemon_unreachable(monkeypatch):
+    from ui import chirp_adapter
+
+    def _boom(band):
+        raise RuntimeError("chirp daemon down")
+
+    monkeypatch.setattr(chirp_adapter, "_chirp_client_for", _boom)
+    assert chirp_adapter.get_sdr_gain_via_chirp("ground") is None

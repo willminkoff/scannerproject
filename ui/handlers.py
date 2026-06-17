@@ -1178,6 +1178,30 @@ def _read_effective_analog_controls() -> dict[str, Any]:
     controls_ground_path = resolve_controls_path("ground")
     airband_gain, _airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
     ground_gain, _ground_snr, ground_dbfs, ground_mode = parse_controls(controls_ground_path)
+    # SB6 2026-06-17: under chirp, the live SDR front-end gain lives in the
+    # daemon, not the rtl-airband controls file (which regenerates to the
+    # profile default). Read the daemon's authoritative get_status value so the
+    # gain slider reflects reality across page reloads instead of snapping back
+    # to 32.8. Mirrors the squelch read path. Falls back to the controls-file
+    # value when chirp is off / unreachable / not an SDR source.
+    try:
+        try:
+            from .chirp_client import use_gr_demod as _ugd
+        except ImportError:
+            from ui.chirp_client import use_gr_demod as _ugd  # type: ignore
+        if _ugd():
+            try:
+                from .chirp_adapter import get_sdr_gain_via_chirp
+            except ImportError:
+                from ui.chirp_adapter import get_sdr_gain_via_chirp  # type: ignore
+            _air = get_sdr_gain_via_chirp("airband")
+            if _air is not None:
+                airband_gain = _air
+            _gnd = get_sdr_gain_via_chirp("ground")
+            if _gnd is not None:
+                ground_gain = _gnd
+    except Exception:
+        logger.debug("chirp gain read-back override skipped", exc_info=True)
     return {
         "controls_airband_path": controls_airband_path,
         "controls_ground_path": controls_ground_path,
