@@ -3,9 +3,12 @@
 # Deploy target: /etc/prometheus/rules/alerts.yml
 # Validate before reload:  promtool check rules /etc/prometheus/rules/alerts.yml
 #
-# Phase 0 ships ONE rule: the icecast consumer-wedge canary. Additional rules
-# from the SB6 plan (chirp_config_load_status==0, sdrplay_open_failures spike,
-# op25_freq_error drift) depend on exporters that don't exist until Phase 1+.
+# Phase 0 shipped the icecast consumer-wedge canary. Phase 1 (SB6) adds the
+# chirp config-load alert. Remaining SB6-plan rules (sdrplay_open_failures spike,
+# op25_freq_error drift) depend on exporters that don't exist until later phases.
+#
+# Delivery is still observe-only: no Alertmanager is wired (see prometheus.yml),
+# so these rules go ACTIVE/FIRING in the Prometheus UI but send no NTFY/page yet.
 
 groups:
   - name: icecast
@@ -46,3 +49,34 @@ groups:
             icecast_up has been 0 for 2m. The exporter is running but its poll
             of /admin/stats is failing (auth, port, or Icecast down). The
             consumer-wedge canary is blind until this clears.
+
+  - name: chirp
+    rules:
+      # The voice-as-noise canary (SB6 Phase 1/2). A chirp daemon publishes
+      # chirp_config_load_status=1 only when it loaded its JSON config cleanly.
+      #
+      # Two arms, because Phase 2 makes a broken config a HARD FAIL:
+      #   1. chirp_config_load_status == 0 -- the daemon came up, started its
+      #      /metrics endpoint, found the config broken, published 0, and is in
+      #      its short grace window before exiting (CHIRP_CONFIG_FAIL_GRACE_S).
+      #   2. up{job="chirp"} == 0 -- the daemon has already exited (or never
+      #      bound /metrics), so the status series is gone; the scrape target is
+      #      down. Without this arm a hard-failed daemon would silence the alert.
+      #
+      # `for: 45s` + the 15s scrape interval => fires within ~60s of a break,
+      # meeting the SB6 done-gate ("broken airband.json triggers the alert <=60s").
+      - alert: ChirpConfigLoadFailed
+        expr: chirp_config_load_status == 0 or up{job="chirp"} == 0
+        for: 45s
+        labels:
+          severity: critical
+          component: chirp
+        annotations:
+          summary: "chirp config load failed / daemon down (band {{ $labels.band }})"
+          description: >-
+            A chirp daemon either published chirp_config_load_status=0 (its JSON
+            config failed to load, so it refused to start on stale defaults) or
+            its /metrics target has been down for 45s. This is the 2026-06-14
+            voice-as-noise class: a broken config used to silently fall back to
+            defaults that flipped am_agc_enabled on. Check
+            `journalctl -u gr-demod@<band>` for "CONFIG LOAD FAILED".

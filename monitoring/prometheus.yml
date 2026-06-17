@@ -9,9 +9,13 @@
 # /etc/default/prometheus via ARGS. Phase 0 target: --storage.tsdb.retention.time=14d
 # (see docs/sb6-phase0-install.md).
 #
-# Phase 0 scrapes only the host + icecast. The chirp/op25/disco/sdrplay
-# exporters (ports 9101-9104) arrive in later phases -- their jobs are listed
-# here commented out so the wiring is obvious when those phases land.
+# Phase 0 scraped only the host + icecast. Phase 1 (SB6) adds the two chirp
+# daemons' self-instrumentation (airband :9101, ground :9102). The op25 / disco /
+# sdrplay exporters arrive in later phases; their jobs are listed commented out.
+#
+# PORT NOTE: SB6 arch-plan Sec 9 originally penciled op25 at :9102, but chirp is
+# TWO daemons and ground claims :9102, so the later exporters shift to 9112+ to
+# avoid the collision. The dispatch (2026-06-16) set chirp = 9101 / 9102.
 
 global:
   scrape_interval: 15s
@@ -46,12 +50,26 @@ scrape_configs:
         labels:
           host: micro
 
-  # --- Later SB6 phases (not installed in Phase 0) ---
-  # - job_name: chirp        # Phase 1: gr-demod self-instrumentation
-  #     static_configs: [{ targets: ["localhost:9101"] }]
-  # - job_name: op25
-  #     static_configs: [{ targets: ["localhost:9102"] }]
+  # Phase 1 (SB6): chirp gr-demod self-instrumentation. One job, two daemons.
+  # The exported series self-label with daemon="airband"/"ground"; the `band`
+  # target label below also tags `up` so the ChirpConfigLoadFailed alert can
+  # name which daemon is down. (Different label name from the exported `daemon`
+  # to avoid a relabel collision.)
+  - job_name: chirp
+    static_configs:
+      - targets: ["localhost:9101"]
+        labels:
+          band: airband
+          host: micro
+      - targets: ["localhost:9102"]
+        labels:
+          band: ground
+          host: micro
+
+  # --- Later SB6 phases (not installed yet; ports shifted to clear chirp) ---
+  # - job_name: op25                 # Phase ~6
+  #     static_configs: [{ targets: ["localhost:9112"] }]
   # - job_name: disco
-  #     static_configs: [{ targets: ["localhost:9103"] }]
+  #     static_configs: [{ targets: ["localhost:9113"] }]
   # - job_name: sdrplay_supervisor   # Phase 3
-  #     static_configs: [{ targets: ["localhost:9104"] }]
+  #     static_configs: [{ targets: ["localhost:9114"] }]

@@ -77,6 +77,7 @@ from chirp.dsp.source_file import FileIQSource
 from chirp.dsp.source_sdr import SdrIQSource, SdrSourceConfig
 from chirp.hit_detector import HitDetector
 from chirp.state import ChannelState, ChirpState, StateStore, default_state_path
+from chirp import metrics
 
 log = logging.getLogger("chirp.daemon")
 
@@ -224,6 +225,10 @@ class DaemonConfig:
     # `CHIRP_AUDIO_TRACE=1`.  Default off only to avoid log volume during
     # initial roll-out — flip to True once trace events are validated.
     audio_trace_enabled: bool = False
+    # Resolved path of the JSON config file load_config() actually read, or
+    # None when no config file was found (defaults-only run). Not a tunable —
+    # load_config populates it for /metrics (chirp_config_path) + get_status.
+    config_source_path: Optional[str] = None
 
 
 def _parse_event_sink(spec: Optional[str]) -> Optional[tuple[str, int]]:
@@ -495,12 +500,22 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
             "CHIRP_AUDIO_TRACE",
             raw.get("audio_trace_enabled", False),
         )),
+        config_source_path=str(dp) if dp.is_file() else None,
     )
 
 
 # ---------------------------------------------------------------------------
 # Flowgraph
 # ---------------------------------------------------------------------------
+
+# Known cmd-bus verbs — used to bound chirp_cmd_bus_request_seconds histogram
+# cardinality (unknown verbs bucket under "unknown"). Keep in sync with
+# ChirpFlowgraph.dispatch().
+_KNOWN_CMDS = frozenset({
+    "add_channel", "remove_channel", "set_squelch", "set_freq", "set_gain",
+    "set_vad_bypass", "set_vad_threshold", "set_master_gain", "reset",
+    "get_status",
+})
 
 
 @dataclass
@@ -756,6 +771,10 @@ class ChirpFlowgraph(gr.top_block):
 
     def dispatch(self, env: Envelope, args: Any) -> Response:
         cmd = env.cmd
+        _t0 = time.monotonic()
+        # Bound histogram cardinality: only the known command verbs get their
+        # own label; anything else buckets under "unknown".
+        _label = cmd if cmd in _KNOWN_CMDS else "unknown"
         try:
             if cmd == "add_channel":
                 return self._cmd_add_channel(env, args)
@@ -780,6 +799,16 @@ class ChirpFlowgraph(gr.top_block):
         except Exception as e:  # noqa: BLE001
             log.exception("dispatch internal error: cmd=%s", cmd)
             return Response.make_error(env.id, f"internal: {e}")
+        finally:
+            try:
+                metrics.REGISTRY.observe(
+                    "chirp_cmd_bus_request_seconds",
+                    time.monotonic() - _t0,
+                    labels={"command": _label},
+                    help="chirp cmd-bus dispatch latency by command",
+                )
+            except Exception:  # noqa: BLE001 -- instrumentation must never break dispatch
+                pass
         return Response.make_rejected(env.id, f"unknown command: {cmd}")
 
     def _freq_to_offset_hz(self, freq_mhz: float) -> float:
@@ -1404,12 +1433,62 @@ def _setup_logging(level: str) -> None:
 
 
 def main() -> int:
+    _proc_start = time.monotonic()
+
+    # Logging up FIRST (from env, before config load) so a config-load failure
+    # below is logged with a real handler, not the bootstrap root logger.
+    _setup_logging(os.environ.get("CHIRP_LOG_LEVEL", "INFO").upper())
+
+    # --- Phase 1 (SB6): metrics endpoint, brought up BEFORE load_config so a
+    # broken config can still publish chirp_config_load_status=0 for Prometheus
+    # to scrape before we exit. Band label/port derive from env (systemd always
+    # sets CHIRP_BAND per instance); fall back to airband for ad-hoc runs.
+    # Rollback: CHIRP_METRICS_ENABLED=0 disables the endpoint, no behavior change.
+    _band = os.environ.get("CHIRP_BAND", "airband")
+    _metrics_enabled = _as_bool(os.environ.get("CHIRP_METRICS_ENABLED", "1"))
+    if _metrics_enabled:
+        _default_metrics_port = 9102 if _band == "ground" else 9101
+        _metrics_port = int(os.environ.get("CHIRP_METRICS_PORT", _default_metrics_port))
+        _metrics_bind = os.environ.get("CHIRP_METRICS_BIND", "127.0.0.1")
+        try:
+            metrics.serve(_metrics_port, _metrics_bind)
+        except Exception:  # noqa: BLE001 -- a busy port must not block the daemon
+            log.exception("metrics endpoint failed to bind on %s:%d — continuing without /metrics",
+                          _metrics_bind, _metrics_port)
+            _metrics_enabled = False
+        # Register the daemon's start so a restart shows as a counter bump.
+        # NOTE: process-local — the alive-seconds counter RESET is the stronger
+        # restart detector; this counter resets to 0 every start.
+        metrics.REGISTRY.inc_counter(
+            "chirp_daemon_restart_total", 1,
+            labels={"daemon": _band, "reason": "start"},
+            help="chirp daemon process starts by reason (process-local)",
+        )
+
+    # Config load. (Phase 1: instrumentation only — the broken-config hard-fail
+    # arrives in Phase 2. A JSONDecodeError still raises here and crashes the
+    # daemon today, which the ChirpConfigLoadFailed up==0 arm catches.)
     cfg = load_config()
-    _setup_logging(cfg.log_level)
-    log.info("chirp starting band=%s cmd=%s:%d source=%s:%s out=%s:%s max_ch=%d",
+
+    # Apply the configured level now that load succeeded. basicConfig() above
+    # already installed the handler and won't re-run, so adjust the level here
+    # directly (else a non-INFO log_level from config would be silently ignored).
+    logging.getLogger().setLevel(getattr(logging, cfg.log_level, logging.INFO))
+    metrics.REGISTRY.set_gauge(
+        "chirp_config_load_status", 1, labels={"daemon": cfg.band},
+        help="1 if chirp loaded its JSON config cleanly, 0 on load failure",
+    )
+    metrics.REGISTRY.set_gauge(
+        "chirp_config_path", 1,
+        labels={"daemon": cfg.band, "path": cfg.config_source_path or "(defaults)"},
+        help="resolved chirp config file path (info-style, value always 1)",
+        clear_others=True,
+    )
+    log.info("chirp starting band=%s cmd=%s:%d source=%s:%s out=%s:%s max_ch=%d config=%s",
              cfg.band, cfg.cmd_host, cfg.cmd_port,
              cfg.source_kind, cfg.source_path,
-             cfg.audio_out_kind, cfg.audio_out_path, cfg.max_channels)
+             cfg.audio_out_kind, cfg.audio_out_path, cfg.max_channels,
+             cfg.config_source_path or "(defaults)")
 
     # Surface startup phase to systemd / `systemctl status` so an operator
     # can tell "currently opening" from "wedged in sdrplay_api_Open".
@@ -1424,6 +1503,39 @@ def main() -> int:
     tb = ChirpFlowgraph(cfg, server)
     tb.start()
     tb.start_health()
+
+    # Phase 1 (SB6): pull-style collectors refreshed at each scrape. alive_seconds
+    # is process uptime (its RESET across a restart is the real restart signal);
+    # audio bytes are read live from the icecast sink snapshot.
+    if _metrics_enabled:
+        _daemon_lbl = {"daemon": cfg.band}
+
+        def _collect_alive(reg, _start=_proc_start, _lbl=_daemon_lbl):
+            reg.set_counter(
+                "chirp_flowgraph_alive_seconds_total",
+                time.monotonic() - _start, labels=_lbl,
+                help="seconds since this chirp flowgraph started (resets on restart)",
+            )
+
+        def _collect_audio_bytes(reg, _tb=tb):
+            sink = getattr(_tb, "icecast_sink", None)
+            if sink is None:
+                return
+            try:
+                snap = sink.snapshot()
+            except Exception:  # noqa: BLE001
+                return
+            mount = snap.get("icecast_mount") or "(none)"
+            reg.set_counter(
+                "chirp_audio_bytes_published_total",
+                float(snap.get("icecast_bytes_sent", 0)),
+                labels={"mount": mount},
+                help="bytes published to the icecast mount by this daemon",
+            )
+
+        metrics.REGISTRY.register_callback(_collect_alive)
+        metrics.REGISTRY.register_callback(_collect_audio_bytes)
+
     try:
         server.start()
     except Exception:
