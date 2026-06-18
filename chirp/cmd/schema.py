@@ -122,6 +122,15 @@ def _check_gain(db: float) -> float:
     return float(db)
 
 
+def _check_sdr_gain(db: float) -> float:
+    # SB6 2026-06-17. Overall SDR front-end gain. The UI slider runs 0-60;
+    # the SoapySDRPlay3 driver clamps to its real internal range and we read
+    # the applied value back, so this only rejects clearly-out-of-band input.
+    if not (0.0 <= db <= 60.0):
+        raise ValueError("sdr_gain_db must be in [0, 60]")
+    return float(db)
+
+
 def _check_freq_mhz(mhz: float) -> float:
     if not (mhz > 0.0):
         raise ValueError("freq_mhz must be > 0")
@@ -265,6 +274,19 @@ class SetMasterGainArgs(_ArgsBase):
         return _check_gain(v)
 
 
+class SetSdrGainArgs(_ArgsBase):
+    """SB6 2026-06-17. Overall SDR front-end gain (dB), hot-set on the live
+    osmosdr source. UI exposes 0-60; the driver clamps to its real internal
+    range and the daemon reads the applied value back to the caller."""
+
+    db: float
+
+    @field_validator("db")
+    @classmethod
+    def _v_sdr_gain(cls, v: float) -> float:
+        return _check_sdr_gain(v)
+
+
 class SetVadThresholdArgs(_ArgsBase):
     """SB5 2026-06-09 squelch redesign. Per-channel VAD score threshold.
 
@@ -336,6 +358,7 @@ COMMAND_ARGS: dict[str, type[_ArgsBase]] = {
     "set_freq": SetFreqArgs,
     "set_gain": SetGainArgs,
     "set_master_gain": SetMasterGainArgs,
+    "set_sdr_gain": SetSdrGainArgs,
     "reset": ResetArgs,
     "get_status": GetStatusArgs,
     "subscribe": SubscribeArgs,
@@ -392,6 +415,7 @@ __all__ = [
     "SetFreqArgs",
     "SetGainArgs",
     "SetMasterGainArgs",
+    "SetSdrGainArgs",
     "SetVadThresholdArgs",
     "SetVadBypassArgs",
     "ResetArgs",

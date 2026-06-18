@@ -1,0 +1,75 @@
+# SB6 Phase 0 -- Prometheus scrape config for the Micro (100.67.20.40).
+#
+# Deploy target: /etc/prometheus/prometheus.yml
+# Reload after edit:  curl -X POST http://localhost:9090/-/reload
+#                     (requires prometheus started with --web.enable-lifecycle;
+#                      otherwise `systemctl reload prometheus`)
+#
+# Retention is a CLI flag, not a config key. The Debian package sets it in
+# /etc/default/prometheus via ARGS. Phase 0 target: --storage.tsdb.retention.time=14d
+# (see docs/sb6-phase0-install.md).
+#
+# Phase 0 scraped only the host + icecast. Phase 1 (SB6) adds the two chirp
+# daemons' self-instrumentation (airband :9101, ground :9102). The op25 / disco /
+# sdrplay exporters arrive in later phases; their jobs are listed commented out.
+#
+# PORT NOTE: SB6 arch-plan Sec 9 originally penciled op25 at :9102, but chirp is
+# TWO daemons and ground claims :9102, so the later exporters shift to 9112+ to
+# avoid the collision. The dispatch (2026-06-16) set chirp = 9101 / 9102.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    host: micro
+
+rule_files:
+  - /etc/prometheus/rules/alerts.yml
+
+# Alertmanager is NOT installed in Phase 0. Notification delivery is decided
+# with Will (see runbook). When an Alertmanager exists, uncomment:
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["localhost:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["localhost:9100"]
+        labels:
+          host: micro
+
+  - job_name: icecast
+    static_configs:
+      - targets: ["localhost:9146"]
+        labels:
+          host: micro
+
+  # Phase 1 (SB6): chirp gr-demod self-instrumentation. One job, two daemons.
+  # The exported series self-label with daemon="airband"/"ground"; the `band`
+  # target label below also tags `up` so the ChirpConfigLoadFailed alert can
+  # name which daemon is down. (Different label name from the exported `daemon`
+  # to avoid a relabel collision.)
+  - job_name: chirp
+    static_configs:
+      - targets: ["localhost:9101"]
+        labels:
+          band: airband
+          host: micro
+      - targets: ["localhost:9102"]
+        labels:
+          band: ground
+          host: micro
+
+  # --- Later SB6 phases (not installed yet; ports shifted to clear chirp) ---
+  # - job_name: op25                 # Phase ~6
+  #     static_configs: [{ targets: ["localhost:9112"] }]
+  # - job_name: disco
+  #     static_configs: [{ targets: ["localhost:9113"] }]
+  # - job_name: sdrplay_supervisor   # Phase 3
+  #     static_configs: [{ targets: ["localhost:9114"] }]

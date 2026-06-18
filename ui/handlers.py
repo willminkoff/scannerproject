@@ -1178,6 +1178,30 @@ def _read_effective_analog_controls() -> dict[str, Any]:
     controls_ground_path = resolve_controls_path("ground")
     airband_gain, _airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
     ground_gain, _ground_snr, ground_dbfs, ground_mode = parse_controls(controls_ground_path)
+    # SB6 2026-06-17: under chirp, the live SDR front-end gain lives in the
+    # daemon, not the rtl-airband controls file (which regenerates to the
+    # profile default). Read the daemon's authoritative get_status value so the
+    # gain slider reflects reality across page reloads instead of snapping back
+    # to 32.8. Mirrors the squelch read path. Falls back to the controls-file
+    # value when chirp is off / unreachable / not an SDR source.
+    try:
+        try:
+            from .chirp_client import use_gr_demod as _ugd
+        except ImportError:
+            from ui.chirp_client import use_gr_demod as _ugd  # type: ignore
+        if _ugd():
+            try:
+                from .chirp_adapter import get_sdr_gain_via_chirp
+            except ImportError:
+                from ui.chirp_adapter import get_sdr_gain_via_chirp  # type: ignore
+            _air = get_sdr_gain_via_chirp("airband")
+            if _air is not None:
+                airband_gain = _air
+            _gnd = get_sdr_gain_via_chirp("ground")
+            if _gnd is not None:
+                ground_gain = _gnd
+    except Exception:
+        logger.debug("chirp gain read-back override skipped", exc_info=True)
     return {
         "controls_airband_path": controls_airband_path,
         "controls_ground_path": controls_ground_path,
@@ -8690,6 +8714,16 @@ class Handler(BaseHTTPRequestHandler):
             if muted is None:
                 return self._send(400, json.dumps({"ok": False, "error": "invalid muted"}), "application/json; charset=utf-8")
             get_digital_manager().setMuted(muted)
+            # 2026-06-17: setMuted() only writes a JSON state file that nothing
+            # consumes -- it never silenced the digital audio on BOOM. Route
+            # through the working band_mute path so this endpoint actually mutes
+            # the scanner-vlc-digital sink-input (same path as the band-card
+            # toggle). Response shape unchanged for backward compat.
+            try:
+                from . import band_mute as _band_mute_mod
+                _band_mute_mod.set_band("digital", bool(muted))
+            except Exception:
+                logger.debug("/api/digital/mute: band_mute.set_band failed", exc_info=True)
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/digital/profile/create":
@@ -8897,11 +8931,55 @@ class Handler(BaseHTTPRequestHandler):
                 use_chirp = bool(_chirp_use_gr_demod())
             except Exception:
                 logger.debug("%s: use_gr_demod probe failed", p, exc_info=True)
+            # Manual dbfs squelch under chirp: the SNR tracker is the only
+            # thing that propagates managed-controls values into the live
+            # daemon, and it SKIPS bands with auto OFF — so a manual slider
+            # change would never reach the radio. Push it straight to chirp
+            # (set_squelch on every channel). For rtl-airband (chirp client
+            # unavailable) this is a no-op. 2026-06-15.
+            if use_chirp and p == "/api/airband/squelch" and new_mode == "dbfs":
+                try:
+                    try:
+                        from .chirp_adapter import wide_open_squelch_via_chirp
+                    except ImportError:
+                        from ui.chirp_adapter import wide_open_squelch_via_chirp  # type: ignore
+                    wide_open_squelch_via_chirp(target, new_dbfs)
+                except Exception:
+                    logger.debug("%s: manual squelch chirp push failed", p, exc_info=True)
+            # Gain under chirp: write_controls + managed-override only touch
+            # the rtl-airband config files; the running chirp daemon never
+            # sees them. Push the front-end gain straight to the live osmosdr
+            # source (set_sdr_gain). This is the fix for the gain slider
+            # snapping back — without it the daemon's runtime gain never
+            # changed. No-op for rtl-airband. SB6 2026-06-17.
+            sdr_gain_applied = None
+            if (use_chirp and p == "/api/airband/gain"
+                    and "gain_db" in form):
+                try:
+                    try:
+                        from .chirp_adapter import set_sdr_gain_via_chirp
+                    except ImportError:
+                        from ui.chirp_adapter import set_sdr_gain_via_chirp  # type: ignore
+                    _gain_report = set_sdr_gain_via_chirp(target, new_gain)
+                    sdr_gain_applied = (_gain_report or {}).get("applied_db")
+                except Exception:
+                    logger.debug("%s: gain chirp push failed", p, exc_info=True)
+            # Report the value the SDR actually applied (driver-clamped
+            # read-back) when chirp accepted the gain push, so the UI slider
+            # snaps to reality instead of the requested number. Falls back to
+            # the requested value otherwise. SB6 2026-06-17.
+            resp_gain = float(new_gain)
+            if sdr_gain_applied is not None:
+                try:
+                    resp_gain = float(sdr_gain_applied)
+                except (TypeError, ValueError):
+                    pass
             resp = {
                 "ok": True,
                 "band": "air" if target == "airband" else "ground",
                 "target": target,
-                "gain_db": float(new_gain),
+                "gain_db": resp_gain,
+                "requested_gain_db": float(new_gain),
                 "threshold_dbfs": float(new_dbfs),
                 "auto": new_mode == "snr",
                 "changed": bool(changed),

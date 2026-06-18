@@ -1169,6 +1169,80 @@ def wide_open_squelch_via_chirp(band: str, dbfs: float = -120.0) -> dict:
     }
 
 
+def set_sdr_gain_via_chirp(band: str, db: float) -> dict:
+    """SB6 2026-06-17. Push the overall SDR front-end gain (dB) to the live
+    chirp daemon for ``band``.
+
+    This is the missing link the UI gain slider needed: it writes the
+    rtl-airband controls file *and* (now) drives the running chirp osmosdr
+    source. The daemon clamps to the device's real range and reports the
+    applied value back, which we return so the caller can reflect reality in
+    the UI instead of the requested number.
+
+    Returns a small report dict mirroring the other ``*_via_chirp`` helpers.
+    """
+    target = _normalize_band(band)
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target,
+            "requested_db": db,
+            "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_set_sdr_gain",
+        }
+    try:
+        resp = client.set_sdr_gain(float(db))
+    except Exception as exc:
+        return {
+            "target": target,
+            "requested_db": db,
+            "changed": False,
+            "error": f"chirp_set_sdr_gain_failed: {exc}",
+            "via": "chirp_set_sdr_gain",
+        }
+    applied = None
+    if isinstance(resp, dict):
+        applied = resp.get("db")
+    return {
+        "target": target,
+        "requested_db": float(db),
+        "applied_db": applied,
+        "changed": True,
+        "via": "chirp_set_sdr_gain",
+    }
+
+
+def get_sdr_gain_via_chirp(band: str) -> Optional[float]:
+    """SB6 2026-06-17. READ side of the gain slider: return the live SDR
+    front-end gain (dB) the chirp daemon for ``band`` is actually running,
+    from ``get_status().source.sdr_gain_db``.
+
+    Under chirp the rtl-airband controls file is NOT authoritative for gain
+    (it regenerates to the profile default), so the UI must read the daemon's
+    value or the slider snaps back to the default on every page reload. This
+    mirrors the squelch side, where the displayed value comes from the
+    daemon/managed authoritative state rather than the controls file.
+
+    Returns None if chirp is unreachable, the source is not an SDR, or the
+    value is missing — callers fall back to their previous (controls-file)
+    value.
+    """
+    target = _normalize_band(band)
+    try:
+        client = _chirp_client_for(target)
+        status = client.get_status()
+    except Exception:
+        logger.debug("get_sdr_gain_via_chirp(%s): chirp unreachable", target,
+                     exc_info=True)
+        return None
+    try:
+        source = (status or {}).get("source") or {}
+        val = source.get("sdr_gain_db")
+        return float(val) if val is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def set_audio_vad_sensitivity_via_chirp(band: str, sensitivity: float) -> dict:

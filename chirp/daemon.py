@@ -60,6 +60,7 @@ from chirp.cmd.schema import (
     SetFreqArgs,
     SetGainArgs,
     SetMasterGainArgs,
+    SetSdrGainArgs,
     SetSquelchArgs,
 )
 from chirp.cmd.server import CommandServer, ServerConfig
@@ -77,6 +78,12 @@ from chirp.dsp.source_file import FileIQSource
 from chirp.dsp.source_sdr import SdrIQSource, SdrSourceConfig
 from chirp.hit_detector import HitDetector
 from chirp.state import ChannelState, ChirpState, StateStore, default_state_path
+from chirp import metrics
+from chirp.audio_probe import (
+    AudioFlowProbe,
+    DEFAULT_SILENCE_EPS as AUDIO_PROBE_DEFAULT_EPS,
+    DEFAULT_SILENCE_GRACE_S as AUDIO_PROBE_DEFAULT_GRACE_S,
+)
 
 log = logging.getLogger("chirp.daemon")
 
@@ -224,6 +231,22 @@ class DaemonConfig:
     # `CHIRP_AUDIO_TRACE=1`.  Default off only to avoid log volume during
     # initial roll-out — flip to True once trace events are validated.
     audio_trace_enabled: bool = False
+    # Resolved path of the JSON config file load_config() actually read, or
+    # None when no config file was found (defaults-only run). Not a tunable —
+    # load_config populates it for /metrics (chirp_config_path) + get_status.
+    config_source_path: Optional[str] = None
+    # SB6 (2026-06-18) audio-flow watchdog probe. Gates the systemd WATCHDOG=1
+    # ping on real PCM flow at the mount-publish layer so a "silent branch"
+    # wedge (hits fire + bytes flow but output is -180 dBFS) actually triggers
+    # a systemd restart instead of reporting healthy forever. DEFAULT OFF until
+    # validated on Micro — env CHIRP_AUDIO_PROBE_ENABLED=1 turns gating on.
+    # See chirp/audio_probe.py + docs/sb6-probe-rate-watchdog.md.
+    audio_probe_enabled: bool = False
+    # Seconds the audio path may report health=="live" with no non-silent PCM
+    # before the branch is called wedged and the watchdog ping is withheld.
+    audio_probe_silence_grace_s: float = AUDIO_PROBE_DEFAULT_GRACE_S
+    # float32 peak below which a block counts as silent (~ -80 dBFS default).
+    audio_probe_silence_eps: float = AUDIO_PROBE_DEFAULT_EPS
 
 
 def _parse_event_sink(spec: Optional[str]) -> Optional[tuple[str, int]]:
@@ -307,6 +330,31 @@ def _as_bool(val: Any) -> bool:
     return str(val).strip().lower() in ("1", "true", "yes", "on")
 
 
+# Canonical defaults: a SINGLE DaemonConfig() instance is the one source of
+# truth for every simple scalar knob. _resolve() layers env > json > THIS, so
+# a field absent from JSON falls back to the dataclass default and never to a
+# second literal that can drift out of sync. The am_agc_enabled drift (dataclass
+# False vs a duplicated `True` literal here) silently flipped a fast AM AGC on
+# when JSON load fell through to defaults and turned ATC voice into noise for a
+# full day (2026-06-14). See test_phase2_config_hardfail.
+_DC_DEFAULTS = DaemonConfig()
+
+
+def _resolve(env_key: str, raw: dict, json_key: str, default: Any, cast):
+    """Resolve one config field with precedence env > json > dataclass default.
+
+    ``default`` is taken from ``_DC_DEFAULTS`` and passed through untouched
+    (already the right type). ``cast`` is applied only to env/json values, which
+    arrive as strings or loosely-typed JSON. A JSON null is treated as absent so
+    an explicit ``"field": null`` still yields the dataclass default.
+    """
+    if env_key in os.environ:
+        return cast(os.environ[env_key])
+    if json_key in raw and raw[json_key] is not None:
+        return cast(raw[json_key])
+    return default
+
+
 def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
     """Resolve daemon config from JSON file + env overrides.
 
@@ -328,15 +376,32 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         dp = defaults_path
     raw: dict[str, Any] = {}
     if dp.is_file():
+        # Phase 2 (SB6): HARD-FAIL on a broken config instead of the old
+        # warn-and-continue. Silently falling through to defaults is what flipped
+        # am_agc_enabled and produced the 2026-06-14 voice-as-noise day. A config
+        # file that exists but cannot be parsed/read MUST abort startup with a
+        # clear error naming the path; main() turns this into config_load_status=0
+        # + a non-zero exit so systemd + Prometheus both see the failure.
         try:
             with dp.open("r", encoding="utf-8") as f:
                 raw = json.load(f)
         except json.JSONDecodeError as e:
+            raise ValueError(f"invalid JSON in chirp config {dp}: {e}") from e
+        except OSError as e:
+            raise ValueError(f"could not read chirp config {dp}: {e}") from e
+        if not isinstance(raw, dict):
             raise ValueError(
-                f"invalid JSON in chirp config {dp}: {e}"
-            ) from e
-        except Exception as e:
-            log.warning("could not read %s: %s", dp, e)
+                f"chirp config {dp} must contain a JSON object, got "
+                f"{type(raw).__name__}"
+            )
+    elif _as_bool(os.environ.get("CHIRP_CONFIG_REQUIRED", "0")):
+        # Opt-in (prod systemd sets it): a missing config file is also a
+        # hard-fail. Default off so file-source dev runs + tests that rely on
+        # pure-dataclass defaults keep working.
+        raise ValueError(
+            f"chirp config required but not found: {dp} "
+            f"(CHIRP_CONFIG_REQUIRED=1)"
+        )
 
     band = band_env or raw.get("band", "airband")
     default_port = 7400 if band == "airband" else 7401
@@ -364,66 +429,27 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         cmd_port=cmd_port,
         source_kind=src_kind,
         source_path=src_path,
-        source_samp_rate=float(os.environ.get("CHIRP_SOURCE_SAMP_RATE", raw.get("source_samp_rate", 1e6))),
+        source_samp_rate=_resolve("CHIRP_SOURCE_SAMP_RATE", raw, "source_samp_rate", _DC_DEFAULTS.source_samp_rate, float),
         audio_out_kind=audio_kind,
         audio_out_path=audio_path,
-        audio_rate=float(os.environ.get("CHIRP_AUDIO_RATE", raw.get("audio_rate", 16000.0))),
-        channel_bw_hz=float(os.environ.get(
-            "CHIRP_CHANNEL_BW_HZ",
-            raw.get("channel_bw_hz", 12500.0),
-        )),
-        agc_max_gain=float(os.environ.get(
-            "CHIRP_AGC_MAX_GAIN",
-            raw.get("agc_max_gain", 1000.0),
-        )),
-        agc_attack=float(os.environ.get(
-            "CHIRP_AGC_ATTACK",
-            raw.get("agc_attack", 0.1),
-        )),
-        agc_decay=float(os.environ.get(
-            "CHIRP_AGC_DECAY",
-            raw.get("agc_decay", 1e-4),
-        )),
-        am_agc_enabled=str(os.environ.get(
-            "CHIRP_AM_AGC_ENABLED",
-            str(raw.get("am_agc_enabled", True)),
-        )).strip().lower() in ("1", "true", "yes", "on"),
-        am_fixed_gain=float(os.environ.get(
-            "CHIRP_AM_FIXED_GAIN",
-            raw.get("am_fixed_gain", 10.0),
-        )),
-        vad_enabled=str(os.environ.get(
-            "CHIRP_VAD_ENABLED",
-            str(raw.get("vad_enabled", True)),
-        )).strip().lower() in ("1", "true", "yes", "on"),
-        audio_bandpass_low_hz=float(os.environ.get(
-            "CHIRP_AUDIO_BANDPASS_LOW_HZ",
-            raw.get("audio_bandpass_low_hz", 300.0),
-        )),
-        audio_bandpass_high_hz=float(os.environ.get(
-            "CHIRP_AUDIO_BANDPASS_HIGH_HZ",
-            raw.get("audio_bandpass_high_hz", 3500.0),
-        )),
-        denoise=str(os.environ.get(
-            "CHIRP_DENOISE",
-            str(raw.get("denoise", "false")),
-        )).strip().lower() in ("1", "true", "yes", "on"),
-        denoise_model=os.environ.get(
-            "CHIRP_DENOISE_MODEL",
-            raw.get("denoise_model", "") or "",
-        ),
-        denoise_gain_db=float(os.environ.get(
-            "CHIRP_DENOISE_GAIN_DB",
-            raw.get("denoise_gain_db", 0.0),
-        )),
-        audio_eq=os.environ.get(
-            "CHIRP_AUDIO_EQ",
-            raw.get("audio_eq", "") or "",
-        ),
-        max_channels=int(os.environ.get("CHIRP_MAX_CHANNELS", raw.get("max_channels", DEFAULT_MAX_CHANNELS))),
+        audio_rate=_resolve("CHIRP_AUDIO_RATE", raw, "audio_rate", _DC_DEFAULTS.audio_rate, float),
+        channel_bw_hz=_resolve("CHIRP_CHANNEL_BW_HZ", raw, "channel_bw_hz", _DC_DEFAULTS.channel_bw_hz, float),
+        agc_max_gain=_resolve("CHIRP_AGC_MAX_GAIN", raw, "agc_max_gain", _DC_DEFAULTS.agc_max_gain, float),
+        agc_attack=_resolve("CHIRP_AGC_ATTACK", raw, "agc_attack", _DC_DEFAULTS.agc_attack, float),
+        agc_decay=_resolve("CHIRP_AGC_DECAY", raw, "agc_decay", _DC_DEFAULTS.agc_decay, float),
+        am_agc_enabled=_resolve("CHIRP_AM_AGC_ENABLED", raw, "am_agc_enabled", _DC_DEFAULTS.am_agc_enabled, _as_bool),
+        am_fixed_gain=_resolve("CHIRP_AM_FIXED_GAIN", raw, "am_fixed_gain", _DC_DEFAULTS.am_fixed_gain, float),
+        vad_enabled=_resolve("CHIRP_VAD_ENABLED", raw, "vad_enabled", _DC_DEFAULTS.vad_enabled, _as_bool),
+        audio_bandpass_low_hz=_resolve("CHIRP_AUDIO_BANDPASS_LOW_HZ", raw, "audio_bandpass_low_hz", _DC_DEFAULTS.audio_bandpass_low_hz, float),
+        audio_bandpass_high_hz=_resolve("CHIRP_AUDIO_BANDPASS_HIGH_HZ", raw, "audio_bandpass_high_hz", _DC_DEFAULTS.audio_bandpass_high_hz, float),
+        denoise=_resolve("CHIRP_DENOISE", raw, "denoise", _DC_DEFAULTS.denoise, _as_bool),
+        denoise_model=_resolve("CHIRP_DENOISE_MODEL", raw, "denoise_model", _DC_DEFAULTS.denoise_model, str),
+        denoise_gain_db=_resolve("CHIRP_DENOISE_GAIN_DB", raw, "denoise_gain_db", _DC_DEFAULTS.denoise_gain_db, float),
+        audio_eq=_resolve("CHIRP_AUDIO_EQ", raw, "audio_eq", _DC_DEFAULTS.audio_eq, str),
+        max_channels=_resolve("CHIRP_MAX_CHANNELS", raw, "max_channels", _DC_DEFAULTS.max_channels, int),
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
-        log_level=os.environ.get("CHIRP_LOG_LEVEL", raw.get("log_level", "INFO")).upper(),
-        state_path=os.environ.get("CHIRP_STATE_PATH", raw.get("state_path")),
+        log_level=_resolve("CHIRP_LOG_LEVEL", raw, "log_level", _DC_DEFAULTS.log_level, str).upper(),
+        state_path=_resolve("CHIRP_STATE_PATH", raw, "state_path", _DC_DEFAULTS.state_path, str),
         hit_log_path=os.environ.get(
             "CHIRP_HIT_LOG",
             raw.get("hit_log_path") or f"/var/log/chirp/{band}_hits.jsonl",
@@ -432,12 +458,8 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         icecast_port=icecast_port,
         icecast_mount=icecast_mount,
         icecast_password=icecast_password,
-        icecast_bitrate_kbps=int(os.environ.get("CHIRP_ICECAST_BITRATE_KBPS",
-                                                raw.get("icecast_bitrate_kbps", 32))),
-        icecast_fallback_file=os.environ.get(
-            "CHIRP_ICECAST_FALLBACK_FILE",
-            raw.get("icecast_fallback_file", "/tmp/chirp_audio_fallback.f32"),
-        ),
+        icecast_bitrate_kbps=_resolve("CHIRP_ICECAST_BITRATE_KBPS", raw, "icecast_bitrate_kbps", _DC_DEFAULTS.icecast_bitrate_kbps, int),
+        icecast_fallback_file=_resolve("CHIRP_ICECAST_FALLBACK_FILE", raw, "icecast_fallback_file", _DC_DEFAULTS.icecast_fallback_file, str),
         sdr_device_args=os.environ.get(
             "CHIRP_SDR_DEVICE_ARGS",
             (raw.get("sdr") or {}).get("device_args"),
@@ -467,40 +489,32 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
             (raw.get("sdr") or {}).get("antenna"),
         ),
         sdr_element_gains=(raw.get("sdr") or {}).get("element_gains", {}) or {},
-        lo_dwell_sec=float(os.environ.get(
-            "CHIRP_LO_DWELL_SEC",
-            raw.get("lo_dwell_sec", LO_DEFAULT_DWELL_S),
-        )),
-        lo_max_clusters=int(os.environ.get(
-            "CHIRP_LO_MAX_CLUSTERS",
-            raw.get("lo_max_clusters", LO_DEFAULT_MAX_CLUSTERS),
-        )),
-        scan_hold_enabled=_as_bool(os.environ.get(
-            "CHIRP_SCAN_HOLD_ENABLED",
-            raw.get("scan_hold_enabled", False),
-        )),
-        scan_hold_hang_sec=float(os.environ.get(
-            "CHIRP_SCAN_HOLD_HANG_SEC",
-            raw.get("scan_hold_hang_sec", 2.0),
-        )),
-        scan_hold_max_sec=float(os.environ.get(
-            "CHIRP_SCAN_HOLD_MAX_SEC",
-            raw.get("scan_hold_max_sec", 30.0),
-        )),
-        priority_gate_enabled=_as_bool(os.environ.get(
-            "CHIRP_PRIORITY_GATE_ENABLED",
-            raw.get("priority_gate_enabled", False),
-        )),
-        audio_trace_enabled=_as_bool(os.environ.get(
-            "CHIRP_AUDIO_TRACE",
-            raw.get("audio_trace_enabled", False),
-        )),
+        lo_dwell_sec=_resolve("CHIRP_LO_DWELL_SEC", raw, "lo_dwell_sec", _DC_DEFAULTS.lo_dwell_sec, float),
+        lo_max_clusters=_resolve("CHIRP_LO_MAX_CLUSTERS", raw, "lo_max_clusters", _DC_DEFAULTS.lo_max_clusters, int),
+        scan_hold_enabled=_resolve("CHIRP_SCAN_HOLD_ENABLED", raw, "scan_hold_enabled", _DC_DEFAULTS.scan_hold_enabled, _as_bool),
+        scan_hold_hang_sec=_resolve("CHIRP_SCAN_HOLD_HANG_SEC", raw, "scan_hold_hang_sec", _DC_DEFAULTS.scan_hold_hang_sec, float),
+        scan_hold_max_sec=_resolve("CHIRP_SCAN_HOLD_MAX_SEC", raw, "scan_hold_max_sec", _DC_DEFAULTS.scan_hold_max_sec, float),
+        priority_gate_enabled=_resolve("CHIRP_PRIORITY_GATE_ENABLED", raw, "priority_gate_enabled", _DC_DEFAULTS.priority_gate_enabled, _as_bool),
+        audio_trace_enabled=_resolve("CHIRP_AUDIO_TRACE", raw, "audio_trace_enabled", _DC_DEFAULTS.audio_trace_enabled, _as_bool),
+        audio_probe_enabled=_resolve("CHIRP_AUDIO_PROBE_ENABLED", raw, "audio_probe_enabled", _DC_DEFAULTS.audio_probe_enabled, _as_bool),
+        audio_probe_silence_grace_s=_resolve("CHIRP_AUDIO_PROBE_SILENCE_GRACE_S", raw, "audio_probe_silence_grace_s", _DC_DEFAULTS.audio_probe_silence_grace_s, float),
+        audio_probe_silence_eps=_resolve("CHIRP_AUDIO_PROBE_SILENCE_EPS", raw, "audio_probe_silence_eps", _DC_DEFAULTS.audio_probe_silence_eps, float),
+        config_source_path=str(dp) if dp.is_file() else None,
     )
 
 
 # ---------------------------------------------------------------------------
 # Flowgraph
 # ---------------------------------------------------------------------------
+
+# Known cmd-bus verbs — used to bound chirp_cmd_bus_request_seconds histogram
+# cardinality (unknown verbs bucket under "unknown"). Keep in sync with
+# ChirpFlowgraph.dispatch().
+_KNOWN_CMDS = frozenset({
+    "add_channel", "remove_channel", "set_squelch", "set_freq", "set_gain",
+    "set_vad_bypass", "set_vad_threshold", "set_master_gain", "set_sdr_gain",
+    "reset", "get_status",
+})
 
 
 @dataclass
@@ -605,6 +619,17 @@ class ChirpFlowgraph(gr.top_block):
 
         self.mixer = AudioMixer(n_inputs=cfg.max_channels, master_gain_db=0.0)
 
+        # SB6 (2026-06-18) audio-flow watchdog probe. Always constructed (cheap,
+        # holds a couple of counters); the .enabled flag — driven by
+        # CHIRP_AUDIO_PROBE_ENABLED — decides whether observe_peak/evaluate do
+        # anything. Wired into the IcecastSink below so the GR work() thread
+        # feeds it PCM peaks; read by audio_watchdog_status() on the main loop.
+        self.flow_probe = AudioFlowProbe(
+            enabled=cfg.audio_probe_enabled,
+            silence_grace_s=cfg.audio_probe_silence_grace_s,
+            silence_eps=cfg.audio_probe_silence_eps,
+        )
+
         # Audio sink wiring.
         #   file     → blocks.file_sink (Phase 1/2 behaviour, smoke tests)
         #   icecast  → IcecastSink (Phase 3). Falls back to file_sink at
@@ -628,7 +653,7 @@ class ChirpFlowgraph(gr.top_block):
             )
             ice_ok = False
             try:
-                self.icecast_sink = IcecastSink(sink_cfg)
+                self.icecast_sink = IcecastSink(sink_cfg, flow_probe=self.flow_probe)
                 ice_ok = True
             except Exception:
                 log.exception("IcecastSink instantiation failed — falling back to file output")
@@ -756,6 +781,10 @@ class ChirpFlowgraph(gr.top_block):
 
     def dispatch(self, env: Envelope, args: Any) -> Response:
         cmd = env.cmd
+        _t0 = time.monotonic()
+        # Bound histogram cardinality: only the known command verbs get their
+        # own label; anything else buckets under "unknown".
+        _label = cmd if cmd in _KNOWN_CMDS else "unknown"
         try:
             if cmd == "add_channel":
                 return self._cmd_add_channel(env, args)
@@ -773,6 +802,8 @@ class ChirpFlowgraph(gr.top_block):
                 return self._cmd_set_vad_threshold(env, args)
             if cmd == "set_master_gain":
                 return self._cmd_set_master_gain(env, args)
+            if cmd == "set_sdr_gain":
+                return self._cmd_set_sdr_gain(env, args)
             if cmd == "reset":
                 return self._cmd_reset(env, args)
             if cmd == "get_status":
@@ -780,6 +811,16 @@ class ChirpFlowgraph(gr.top_block):
         except Exception as e:  # noqa: BLE001
             log.exception("dispatch internal error: cmd=%s", cmd)
             return Response.make_error(env.id, f"internal: {e}")
+        finally:
+            try:
+                metrics.REGISTRY.observe(
+                    "chirp_cmd_bus_request_seconds",
+                    time.monotonic() - _t0,
+                    labels={"command": _label},
+                    help="chirp cmd-bus dispatch latency by command",
+                )
+            except Exception:  # noqa: BLE001 -- instrumentation must never break dispatch
+                pass
         return Response.make_rejected(env.id, f"unknown command: {cmd}")
 
     def _freq_to_offset_hz(self, freq_mhz: float) -> float:
@@ -1111,6 +1152,21 @@ class ChirpFlowgraph(gr.top_block):
             self._server.emit_event("master_gain_changed", db=args.db)
             return Response.make_ok(env.id, {"db": args.db})
 
+    def _cmd_set_sdr_gain(self, env: Envelope, args: SetSdrGainArgs) -> Response:
+        """SB6 2026-06-17. Hot-set the overall SDR front-end gain on the live
+        osmosdr source. Only valid for the SDR source kind; the driver clamps
+        the request to its real range, so we return the read-back *actual*
+        value (and mirror it into ``_cfg.sdr_gain_db`` so get_status agrees)."""
+        with self._lock:
+            if self._cfg.source_kind != "sdr":
+                return Response.make_rejected(
+                    env.id, f"set_sdr_gain requires source_kind=sdr "
+                            f"(have {self._cfg.source_kind!r})")
+            actual = float(self.source.set_gain(args.db))
+            self._cfg.sdr_gain_db = actual
+            self._server.emit_event("sdr_gain_changed", db=actual)
+            return Response.make_ok(env.id, {"db": actual})
+
     def _cmd_reset(self, env: Envelope, args: ResetArgs) -> Response:
         with self._lock:
             removed_ids = list(self._by_id.keys())
@@ -1264,6 +1320,19 @@ class ChirpFlowgraph(gr.top_block):
                     # bucket "snapshot failed" separately from a real state.
                     "audio_path_health": "unknown",
                 }
+            # SB6 audio-flow probe diagnostics + the live watchdog verdict, so
+            # the reliability layer / UI device card can show "audio_branch_silent"
+            # directly instead of trusting the byte counters that lie during the
+            # wedge. `watchdog_ok=False` means main() is withholding WATCHDOG=1.
+            try:
+                probe_snap = self.flow_probe.snapshot()
+                ok, reason = self.audio_watchdog_status(time.monotonic())
+                probe_snap["watchdog_ok"] = ok
+                probe_snap["watchdog_reason"] = reason
+                data["audio_probe"] = probe_snap
+            except Exception:
+                log.exception("audio_probe snapshot in get_status failed")
+                data["audio_probe"] = {"enabled": False, "watchdog_ok": True}
             return Response.make_ok(env.id, data)
 
     # -- LO scheduler callbacks (Phase 4-pre) -----------------------------
@@ -1356,6 +1425,33 @@ class ChirpFlowgraph(gr.top_block):
                     # claimed_at semantic from add_channel.
                     slot.claimed_at = time.time()
 
+    # -- audio-flow watchdog gate (SB6 2026-06-18) -------------------------
+
+    def audio_watchdog_status(self, now: float) -> tuple[bool, str]:
+        """Decide whether main() should ping systemd ``WATCHDOG=1`` this cycle.
+
+        Returns ``(should_ping, status)``.  ``now`` is a ``time.monotonic()``
+        reading (same clock the probe records flow on).
+
+        When the probe is disabled (default) this returns ``(True, ...)``
+        unconditionally — identical to the pre-probe behaviour.  When enabled,
+        it reads the hit detector's ``audio_path_health`` and delegates the
+        flow-vs-silence decision to :meth:`AudioFlowProbe.evaluate`, so the
+        watchdog is withheld ONLY when the path claims to be live yet no real
+        PCM has flowed for the grace window (the silent-branch wedge).
+        """
+        if not self.flow_probe.enabled:
+            return True, "probe_disabled"
+        try:
+            snap = self.hit_detector.audio_path_snapshot()
+            health = snap.get("audio_path_health", "unknown")
+        except Exception:
+            # If we can't read health, fail SAFE: keep pinging the watchdog so
+            # an introspection hiccup never triggers a spurious restart.
+            log.exception("audio_watchdog_status: could not read audio_path health")
+            return True, "health_read_failed"
+        return self.flow_probe.evaluate(now, health)
+
     # -- health / hit-event probe (delegates to HitDetector) ---------------
 
     def start_health(self) -> None:
@@ -1404,12 +1500,77 @@ def _setup_logging(level: str) -> None:
 
 
 def main() -> int:
-    cfg = load_config()
-    _setup_logging(cfg.log_level)
-    log.info("chirp starting band=%s cmd=%s:%d source=%s:%s out=%s:%s max_ch=%d",
+    _proc_start = time.monotonic()
+
+    # Logging up FIRST (from env, before config load) so a config-load failure
+    # below is logged with a real handler, not the bootstrap root logger.
+    _setup_logging(os.environ.get("CHIRP_LOG_LEVEL", "INFO").upper())
+
+    # --- Phase 1 (SB6): metrics endpoint, brought up BEFORE load_config so a
+    # broken config can still publish chirp_config_load_status=0 for Prometheus
+    # to scrape before we exit. Band label/port derive from env (systemd always
+    # sets CHIRP_BAND per instance); fall back to airband for ad-hoc runs.
+    # Rollback: CHIRP_METRICS_ENABLED=0 disables the endpoint, no behavior change.
+    _band = os.environ.get("CHIRP_BAND", "airband")
+    _metrics_enabled = _as_bool(os.environ.get("CHIRP_METRICS_ENABLED", "1"))
+    if _metrics_enabled:
+        _default_metrics_port = 9102 if _band == "ground" else 9101
+        _metrics_port = int(os.environ.get("CHIRP_METRICS_PORT", _default_metrics_port))
+        _metrics_bind = os.environ.get("CHIRP_METRICS_BIND", "127.0.0.1")
+        try:
+            metrics.serve(_metrics_port, _metrics_bind)
+        except Exception:  # noqa: BLE001 -- a busy port must not block the daemon
+            log.exception("metrics endpoint failed to bind on %s:%d — continuing without /metrics",
+                          _metrics_bind, _metrics_port)
+            _metrics_enabled = False
+        # Register the daemon's start so a restart shows as a counter bump.
+        # NOTE: process-local — the alive-seconds counter RESET is the stronger
+        # restart detector; this counter resets to 0 every start.
+        metrics.REGISTRY.inc_counter(
+            "chirp_daemon_restart_total", 1,
+            labels={"daemon": _band, "reason": "start"},
+            help="chirp daemon process starts by reason (process-local)",
+        )
+
+    # --- Config load. Phase 2 (SB6): a broken config is a HARD FAIL. We publish
+    # config_load_status=0, hold a short grace window so Prometheus scrapes the
+    # zero (and the ChirpConfigLoadFailed alert fires), then exit non-zero so
+    # systemd sees the failure and never runs the flowgraph on stale defaults.
+    try:
+        cfg = load_config()
+    except Exception as cfg_err:  # noqa: BLE001
+        metrics.REGISTRY.set_gauge(
+            "chirp_config_load_status", 0, labels={"daemon": _band},
+            help="1 if chirp loaded its JSON config cleanly, 0 on load failure",
+        )
+        log.error("CONFIG LOAD FAILED — refusing to start: %s", cfg_err)
+        _sd_notify(None, f"config load failed: {cfg_err}")
+        grace_s = float(os.environ.get("CHIRP_CONFIG_FAIL_GRACE_S", "20.0"))
+        if _metrics_enabled and grace_s > 0:
+            log.error("holding %.0fs so Prometheus scrapes config_load_status=0 "
+                      "before exit (CHIRP_CONFIG_FAIL_GRACE_S)", grace_s)
+            time.sleep(grace_s)
+        return 3  # distinct exit code: config load failure
+
+    # Apply the configured level now that load succeeded. basicConfig() above
+    # already installed the handler and won't re-run, so adjust the level here
+    # directly (else a non-INFO log_level from config would be silently ignored).
+    logging.getLogger().setLevel(getattr(logging, cfg.log_level, logging.INFO))
+    metrics.REGISTRY.set_gauge(
+        "chirp_config_load_status", 1, labels={"daemon": cfg.band},
+        help="1 if chirp loaded its JSON config cleanly, 0 on load failure",
+    )
+    metrics.REGISTRY.set_gauge(
+        "chirp_config_path", 1,
+        labels={"daemon": cfg.band, "path": cfg.config_source_path or "(defaults)"},
+        help="resolved chirp config file path (info-style, value always 1)",
+        clear_others=True,
+    )
+    log.info("chirp starting band=%s cmd=%s:%d source=%s:%s out=%s:%s max_ch=%d config=%s",
              cfg.band, cfg.cmd_host, cfg.cmd_port,
              cfg.source_kind, cfg.source_path,
-             cfg.audio_out_kind, cfg.audio_out_path, cfg.max_channels)
+             cfg.audio_out_kind, cfg.audio_out_path, cfg.max_channels,
+             cfg.config_source_path or "(defaults)")
 
     # Surface startup phase to systemd / `systemctl status` so an operator
     # can tell "currently opening" from "wedged in sdrplay_api_Open".
@@ -1424,6 +1585,39 @@ def main() -> int:
     tb = ChirpFlowgraph(cfg, server)
     tb.start()
     tb.start_health()
+
+    # Phase 1 (SB6): pull-style collectors refreshed at each scrape. alive_seconds
+    # is process uptime (its RESET across a restart is the real restart signal);
+    # audio bytes are read live from the icecast sink snapshot.
+    if _metrics_enabled:
+        _daemon_lbl = {"daemon": cfg.band}
+
+        def _collect_alive(reg, _start=_proc_start, _lbl=_daemon_lbl):
+            reg.set_counter(
+                "chirp_flowgraph_alive_seconds_total",
+                time.monotonic() - _start, labels=_lbl,
+                help="seconds since this chirp flowgraph started (resets on restart)",
+            )
+
+        def _collect_audio_bytes(reg, _tb=tb):
+            sink = getattr(_tb, "icecast_sink", None)
+            if sink is None:
+                return
+            try:
+                snap = sink.snapshot()
+            except Exception:  # noqa: BLE001
+                return
+            mount = snap.get("icecast_mount") or "(none)"
+            reg.set_counter(
+                "chirp_audio_bytes_published_total",
+                float(snap.get("icecast_bytes_sent", 0)),
+                labels={"mount": mount},
+                help="bytes published to the icecast mount by this daemon",
+            )
+
+        metrics.REGISTRY.register_callback(_collect_alive)
+        metrics.REGISTRY.register_callback(_collect_audio_bytes)
+
     try:
         server.start()
     except Exception:
@@ -1484,13 +1678,42 @@ def main() -> int:
     # this is 3× safety margin. See DESIGN_sdrplay_wedge_fix.md §4.3.
     _WATCHDOG_INTERVAL_S = 10.0
     last_watchdog = time.monotonic()
+    # SB6 (2026-06-18): track the audio-branch verdict so we only LOG / emit on
+    # a transition (not every 10 s) and so a recovery is announced once.
+    audio_branch_ok = True
 
     try:
         while not stop_evt.is_set():
             time.sleep(0.25)
             now = time.monotonic()
             if now - last_watchdog >= _WATCHDOG_INTERVAL_S:
-                _sd_notify("WATCHDOG=1")
+                # SB6 audio-flow gate: when the probe is enabled and the audio
+                # branch is wedged (path reports live but only -180 dBFS PCM has
+                # flowed for the grace window), WITHHOLD the watchdog ping so
+                # systemd's WatchdogSec= restarts us. Probe disabled (default) →
+                # ping unconditionally, i.e. exactly the prior behaviour.
+                should_ping, reason = tb.audio_watchdog_status(now)
+                if should_ping:
+                    _sd_notify("WATCHDOG=1")
+                    if not audio_branch_ok:
+                        log.warning("audio branch RECOVERED — resuming WATCHDOG pings (%s)", reason)
+                        server.emit_event("audio_branch_recovered", band=cfg.band, reason=reason)
+                    audio_branch_ok = True
+                else:
+                    # Wedge: do NOT ping. systemd will restart at WatchdogSec.
+                    if audio_branch_ok:
+                        log.error("AUDIO BRANCH SILENT — withholding WATCHDOG=1 so systemd "
+                                  "restarts (%s)", reason)
+                        server.emit_event("audio_branch_silent", band=cfg.band, reason=reason)
+                        _sd_notify(None, f"audio branch silent: {reason}")
+                    audio_branch_ok = False
+                if _metrics_enabled:
+                    metrics.REGISTRY.set_gauge(
+                        "chirp_audio_branch_silent", 0 if should_ping else 1,
+                        labels={"daemon": cfg.band},
+                        help="1 when the audio-flow probe judges the branch wedged "
+                             "(watchdog ping withheld), else 0",
+                    )
                 last_watchdog = now
     finally:
         log.info("stopping flowgraph + server")

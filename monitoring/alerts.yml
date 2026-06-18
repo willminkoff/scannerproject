@@ -1,0 +1,89 @@
+# SB6 Phase 0 -- Prometheus alerting rules for the Micro.
+#
+# Deploy target: /etc/prometheus/rules/alerts.yml
+# Validate before reload:  promtool check rules /etc/prometheus/rules/alerts.yml
+#
+# Phase 0 shipped the icecast consumer-wedge canary. Phase 1 (SB6) adds the
+# chirp config-load alert. Remaining SB6-plan rules (sdrplay_open_failures spike,
+# op25_freq_error drift) depend on exporters that don't exist until later phases.
+#
+# Delivery is still observe-only: no Alertmanager is wired (see prometheus.yml),
+# so these rules go ACTIVE/FIRING in the Prometheus UI but send no NTFY/page yet.
+
+groups:
+  - name: icecast
+    rules:
+      # The VLC-wedge canary. When a consumer (e.g. scanner-vlc-analog) stays
+      # connected but stops draining the stream, Icecast can no longer push
+      # bytes to it, so total_bytes_sent stalls and the derived byte rate
+      # collapses toward zero while the listener count stays > 0.
+      #
+      # 1000 B/s is well below any real mp3 stream (a 64 kbps mount is ~8000
+      # B/s, a 32 kbps mount ~4000 B/s), so this only fires on a true stall.
+      - alert: IcecastConsumerWedge
+        expr: icecast_listener_byte_rate < 1000 and icecast_listener_count > 0
+        for: 2m
+        labels:
+          severity: warning
+          component: icecast
+        annotations:
+          summary: "Icecast mount {{ $labels.mount }} has listeners but byte rate < 1000 B/s"
+          description: >-
+            Mount {{ $labels.mount }} is sending only {{ $value | printf "%.0f" }}
+            B/s to its listener(s) for 2m, while listener count is > 0. Likely a
+            wedged consumer (TCP connected, not draining). Restart only the
+            wedged consumer unit, not the source chain. See
+            docs/sb6-phase0-install.md.
+
+      # Companion: alert if the exporter itself can't reach Icecast, so a wedge
+      # alert silenced by a dead exporter doesn't pass unnoticed.
+      - alert: IcecastExporterDown
+        expr: icecast_up == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: icecast
+        annotations:
+          summary: "icecast_exporter cannot poll Icecast /admin/stats"
+          description: >-
+            icecast_up has been 0 for 2m. The exporter is running but its poll
+            of /admin/stats is failing (auth, port, or Icecast down). The
+            consumer-wedge canary is blind until this clears.
+
+  - name: chirp
+    rules:
+      # The voice-as-noise canary (SB6 Phase 1/2). A chirp daemon publishes
+      # chirp_config_load_status=1 only when it loaded its JSON config cleanly.
+      #
+      # Two arms, because Phase 2 makes a broken config a HARD FAIL:
+      #   1. chirp_config_load_status == 0 -- the daemon came up, started its
+      #      /metrics endpoint, found the config broken, published 0, and is in
+      #      its short grace window before exiting (CHIRP_CONFIG_FAIL_GRACE_S).
+      #   2. up{job="chirp"} == 0 -- the daemon has already exited (or never
+      #      bound /metrics), so the status series is gone; the scrape target is
+      #      down. Without this arm a hard-failed daemon would silence the alert.
+      #
+      # WHY `count by (band)`: a hard-failing daemon FLAPS (publish 0 -> 20s
+      # grace -> exit 3 -> systemd restart). That alternates the active arm
+      # between arm 1 (carries a `daemon` label) and arm 2 (does not), so the
+      # raw two-arm expr produces a DIFFERENT alert series each flap and the
+      # `for:` timer keeps resetting (observed: fired at ~90s, not <=60s).
+      # Collapsing both arms to a stable {band} identity keeps one continuous
+      # pending series across the flap, so `for: 45s` + the 15s scrape interval
+      # fires within ~60s -- meeting the done-gate. (A normal ~12s restart stays
+      # well under 45s, so this does not false-fire on deploys.)
+      - alert: ChirpConfigLoadFailed
+        expr: count by (band) ((chirp_config_load_status == 0) or (up{job="chirp"} == 0)) > 0
+        for: 45s
+        labels:
+          severity: critical
+          component: chirp
+        annotations:
+          summary: "chirp config load failed / daemon down (band {{ $labels.band }})"
+          description: >-
+            A chirp daemon either published chirp_config_load_status=0 (its JSON
+            config failed to load, so it refused to start on stale defaults) or
+            its /metrics target has been down for 45s. This is the 2026-06-14
+            voice-as-noise class: a broken config used to silently fall back to
+            defaults that flipped am_agc_enabled on. Check
+            `journalctl -u gr-demod@<band>` for "CONFIG LOAD FAILED".

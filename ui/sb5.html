@@ -9558,14 +9558,17 @@ if (document.readyState === "loading") {
   function wireSquelchDbfs() {
     var sendDbfs = debounce(function (band, dbfs) {
       var apiBand = band === "ground" ? "ground" : "air";
+      var statusEl = document.querySelector('[data-role="tune-status"][data-band="' + band + '"]');
+      // POST to /api/airband/squelch — the handler writes the managed store
+      // AND (in chirp manual mode) pushes set_squelch to the live daemon, so
+      // the slider actually moves the radio's squelch.
       fetch("/api/airband/squelch", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: "band=" + apiBand + "&threshold_dbfs=" + dbfs + "&auto=false"
       }).then(function (r) { return r.json(); }).then(function (res) {
-        var statusEl = document.querySelector('[data-role="tune-status"][data-band="' + band + '"]');
         if (statusEl) statusEl.textContent = (res && res.ok) ? ("manual · " + dbfs + " dBFS") : "squelch update failed";
-      }).catch(function () { /* tolerant */ });
+      }).catch(function () { if (statusEl) statusEl.textContent = "squelch update failed"; });
     }, 250);
     ["air", "ground"].forEach(function (band) {
       var slider = document.querySelector('.ctl-sq-dbfs[data-band="' + band + '"]');

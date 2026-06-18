@@ -77,6 +77,14 @@ _DIGITAL_MUTE_FLAG = Path(
     os.getenv("OP25_AUDIO_MUTE_FLAG", "/run/scannerproject/op25/digital_local_mute")
 )
 
+# 2026-06-17: digital ALSO has a VLC consumer (scanner-vlc-digital) playing
+# DIGITAL.mp3 to the BT sink.  In practice that VLC sink-input is the audio
+# actually heard on BOOM — the op25 audio-bridge direct pw-cat path is often
+# inactive/already-muted (its touchfile present).  The old digital mute only
+# touched the op25 flag, so it never silenced the VLC the operator was hearing.
+# Mute BOTH paths: the op25 touchfile AND the scanner-vlc-digital sink-input.
+_DIGITAL_VLC_UNIT = os.getenv("BAND_MUTE_UNIT_DIGITAL", "scanner-vlc-digital.service")
+
 BAND_KEYS: tuple[str, ...] = ("airband", "ground", "digital", "vfo")
 BAND_MUTE_WATCHER_INTERVAL_SEC = float(
     os.getenv("BAND_MUTE_WATCHER_INTERVAL_SEC", "5.0")
@@ -492,6 +500,17 @@ def _apply_vlc_mute(unit: str, muted: bool) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 def _apply_digital_mute(muted: bool) -> tuple[bool, str]:
+    """Mute digital on BOTH consumer paths so it works regardless of config:
+
+    1. op25 audio-bridge direct pw-cat — gated by the touchfile flag.
+    2. scanner-vlc-digital VLC sink-input — the consumer actually heard on
+       BOOM in the current deployment.
+
+    Returns ok if at least one path applied cleanly (the inactive path
+    reports a benign message rather than failing the toggle)."""
+    msgs: list[str] = []
+    # Path 1: op25 touchfile.
+    flag_ok = True
     try:
         _DIGITAL_MUTE_FLAG.parent.mkdir(parents=True, exist_ok=True)
         if muted:
@@ -501,9 +520,14 @@ def _apply_digital_mute(muted: bool) -> tuple[bool, str]:
                 _DIGITAL_MUTE_FLAG.unlink()
             except FileNotFoundError:
                 pass
-        return True, ""
     except Exception as exc:  # noqa: BLE001
-        return False, f"touchfile error: {exc}"
+        flag_ok = False
+        msgs.append(f"touchfile error: {exc}")
+    # Path 2: scanner-vlc-digital VLC sink-input (reuse the VLC band logic).
+    vlc_ok, vlc_msg = _apply_vlc_mute(_DIGITAL_VLC_UNIT, muted)
+    if vlc_msg:
+        msgs.append(vlc_msg)
+    return (flag_ok or vlc_ok), "; ".join(m for m in msgs if m)
 
 
 def _digital_is_muted() -> bool:
@@ -573,7 +597,18 @@ def reconcile_once() -> None:
                             band, want, msg,
                         )
             elif band == "digital":
-                if _digital_is_muted() != want:
+                # Diverged if EITHER path is off: the op25 touchfile, or the
+                # scanner-vlc-digital sink-input (re-created on VLC restart).
+                diverged = (_digital_is_muted() != want)
+                if not diverged:
+                    pid = _service_main_pid(_DIGITAL_VLC_UNIT)
+                    if pid is not None:
+                        sink_id = _sink_input_id_for_pid(pid)
+                        if sink_id is not None:
+                            cur = _current_sink_input_mute(sink_id)
+                            if cur is not None and cur != want:
+                                diverged = True
+                if diverged:
                     ok, msg = _apply_digital_mute(want)
                     if not ok:
                         logger.debug(
