@@ -39,6 +39,8 @@ class StubDaemon:
         self.sock.bind(("127.0.0.1", 0))
         self.port = self.sock.getsockname()[1]
         self.channels: dict[str, dict] = {}
+        # SB6 2026-06-18 global-squelch redesign: the one band-wide threshold.
+        self.global_squelch_dbfs: float = -56.0
         self.received: list[dict] = []
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True)
@@ -115,6 +117,16 @@ class StubDaemon:
             self.channels[cid]["squelch_dbfs"] = float(args.get("dbfs"))
             return self._ok(req_id, {"dbfs": float(args.get("dbfs"))})
 
+        if cmd == "set_global_squelch_dbfs":
+            # SB6 2026-06-18: apply the one band-wide threshold to every channel.
+            self.global_squelch_dbfs = float(args.get("dbfs"))
+            for c in self.channels.values():
+                c["squelch_dbfs"] = self.global_squelch_dbfs
+            return self._ok(req_id, {
+                "dbfs": self.global_squelch_dbfs,
+                "channels_applied": len(self.channels),
+            })
+
         if cmd == "reset":
             self.channels.clear()
             return self._ok(req_id, {"pool_free": 32, "removed": []})
@@ -127,6 +139,7 @@ class StubDaemon:
                     {**c, "slot": i, "squelch_open": False}
                     for i, c in enumerate(self.channels.values())
                 ],
+                "global_squelch_dbfs": self.global_squelch_dbfs,
                 "pool_free": 32 - len(self.channels),
                 "icecast_state": self.icecast_state,
                 "icecast_bytes_sent": 12345,
@@ -214,7 +227,11 @@ def test_reset_radios_via_chirp_partial_failure(two_daemons):
 # --- test: apply_squelch_preset end-to-end ----------------------------------
 
 
-def test_apply_squelch_preset_pushes_per_channel(two_daemons):
+def test_apply_squelch_preset_pushes_global(two_daemons):
+    """SB6 2026-06-18 global-squelch redesign: the preset apply now computes ONE
+    band-wide threshold from the AGGREGATE noise floor (median across channels)
+    + the preset margin and pushes it with a single set_global_squelch_dbfs.
+    Every channel ends up at that one value (no per-channel set_squelch)."""
     air, gnd, cc = two_daemons
     # Pre-populate airband with three channels.
     for cid, freq in [("A", 121.0), ("B", 122.0), ("C", 123.0)]:
@@ -226,15 +243,22 @@ def test_apply_squelch_preset_pushes_per_channel(two_daemons):
     import ui.chirp_adapter as ca
     importlib.reload(ca)
     plan = ca.apply_squelch_preset_via_chirp("airband", "balanced")
-    # 3 channels, threshold = noise + 6 dB = -64
+    # 3 channels, aggregate noise -70, threshold = -70 + 6 dB = -64
     assert plan["applied_count"] == 3
     assert plan["rejected_count"] == 0
     assert plan["threshold_median"] == -64
+    assert plan["global_squelch_dbfs"] == -64
     assert plan["preset"] == "balanced"
-    # All three got set_squelch
+    # ONE global push, not three per-channel set_squelch calls.
+    global_calls = [r for r in air.received if r["cmd"] == "set_global_squelch_dbfs"]
+    assert len(global_calls) == 1
+    assert global_calls[0]["args"]["dbfs"] == -64.0
+    assert [r for r in air.received if r["cmd"] == "set_squelch"] == []
+    # Every channel inherited the one global value.
     assert air.channels["A"]["squelch_dbfs"] == -64.0
     assert air.channels["B"]["squelch_dbfs"] == -64.0
     assert air.channels["C"]["squelch_dbfs"] == -64.0
+    assert air.global_squelch_dbfs == -64.0
 
 
 def test_apply_squelch_preset_applies_under_high_signal_level(two_daemons):
@@ -268,13 +292,13 @@ def test_apply_squelch_preset_applies_under_high_signal_level(two_daemons):
     assert plan.get("status") != "rejected"
     assert plan["applied_count"] == 2
     assert plan["rejected_count"] == 0
-    # Threshold = -10 + 6 (balanced) = -4. NOT clamped.
+    # Aggregate noise -10, threshold = -10 + 6 (balanced) = -4. NOT clamped.
     assert plan["threshold_median"] == -4
-    # set_squelch WAS sent for both channels.
-    set_squelch_calls = [r for r in air.received if r["cmd"] == "set_squelch"]
-    assert len(set_squelch_calls) == 2
-    for r in set_squelch_calls:
-        assert r["args"]["dbfs"] == -4.0
+    assert plan["global_squelch_dbfs"] == -4
+    # ONE global push at -4 (SB6), applied to both channels.
+    global_calls = [r for r in air.received if r["cmd"] == "set_global_squelch_dbfs"]
+    assert len(global_calls) == 1
+    assert global_calls[0]["args"]["dbfs"] == -4.0
 
 
 def test_apply_squelch_preset_daemon_down(two_daemons):

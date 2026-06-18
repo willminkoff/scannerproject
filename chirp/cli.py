@@ -125,6 +125,11 @@ def cmd_set_squelch(args, host: str, port: int) -> int:
                                               {"id": args.id, "dbfs": args.dbfs})))
 
 
+def cmd_set_global_squelch(args, host: str, port: int) -> int:
+    return _emit(_send(port, host, _envelope("set_global_squelch_dbfs",
+                                             {"dbfs": args.dbfs})))
+
+
 def cmd_set_freq(args, host: str, port: int) -> int:
     return _emit(_send(port, host, _envelope("set_freq",
                                               {"id": args.id, "mhz": args.mhz})))
@@ -240,9 +245,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("remove-channel", help="remove a channel from the pool")
     sp.add_argument("--id", required=True)
 
-    sp = sub.add_parser("set-squelch", help="change squelch threshold for a channel")
+    sp = sub.add_parser("set-squelch",
+                        help="DIAGNOSTIC: poke one channel's squelch (overwritten "
+                             "by the global on next add/reset/set-global-squelch)")
     sp.add_argument("--id", required=True)
     sp.add_argument("--dbfs", type=float, required=True)
+
+    sp = sub.add_parser("set-global-squelch",
+                        help="set the ONE band-wide squelch threshold (applies to "
+                             "every channel; the operator-facing knob)")
+    sp.add_argument("--dbfs", type=float, required=True,
+                    help="band-wide squelch threshold dBFS in [-120, 0]")
 
     sp = sub.add_parser("set-freq", help="retune a channel")
     sp.add_argument("--id", required=True)
@@ -273,6 +286,7 @@ DISPATCH = {
     "add-channel": cmd_add_channel,
     "remove-channel": cmd_remove_channel,
     "set-squelch": cmd_set_squelch,
+    "set-global-squelch": cmd_set_global_squelch,
     "set-freq": cmd_set_freq,
     "set-gain": cmd_set_gain,
     "set-master-gain": cmd_set_master_gain,

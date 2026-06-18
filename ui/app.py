@@ -11,7 +11,6 @@ try:
     from .server_workers import start_config_worker, start_icecast_monitor
     from .favorites_runtime import sync_scan_pool_to_runtime
     from .v3_runtime import bootstrap_runtime
-    from .squelch_tracker import start_squelch_tracker
 except ImportError:
     # Support direct execution (`python ui/app.py`) by adding repo root.
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +22,6 @@ except ImportError:
     from ui.server_workers import start_config_worker, start_icecast_monitor
     from ui.favorites_runtime import sync_scan_pool_to_runtime
     from ui.v3_runtime import bootstrap_runtime
-    from ui.squelch_tracker import start_squelch_tracker
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -118,14 +116,11 @@ def main():
     start_icecast_monitor()
     _rehydrate_wx_reader()
     _start_runtime_sync_thread()
-    # SB5 Phase 2: continuous noise-floor tracker.  Background thread
-    # with built-in 30s cadence + 5 dB hysteresis; per-band AUTO toggle
-    # lives in managed_analog_controls.json (default AUTO on).
-    try:
-        start_squelch_tracker()
-        logging.info("squelch_tracker thread started")
-    except Exception:
-        logging.exception("squelch_tracker failed to start")
+    # SB6 2026-06-18 global-squelch redesign: the SB5 per-channel noise-floor
+    # tracker thread is RETIRED. The band now runs on one operator-set global
+    # squelch threshold (manual slider → set_global_squelch_dbfs); reset_radios
+    # recomputes that single value from the aggregate noise floor on demand.
+    # No continuous per-channel follower, no AUTO toggle.
     # 2026-06-05: per-band BT-speaker mute watcher.  Reconciles persisted
     # mute intent (data/band_mute.json) against the live PipeWire sink
     # state every 5s so a service restart that re-creates an unmuted

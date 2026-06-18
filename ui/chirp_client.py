@@ -350,6 +350,12 @@ class ChirpClient:
     def set_squelch(self, id: str, dbfs: float) -> dict:
         return self._send("set_squelch", {"id": str(id), "dbfs": float(dbfs)})
 
+    def set_global_squelch_dbfs(self, dbfs: float) -> dict:
+        """SB6 2026-06-18: set the ONE band-wide squelch threshold (dBFS).
+        The daemon applies it to every channel at once — replaces the
+        per-channel set_squelch fan-out the UI used to do."""
+        return self._send("set_global_squelch_dbfs", {"dbfs": float(dbfs)})
+
     def set_vad_threshold(self, id: str, threshold: float) -> dict:
         """SB5 squelch redesign: set per-channel VAD score threshold (0-100)."""
         return self._send("set_vad_threshold", {"id": str(id), "threshold": float(threshold)})
