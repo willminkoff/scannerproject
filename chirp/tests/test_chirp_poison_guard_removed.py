@@ -62,6 +62,7 @@ class _StubDaemon:
         self.sock.bind(("127.0.0.1", 0))
         self.port = self.sock.getsockname()[1]
         self.channels: dict[str, dict] = {}
+        self.global_squelch_dbfs: float = -56.0
         self.received: list[dict] = []
         self.signal_level_dbfs = -70.0
         self.icecast_state = "connected"
@@ -112,6 +113,15 @@ class _StubDaemon:
                 return self._reject(req_id, f"unknown channel: {cid}")
             self.channels[cid]["squelch_dbfs"] = float(args.get("dbfs"))
             return self._ok(req_id, {"dbfs": float(args.get("dbfs"))})
+        if cmd == "set_global_squelch_dbfs":
+            # SB6 2026-06-18: one band-wide threshold applied to every channel.
+            self.global_squelch_dbfs = float(args.get("dbfs"))
+            for c in self.channels.values():
+                c["squelch_dbfs"] = self.global_squelch_dbfs
+            return self._ok(req_id, {
+                "dbfs": self.global_squelch_dbfs,
+                "channels_applied": len(self.channels),
+            })
         if cmd == "get_status":
             return self._ok(req_id, {
                 "version": 1,
@@ -120,6 +130,7 @@ class _StubDaemon:
                     {**c, "slot": i, "squelch_open": False}
                     for i, c in enumerate(self.channels.values())
                 ],
+                "global_squelch_dbfs": self.global_squelch_dbfs,
                 "pool_free": 32 - len(self.channels),
                 "icecast_state": self.icecast_state,
                 "icecast_bytes_sent": 0,
@@ -184,19 +195,21 @@ def test_apply_succeeds_when_signal_level_above_old_poison_ceiling(air_daemon):
     assert plan.get("status") != "rejected"
     assert plan["applied_count"] == 3
     assert plan["rejected_count"] == 0
-    # Thresholds = -40 + 6 (balanced margin) = -34. Not clamped to -100.
+    # Aggregate noise -40 + 6 (balanced margin) = -34. Not clamped to -100.
     assert plan["threshold_median"] == -34
-    # set_squelch was actually sent for every channel.
-    set_calls = [r for r in air.received if r["cmd"] == "set_squelch"]
-    assert len(set_calls) == 3
-    for r in set_calls:
-        assert r["args"]["dbfs"] == -34.0
+    # SB6 2026-06-18: ONE global push (not per-channel set_squelch).
+    global_calls = [r for r in air.received if r["cmd"] == "set_global_squelch_dbfs"]
+    assert len(global_calls) == 1
+    assert global_calls[0]["args"]["dbfs"] == -34.0
+    assert [r for r in air.received if r["cmd"] == "set_squelch"] == []
 
 
 def test_apply_no_per_channel_clamp_when_one_channel_above_old_ceiling(air_daemon):
     """One healthy channel + one channel with signal_level above the old
     ceiling. Old behaviour: clamp the offending channel to -100 dBFS.
-    New behaviour: apply noise+margin to BOTH channels.
+    SB6 2026-06-18 behaviour: the band runs on ONE threshold derived from the
+    AGGREGATE noise floor (median across channels) + margin — no per-channel
+    value, and crucially no -100 clamp on the hot channel.
     """
     air = air_daemon
     # Two channels; we'll mutate per-channel signal_level via a custom
@@ -222,10 +235,14 @@ def test_apply_no_per_channel_clamp_when_one_channel_above_old_ceiling(air_daemo
     # on the chirp path now.
     assert plan["sanitized_count"] == 0
     assert plan["sanitized_channels"] == []
-    # Per-channel thresholds: A = -70+6 = -64, B = -30+6 = -24.
-    set_calls = [r for r in air.received if r["cmd"] == "set_squelch"]
-    by_id = {r["args"]["id"]: r["args"]["dbfs"] for r in set_calls}
-    assert by_id == {"A": -64.0, "B": -24.0}, by_id
+    # SB6: aggregate noise = median(-70, -30) = -50; +6 (balanced) = -44.
+    # ONE global push at -44; BOTH channels inherit it (no -100 clamp on B).
+    assert plan["global_squelch_dbfs"] == -44
+    global_calls = [r for r in air.received if r["cmd"] == "set_global_squelch_dbfs"]
+    assert len(global_calls) == 1
+    assert global_calls[0]["args"]["dbfs"] == -44.0
+    assert air.channels["A"]["squelch_dbfs"] == -44.0
+    assert air.channels["B"]["squelch_dbfs"] == -44.0
 
 
 def test_apply_succeeds_for_airband_median_at_real_world_level(air_daemon):

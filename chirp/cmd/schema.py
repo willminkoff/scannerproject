@@ -233,6 +233,20 @@ class SetSquelchArgs(_ArgsBase):
         return _check_squelch(v)
 
 
+class SetGlobalSquelchArgs(_ArgsBase):
+    """SB6 2026-06-18 global-squelch redesign. ONE squelch threshold (dBFS)
+    for the whole band, applied to every channel at once. Replaces the
+    per-channel ``set_squelch`` as the operator-facing knob — see
+    daemon._cmd_set_global_squelch_dbfs."""
+
+    dbfs: float
+
+    @field_validator("dbfs")
+    @classmethod
+    def _v_sq(cls, v: float) -> float:
+        return _check_squelch(v)
+
+
 class SetFreqArgs(_ArgsBase):
     id: str
     mhz: float
@@ -353,6 +367,7 @@ COMMAND_ARGS: dict[str, type[_ArgsBase]] = {
     "add_channel": AddChannelArgs,
     "remove_channel": RemoveChannelArgs,
     "set_squelch": SetSquelchArgs,
+    "set_global_squelch_dbfs": SetGlobalSquelchArgs,
     "set_vad_threshold": SetVadThresholdArgs,
     "set_vad_bypass": SetVadBypassArgs,
     "set_freq": SetFreqArgs,
@@ -412,6 +427,7 @@ __all__ = [
     "AddChannelArgs",
     "RemoveChannelArgs",
     "SetSquelchArgs",
+    "SetGlobalSquelchArgs",
     "SetFreqArgs",
     "SetGainArgs",
     "SetMasterGainArgs",

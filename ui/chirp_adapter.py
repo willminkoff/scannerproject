@@ -177,33 +177,27 @@ def apply_squelch_preset_via_chirp(band: str, preset: str) -> dict:
             "via": "chirp",
         }
 
-    # Compute thresholds: noise + margin. No poison clamp (see comment
-    # at the top of this function for the architectural reason). The
-    # ``sanitized_channels`` field in the response is retained as an
-    # empty list to preserve the response shape consumed by handlers.py
-    # and the audit-log JSON; it just never has entries on the chirp
-    # path.
+    # SB6 2026-06-18 global-squelch redesign. Collapse the per-channel
+    # thresholds into ONE band-wide value: the AGGREGATE noise floor (median
+    # across every channel) + the preset margin. Taking the median over the
+    # whole band is what kills the old per-channel outlier bug (a single
+    # channel mid-TX, or sampled while the LO was parked on another cluster,
+    # used to produce a -86 / -27 spurious threshold for that channel). The
+    # band now follows one robust number. We push it with a single
+    # set_global_squelch_dbfs cmd instead of N per-channel set_squelch calls.
     noise_median = float(statistics.median(noise_used))
-    thresholds = [int(round(n + margin_db)) for n in noise_used]
+    global_threshold = int(round(noise_median + margin_db))
+    # Keep within the daemon's accepted squelch range.
+    global_threshold = int(max(-120, min(0, global_threshold)))
     sanitized: list[dict] = []
 
-    # Push per-channel set_squelch.  Best-effort: a single rejection
-    # does NOT abort the rest — chirp's set_squelch is idempotent and
-    # the operator surface continues to show useful "applied N of M"
-    # information.
-    applied_count = 0
-    rejections: list[dict] = []
     t0 = time.monotonic()
-    for cid, dbfs in zip(ids, thresholds):
-        try:
-            client.set_squelch(cid, float(dbfs))
-            applied_count += 1
-        except Exception as exc:
-            rejections.append({"id": cid, "dbfs": dbfs, "error": str(exc)})
-
+    push = set_global_squelch_via_chirp(target, float(global_threshold))
     elapsed_ms = (time.monotonic() - t0) * 1000.0
-
-    threshold_median = int(round(statistics.median(thresholds))) if thresholds else None
+    applied_count = int(push.get("channels_applied") or 0)
+    rejections: list[dict] = []
+    if push.get("error"):
+        rejections.append({"error": str(push.get("error"))})
 
     # Persist the override metadata so the SSE readout shows fresh data —
     # mirrors what apply_preset() does on the rtl-airband path.
@@ -224,7 +218,7 @@ def apply_squelch_preset_via_chirp(band: str, preset: str) -> dict:
             gain=float(cur_gain),
             squelch_mode="dbfs",
             squelch_snr=float(cur_snr),
-            squelch_dbfs=float(threshold_median if threshold_median is not None else -60.0),
+            squelch_dbfs=float(global_threshold),
             squelch_preset=norm_preset,
             squelch_preset_margin_db=float(margin_db),
             squelch_preset_noise_floor_dbfs=noise_median,
@@ -238,8 +232,11 @@ def apply_squelch_preset_via_chirp(band: str, preset: str) -> dict:
         "preset": norm_preset,
         "margin_db": margin_db,
         "freqs": freqs,
-        "thresholds": thresholds,
-        "threshold_median": threshold_median,
+        # SB6: one global threshold now; ``thresholds`` kept as a uniform list
+        # (every channel gets the same value) to preserve the response shape.
+        "thresholds": [global_threshold] * len(freqs),
+        "threshold_median": global_threshold,
+        "global_squelch_dbfs": global_threshold,
         "noise_floor_median": noise_median,
         "stats_available": True,
         "sanitized_channels": sanitized,
@@ -247,7 +244,7 @@ def apply_squelch_preset_via_chirp(band: str, preset: str) -> dict:
         "applied_count": applied_count,
         "rejections": rejections,
         "rejected_count": len(rejections),
-        "changed": bool(applied_count),
+        "changed": bool(push.get("changed")),
         "elapsed_ms": round(elapsed_ms, 2),
         "error": "",
         "via": "chirp",
@@ -793,6 +790,23 @@ def reset_radios_via_chirp(*, unconditional_repopulate: bool = True) -> tuple[bo
                 "added_count": rp.get("added_count"),
                 "error": rp.get("error"),
             }
+            # SB6 2026-06-18 global-squelch redesign. After repopulate,
+            # recompute the ONE band-wide squelch from the freshly-populated
+            # channels' AGGREGATE noise floor (median + preset margin) and push
+            # it with a single set_global_squelch_dbfs. The band-wide median is
+            # robust to a channel sampled mid-TX, which is what produced the old
+            # per-channel outlier thresholds (-86 / -27). Best-effort: a failure
+            # here never fails the reset — channels keep the daemon's current
+            # global. Skipped when nothing repopulated.
+            if band_result["repopulate"].get("ok"):
+                try:
+                    cal = apply_squelch_preset_via_chirp(name, "balanced")
+                    band_result["global_squelch_dbfs"] = cal.get("global_squelch_dbfs")
+                except Exception:  # noqa: BLE001
+                    logger.debug(
+                        "chirp_adapter: global squelch calibrate band=%s skipped",
+                        name, exc_info=True,
+                    )
 
     elapsed = time.monotonic() - t0
     all_ok = all(r.get("ok") for r in results.values())
@@ -1169,6 +1183,73 @@ def wide_open_squelch_via_chirp(band: str, dbfs: float = -120.0) -> dict:
     }
 
 
+def set_global_squelch_via_chirp(band: str, dbfs: float) -> dict:
+    """SB6 2026-06-18 global-squelch redesign. Push the ONE band-wide squelch
+    threshold (dBFS) to the live chirp daemon for ``band``. The daemon applies
+    it to every channel in a single cmd — replaces ``wide_open_squelch_via_chirp``
+    (which fanned a value out per-channel). No-op-safe for rtl-airband (chirp
+    client unavailable). Returns a small report dict like the other helpers."""
+    target = _normalize_band(band)
+    dbfs = float(max(-120.0, min(0.0, dbfs)))
+    try:
+        client = _chirp_client_for(target)
+    except Exception as exc:
+        return {
+            "target": target,
+            "applied_dbfs": dbfs,
+            "changed": False,
+            "error": f"chirp_client_init_failed: {exc}",
+            "via": "chirp_global_squelch",
+        }
+    try:
+        resp = client.set_global_squelch_dbfs(dbfs)
+    except Exception as exc:
+        return {
+            "target": target,
+            "applied_dbfs": dbfs,
+            "changed": False,
+            "error": f"chirp_set_global_squelch_failed: {exc}",
+            "via": "chirp_global_squelch",
+        }
+    applied_count = None
+    applied_dbfs = dbfs
+    if isinstance(resp, dict):
+        applied_count = resp.get("channels_applied")
+        if resp.get("dbfs") is not None:
+            applied_dbfs = float(resp.get("dbfs"))
+    return {
+        "target": target,
+        "applied_dbfs": applied_dbfs,
+        "channels_applied": applied_count,
+        "changed": True,
+        "via": "chirp_global_squelch",
+    }
+
+
+def get_global_squelch_via_chirp(band: str) -> Optional[float]:
+    """SB6 2026-06-18. READ side of the squelch slider: return the live
+    band-wide squelch threshold (dBFS) the chirp daemon for ``band`` is running,
+    from ``get_status().global_squelch_dbfs``.
+
+    Mirrors ``get_sdr_gain_via_chirp`` — under chirp the daemon is the source of
+    truth, so the UI reads this so the slider reflects reality across reloads
+    instead of snapping back to a controls-file default. Returns None if chirp is
+    unreachable or the field is missing; callers fall back to their prior value."""
+    target = _normalize_band(band)
+    try:
+        client = _chirp_client_for(target)
+        status = client.get_status()
+    except Exception:
+        logger.debug("get_global_squelch_via_chirp(%s): chirp unreachable", target,
+                     exc_info=True)
+        return None
+    try:
+        val = (status or {}).get("global_squelch_dbfs")
+        return float(val) if val is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def set_sdr_gain_via_chirp(band: str, db: float) -> dict:
     """SB6 2026-06-17. Push the overall SDR front-end gain (dB) to the live
     chirp daemon for ``band``.
@@ -1344,6 +1425,8 @@ __all__ = [
     "apply_squelch_preset_via_chirp",
     "calibrate_squelch_via_chirp",
     "wide_open_squelch_via_chirp",
+    "set_global_squelch_via_chirp",
+    "get_global_squelch_via_chirp",
     "set_audio_vad_sensitivity_via_chirp",
     "set_audio_vad_bypass_via_chirp",
     "set_squelch_auto_via_chirp",

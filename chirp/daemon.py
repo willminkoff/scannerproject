@@ -59,6 +59,7 @@ from chirp.cmd.schema import (
     Response,
     SetFreqArgs,
     SetGainArgs,
+    SetGlobalSquelchArgs,
     SetMasterGainArgs,
     SetSdrGainArgs,
     SetSquelchArgs,
@@ -180,6 +181,16 @@ class DaemonConfig:
     # for a properly-SLOW AM AGC (tiny agc_attack/agc_decay). AM-only knob.
     am_agc_enabled: bool = False
     am_fixed_gain: float = 10.0
+    # SB6 2026-06-18 global-squelch redesign. ONE squelch threshold (dBFS) for
+    # the WHOLE band, replacing the per-channel model. Applied to every channel
+    # at daemon startup, on every channel add, and live via the
+    # `set_global_squelch_dbfs` cmd. Per-channel squelch is no longer
+    # independently configurable. The persisted state file's
+    # `global_squelch_dbfs` (when present) overrides this at restore time so
+    # the operator's last live value survives a restart. Env rollback:
+    # CHIRP_GLOBAL_SQUELCH_DBFS. -56 dBFS is a reasonable noise-floor + margin
+    # baseline for BNA airband (see project_airband_squelch80_flapping memory).
+    global_squelch_dbfs: float = -56.0
     # VAD gate enable. The SB5 voice-activity gate mutes "non-voice" audio, but
     # it silences clean AM voice (confirmed 2026-06-14). Disable -> squelch-gated
     # audio passes straight through. Default True for back-compat; airband off.
@@ -495,6 +506,7 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         scan_hold_hang_sec=_resolve("CHIRP_SCAN_HOLD_HANG_SEC", raw, "scan_hold_hang_sec", _DC_DEFAULTS.scan_hold_hang_sec, float),
         scan_hold_max_sec=_resolve("CHIRP_SCAN_HOLD_MAX_SEC", raw, "scan_hold_max_sec", _DC_DEFAULTS.scan_hold_max_sec, float),
         priority_gate_enabled=_resolve("CHIRP_PRIORITY_GATE_ENABLED", raw, "priority_gate_enabled", _DC_DEFAULTS.priority_gate_enabled, _as_bool),
+        global_squelch_dbfs=_resolve("CHIRP_GLOBAL_SQUELCH_DBFS", raw, "global_squelch_dbfs", _DC_DEFAULTS.global_squelch_dbfs, float),
         audio_trace_enabled=_resolve("CHIRP_AUDIO_TRACE", raw, "audio_trace_enabled", _DC_DEFAULTS.audio_trace_enabled, _as_bool),
         audio_probe_enabled=_resolve("CHIRP_AUDIO_PROBE_ENABLED", raw, "audio_probe_enabled", _DC_DEFAULTS.audio_probe_enabled, _as_bool),
         audio_probe_silence_grace_s=_resolve("CHIRP_AUDIO_PROBE_SILENCE_GRACE_S", raw, "audio_probe_silence_grace_s", _DC_DEFAULTS.audio_probe_silence_grace_s, float),
@@ -511,7 +523,8 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
 # cardinality (unknown verbs bucket under "unknown"). Keep in sync with
 # ChirpFlowgraph.dispatch().
 _KNOWN_CMDS = frozenset({
-    "add_channel", "remove_channel", "set_squelch", "set_freq", "set_gain",
+    "add_channel", "remove_channel", "set_squelch", "set_global_squelch_dbfs",
+    "set_freq", "set_gain",
     "set_vad_bypass", "set_vad_threshold", "set_master_gain", "set_sdr_gain",
     "reset", "get_status",
 })
@@ -568,6 +581,9 @@ class ChirpFlowgraph(gr.top_block):
         self.slots: list[_Slot] = []
         self._by_id: dict[str, int] = {}
         self._master_gain_db: float = 0.0
+        # SB6 2026-06-18: the one band-wide squelch threshold. Seeded from
+        # config; restore_from_state() may override from the persisted file.
+        self._global_squelch_dbfs: float = cfg.global_squelch_dbfs
 
         # State store. None during pure unit tests; production wires a real one.
         if state_store is None:
@@ -792,6 +808,8 @@ class ChirpFlowgraph(gr.top_block):
                 return self._cmd_remove_channel(env, args)
             if cmd == "set_squelch":
                 return self._cmd_set_squelch(env, args)
+            if cmd == "set_global_squelch_dbfs":
+                return self._cmd_set_global_squelch_dbfs(env, args)
             if cmd == "set_freq":
                 return self._cmd_set_freq(env, args)
             if cmd == "set_gain":
@@ -915,13 +933,17 @@ class ChirpFlowgraph(gr.top_block):
                     id=s.user_id,
                     freq_mhz=s.last_freq_mhz if s.last_freq_mhz is not None else 0.001,
                     mode=s.mode,
-                    squelch_dbfs=s.last_squelch_dbfs,
+                    # SB6 2026-06-18: per-channel squelch is non-authoritative;
+                    # write it equal to the global so the file is self-consistent
+                    # (and an older daemon reading it would see the same value).
+                    squelch_dbfs=self._global_squelch_dbfs,
                     gain_db=s.last_gain_db,
                     label=s.label,
                 ))
             st = ChirpState(
                 band=self._cfg.band,
                 master_gain_db=self._master_gain_db,
+                global_squelch_dbfs=self._global_squelch_dbfs,
                 channels=chs,
             )
             self.state_store.save(st)
@@ -943,6 +965,15 @@ class ChirpFlowgraph(gr.top_block):
         with self._lock:
             self._master_gain_db = st.master_gain_db
             self.mixer.set_master_gain(self._master_gain_db)
+            # SB6 2026-06-18: adopt the persisted band-wide squelch when present
+            # so the operator's last live value survives a restart. An older
+            # state file (no global field) leaves the config default in place.
+            if st.global_squelch_dbfs is not None:
+                self._global_squelch_dbfs = float(st.global_squelch_dbfs)
+                log.info(
+                    "restored global_squelch_dbfs=%.1f from state band=%s",
+                    self._global_squelch_dbfs, self._cfg.band,
+                )
             for ch in st.channels:
                 slot = self._find_free_slot()
                 if slot is None:
@@ -974,7 +1005,9 @@ class ChirpFlowgraph(gr.top_block):
         """
         offset_hz = self._freq_to_offset_hz(ch.freq_mhz)
         slot.channel.set_center_freq_offset(offset_hz)
-        slot.channel.set_squelch(ch.squelch_dbfs)
+        # SB6 2026-06-18 global squelch: the incoming per-channel ch.squelch_dbfs
+        # is IGNORED — every channel inherits the daemon's one band-wide value.
+        slot.channel.set_squelch(self._global_squelch_dbfs)
         slot.channel.set_gain(ch.gain_db)
         # Phase 4-pre: park before publishing user_id so hit detector
         # never sees a fresh-but-already-firing channel.
@@ -982,7 +1015,7 @@ class ChirpFlowgraph(gr.top_block):
         slot.user_id = ch.id
         slot.label = ch.label
         slot.mode = ch.mode
-        slot.last_squelch_dbfs = ch.squelch_dbfs
+        slot.last_squelch_dbfs = self._global_squelch_dbfs
         slot.last_gain_db = ch.gain_db
         slot.last_freq_mhz = ch.freq_mhz
         slot.claimed_at = time.time()
@@ -1092,6 +1125,11 @@ class ChirpFlowgraph(gr.top_block):
             return Response.make_ok(env.id, {"slot": slot.index})
 
     def _cmd_set_squelch(self, env: Envelope, args: SetSquelchArgs) -> Response:
+        # SB6 2026-06-18: per-channel set_squelch is retained as a DIAGNOSTIC
+        # escape hatch only. The band runs on one global threshold
+        # (set_global_squelch_dbfs); any value set here is non-authoritative and
+        # is overwritten the next time a channel is added/restored or the global
+        # is changed. Kept wired so an operator can still poke a single channel.
         with self._lock:
             slot = self._slot_for(args.id)
             if slot is None:
@@ -1103,6 +1141,36 @@ class ChirpFlowgraph(gr.top_block):
             slot.last_squelch_dbfs = args.dbfs
             self._persist_state()
             return Response.make_ok(env.id, {"dbfs": args.dbfs})
+
+    def _cmd_set_global_squelch_dbfs(
+        self, env: Envelope, args: SetGlobalSquelchArgs
+    ) -> Response:
+        """SB6 2026-06-18 global-squelch redesign. Set the one band-wide squelch
+        threshold and apply it to EVERY active channel at once (including parked
+        ones — Channel.set_squelch stashes the value so it takes effect on
+        unpark). Replaces the per-channel fan-out the UI/tracker used to do."""
+        with self._lock:
+            self._global_squelch_dbfs = float(args.dbfs)
+            applied = 0
+            for s in self.slots:
+                if s.user_id is None:
+                    continue
+                s.channel.set_squelch(self._global_squelch_dbfs)
+                s.last_squelch_dbfs = self._global_squelch_dbfs
+                applied += 1
+            self._persist_state()
+            log.info(
+                "set_global_squelch_dbfs=%.1f applied to %d channel(s) band=%s",
+                self._global_squelch_dbfs, applied, self._cfg.band,
+            )
+            self._server.emit_event(
+                "global_squelch_changed",
+                dbfs=self._global_squelch_dbfs, channels=applied,
+            )
+            return Response.make_ok(
+                env.id,
+                {"dbfs": self._global_squelch_dbfs, "channels_applied": applied},
+            )
 
     def _cmd_set_freq(self, env: Envelope, args: SetFreqArgs) -> Response:
         with self._lock:
@@ -1263,6 +1331,10 @@ class ChirpFlowgraph(gr.top_block):
                 "denoise_gain_db": self._cfg.denoise_gain_db,
                 "audio_eq": self._cfg.audio_eq,
                 "master_gain_db": self._master_gain_db,
+                # SB6 2026-06-18: the one band-wide squelch threshold. The UI
+                # squelch-slider read-path reads THIS as the source of truth
+                # (mirrors the sdr_gain_db read-path fix).
+                "global_squelch_dbfs": self._global_squelch_dbfs,
                 "audio_path": str(self._audio_out_path),
                 "channels": channels,
                 "pool_free": sum(1 for s in self.slots if s.user_id is None),
@@ -1615,8 +1687,21 @@ def main() -> int:
                 help="bytes published to the icecast mount by this daemon",
             )
 
+        def _collect_global_squelch(reg, _tb=tb, _lbl=_daemon_lbl):
+            # SB6 2026-06-18: the live band-wide squelch threshold, pulled fresh
+            # each scrape so a `set_global_squelch_dbfs` shows up without restart.
+            try:
+                val = float(_tb._global_squelch_dbfs)
+            except Exception:  # noqa: BLE001
+                return
+            reg.set_gauge(
+                "chirp_global_squelch_dbfs", val, labels=_lbl,
+                help="band-wide squelch threshold (dBFS) applied to all channels",
+            )
+
         metrics.REGISTRY.register_callback(_collect_alive)
         metrics.REGISTRY.register_callback(_collect_audio_bytes)
+        metrics.REGISTRY.register_callback(_collect_global_squelch)
 
     try:
         server.start()

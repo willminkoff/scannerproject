@@ -100,8 +100,25 @@ class ChirpState(BaseModel):
     schema_version: int = STATE_SCHEMA_VERSION
     band: str = "airband"
     master_gain_db: float = 0.0
+    # SB6 2026-06-18 global-squelch redesign: ONE squelch threshold (dBFS) for
+    # the whole band, the authoritative source of truth. ``None`` means an
+    # older state file written before this field existed — the daemon then
+    # falls back to its config default (CHIRP_GLOBAL_SQUELCH_DBFS / json /
+    # DaemonConfig). Per-channel ChannelState.squelch_dbfs is retained for
+    # backward-compat reads but is no longer authoritative; the daemon writes
+    # it equal to this value and ignores it on restore.
+    global_squelch_dbfs: Optional[float] = None
     channels: list[ChannelState] = Field(default_factory=list)
     presets: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("global_squelch_dbfs")
+    @classmethod
+    def _v_global_sq(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return None
+        if not (-120.0 <= v <= 0.0):
+            raise ValueError("global_squelch_dbfs must be in [-120, 0]")
+        return float(v)
 
     @field_validator("schema_version")
     @classmethod

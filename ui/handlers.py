@@ -1200,8 +1200,26 @@ def _read_effective_analog_controls() -> dict[str, Any]:
             _gnd = get_sdr_gain_via_chirp("ground")
             if _gnd is not None:
                 ground_gain = _gnd
+            # SB6 2026-06-18 global-squelch redesign: the band-wide squelch
+            # threshold lives in the daemon (get_status().global_squelch_dbfs),
+            # the source of truth. Read it so the slider reflects reality across
+            # reloads instead of snapping back to the controls-file value.
+            # Mirrors the gain read-back just above. Falls back to the
+            # controls-file value when chirp is off / unreachable.
+            try:
+                from .chirp_adapter import get_global_squelch_via_chirp
+            except ImportError:
+                from ui.chirp_adapter import get_global_squelch_via_chirp  # type: ignore
+            _air_sq = get_global_squelch_via_chirp("airband")
+            if _air_sq is not None:
+                airband_dbfs = _air_sq
+                airband_mode = "dbfs"
+            _gnd_sq = get_global_squelch_via_chirp("ground")
+            if _gnd_sq is not None:
+                ground_dbfs = _gnd_sq
+                ground_mode = "dbfs"
     except Exception:
-        logger.debug("chirp gain read-back override skipped", exc_info=True)
+        logger.debug("chirp gain/squelch read-back override skipped", exc_info=True)
     return {
         "controls_airband_path": controls_airband_path,
         "controls_ground_path": controls_ground_path,
@@ -6691,7 +6709,8 @@ class Handler(BaseHTTPRequestHandler):
                 # The UI uses these to paint the AUTO pill state and
                 # render the "Auto · last sync Xs ago" timestamp under
                 # the chip row.
-                "airband_squelch_auto": bool(_get_band_squelch_auto("airband")),
+                # SB6 2026-06-18: AUTO squelch retired — always manual/global.
+                "airband_squelch_auto": False,
                 "airband_squelch_tracker_applied_at_ms": (
                     (recommended_managed_controls("airband", controls_airband_path) or {}).get("squelch_tracker_applied_at_ms")
                 ),
@@ -6713,7 +6732,8 @@ class Handler(BaseHTTPRequestHandler):
                 "ground_squelch_noise_floor_dbfs": (
                     (recommended_managed_controls("ground", controls_ground_path) or {}).get("squelch_preset_noise_floor_dbfs")
                 ),
-                "ground_squelch_auto": bool(_get_band_squelch_auto("ground")),
+                # SB6 2026-06-18: AUTO squelch retired — always manual/global.
+                "ground_squelch_auto": False,
                 "ground_squelch_tracker_applied_at_ms": (
                     (recommended_managed_controls("ground", controls_ground_path) or {}).get("squelch_tracker_applied_at_ms")
                 ),
@@ -7466,7 +7486,8 @@ class Handler(BaseHTTPRequestHandler):
                     "airband_squelch_noise_floor_dbfs": (
                         (recommended_managed_controls("airband", resolve_controls_path("airband")) or {}).get("squelch_preset_noise_floor_dbfs")
                     ),
-                    "airband_squelch_auto": bool(_get_band_squelch_auto("airband")),
+                    # SB6 2026-06-18: AUTO squelch retired — always manual/global.
+                "airband_squelch_auto": False,
                     "airband_squelch_tracker_applied_at_ms": (
                         (recommended_managed_controls("airband", resolve_controls_path("airband")) or {}).get("squelch_tracker_applied_at_ms")
                     ),
@@ -7487,7 +7508,8 @@ class Handler(BaseHTTPRequestHandler):
                     "ground_squelch_noise_floor_dbfs": (
                         (recommended_managed_controls("ground", resolve_controls_path("ground")) or {}).get("squelch_preset_noise_floor_dbfs")
                     ),
-                    "ground_squelch_auto": bool(_get_band_squelch_auto("ground")),
+                    # SB6 2026-06-18: AUTO squelch retired — always manual/global.
+                "ground_squelch_auto": False,
                     "ground_squelch_tracker_applied_at_ms": (
                         (recommended_managed_controls("ground", resolve_controls_path("ground")) or {}).get("squelch_tracker_applied_at_ms")
                     ),
@@ -8875,10 +8897,10 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 if p == "/api/airband/squelch":
-                    # Auto mode flips to rtl-airband's SNR floor detector.
-                    if "auto" in form:
-                        auto_flag = _parse_bool_value(form.get("auto"), field="auto")
-                        new_mode = "snr" if auto_flag else "dbfs"
+                    # SB6 2026-06-18 global-squelch redesign: AUTO/SNR mode is
+                    # retired. The band runs on one manual global threshold, so
+                    # any `auto` flag is ignored and the mode is forced to dbfs.
+                    new_mode = "dbfs"
                     if "threshold_dbfs" in form:
                         new_dbfs = float(form.get("threshold_dbfs"))
                         # Clamp to UI range so a typo can't push a wild value.
@@ -8931,21 +8953,21 @@ class Handler(BaseHTTPRequestHandler):
                 use_chirp = bool(_chirp_use_gr_demod())
             except Exception:
                 logger.debug("%s: use_gr_demod probe failed", p, exc_info=True)
-            # Manual dbfs squelch under chirp: the SNR tracker is the only
-            # thing that propagates managed-controls values into the live
-            # daemon, and it SKIPS bands with auto OFF — so a manual slider
-            # change would never reach the radio. Push it straight to chirp
-            # (set_squelch on every channel). For rtl-airband (chirp client
-            # unavailable) this is a no-op. 2026-06-15.
-            if use_chirp and p == "/api/airband/squelch" and new_mode == "dbfs":
+            # SB6 2026-06-18 global-squelch redesign: the slider sets the ONE
+            # band-wide threshold. Push it straight to the live chirp daemon
+            # with a single set_global_squelch_dbfs cmd (the daemon applies it
+            # to every channel). Replaces the old per-channel fan-out
+            # (wide_open_squelch_via_chirp). No-op for rtl-airband (chirp client
+            # unavailable).
+            if use_chirp and p == "/api/airband/squelch":
                 try:
                     try:
-                        from .chirp_adapter import wide_open_squelch_via_chirp
+                        from .chirp_adapter import set_global_squelch_via_chirp
                     except ImportError:
-                        from ui.chirp_adapter import wide_open_squelch_via_chirp  # type: ignore
-                    wide_open_squelch_via_chirp(target, new_dbfs)
+                        from ui.chirp_adapter import set_global_squelch_via_chirp  # type: ignore
+                    set_global_squelch_via_chirp(target, new_dbfs)
                 except Exception:
-                    logger.debug("%s: manual squelch chirp push failed", p, exc_info=True)
+                    logger.debug("%s: global squelch chirp push failed", p, exc_info=True)
             # Gain under chirp: write_controls + managed-override only touch
             # the rtl-airband config files; the running chirp daemon never
             # sees them. Push the front-end gain straight to the live osmosdr

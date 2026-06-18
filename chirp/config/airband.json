@@ -29,6 +29,7 @@
   "scan_hold_hang_sec": 2.0,
   "scan_hold_max_sec": 30.0,
   "priority_gate_enabled": true,
+  "global_squelch_dbfs": -56.0,
   "sdr": {
     "_comment": "SDR source defaults for airband. Production cutover (Phase 4d) targets the analog RSPduo serial 1809063632 with mode=MA tuner=1, matching rtl-airband-airband. center_freq_hz must be set to whichever sub-band chirp is currently scanning; with 1 Msps the LO must be retuned by an external scheduler to cover the full 121-385 MHz airband list.",
     "device_args": "soapy=,driver=sdrplay,serial=1809063632,mode=MA,tuner=1",

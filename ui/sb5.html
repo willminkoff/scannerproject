@@ -3247,21 +3247,13 @@
            runtime .conf; rtl-airband is NOT auto-restarted (changes
            apply on next manual restart via Sitrep → Reset Radios). -->
       <div class="band-controls" data-band="air" id="ctl-air">
-        <!-- SB5 Phase 1 squelch preset.  Three pill chips replace the
-             legacy dBFS slider.  On click we POST /api/airband/squelch_preset
-             {band:'air',preset} and the existing 6s auto-apply countdown
-             fires reset_radios to restart rtl-airband. -->
+        <!-- SB6 2026-06-18 global-squelch redesign: ONE manual band-wide
+             squelch threshold. The AUTO pill + preset chips (Sensitive/
+             Balanced/Selective) and the per-channel noise-floor tracker are
+             retired — the slider below is the single source of truth and posts
+             threshold_dbfs to /api/airband/squelch → set_global_squelch_dbfs. -->
         <div class="band-ctl band-ctl-preset" data-band="air">
           <span class="ctl-lbl">Squelch</span>
-          <div class="band-ctl-auto-row" data-role="auto-row" data-legacy="1" style="display:none">
-            <button type="button" class="band-ctl-auto-pill on" data-band="air" data-role="auto-toggle" aria-pressed="true">AUTO</button>
-            <span class="auto-status" data-role="auto-status">Auto · waiting for first sync</span>
-          </div>
-          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="AIR squelch preset" data-legacy="1" style="display:none">
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="sensitive" role="radio" aria-checked="false">Sensitive</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="balanced" role="radio" aria-checked="true">Balanced</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="selective" role="radio" aria-checked="false">Selective</button>
-          </div>
           <div class="band-ctl-row band-ctl-sq-tools">
             <input type="range" min="-80" max="0" step="1" value="-58"
                    class="ctl-sq-dbfs ctl-sens-slider" data-band="air"
@@ -3354,18 +3346,11 @@
         <div class="hits-empty">Loading hits…</div>
       </div>
       <div class="band-controls" data-band="ground" id="ctl-ground">
-        <!-- SB5 Phase 1 squelch preset.  See AIR card above. -->
+        <!-- SB6 2026-06-18 global-squelch redesign: ONE manual band-wide
+             squelch threshold. See AIR card above. AUTO pill + preset chips +
+             per-channel tracker retired; the slider is the single control. -->
         <div class="band-ctl band-ctl-preset" data-band="ground">
           <span class="ctl-lbl">Squelch</span>
-          <div class="band-ctl-auto-row" data-role="auto-row" data-legacy="1" style="display:none">
-            <button type="button" class="band-ctl-auto-pill on" data-band="ground" data-role="auto-toggle" aria-pressed="true">AUTO</button>
-            <span class="auto-status" data-role="auto-status">Auto · waiting for first sync</span>
-          </div>
-          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="GROUND squelch preset" data-legacy="1" style="display:none">
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="sensitive" role="radio" aria-checked="false">Sensitive</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="balanced" role="radio" aria-checked="true">Balanced</button>
-            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective" role="radio" aria-checked="false">Selective</button>
-          </div>
           <div class="band-ctl-row band-ctl-sq-tools">
             <input type="range" min="-80" max="0" step="1" value="-52"
                    class="ctl-sq-dbfs ctl-sens-slider" data-band="ground"
@@ -9540,12 +9525,21 @@ if (document.readyState === "loading") {
     fetch(endpoint, { credentials: "same-origin" })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (!j || !j.channels || !j.channels.length) return;
-        var vals = j.channels.map(function (c) { return Number(c.squelch_dbfs); })
-          .filter(function (v) { return isFinite(v); })
-          .sort(function (a, b) { return a - b; });
-        if (!vals.length) return;
-        var med = Math.round(vals[Math.floor(vals.length / 2)]);
+        if (!j) return;
+        // SB6 2026-06-18 global-squelch redesign: prefer the daemon's one
+        // band-wide threshold (the source of truth). Fall back to the
+        // channel-median for an older daemon that doesn't expose it yet.
+        var med;
+        if (typeof j.global_squelch_dbfs === "number" && isFinite(j.global_squelch_dbfs)) {
+          med = Math.round(j.global_squelch_dbfs);
+        } else {
+          if (!j.channels || !j.channels.length) return;
+          var vals = j.channels.map(function (c) { return Number(c.squelch_dbfs); })
+            .filter(function (v) { return isFinite(v); })
+            .sort(function (a, b) { return a - b; });
+          if (!vals.length) return;
+          med = Math.round(vals[Math.floor(vals.length / 2)]);
+        }
         var slider = document.querySelector('.ctl-sq-dbfs[data-band="' + band + '"]');
         var ro = document.querySelector('[data-role="sq-dbfs-readout"][data-band="' + band + '"]');
         if (slider && !slider.matches(":active")) slider.value = String(med);
