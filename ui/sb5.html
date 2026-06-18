@@ -1557,7 +1557,7 @@
     display: flex; align-items: center; gap: 8px; flex: 1;
   }
   .ctl-sens-lbl { font-size: 12px; color: rgba(190,210,225,0.78); }
-  .ctl-sens-slider { flex: 1; min-width: 120px; }
+  .ctl-sens-slider, .ctl-sq-slider { flex: 1; min-width: 120px; }
   .ctl-sens-readout {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
@@ -3256,7 +3256,7 @@
           <span class="ctl-lbl">Squelch</span>
           <div class="band-ctl-row band-ctl-sq-tools">
             <input type="range" min="-80" max="0" step="1" value="-58"
-                   class="ctl-sq-dbfs ctl-sens-slider" data-band="air"
+                   class="ctl-sq-dbfs ctl-sq-slider" data-band="air"
                    aria-label="AIR squelch threshold in dBFS (more negative = more sensitive)">
             <span class="ctl-sens-readout" data-role="sq-dbfs-readout" data-band="air">-58 dBFS</span>
           </div>
@@ -3353,7 +3353,7 @@
           <span class="ctl-lbl">Squelch</span>
           <div class="band-ctl-row band-ctl-sq-tools">
             <input type="range" min="-80" max="0" step="1" value="-52"
-                   class="ctl-sq-dbfs ctl-sens-slider" data-band="ground"
+                   class="ctl-sq-dbfs ctl-sq-slider" data-band="ground"
                    aria-label="GROUND squelch threshold in dBFS (more negative = more sensitive)">
             <span class="ctl-sens-readout" data-role="sq-dbfs-readout" data-band="ground">-52 dBFS</span>
           </div>
@@ -9582,6 +9582,10 @@ if (document.readyState === "loading") {
   document.addEventListener("input", function (ev) {
     var t = ev.target;
     if (!t || !t.classList || !t.classList.contains("ctl-sens-slider")) return;
+    // SB6 2026-06-18: the dBFS squelch slider must never reach the VAD-sensitivity
+    // handler. Its range is -80..0 dBFS, which 100 - val*10 would turn into garbage
+    // thresholds (e.g. -58 -> 680). It has its own wiring (wireSquelchDbfs).
+    if (t.classList.contains("ctl-sq-dbfs")) return;
     var band = bandMap[(t.dataset.band || "").toLowerCase()] || "air";
     var val = parseInt(t.value || "5", 10);
     var ro = document.querySelector('[data-role="sens-readout"][data-band="' + band + '"]');
