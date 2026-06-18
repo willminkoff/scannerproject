@@ -290,9 +290,15 @@ class IcecastSink(gr.sync_block):
         encoder: Optional[Any] = None,
         publisher: Optional[Any] = None,
         autostart_publisher: bool = True,
+        flow_probe: Optional[Any] = None,
     ) -> None:
         super().__init__(name="IcecastSink", in_sig=[np.float32], out_sig=None)
         self.cfg = cfg
+        # SB6 (2026-06-18): optional AudioFlowProbe tapping PCM amplitude at the
+        # sink input — the ONLY layer where the -180 dBFS "silent branch" wedge
+        # is visible (the MP3 byte stream stays non-zero for zero PCM, so the
+        # bytes_sent telemetry lies). See chirp/audio_probe.py.
+        self._flow_probe = flow_probe
         self._stop = threading.Event()
         self._state = STATE_NOT_CONFIGURED
         self._state_lock = threading.Lock()
@@ -513,6 +519,15 @@ class IcecastSink(gr.sync_block):
         # Channels emit zeros when squelched; lame produces silent MP3 frames
         # for constant-zero PCM, preserving the icecast-keepalive heuristic.
         clipped = np.clip(samples, -1.0, 1.0)
+        # SB6 flow probe: hand the block's peak |sample| to the watchdog probe
+        # BEFORE the int16/encode step. One cheap reduction; no-op when the
+        # probe is disabled (default). The probe distinguishes real audio from
+        # the exact-zero wedge that the downstream byte counters cannot see.
+        if self._flow_probe is not None:
+            try:
+                self._flow_probe.observe_peak(float(np.abs(clipped).max()) if n else 0.0)
+            except Exception:  # noqa: BLE001 — instrumentation must never break audio
+                pass
         i16 = (clipped * 32767.0).astype(np.int16)
         try:
             if self._encoder is not None and self._encoder.stdin is not None:

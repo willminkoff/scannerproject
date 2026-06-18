@@ -79,6 +79,11 @@ from chirp.dsp.source_sdr import SdrIQSource, SdrSourceConfig
 from chirp.hit_detector import HitDetector
 from chirp.state import ChannelState, ChirpState, StateStore, default_state_path
 from chirp import metrics
+from chirp.audio_probe import (
+    AudioFlowProbe,
+    DEFAULT_SILENCE_EPS as AUDIO_PROBE_DEFAULT_EPS,
+    DEFAULT_SILENCE_GRACE_S as AUDIO_PROBE_DEFAULT_GRACE_S,
+)
 
 log = logging.getLogger("chirp.daemon")
 
@@ -230,6 +235,18 @@ class DaemonConfig:
     # None when no config file was found (defaults-only run). Not a tunable —
     # load_config populates it for /metrics (chirp_config_path) + get_status.
     config_source_path: Optional[str] = None
+    # SB6 (2026-06-18) audio-flow watchdog probe. Gates the systemd WATCHDOG=1
+    # ping on real PCM flow at the mount-publish layer so a "silent branch"
+    # wedge (hits fire + bytes flow but output is -180 dBFS) actually triggers
+    # a systemd restart instead of reporting healthy forever. DEFAULT OFF until
+    # validated on Micro — env CHIRP_AUDIO_PROBE_ENABLED=1 turns gating on.
+    # See chirp/audio_probe.py + docs/sb6-probe-rate-watchdog.md.
+    audio_probe_enabled: bool = False
+    # Seconds the audio path may report health=="live" with no non-silent PCM
+    # before the branch is called wedged and the watchdog ping is withheld.
+    audio_probe_silence_grace_s: float = AUDIO_PROBE_DEFAULT_GRACE_S
+    # float32 peak below which a block counts as silent (~ -80 dBFS default).
+    audio_probe_silence_eps: float = AUDIO_PROBE_DEFAULT_EPS
 
 
 def _parse_event_sink(spec: Optional[str]) -> Optional[tuple[str, int]]:
@@ -479,6 +496,9 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         scan_hold_max_sec=_resolve("CHIRP_SCAN_HOLD_MAX_SEC", raw, "scan_hold_max_sec", _DC_DEFAULTS.scan_hold_max_sec, float),
         priority_gate_enabled=_resolve("CHIRP_PRIORITY_GATE_ENABLED", raw, "priority_gate_enabled", _DC_DEFAULTS.priority_gate_enabled, _as_bool),
         audio_trace_enabled=_resolve("CHIRP_AUDIO_TRACE", raw, "audio_trace_enabled", _DC_DEFAULTS.audio_trace_enabled, _as_bool),
+        audio_probe_enabled=_resolve("CHIRP_AUDIO_PROBE_ENABLED", raw, "audio_probe_enabled", _DC_DEFAULTS.audio_probe_enabled, _as_bool),
+        audio_probe_silence_grace_s=_resolve("CHIRP_AUDIO_PROBE_SILENCE_GRACE_S", raw, "audio_probe_silence_grace_s", _DC_DEFAULTS.audio_probe_silence_grace_s, float),
+        audio_probe_silence_eps=_resolve("CHIRP_AUDIO_PROBE_SILENCE_EPS", raw, "audio_probe_silence_eps", _DC_DEFAULTS.audio_probe_silence_eps, float),
         config_source_path=str(dp) if dp.is_file() else None,
     )
 
@@ -599,6 +619,17 @@ class ChirpFlowgraph(gr.top_block):
 
         self.mixer = AudioMixer(n_inputs=cfg.max_channels, master_gain_db=0.0)
 
+        # SB6 (2026-06-18) audio-flow watchdog probe. Always constructed (cheap,
+        # holds a couple of counters); the .enabled flag — driven by
+        # CHIRP_AUDIO_PROBE_ENABLED — decides whether observe_peak/evaluate do
+        # anything. Wired into the IcecastSink below so the GR work() thread
+        # feeds it PCM peaks; read by audio_watchdog_status() on the main loop.
+        self.flow_probe = AudioFlowProbe(
+            enabled=cfg.audio_probe_enabled,
+            silence_grace_s=cfg.audio_probe_silence_grace_s,
+            silence_eps=cfg.audio_probe_silence_eps,
+        )
+
         # Audio sink wiring.
         #   file     → blocks.file_sink (Phase 1/2 behaviour, smoke tests)
         #   icecast  → IcecastSink (Phase 3). Falls back to file_sink at
@@ -622,7 +653,7 @@ class ChirpFlowgraph(gr.top_block):
             )
             ice_ok = False
             try:
-                self.icecast_sink = IcecastSink(sink_cfg)
+                self.icecast_sink = IcecastSink(sink_cfg, flow_probe=self.flow_probe)
                 ice_ok = True
             except Exception:
                 log.exception("IcecastSink instantiation failed — falling back to file output")
@@ -1289,6 +1320,19 @@ class ChirpFlowgraph(gr.top_block):
                     # bucket "snapshot failed" separately from a real state.
                     "audio_path_health": "unknown",
                 }
+            # SB6 audio-flow probe diagnostics + the live watchdog verdict, so
+            # the reliability layer / UI device card can show "audio_branch_silent"
+            # directly instead of trusting the byte counters that lie during the
+            # wedge. `watchdog_ok=False` means main() is withholding WATCHDOG=1.
+            try:
+                probe_snap = self.flow_probe.snapshot()
+                ok, reason = self.audio_watchdog_status(time.monotonic())
+                probe_snap["watchdog_ok"] = ok
+                probe_snap["watchdog_reason"] = reason
+                data["audio_probe"] = probe_snap
+            except Exception:
+                log.exception("audio_probe snapshot in get_status failed")
+                data["audio_probe"] = {"enabled": False, "watchdog_ok": True}
             return Response.make_ok(env.id, data)
 
     # -- LO scheduler callbacks (Phase 4-pre) -----------------------------
@@ -1380,6 +1424,33 @@ class ChirpFlowgraph(gr.top_block):
                     # the noise-estimator settling.  Mirrors the
                     # claimed_at semantic from add_channel.
                     slot.claimed_at = time.time()
+
+    # -- audio-flow watchdog gate (SB6 2026-06-18) -------------------------
+
+    def audio_watchdog_status(self, now: float) -> tuple[bool, str]:
+        """Decide whether main() should ping systemd ``WATCHDOG=1`` this cycle.
+
+        Returns ``(should_ping, status)``.  ``now`` is a ``time.monotonic()``
+        reading (same clock the probe records flow on).
+
+        When the probe is disabled (default) this returns ``(True, ...)``
+        unconditionally — identical to the pre-probe behaviour.  When enabled,
+        it reads the hit detector's ``audio_path_health`` and delegates the
+        flow-vs-silence decision to :meth:`AudioFlowProbe.evaluate`, so the
+        watchdog is withheld ONLY when the path claims to be live yet no real
+        PCM has flowed for the grace window (the silent-branch wedge).
+        """
+        if not self.flow_probe.enabled:
+            return True, "probe_disabled"
+        try:
+            snap = self.hit_detector.audio_path_snapshot()
+            health = snap.get("audio_path_health", "unknown")
+        except Exception:
+            # If we can't read health, fail SAFE: keep pinging the watchdog so
+            # an introspection hiccup never triggers a spurious restart.
+            log.exception("audio_watchdog_status: could not read audio_path health")
+            return True, "health_read_failed"
+        return self.flow_probe.evaluate(now, health)
 
     # -- health / hit-event probe (delegates to HitDetector) ---------------
 
@@ -1607,13 +1678,42 @@ def main() -> int:
     # this is 3× safety margin. See DESIGN_sdrplay_wedge_fix.md §4.3.
     _WATCHDOG_INTERVAL_S = 10.0
     last_watchdog = time.monotonic()
+    # SB6 (2026-06-18): track the audio-branch verdict so we only LOG / emit on
+    # a transition (not every 10 s) and so a recovery is announced once.
+    audio_branch_ok = True
 
     try:
         while not stop_evt.is_set():
             time.sleep(0.25)
             now = time.monotonic()
             if now - last_watchdog >= _WATCHDOG_INTERVAL_S:
-                _sd_notify("WATCHDOG=1")
+                # SB6 audio-flow gate: when the probe is enabled and the audio
+                # branch is wedged (path reports live but only -180 dBFS PCM has
+                # flowed for the grace window), WITHHOLD the watchdog ping so
+                # systemd's WatchdogSec= restarts us. Probe disabled (default) →
+                # ping unconditionally, i.e. exactly the prior behaviour.
+                should_ping, reason = tb.audio_watchdog_status(now)
+                if should_ping:
+                    _sd_notify("WATCHDOG=1")
+                    if not audio_branch_ok:
+                        log.warning("audio branch RECOVERED — resuming WATCHDOG pings (%s)", reason)
+                        server.emit_event("audio_branch_recovered", band=cfg.band, reason=reason)
+                    audio_branch_ok = True
+                else:
+                    # Wedge: do NOT ping. systemd will restart at WatchdogSec.
+                    if audio_branch_ok:
+                        log.error("AUDIO BRANCH SILENT — withholding WATCHDOG=1 so systemd "
+                                  "restarts (%s)", reason)
+                        server.emit_event("audio_branch_silent", band=cfg.band, reason=reason)
+                        _sd_notify(None, f"audio branch silent: {reason}")
+                    audio_branch_ok = False
+                if _metrics_enabled:
+                    metrics.REGISTRY.set_gauge(
+                        "chirp_audio_branch_silent", 0 if should_ping else 1,
+                        labels={"daemon": cfg.band},
+                        help="1 when the audio-flow probe judges the branch wedged "
+                             "(watchdog ping withheld), else 0",
+                    )
                 last_watchdog = now
     finally:
         log.info("stopping flowgraph + server")
