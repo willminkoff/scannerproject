@@ -1,0 +1,9 @@
+{
+  "favorites_name": "Nashville_Airband",
+  "custom_favorites": [
+    {"kind": "conventional", "system_id": 0, "system_key": "nashville-aviation:Nashville Intl (KBNA)", "system_name": "Nashville Intl (KBNA)", "department_name": "KBNA - App/Dep East (VHF AM)", "alpha_tag": "KBNA App East", "service_tag": 15, "talkgroup": "", "control_channels": [], "frequency": 118.4, "id": "kbna-app-east"},
+    {"kind": "conventional", "system_id": 0, "system_key": "nashville-aviation:Nashville Intl (KBNA)", "system_name": "Nashville Intl (KBNA)", "department_name": "KBNA - Tower (VHF AM)", "alpha_tag": "KBNA Tower", "service_tag": 15, "talkgroup": "", "control_channels": [], "frequency": 118.6, "id": "kbna-tower"},
+    {"kind": "conventional", "system_id": 0, "system_key": "nashville-aviation:Nashville Intl (KBNA)", "system_name": "Nashville Intl (KBNA)", "department_name": "KBNA - App/Dep West (VHF AM)", "alpha_tag": "KBNA App West", "service_tag": 15, "talkgroup": "", "control_channels": [], "frequency": 119.35, "id": "kbna-app-west"},
+    {"kind": "conventional", "system_id": 0, "system_key": "nashville-aviation:John C Tune (KJWN)", "system_name": "John C Tune (KJWN)", "department_name": "KJWN - Tower (VHF AM)", "alpha_tag": "KJWN Tower", "service_tag": 15, "talkgroup": "", "control_channels": [], "frequency": 119.45, "id": "kjwn-tower"}
+  ]
+}

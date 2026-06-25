@@ -1,0 +1,44 @@
+{
+  "favorites_name": "Nashville_Ground",
+  "custom_favorites": [
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "nashville-ham:70cm Repeaters",
+      "system_name": "Nashville 70cm Ham",
+      "department_name": "N4OEM 442.750 (NFM, PL 100.0)",
+      "alpha_tag": "N4OEM 442.750",
+      "service_tag": 0,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 442.750,
+      "id": "n4oem-442"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "nashville-ham:70cm Repeaters",
+      "system_name": "Nashville 70cm Ham",
+      "department_name": "K4TFI 444.880 (NFM, PL 107.2)",
+      "alpha_tag": "K4TFI 444.880",
+      "service_tag": 0,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 444.880,
+      "id": "k4tfi-444"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "nashville-ham:70cm Repeaters",
+      "system_name": "Nashville 70cm Ham",
+      "department_name": "70cm FM Simplex Calling 446.000",
+      "alpha_tag": "70cm Simplex Call",
+      "service_tag": 0,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 446.000,
+      "id": "simplex-446"
+    }
+  ]
+}
