@@ -1,0 +1,10 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+3207,c87,D,VU PD,Vanderbilt PD Dispatch,Law Dispatch
+10053,2745,D,SPEV D05,Special Event 05 Vanderbilt University,Multi-Tac
+20038,4e46,D,FKTMA1,Transit 1 (On Demand),Transportation
+20039,4e47,D,FKTMA2,Transit 2 (Fixed Routes),Transportation
+47103,b7ff,D,THP D3/7,PSAP THP Districts 3/7,Multi-Dispatch
+47046,b7c6,T,THP-Calling,Statewide Calling,Law Tac
+47035,b7bb,T,THP-Pursuit2,Statewide Pursuit 2,Law Tac
+47152,b830,T,DOT HELP R3,TDOT HELP R3,Public Works
+47158,b836,T,DOT HELP SW,Statewide Operations,Public Works
