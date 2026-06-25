@@ -1,0 +1,34 @@
+Freq (Hz),Enable,Notes,Channel,Ch BW (Hz),TH (dB),Sq (dB)
+121500000,true,GUARD 121.5 emergency,R0:0,8000,-55.0,-55.0
+134650000,true,Memphis Ctr McKellar Low Sec07 nearest to Yuma,R0:0,8000,-55.0,-55.0
+124350000,true,Memphis Ctr McKellar/HollySprings Low Sec14,R0:0,8000,-55.0,-55.0
+126450000,true,Memphis Ctr Jacks Creek High Sec26 overhead,R0:0,8000,-55.0,-55.0
+132900000,true,Memphis Ctr Nashville Low I-40 east,R0:0,8000,-55.0,-55.0
+118400000,true,Nashville App/Dep East KBNA,R0:0,8000,-55.0,-55.0
+119350000,true,Nashville App/Dep West KBNA,R0:0,8000,-55.0,-55.0
+118600000,true,Nashville Tower KBNA,R0:0,8000,-55.0,-55.0
+121900000,true,Nashville Ground KBNA,R0:0,8000,-55.0,-55.0
+126050000,true,Nashville Clnc Del/PDC KBNA,R0:0,8000,-55.0,-55.0
+135100000,false,KBNA D-ATIS continuous bcast tune manually,R0:0,8000,-55.0,-55.0
+120600000,false,Nashville App alt sector med-conf verify,R0:0,8000,-55.0,-55.0
+127175000,false,Nashville App alt sector med-conf verify,R0:0,8000,-55.0,-55.0
+119100000,true,Memphis Approach 176-355,R0:0,8000,-55.0,-55.0
+125800000,true,Memphis Approach 356-175,R0:0,8000,-55.0,-55.0
+124150000,true,Memphis Departure 356-175,R0:0,8000,-55.0,-55.0
+124650000,true,Memphis Departure 176-355,R0:0,8000,-55.0,-55.0
+118300000,true,Memphis Tower KMEM,R0:0,8000,-55.0,-55.0
+121000000,true,Memphis Ground KMEM,R0:0,8000,-55.0,-55.0
+125200000,true,Memphis Clnc Del KMEM,R0:0,8000,-55.0,-55.0
+127750000,false,KMEM D-ATIS continuous bcast tune manually,R0:0,8000,-55.0,-55.0
+119700000,false,Memphis Tower Rwy09/27 secondary,R0:0,8000,-55.0,-55.0
+128425000,false,Memphis Tower Rwy18L/36R secondary,R0:0,8000,-55.0,-55.0
+146715000,true,KO4PKJ Huntingdon Carroll Co SKYWARN PRIMARY PL141.3,R0:1,12500,-55.0,-55.0
+147210000,true,WF4Q Jackson WTn SKYWARN/ARES Dist8 PL107.2,R0:1,12500,-55.0,-55.0
+146970000,true,WT4WA Medina WTn SKYWARN West Primary PL107.2,R0:1,12500,-55.0,-55.0
+146700000,true,WA4YGM Union City WTn SkyWarn net PL100.0,R0:1,12500,-55.0,-55.0
+147360000,true,KJ4ISZ Paris SKYWARN net PL123.0 med-conf,R0:1,12500,-55.0,-55.0
+146835000,true,KF4ZGK Huntingdon Carroll Co EOC PL123.0,R0:1,12500,-55.0,-55.0
+146520000,true,2m National Simplex Calling CSQ,R0:1,12500,-55.0,-55.0
+146865000,false,WT4WA Trenton Gibson SKYWARN PL127.3 verify tone,R0:1,12500,-55.0,-55.0
+146820000,false,W4BS Memphis MEG region SKYWARN ~90mi likely far,R0:1,12500,-55.0,-55.0
+162550000,false,NOAA WX WXK60 Jackson continuous RX-only,R0:1,12500,-55.0,-55.0
