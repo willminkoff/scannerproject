@@ -1,0 +1,4746 @@
+[
+  {
+    "rfss": "1 (1)",
+    "site": "010 (A)",
+    "name": "Clarksville Simulcast",
+    "county": "Montgomery, TN",
+    "frequencies": [
+      {
+        "freq": "851.075",
+        "control": true
+      },
+      {
+        "freq": "851.9375",
+        "control": true
+      },
+      {
+        "freq": "852.3375",
+        "control": true
+      },
+      {
+        "freq": "852.7125",
+        "control": true
+      },
+      {
+        "freq": "853.1375",
+        "control": false
+      },
+      {
+        "freq": "853.475",
+        "control": false
+      },
+      {
+        "freq": "853.725",
+        "control": false
+      },
+      {
+        "freq": "853.975",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "021 (15)",
+    "name": "Petros: TNDOC",
+    "county": "Morgan, TN",
+    "frequencies": [
+      {
+        "freq": "851.350",
+        "control": true
+      },
+      {
+        "freq": "851.7375",
+        "control": true
+      },
+      {
+        "freq": "852.200",
+        "control": false
+      },
+      {
+        "freq": "852.7375",
+        "control": false
+      },
+      {
+        "freq": "853.0875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "022 (16)",
+    "name": "Murfreesboro",
+    "county": "Rutherford, TN",
+    "frequencies": [
+      {
+        "freq": "769.18125",
+        "control": true
+      },
+      {
+        "freq": "769.43125",
+        "control": true
+      },
+      {
+        "freq": "769.68125",
+        "control": false
+      },
+      {
+        "freq": "769.93125",
+        "control": false
+      },
+      {
+        "freq": "770.18125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "023 (17)",
+    "name": "Turney Center: TNDOC",
+    "county": "Hickman, TN",
+    "frequencies": [
+      {
+        "freq": "851.6625",
+        "control": false
+      },
+      {
+        "freq": "852.175",
+        "control": false
+      },
+      {
+        "freq": "852.675",
+        "control": false
+      },
+      {
+        "freq": "853.0875",
+        "control": true
+      },
+      {
+        "freq": "853.5875",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "024 (18)",
+    "name": "Southeast Center: TNDOC",
+    "county": "Bledsoe, TN",
+    "frequencies": [
+      {
+        "freq": "851.2625",
+        "control": false
+      },
+      {
+        "freq": "851.700",
+        "control": true
+      },
+      {
+        "freq": "852.0875",
+        "control": true
+      },
+      {
+        "freq": "852.3125",
+        "control": false
+      },
+      {
+        "freq": "852.650",
+        "control": false
+      },
+      {
+        "freq": "852.925",
+        "control": false
+      },
+      {
+        "freq": "853.875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "025 (19)",
+    "name": "Clifton: TNDOC",
+    "county": "Wayne, TN",
+    "frequencies": [
+      {
+        "freq": "851.325",
+        "control": false
+      },
+      {
+        "freq": "852.1875",
+        "control": false
+      },
+      {
+        "freq": "852.725",
+        "control": false
+      },
+      {
+        "freq": "853.100",
+        "control": true
+      },
+      {
+        "freq": "853.9875",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "026 (1A)",
+    "name": "Nashville: TNDOC",
+    "county": "Davidson, TN",
+    "frequencies": [
+      {
+        "freq": "854.1375",
+        "control": true
+      },
+      {
+        "freq": "854.3625",
+        "control": false
+      },
+      {
+        "freq": "854.9375",
+        "control": false
+      },
+      {
+        "freq": "856.4375",
+        "control": false
+      },
+      {
+        "freq": "856.7375",
+        "control": false
+      },
+      {
+        "freq": "857.7375",
+        "control": false
+      },
+      {
+        "freq": "858.4375",
+        "control": false
+      },
+      {
+        "freq": "858.7375",
+        "control": false
+      },
+      {
+        "freq": "859.4375",
+        "control": false
+      },
+      {
+        "freq": "859.7375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "028 (1C)",
+    "name": "Tennessee Tower",
+    "county": "Davidson, TN",
+    "frequencies": [
+      {
+        "freq": "769.26875",
+        "control": false
+      },
+      {
+        "freq": "769.70625",
+        "control": false
+      },
+      {
+        "freq": "770.40625",
+        "control": false
+      },
+      {
+        "freq": "770.66875",
+        "control": false
+      },
+      {
+        "freq": "770.91875",
+        "control": false
+      },
+      {
+        "freq": "773.93125",
+        "control": false
+      },
+      {
+        "freq": "851.4625",
+        "control": false
+      },
+      {
+        "freq": "852.425",
+        "control": false
+      },
+      {
+        "freq": "852.7375",
+        "control": false
+      },
+      {
+        "freq": "852.9875",
+        "control": true
+      },
+      {
+        "freq": "853.250",
+        "control": false
+      },
+      {
+        "freq": "853.7375",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "029 (1D)",
+    "name": "Antioch",
+    "county": "Davidson, TN",
+    "frequencies": [
+      {
+        "freq": "769.30625",
+        "control": true
+      },
+      {
+        "freq": "769.58125",
+        "control": true
+      },
+      {
+        "freq": "769.86875",
+        "control": false
+      },
+      {
+        "freq": "770.19375",
+        "control": false
+      },
+      {
+        "freq": "770.56875",
+        "control": false
+      },
+      {
+        "freq": "770.84375",
+        "control": false
+      },
+      {
+        "freq": "771.60625",
+        "control": false
+      },
+      {
+        "freq": "772.01875",
+        "control": false
+      },
+      {
+        "freq": "772.40625",
+        "control": false
+      },
+      {
+        "freq": "772.73125",
+        "control": false
+      },
+      {
+        "freq": "773.03125",
+        "control": false
+      },
+      {
+        "freq": "773.40625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "030 (1E)",
+    "name": "Gladeville",
+    "county": "Wilson, TN",
+    "frequencies": [
+      {
+        "freq": "769.78125",
+        "control": true
+      },
+      {
+        "freq": "770.08125",
+        "control": true
+      },
+      {
+        "freq": "771.15625",
+        "control": false
+      },
+      {
+        "freq": "771.43125",
+        "control": false
+      },
+      {
+        "freq": "771.80625",
+        "control": false
+      },
+      {
+        "freq": "773.33125",
+        "control": false
+      },
+      {
+        "freq": "774.08125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "031 (1F)",
+    "name": "Tiger Hill",
+    "county": "Rutherford, TN",
+    "frequencies": [
+      {
+        "freq": "770.03125",
+        "control": true
+      },
+      {
+        "freq": "770.30625",
+        "control": true
+      },
+      {
+        "freq": "771.33125",
+        "control": false
+      },
+      {
+        "freq": "771.65625",
+        "control": false
+      },
+      {
+        "freq": "771.93125",
+        "control": false
+      },
+      {
+        "freq": "773.53125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "032 (20)",
+    "name": "Hoovers Gap",
+    "county": "Rutherford, TN",
+    "frequencies": [
+      {
+        "freq": "769.25625",
+        "control": true
+      },
+      {
+        "freq": "769.53125",
+        "control": true
+      },
+      {
+        "freq": "770.55625",
+        "control": false
+      },
+      {
+        "freq": "770.85625",
+        "control": false
+      },
+      {
+        "freq": "771.20625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "033 (21)",
+    "name": "Hinch Mountain TNDOC",
+    "county": "Cumberland, TN",
+    "frequencies": [
+      {
+        "freq": "851.125",
+        "control": false
+      },
+      {
+        "freq": "851.650",
+        "control": false
+      },
+      {
+        "freq": "852.2625",
+        "control": false
+      },
+      {
+        "freq": "852.850",
+        "control": false
+      },
+      {
+        "freq": "853.2375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "035 (23)",
+    "name": "Ripley (800)",
+    "county": "Lauderdale, TN",
+    "frequencies": [
+      {
+        "freq": "851.1375",
+        "control": true
+      },
+      {
+        "freq": "851.4125",
+        "control": true
+      },
+      {
+        "freq": "851.6875",
+        "control": false
+      },
+      {
+        "freq": "851.9125",
+        "control": false
+      },
+      {
+        "freq": "852.9125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "036 (24)",
+    "name": "Whitehouse",
+    "county": "Sumner, TN",
+    "frequencies": [
+      {
+        "freq": "769.35625",
+        "control": true
+      },
+      {
+        "freq": "769.60625",
+        "control": false
+      },
+      {
+        "freq": "770.00625",
+        "control": true
+      },
+      {
+        "freq": "770.35625",
+        "control": false
+      },
+      {
+        "freq": "770.80625",
+        "control": false
+      },
+      {
+        "freq": "771.08125",
+        "control": false
+      },
+      {
+        "freq": "773.78125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "039 (27)",
+    "name": "Bedford 911 (Shelbyville)",
+    "county": "Bedford, TN",
+    "frequencies": [
+      {
+        "freq": "851.050",
+        "control": true
+      },
+      {
+        "freq": "851.450",
+        "control": false
+      },
+      {
+        "freq": "851.725",
+        "control": false
+      },
+      {
+        "freq": "852.6625",
+        "control": false
+      },
+      {
+        "freq": "852.975",
+        "control": false
+      },
+      {
+        "freq": "853.1875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "040 (28)",
+    "name": "Rippy Ridge (*)",
+    "county": "Bedford, TN",
+    "frequencies": [
+      {
+        "freq": "769.28125",
+        "control": true
+      },
+      {
+        "freq": "770.86875",
+        "control": false
+      },
+      {
+        "freq": "771.24375",
+        "control": false
+      },
+      {
+        "freq": "772.08125",
+        "control": false
+      },
+      {
+        "freq": "772.70625",
+        "control": false
+      },
+      {
+        "freq": "774.20625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "042 (2A)",
+    "name": "West Nashville",
+    "county": "Davidson, TN",
+    "frequencies": [
+      {
+        "freq": "769.45625",
+        "control": false
+      },
+      {
+        "freq": "769.83125",
+        "control": true
+      },
+      {
+        "freq": "770.25625",
+        "control": true
+      },
+      {
+        "freq": "771.98125",
+        "control": false
+      },
+      {
+        "freq": "772.63125",
+        "control": false
+      },
+      {
+        "freq": "772.98125",
+        "control": false
+      },
+      {
+        "freq": "773.58125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "043 (2B)",
+    "name": "Ashland City",
+    "county": "Cheatham, TN",
+    "frequencies": [
+      {
+        "freq": "770.33125",
+        "control": true
+      },
+      {
+        "freq": "770.83125",
+        "control": true
+      },
+      {
+        "freq": "772.30625",
+        "control": false
+      },
+      {
+        "freq": "772.88125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "044 (2C)",
+    "name": "Kingston Springs",
+    "county": "Cheatham, TN",
+    "frequencies": [
+      {
+        "freq": "771.73125",
+        "control": true
+      },
+      {
+        "freq": "772.05625",
+        "control": false
+      },
+      {
+        "freq": "772.55625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "045 (2D)",
+    "name": "Charlotte",
+    "county": "Dickson, TN",
+    "frequencies": [
+      {
+        "freq": "769.96875",
+        "control": false
+      },
+      {
+        "freq": "771.00625",
+        "control": true
+      },
+      {
+        "freq": "771.38125",
+        "control": false
+      },
+      {
+        "freq": "772.00625",
+        "control": true
+      },
+      {
+        "freq": "772.43125",
+        "control": false
+      },
+      {
+        "freq": "772.95625",
+        "control": false
+      },
+      {
+        "freq": "773.70625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "046 (2E)",
+    "name": "Slayden",
+    "county": "Dickson, TN",
+    "frequencies": [
+      {
+        "freq": "771.25625",
+        "control": true
+      },
+      {
+        "freq": "771.55625",
+        "control": false
+      },
+      {
+        "freq": "772.35625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "047 (2F)",
+    "name": "McEwen",
+    "county": "Humphreys, TN",
+    "frequencies": [
+      {
+        "freq": "769.93125",
+        "control": false
+      },
+      {
+        "freq": "771.43125",
+        "control": true
+      },
+      {
+        "freq": "772.25625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "048 (30)",
+    "name": "Dover",
+    "county": "Stewart, TN",
+    "frequencies": [
+      {
+        "freq": "153.875",
+        "control": false
+      },
+      {
+        "freq": "154.815",
+        "control": true
+      },
+      {
+        "freq": "154.995",
+        "control": false
+      },
+      {
+        "freq": "155.130",
+        "control": false
+      },
+      {
+        "freq": "155.445",
+        "control": true
+      },
+      {
+        "freq": "161.825",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "049 (31)",
+    "name": "Cunningham",
+    "county": "Montgomery, TN",
+    "frequencies": [
+      {
+        "freq": "769.28125",
+        "control": true
+      },
+      {
+        "freq": "769.55625",
+        "control": false
+      },
+      {
+        "freq": "769.90625",
+        "control": true
+      },
+      {
+        "freq": "770.68125",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "050 (32)",
+    "name": "Adams",
+    "county": "Robertson, TN",
+    "frequencies": [
+      {
+        "freq": "769.10625",
+        "control": true
+      },
+      {
+        "freq": "769.43125",
+        "control": false
+      },
+      {
+        "freq": "770.05625",
+        "control": false
+      },
+      {
+        "freq": "770.58125",
+        "control": true
+      },
+      {
+        "freq": "771.23125",
+        "control": false
+      },
+      {
+        "freq": "771.50625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "051 (33)",
+    "name": "Joelton",
+    "county": "Davidson, TN",
+    "frequencies": [
+      {
+        "freq": "770.50625",
+        "control": true
+      },
+      {
+        "freq": "770.75625",
+        "control": false
+      },
+      {
+        "freq": "771.28125",
+        "control": true
+      },
+      {
+        "freq": "772.45625",
+        "control": false
+      },
+      {
+        "freq": "773.43125",
+        "control": false
+      },
+      {
+        "freq": "773.83125",
+        "control": false
+      },
+      {
+        "freq": "774.18125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "052 (34)",
+    "name": "Gills Chapel",
+    "county": "Marshall, TN",
+    "frequencies": [
+      {
+        "freq": "771.23125",
+        "control": true
+      },
+      {
+        "freq": "771.75625",
+        "control": true
+      },
+      {
+        "freq": "772.25625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "053 (35)",
+    "name": "Pulaski",
+    "county": "Giles, TN",
+    "frequencies": [
+      {
+        "freq": "152.065",
+        "control": false
+      },
+      {
+        "freq": "152.145",
+        "control": true
+      },
+      {
+        "freq": "152.505",
+        "control": false
+      },
+      {
+        "freq": "152.785",
+        "control": true
+      },
+      {
+        "freq": "169.575",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "054 (36)",
+    "name": "Crestview",
+    "county": "Lawrence, TN",
+    "frequencies": [
+      {
+        "freq": "152.095",
+        "control": true
+      },
+      {
+        "freq": "152.115",
+        "control": true
+      },
+      {
+        "freq": "152.515",
+        "control": false
+      },
+      {
+        "freq": "152.775",
+        "control": false
+      },
+      {
+        "freq": "161.825",
+        "control": false
+      },
+      {
+        "freq": "161.925",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "055 (37)",
+    "name": "West Point",
+    "county": "Lawrence, TN",
+    "frequencies": [
+      {
+        "freq": "769.60625",
+        "control": true
+      },
+      {
+        "freq": "769.61875",
+        "control": true
+      },
+      {
+        "freq": "770.18125",
+        "control": false
+      },
+      {
+        "freq": "770.53125",
+        "control": false
+      },
+      {
+        "freq": "771.03125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "056 (38)",
+    "name": "Waynesboro (*)",
+    "county": "Wayne, TN",
+    "frequencies": [
+      {
+        "freq": "151.0325",
+        "control": false
+      },
+      {
+        "freq": "152.065",
+        "control": true
+      },
+      {
+        "freq": "152.205",
+        "control": true
+      },
+      {
+        "freq": "152.545",
+        "control": true
+      },
+      {
+        "freq": "154.8825",
+        "control": false
+      },
+      {
+        "freq": "161.875",
+        "control": false
+      },
+      {
+        "freq": "169.6625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "057 (39)",
+    "name": "Hornertown",
+    "county": "Hickman, TN",
+    "frequencies": [
+      {
+        "freq": "152.055",
+        "control": true
+      },
+      {
+        "freq": "152.155",
+        "control": false
+      },
+      {
+        "freq": "152.535",
+        "control": true
+      },
+      {
+        "freq": "154.965",
+        "control": false
+      },
+      {
+        "freq": "169.8875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "058 (3A)",
+    "name": "Lobelville",
+    "county": "Perry, TN",
+    "frequencies": [
+      {
+        "freq": "769.10625",
+        "control": true
+      },
+      {
+        "freq": "770.80625",
+        "control": false
+      },
+      {
+        "freq": "773.03125",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "059 (3B)",
+    "name": "Theta",
+    "county": "Maury, TN",
+    "frequencies": [
+      {
+        "freq": "769.20625",
+        "control": false
+      },
+      {
+        "freq": "770.36875",
+        "control": true
+      },
+      {
+        "freq": "770.78125",
+        "control": true
+      },
+      {
+        "freq": "771.58125",
+        "control": false
+      },
+      {
+        "freq": "773.79375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "060 (3C)",
+    "name": "Fairview",
+    "county": "Williamson, TN",
+    "frequencies": [
+      {
+        "freq": "769.08125",
+        "control": true
+      },
+      {
+        "freq": "769.40625",
+        "control": false
+      },
+      {
+        "freq": "769.75625",
+        "control": false
+      },
+      {
+        "freq": "770.10625",
+        "control": true
+      },
+      {
+        "freq": "771.06875",
+        "control": false
+      },
+      {
+        "freq": "771.40625",
+        "control": false
+      },
+      {
+        "freq": "772.28125",
+        "control": false
+      },
+      {
+        "freq": "773.08125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "061 (3D)",
+    "name": "Northeast: TNDOC",
+    "county": "Johnson, TN",
+    "frequencies": [
+      {
+        "freq": "851.650",
+        "control": true
+      },
+      {
+        "freq": "852.050",
+        "control": false
+      },
+      {
+        "freq": "852.4735",
+        "control": false
+      },
+      {
+        "freq": "852.9375",
+        "control": false
+      },
+      {
+        "freq": "853.4375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "064 (40)",
+    "name": "Smyrna",
+    "county": "Rutherford, TN",
+    "frequencies": [
+      {
+        "freq": "851.0625",
+        "control": false
+      },
+      {
+        "freq": "851.400",
+        "control": true
+      },
+      {
+        "freq": "851.675",
+        "control": false
+      },
+      {
+        "freq": "852.0375",
+        "control": true
+      },
+      {
+        "freq": "852.575",
+        "control": true
+      },
+      {
+        "freq": "852.950",
+        "control": false
+      },
+      {
+        "freq": "853.400",
+        "control": true
+      },
+      {
+        "freq": "853.675",
+        "control": false
+      },
+      {
+        "freq": "853.9875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "066 (42)",
+    "name": "Franklin",
+    "county": "Williamson, TN",
+    "frequencies": [
+      {
+        "freq": "851.775",
+        "control": false
+      },
+      {
+        "freq": "853.175",
+        "control": false
+      },
+      {
+        "freq": "855.1625",
+        "control": true
+      },
+      {
+        "freq": "855.9375",
+        "control": true
+      },
+      {
+        "freq": "858.2875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "067 (43)",
+    "name": "Thompson Station",
+    "county": "Williamson, TN",
+    "frequencies": [
+      {
+        "freq": "851.225",
+        "control": false
+      },
+      {
+        "freq": "854.9125",
+        "control": true
+      },
+      {
+        "freq": "856.8625",
+        "control": true
+      },
+      {
+        "freq": "858.3375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "068 (44)",
+    "name": "Readyville",
+    "county": "Rutherford, TN",
+    "frequencies": [
+      {
+        "freq": "852.400",
+        "control": false
+      },
+      {
+        "freq": "855.4125",
+        "control": true
+      },
+      {
+        "freq": "856.2875",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "069 (45)",
+    "name": "Watertown",
+    "county": "Wilson, TN",
+    "frequencies": [
+      {
+        "freq": "854.7875",
+        "control": false
+      },
+      {
+        "freq": "854.9125",
+        "control": false
+      },
+      {
+        "freq": "855.1625",
+        "control": false
+      },
+      {
+        "freq": "855.4125",
+        "control": false
+      },
+      {
+        "freq": "855.6875",
+        "control": true
+      },
+      {
+        "freq": "855.8875",
+        "control": false
+      },
+      {
+        "freq": "856.2875",
+        "control": false
+      },
+      {
+        "freq": "856.6875",
+        "control": true
+      },
+      {
+        "freq": "856.8625",
+        "control": false
+      },
+      {
+        "freq": "857.3375",
+        "control": false
+      },
+      {
+        "freq": "857.8125",
+        "control": false
+      },
+      {
+        "freq": "858.2875",
+        "control": false
+      },
+      {
+        "freq": "858.3375",
+        "control": false
+      },
+      {
+        "freq": "859.3875",
+        "control": true
+      },
+      {
+        "freq": "859.8625",
+        "control": false
+      },
+      {
+        "freq": "860.3375",
+        "control": false
+      },
+      {
+        "freq": "860.3875",
+        "control": false
+      },
+      {
+        "freq": "860.8625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "070 (46)",
+    "name": "Woodbury (800)",
+    "county": "Cannon, TN",
+    "frequencies": [
+      {
+        "freq": "851.250",
+        "control": false
+      },
+      {
+        "freq": "851.800",
+        "control": false
+      },
+      {
+        "freq": "854.8125",
+        "control": true
+      },
+      {
+        "freq": "858.3125",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "071 (47)",
+    "name": "Dover 700",
+    "county": "Stewart, TN",
+    "frequencies": [
+      {
+        "freq": "771.15625",
+        "control": true
+      },
+      {
+        "freq": "771.65625",
+        "control": true
+      },
+      {
+        "freq": "772.18125",
+        "control": false
+      },
+      {
+        "freq": "772.53125",
+        "control": false
+      },
+      {
+        "freq": "772.90625",
+        "control": false
+      },
+      {
+        "freq": "774.71875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "073 (49)",
+    "name": "Waynesboro 700",
+    "county": "Wayne, TN",
+    "frequencies": [
+      {
+        "freq": "770.05625",
+        "control": false
+      },
+      {
+        "freq": "770.55625",
+        "control": false
+      },
+      {
+        "freq": "771.08125",
+        "control": false
+      },
+      {
+        "freq": "771.60625",
+        "control": false
+      },
+      {
+        "freq": "772.53125",
+        "control": false
+      },
+      {
+        "freq": "772.85625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "074 (4A)",
+    "name": "Hornertown 700",
+    "county": "Hickman, TN",
+    "frequencies": [
+      {
+        "freq": "769.33125",
+        "control": true
+      },
+      {
+        "freq": "771.30625",
+        "control": false
+      },
+      {
+        "freq": "771.63125",
+        "control": false
+      },
+      {
+        "freq": "771.95625",
+        "control": false
+      },
+      {
+        "freq": "773.23125",
+        "control": false
+      },
+      {
+        "freq": "774.03125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "075 (4B)",
+    "name": "Arnold AFB",
+    "county": "Franklin, TN",
+    "frequencies": [
+      {
+        "freq": "769.60625",
+        "control": true
+      },
+      {
+        "freq": "771.13125",
+        "control": false
+      },
+      {
+        "freq": "772.80625",
+        "control": false
+      },
+      {
+        "freq": "773.24375",
+        "control": false
+      },
+      {
+        "freq": "774.38125",
+        "control": false
+      },
+      {
+        "freq": "774.88125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "081 (51)",
+    "name": "Hawthorne Hill (*)",
+    "county": "Bedford, TN",
+    "frequencies": [
+      {
+        "freq": "769.54375",
+        "control": true
+      },
+      {
+        "freq": "771.04375",
+        "control": true
+      },
+      {
+        "freq": "771.38125",
+        "control": false
+      },
+      {
+        "freq": "772.43125",
+        "control": false
+      },
+      {
+        "freq": "772.96875",
+        "control": false
+      },
+      {
+        "freq": "773.94375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "090 (5A)",
+    "name": "TEMA SOW",
+    "county": "Itinerant, TN",
+    "frequencies": [
+      {
+        "freq": "773.55625",
+        "control": true
+      },
+      {
+        "freq": "773.80625",
+        "control": false
+      },
+      {
+        "freq": "774.05625",
+        "control": false
+      },
+      {
+        "freq": "774.30625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "1 (1)",
+    "site": "091 (5B)",
+    "name": "TDOC SOW 800",
+    "county": "Itinerant, TN",
+    "frequencies": [
+      {
+        "freq": "851.450",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "010 (A)",
+    "name": "Chattanooga Simulcast",
+    "county": "Hamilton, TN",
+    "frequencies": [
+      {
+        "freq": "854.3875",
+        "control": false
+      },
+      {
+        "freq": "854.9125",
+        "control": false
+      },
+      {
+        "freq": "855.1875",
+        "control": false
+      },
+      {
+        "freq": "855.2125",
+        "control": true
+      },
+      {
+        "freq": "855.9875",
+        "control": false
+      },
+      {
+        "freq": "856.0875",
+        "control": false
+      },
+      {
+        "freq": "856.2375",
+        "control": true
+      },
+      {
+        "freq": "856.7625",
+        "control": true
+      },
+      {
+        "freq": "856.9625",
+        "control": false
+      },
+      {
+        "freq": "857.2375",
+        "control": true
+      },
+      {
+        "freq": "857.4375",
+        "control": false
+      },
+      {
+        "freq": "857.4875",
+        "control": false
+      },
+      {
+        "freq": "857.7125",
+        "control": false
+      },
+      {
+        "freq": "857.9375",
+        "control": false
+      },
+      {
+        "freq": "858.2375",
+        "control": false
+      },
+      {
+        "freq": "858.4375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "011 (B)",
+    "name": "Northwest GA Simulcast",
+    "county": "Catoosa, GA",
+    "frequencies": [
+      {
+        "freq": "851.175",
+        "control": true
+      },
+      {
+        "freq": "851.4125",
+        "control": true
+      },
+      {
+        "freq": "851.625",
+        "control": false
+      },
+      {
+        "freq": "851.6875",
+        "control": true
+      },
+      {
+        "freq": "851.900",
+        "control": true
+      },
+      {
+        "freq": "852.1625",
+        "control": false
+      },
+      {
+        "freq": "852.4125",
+        "control": false
+      },
+      {
+        "freq": "852.600",
+        "control": false
+      },
+      {
+        "freq": "853.0375",
+        "control": false
+      },
+      {
+        "freq": "853.4125",
+        "control": false
+      },
+      {
+        "freq": "853.625",
+        "control": false
+      },
+      {
+        "freq": "853.975",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "013 (D)",
+    "name": "Sale Creek",
+    "county": "Hamilton, TN",
+    "frequencies": [
+      {
+        "freq": "769.25625",
+        "control": true
+      },
+      {
+        "freq": "770.25625",
+        "control": false
+      },
+      {
+        "freq": "771.10625",
+        "control": true
+      },
+      {
+        "freq": "772.45625",
+        "control": false
+      },
+      {
+        "freq": "773.28125",
+        "control": false
+      },
+      {
+        "freq": "773.93125",
+        "control": false
+      },
+      {
+        "freq": "774.33125",
+        "control": false
+      },
+      {
+        "freq": "774.91875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "014 (E)",
+    "name": "Evensville Mountain",
+    "county": "Rhea, TN",
+    "frequencies": [
+      {
+        "freq": "769.10625",
+        "control": true
+      },
+      {
+        "freq": "770.30625",
+        "control": true
+      },
+      {
+        "freq": "771.15625",
+        "control": false
+      },
+      {
+        "freq": "771.55625",
+        "control": false
+      },
+      {
+        "freq": "771.80625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "015 (F)",
+    "name": "No Pone Mountain",
+    "county": "Meigs, TN",
+    "frequencies": [
+      {
+        "freq": "769.33125",
+        "control": true
+      },
+      {
+        "freq": "769.68125",
+        "control": false
+      },
+      {
+        "freq": "771.00625",
+        "control": true
+      },
+      {
+        "freq": "771.33125",
+        "control": false
+      },
+      {
+        "freq": "772.24375",
+        "control": false
+      },
+      {
+        "freq": "772.68125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "016 (10)",
+    "name": "Roane County",
+    "county": "Roane, TN",
+    "frequencies": [
+      {
+        "freq": "769.18125",
+        "control": false
+      },
+      {
+        "freq": "769.53125",
+        "control": true
+      },
+      {
+        "freq": "769.80625",
+        "control": false
+      },
+      {
+        "freq": "770.55625",
+        "control": true
+      },
+      {
+        "freq": "771.64375",
+        "control": false
+      },
+      {
+        "freq": "772.03125",
+        "control": false
+      },
+      {
+        "freq": "772.30625",
+        "control": false
+      },
+      {
+        "freq": "772.53125",
+        "control": false
+      },
+      {
+        "freq": "773.43125",
+        "control": false
+      },
+      {
+        "freq": "774.20625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "017 (11)",
+    "name": "Windrock Mountain",
+    "county": "Anderson, TN",
+    "frequencies": [
+      {
+        "freq": "769.35625",
+        "control": true
+      },
+      {
+        "freq": "769.70625",
+        "control": false
+      },
+      {
+        "freq": "769.78125",
+        "control": false
+      },
+      {
+        "freq": "770.20625",
+        "control": false
+      },
+      {
+        "freq": "770.84375",
+        "control": false
+      },
+      {
+        "freq": "771.08125",
+        "control": true
+      },
+      {
+        "freq": "771.50625",
+        "control": false
+      },
+      {
+        "freq": "772.00625",
+        "control": false
+      },
+      {
+        "freq": "772.48125",
+        "control": false
+      },
+      {
+        "freq": "772.90625",
+        "control": false
+      },
+      {
+        "freq": "773.13125",
+        "control": false
+      },
+      {
+        "freq": "774.69375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "018 (12)",
+    "name": "Cross Mountain",
+    "county": "Campbell, TN",
+    "frequencies": [
+      {
+        "freq": "769.30625",
+        "control": true
+      },
+      {
+        "freq": "770.05625",
+        "control": true
+      },
+      {
+        "freq": "770.40625",
+        "control": false
+      },
+      {
+        "freq": "771.48125",
+        "control": false
+      },
+      {
+        "freq": "772.59375",
+        "control": false
+      },
+      {
+        "freq": "773.40625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "019 (13)",
+    "name": "Knoxville Black Road",
+    "county": "Knox, TN",
+    "frequencies": [
+      {
+        "freq": "769.28125",
+        "control": true
+      },
+      {
+        "freq": "769.65625",
+        "control": false
+      },
+      {
+        "freq": "770.25625",
+        "control": true
+      },
+      {
+        "freq": "770.78125",
+        "control": false
+      },
+      {
+        "freq": "771.18125",
+        "control": false
+      },
+      {
+        "freq": "771.88125",
+        "control": false
+      },
+      {
+        "freq": "772.74375",
+        "control": false
+      },
+      {
+        "freq": "773.15625",
+        "control": false
+      },
+      {
+        "freq": "773.83125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "020 (14)",
+    "name": "Knoxville Sharps Ridge",
+    "county": "Knox, TN",
+    "frequencies": [
+      {
+        "freq": "769.60625",
+        "control": true
+      },
+      {
+        "freq": "769.93125",
+        "control": false
+      },
+      {
+        "freq": "770.53125",
+        "control": true
+      },
+      {
+        "freq": "771.53125",
+        "control": false
+      },
+      {
+        "freq": "772.45625",
+        "control": false
+      },
+      {
+        "freq": "773.73125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "021 (15)",
+    "name": "Greentop Mountain",
+    "county": "Sevier, TN",
+    "frequencies": [
+      {
+        "freq": "769.19375",
+        "control": false
+      },
+      {
+        "freq": "769.58125",
+        "control": true
+      },
+      {
+        "freq": "770.09375",
+        "control": true
+      },
+      {
+        "freq": "770.31875",
+        "control": false
+      },
+      {
+        "freq": "771.14375",
+        "control": false
+      },
+      {
+        "freq": "771.64375",
+        "control": false
+      },
+      {
+        "freq": "771.99375",
+        "control": false
+      },
+      {
+        "freq": "772.79375",
+        "control": false
+      },
+      {
+        "freq": "773.33125",
+        "control": false
+      },
+      {
+        "freq": "773.93125",
+        "control": false
+      },
+      {
+        "freq": "774.15625",
+        "control": false
+      },
+      {
+        "freq": "774.41875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "022 (16)",
+    "name": "Centerville",
+    "county": "Loudon, TN",
+    "frequencies": [
+      {
+        "freq": "770.35625",
+        "control": true
+      },
+      {
+        "freq": "771.28125",
+        "control": true
+      },
+      {
+        "freq": "771.70625",
+        "control": false
+      },
+      {
+        "freq": "772.40625",
+        "control": false
+      },
+      {
+        "freq": "773.20625",
+        "control": false
+      },
+      {
+        "freq": "773.68125",
+        "control": false
+      },
+      {
+        "freq": "774.03125",
+        "control": false
+      },
+      {
+        "freq": "774.45625",
+        "control": false
+      },
+      {
+        "freq": "774.83125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "023 (17)",
+    "name": "Madisonville",
+    "county": "Monroe, TN",
+    "frequencies": [
+      {
+        "freq": "769.36875",
+        "control": false
+      },
+      {
+        "freq": "770.03125",
+        "control": true
+      },
+      {
+        "freq": "770.65625",
+        "control": false
+      },
+      {
+        "freq": "771.05625",
+        "control": true
+      },
+      {
+        "freq": "772.05625",
+        "control": false
+      },
+      {
+        "freq": "772.63125",
+        "control": false
+      },
+      {
+        "freq": "773.38125",
+        "control": false
+      },
+      {
+        "freq": "774.38125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "024 (18)",
+    "name": "Starr Mountain",
+    "county": "McMinn, TN",
+    "frequencies": [
+      {
+        "freq": "771.63125",
+        "control": true
+      },
+      {
+        "freq": "771.90625",
+        "control": true
+      },
+      {
+        "freq": "772.28125",
+        "control": false
+      },
+      {
+        "freq": "772.88125",
+        "control": false
+      },
+      {
+        "freq": "773.30625",
+        "control": false
+      },
+      {
+        "freq": "773.95625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "025 (19)",
+    "name": "Oswald Dome",
+    "county": "Polk, TN",
+    "frequencies": [
+      {
+        "freq": "769.29375",
+        "control": false
+      },
+      {
+        "freq": "770.33125",
+        "control": true
+      },
+      {
+        "freq": "770.60625",
+        "control": false
+      },
+      {
+        "freq": "771.30625",
+        "control": true
+      },
+      {
+        "freq": "771.68125",
+        "control": false
+      },
+      {
+        "freq": "772.55625",
+        "control": false
+      },
+      {
+        "freq": "773.59375",
+        "control": false
+      },
+      {
+        "freq": "774.68125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "026 (1A)",
+    "name": "North Bradley",
+    "county": "Bradley, TN",
+    "frequencies": [
+      {
+        "freq": "769.60625",
+        "control": true
+      },
+      {
+        "freq": "770.21875",
+        "control": false
+      },
+      {
+        "freq": "770.53125",
+        "control": true
+      },
+      {
+        "freq": "771.43125",
+        "control": false
+      },
+      {
+        "freq": "771.98125",
+        "control": false
+      },
+      {
+        "freq": "772.38125",
+        "control": false
+      },
+      {
+        "freq": "772.73125",
+        "control": false
+      },
+      {
+        "freq": "773.45625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "027 (1B)",
+    "name": "Maryville",
+    "county": "Blount, TN",
+    "frequencies": [
+      {
+        "freq": "770.83125",
+        "control": false
+      },
+      {
+        "freq": "771.83125",
+        "control": false
+      },
+      {
+        "freq": "772.15625",
+        "control": false
+      },
+      {
+        "freq": "772.98125",
+        "control": false
+      },
+      {
+        "freq": "773.78125",
+        "control": false
+      },
+      {
+        "freq": "774.13125",
+        "control": true
+      },
+      {
+        "freq": "774.48125",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "028 (1C)",
+    "name": "Look Rock",
+    "county": "Blount, TN",
+    "frequencies": [
+      {
+        "freq": "769.21875",
+        "control": false
+      },
+      {
+        "freq": "769.85625",
+        "control": false
+      },
+      {
+        "freq": "771.44375",
+        "control": false
+      },
+      {
+        "freq": "771.58125",
+        "control": false
+      },
+      {
+        "freq": "771.94375",
+        "control": false
+      },
+      {
+        "freq": "772.58125",
+        "control": false
+      },
+      {
+        "freq": "773.63125",
+        "control": true
+      },
+      {
+        "freq": "774.23125",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "029 (1D)",
+    "name": "Townsend",
+    "county": "Blount, TN",
+    "frequencies": [
+      {
+        "freq": "851.150",
+        "control": false
+      },
+      {
+        "freq": "851.4875",
+        "control": false
+      },
+      {
+        "freq": "851.7625",
+        "control": false
+      },
+      {
+        "freq": "852.1125",
+        "control": false
+      },
+      {
+        "freq": "853.225",
+        "control": true
+      },
+      {
+        "freq": "853.5375",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "030 (1E)",
+    "name": "Roosevelt Mountain",
+    "county": "Roane, TN",
+    "frequencies": [
+      {
+        "freq": "769.08125",
+        "control": true
+      },
+      {
+        "freq": "770.29375",
+        "control": true
+      },
+      {
+        "freq": "770.75625",
+        "control": false
+      },
+      {
+        "freq": "771.75625",
+        "control": false
+      },
+      {
+        "freq": "772.13125",
+        "control": false
+      },
+      {
+        "freq": "772.83125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "031 (1F)",
+    "name": "Lone Oak",
+    "county": "Sequatchie, TN",
+    "frequencies": [
+      {
+        "freq": "769.35625",
+        "control": true
+      },
+      {
+        "freq": "769.78125",
+        "control": true
+      },
+      {
+        "freq": "770.08125",
+        "control": false
+      },
+      {
+        "freq": "770.90625",
+        "control": false
+      },
+      {
+        "freq": "771.48125",
+        "control": false
+      },
+      {
+        "freq": "773.05625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "032 (20)",
+    "name": "Jasper",
+    "county": "Marion, TN",
+    "frequencies": [
+      {
+        "freq": "152.055",
+        "control": true
+      },
+      {
+        "freq": "152.115",
+        "control": true
+      },
+      {
+        "freq": "152.215",
+        "control": true
+      },
+      {
+        "freq": "152.785",
+        "control": false
+      },
+      {
+        "freq": "161.8125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "033 (21)",
+    "name": "Hippie Town Farm",
+    "county": "Grundy, TN",
+    "frequencies": [
+      {
+        "freq": "771.25625",
+        "control": true
+      },
+      {
+        "freq": "771.63125",
+        "control": true
+      },
+      {
+        "freq": "771.90625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "034 (22)",
+    "name": "Winchester VHF (*)",
+    "county": "Franklin, TN",
+    "frequencies": [
+      {
+        "freq": "152.085",
+        "control": true
+      },
+      {
+        "freq": "152.535",
+        "control": false
+      },
+      {
+        "freq": "152.775",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "035 (23)",
+    "name": "Hinch Mountain",
+    "county": "Cumberland, TN",
+    "frequencies": [
+      {
+        "freq": "152.095",
+        "control": true
+      },
+      {
+        "freq": "152.505",
+        "control": true
+      },
+      {
+        "freq": "152.775",
+        "control": false
+      },
+      {
+        "freq": "161.8375",
+        "control": false
+      },
+      {
+        "freq": "161.9125",
+        "control": false
+      },
+      {
+        "freq": "169.575",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "036 (24)",
+    "name": "Lenoir City",
+    "county": "Loudon, TN",
+    "frequencies": [
+      {
+        "freq": "769.45625",
+        "control": false
+      },
+      {
+        "freq": "769.86875",
+        "control": true
+      },
+      {
+        "freq": "771.35625",
+        "control": false
+      },
+      {
+        "freq": "771.59375",
+        "control": false
+      },
+      {
+        "freq": "772.34375",
+        "control": true
+      },
+      {
+        "freq": "773.18125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "037 (25)",
+    "name": "La Follette/Walnut Mtn",
+    "county": "Campbell, TN",
+    "frequencies": [
+      {
+        "freq": "769.40625",
+        "control": false
+      },
+      {
+        "freq": "770.90625",
+        "control": false
+      },
+      {
+        "freq": "772.18125",
+        "control": false
+      },
+      {
+        "freq": "772.85625",
+        "control": false
+      },
+      {
+        "freq": "773.70625",
+        "control": true
+      },
+      {
+        "freq": "774.40625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "038 (26)",
+    "name": "Braden Mountain VHF",
+    "county": "Campbell, TN",
+    "frequencies": [
+      {
+        "freq": "152.085",
+        "control": true
+      },
+      {
+        "freq": "152.215",
+        "control": true
+      },
+      {
+        "freq": "152.515",
+        "control": false
+      },
+      {
+        "freq": "154.905",
+        "control": false
+      },
+      {
+        "freq": "155.520",
+        "control": false
+      },
+      {
+        "freq": "170.600",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "039 (27)",
+    "name": "Black Creek",
+    "county": "Scott, TN",
+    "frequencies": [
+      {
+        "freq": "769.59375",
+        "control": true
+      },
+      {
+        "freq": "770.96325",
+        "control": false
+      },
+      {
+        "freq": "771.13125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "040 (28)",
+    "name": "Chuck Swan WMA VHF (*)",
+    "county": "Union, TN",
+    "frequencies": [
+      {
+        "freq": "152.095",
+        "control": false
+      },
+      {
+        "freq": "152.505",
+        "control": true
+      },
+      {
+        "freq": "152.725",
+        "control": true
+      },
+      {
+        "freq": "161.825",
+        "control": false
+      },
+      {
+        "freq": "161.9375",
+        "control": false
+      },
+      {
+        "freq": "169.6875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "041 (29)",
+    "name": "Springdale / Tazewell",
+    "county": "Claiborne, TN",
+    "frequencies": [
+      {
+        "freq": "769.33125",
+        "control": true
+      },
+      {
+        "freq": "770.56875",
+        "control": true
+      },
+      {
+        "freq": "770.96875",
+        "control": false
+      },
+      {
+        "freq": "772.38125",
+        "control": false
+      },
+      {
+        "freq": "772.69375",
+        "control": false
+      },
+      {
+        "freq": "774.58125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "042 (2A)",
+    "name": "Sneedville (Short Mtn)",
+    "county": "Hawkins, TN",
+    "frequencies": [
+      {
+        "freq": "769.90625",
+        "control": false
+      },
+      {
+        "freq": "771.03125",
+        "control": true
+      },
+      {
+        "freq": "771.93125",
+        "control": false
+      },
+      {
+        "freq": "772.88125",
+        "control": false
+      },
+      {
+        "freq": "773.28125",
+        "control": false
+      },
+      {
+        "freq": "773.98125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "043 (2B)",
+    "name": "Wauchessi Mountain",
+    "county": "Monroe, TN",
+    "frequencies": [
+      {
+        "freq": "769.54375",
+        "control": true
+      },
+      {
+        "freq": "770.06875",
+        "control": true
+      },
+      {
+        "freq": "770.54375",
+        "control": false
+      },
+      {
+        "freq": "770.68125",
+        "control": false
+      },
+      {
+        "freq": "771.19375",
+        "control": false
+      },
+      {
+        "freq": "771.71875",
+        "control": false
+      },
+      {
+        "freq": "772.06875",
+        "control": false
+      },
+      {
+        "freq": "772.84375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "044 (2C)",
+    "name": "Holston Mountain (State)",
+    "county": "Sullivan, TN",
+    "frequencies": [
+      {
+        "freq": "769.10625",
+        "control": false
+      },
+      {
+        "freq": "769.91875",
+        "control": false
+      },
+      {
+        "freq": "770.20625",
+        "control": false
+      },
+      {
+        "freq": "770.75625",
+        "control": true
+      },
+      {
+        "freq": "771.38125",
+        "control": true
+      },
+      {
+        "freq": "771.65625",
+        "control": false
+      },
+      {
+        "freq": "772.43125",
+        "control": false
+      },
+      {
+        "freq": "773.20625",
+        "control": false
+      },
+      {
+        "freq": "773.45625",
+        "control": false
+      },
+      {
+        "freq": "773.70625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "045 (2D)",
+    "name": "Fall Branch",
+    "county": "Washington, TN",
+    "frequencies": [
+      {
+        "freq": "769.18125",
+        "control": false
+      },
+      {
+        "freq": "769.45625",
+        "control": false
+      },
+      {
+        "freq": "769.83125",
+        "control": true
+      },
+      {
+        "freq": "771.33125",
+        "control": true
+      },
+      {
+        "freq": "771.98125",
+        "control": false
+      },
+      {
+        "freq": "772.53125",
+        "control": false
+      },
+      {
+        "freq": "772.83125",
+        "control": false
+      },
+      {
+        "freq": "773.15625",
+        "control": false
+      },
+      {
+        "freq": "773.88125",
+        "control": false
+      },
+      {
+        "freq": "774.09375",
+        "control": false
+      },
+      {
+        "freq": "774.40625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "046 (2E)",
+    "name": "Viking Mountain",
+    "county": "Greene, TN",
+    "frequencies": [
+      {
+        "freq": "769.36875",
+        "control": true
+      },
+      {
+        "freq": "769.70625",
+        "control": false
+      },
+      {
+        "freq": "770.15625",
+        "control": false
+      },
+      {
+        "freq": "770.50625",
+        "control": false
+      },
+      {
+        "freq": "770.85625",
+        "control": false
+      },
+      {
+        "freq": "771.28125",
+        "control": false
+      },
+      {
+        "freq": "771.85625",
+        "control": false
+      },
+      {
+        "freq": "772.65625",
+        "control": false
+      },
+      {
+        "freq": "773.05625",
+        "control": false
+      },
+      {
+        "freq": "773.40625",
+        "control": false
+      },
+      {
+        "freq": "774.49375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "047 (2F)",
+    "name": "English Mountain",
+    "county": "Cocke, TN",
+    "frequencies": [
+      {
+        "freq": "769.15625",
+        "control": false
+      },
+      {
+        "freq": "770.28125",
+        "control": true
+      },
+      {
+        "freq": "770.80625",
+        "control": true
+      },
+      {
+        "freq": "771.20625",
+        "control": false
+      },
+      {
+        "freq": "772.35625",
+        "control": false
+      },
+      {
+        "freq": "773.19375",
+        "control": false
+      },
+      {
+        "freq": "774.78125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "048 (30)",
+    "name": "Mountain City",
+    "county": "Johnson, TN",
+    "frequencies": [
+      {
+        "freq": "769.50625",
+        "control": false
+      },
+      {
+        "freq": "770.33125",
+        "control": true
+      },
+      {
+        "freq": "771.35625",
+        "control": false
+      },
+      {
+        "freq": "771.60625",
+        "control": false
+      },
+      {
+        "freq": "773.78125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "049 (31)",
+    "name": "Cleveland",
+    "county": "Bradley, TN",
+    "frequencies": [
+      {
+        "freq": "851.050",
+        "control": true
+      },
+      {
+        "freq": "851.300",
+        "control": false
+      },
+      {
+        "freq": "851.5625",
+        "control": true
+      },
+      {
+        "freq": "851.9375",
+        "control": false
+      },
+      {
+        "freq": "852.250",
+        "control": false
+      },
+      {
+        "freq": "853.200",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "050 (32)",
+    "name": "Sullivan Co Simulcast",
+    "county": "Sullivan, TN",
+    "frequencies": [
+      {
+        "freq": "854.0875",
+        "control": false
+      },
+      {
+        "freq": "854.5625",
+        "control": true
+      },
+      {
+        "freq": "855.9875",
+        "control": false
+      },
+      {
+        "freq": "856.2625",
+        "control": false
+      },
+      {
+        "freq": "856.7375",
+        "control": true
+      },
+      {
+        "freq": "857.2625",
+        "control": false
+      },
+      {
+        "freq": "857.7375",
+        "control": false
+      },
+      {
+        "freq": "858.2625",
+        "control": false
+      },
+      {
+        "freq": "858.7375",
+        "control": false
+      },
+      {
+        "freq": "859.2625",
+        "control": false
+      },
+      {
+        "freq": "859.7375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "051 (33)",
+    "name": "Buffalo Mtn Simulcast",
+    "county": "Washington, TN",
+    "frequencies": [
+      {
+        "freq": "856.2125",
+        "control": false
+      },
+      {
+        "freq": "856.2375",
+        "control": true
+      },
+      {
+        "freq": "856.4625",
+        "control": false
+      },
+      {
+        "freq": "857.2125",
+        "control": false
+      },
+      {
+        "freq": "857.2375",
+        "control": true
+      },
+      {
+        "freq": "857.4625",
+        "control": false
+      },
+      {
+        "freq": "858.2125",
+        "control": false
+      },
+      {
+        "freq": "858.2375",
+        "control": false
+      },
+      {
+        "freq": "858.4625",
+        "control": false
+      },
+      {
+        "freq": "859.2125",
+        "control": false
+      },
+      {
+        "freq": "859.2375",
+        "control": false
+      },
+      {
+        "freq": "859.4625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "052 (34)",
+    "name": "Whitfield Co Simulcast",
+    "county": "Whitfield, GA",
+    "frequencies": [
+      {
+        "freq": "854.1125",
+        "control": false
+      },
+      {
+        "freq": "854.5875",
+        "control": true
+      },
+      {
+        "freq": "856.0625",
+        "control": false
+      },
+      {
+        "freq": "856.5625",
+        "control": true
+      },
+      {
+        "freq": "857.0875",
+        "control": true
+      },
+      {
+        "freq": "857.5375",
+        "control": true
+      },
+      {
+        "freq": "858.0625",
+        "control": false
+      },
+      {
+        "freq": "858.3625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "059 (3B)",
+    "name": "Harrison Ferry Mountain",
+    "county": "Warren, TN",
+    "frequencies": [
+      {
+        "freq": "851.2375",
+        "control": true
+      },
+      {
+        "freq": "852.350",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "060 (3C)",
+    "name": "Greeneville",
+    "county": "Greene, TN",
+    "frequencies": [
+      {
+        "freq": "771.88125",
+        "control": false
+      },
+      {
+        "freq": "772.33125",
+        "control": false
+      },
+      {
+        "freq": "772.85625",
+        "control": false
+      },
+      {
+        "freq": "773.73125",
+        "control": false
+      },
+      {
+        "freq": "774.18125",
+        "control": false
+      },
+      {
+        "freq": "774.91875",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "061 (3D)",
+    "name": "Oak Ridge",
+    "county": "Anderson, TN",
+    "frequencies": [
+      {
+        "freq": "770.61875",
+        "control": true
+      },
+      {
+        "freq": "771.23125",
+        "control": false
+      },
+      {
+        "freq": "771.68125",
+        "control": false
+      },
+      {
+        "freq": "772.25625",
+        "control": false
+      },
+      {
+        "freq": "772.70625",
+        "control": false
+      },
+      {
+        "freq": "773.23125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "062 (3E)",
+    "name": "Mace's Hill VHF",
+    "county": "Smith, TN",
+    "frequencies": [
+      {
+        "freq": "152.055",
+        "control": true
+      },
+      {
+        "freq": "152.095",
+        "control": false
+      },
+      {
+        "freq": "152.155",
+        "control": false
+      },
+      {
+        "freq": "152.535",
+        "control": true
+      },
+      {
+        "freq": "158.515",
+        "control": false
+      },
+      {
+        "freq": "161.825",
+        "control": false
+      },
+      {
+        "freq": "170.3625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "063 (3F)",
+    "name": "Standing Stone VHF",
+    "county": "Overton, TN",
+    "frequencies": [
+      {
+        "freq": "152.125",
+        "control": true
+      },
+      {
+        "freq": "161.8125",
+        "control": true
+      },
+      {
+        "freq": "169.6875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "064 (40)",
+    "name": "Twinton VHF",
+    "county": "Overton, TN",
+    "frequencies": [
+      {
+        "freq": "152.115",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "065 (41)",
+    "name": "Cookeville",
+    "county": "Putnam, TN",
+    "frequencies": [
+      {
+        "freq": "769.28125",
+        "control": true
+      },
+      {
+        "freq": "770.10625",
+        "control": true
+      },
+      {
+        "freq": "770.76875",
+        "control": false
+      },
+      {
+        "freq": "774.03125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "066 (42)",
+    "name": "Short Mountain",
+    "county": "Cannon, TN",
+    "frequencies": [
+      {
+        "freq": "152.065",
+        "control": true
+      },
+      {
+        "freq": "152.205",
+        "control": false
+      },
+      {
+        "freq": "152.515",
+        "control": true
+      },
+      {
+        "freq": "161.800",
+        "control": true
+      },
+      {
+        "freq": "161.875",
+        "control": false
+      },
+      {
+        "freq": "161.950",
+        "control": false
+      },
+      {
+        "freq": "169.8875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "067 (43)",
+    "name": "Sparta",
+    "county": "White, TN",
+    "frequencies": [
+      {
+        "freq": "769.50625",
+        "control": false
+      },
+      {
+        "freq": "769.75625",
+        "control": false
+      },
+      {
+        "freq": "771.40625",
+        "control": false
+      },
+      {
+        "freq": "771.83125",
+        "control": true
+      },
+      {
+        "freq": "772.15625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "068 (44)",
+    "name": "Morristown (Pine Brooke)",
+    "county": "Hamblen, TN",
+    "frequencies": [
+      {
+        "freq": "769.50625",
+        "control": true
+      },
+      {
+        "freq": "770.58125",
+        "control": false
+      },
+      {
+        "freq": "771.35625",
+        "control": true
+      },
+      {
+        "freq": "771.70625",
+        "control": false
+      },
+      {
+        "freq": "772.03125",
+        "control": false
+      },
+      {
+        "freq": "772.40625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "069 (45)",
+    "name": "Sequatchie/Marion (*)",
+    "county": "Marion, TN",
+    "frequencies": [
+      {
+        "freq": "854.775",
+        "control": true
+      },
+      {
+        "freq": "855.4625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "070 (46)",
+    "name": "Winchester 800",
+    "county": "Franklin, TN",
+    "frequencies": [
+      {
+        "freq": "854.8875",
+        "control": true
+      },
+      {
+        "freq": "855.3875",
+        "control": false
+      },
+      {
+        "freq": "855.7375",
+        "control": false
+      },
+      {
+        "freq": "856.050",
+        "control": false
+      },
+      {
+        "freq": "856.5125",
+        "control": false
+      },
+      {
+        "freq": "857.075",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "071 (47)",
+    "name": "Braden Mountain 700",
+    "county": "Campbell, TN",
+    "frequencies": [
+      {
+        "freq": "769.25625",
+        "control": true
+      },
+      {
+        "freq": "769.83125",
+        "control": true
+      },
+      {
+        "freq": "770.36875",
+        "control": false
+      },
+      {
+        "freq": "770.79375",
+        "control": false
+      },
+      {
+        "freq": "771.38125",
+        "control": false
+      },
+      {
+        "freq": "771.79375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "072 (48)",
+    "name": "Chuck Swan WMA 700",
+    "county": "Union, TN",
+    "frequencies": [
+      {
+        "freq": "771.10625",
+        "control": true
+      },
+      {
+        "freq": "771.73125",
+        "control": true
+      },
+      {
+        "freq": "772.23125",
+        "control": false
+      },
+      {
+        "freq": "772.54375",
+        "control": false
+      },
+      {
+        "freq": "772.80625",
+        "control": false
+      },
+      {
+        "freq": "773.90625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "073 (49)",
+    "name": "Mace's Hill 700",
+    "county": "Smith, TN",
+    "frequencies": [
+      {
+        "freq": "771.30625",
+        "control": true
+      },
+      {
+        "freq": "771.75625",
+        "control": false
+      },
+      {
+        "freq": "772.29375",
+        "control": false
+      },
+      {
+        "freq": "772.75625",
+        "control": false
+      },
+      {
+        "freq": "773.95625",
+        "control": false
+      },
+      {
+        "freq": "774.40625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "074 (4A)",
+    "name": "Standing Stone 800",
+    "county": "Overton, TN",
+    "frequencies": [
+      {
+        "freq": "856.025",
+        "control": true
+      },
+      {
+        "freq": "856.275",
+        "control": false
+      },
+      {
+        "freq": "856.725",
+        "control": false
+      },
+      {
+        "freq": "856.975",
+        "control": false
+      },
+      {
+        "freq": "857.225",
+        "control": false
+      },
+      {
+        "freq": "857.725",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "075 (4B)",
+    "name": "Twinton 700",
+    "county": "Overton, TN",
+    "frequencies": [
+      {
+        "freq": "770.33125",
+        "control": true
+      },
+      {
+        "freq": "770.60625",
+        "control": false
+      },
+      {
+        "freq": "771.00625",
+        "control": false
+      },
+      {
+        "freq": "771.28125",
+        "control": false
+      },
+      {
+        "freq": "772.33125",
+        "control": false
+      },
+      {
+        "freq": "772.71875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "078 (4E)",
+    "name": "Elizabethton",
+    "county": "Carter, TN",
+    "frequencies": [
+      {
+        "freq": "854.0375",
+        "control": true
+      },
+      {
+        "freq": "854.4375",
+        "control": true
+      },
+      {
+        "freq": "858.0375",
+        "control": false
+      },
+      {
+        "freq": "858.7125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "080 (50)",
+    "name": "Canyon Ridge GA",
+    "county": "Dade, GA",
+    "frequencies": [
+      {
+        "freq": "851.2125",
+        "control": true
+      },
+      {
+        "freq": "851.3375",
+        "control": true
+      },
+      {
+        "freq": "852.0375",
+        "control": false
+      },
+      {
+        "freq": "852.8625",
+        "control": false
+      },
+      {
+        "freq": "852.8875",
+        "control": false
+      },
+      {
+        "freq": "853.1625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "081 (51)",
+    "name": "Rising Fawn GA",
+    "county": "Dade, GA",
+    "frequencies": [
+      {
+        "freq": "771.05625",
+        "control": true
+      },
+      {
+        "freq": "771.78125",
+        "control": true
+      },
+      {
+        "freq": "772.23125",
+        "control": false
+      },
+      {
+        "freq": "772.95625",
+        "control": false
+      },
+      {
+        "freq": "774.48125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "082 (52)",
+    "name": "Sparta",
+    "county": "White, TN",
+    "frequencies": [
+      {
+        "freq": "769.75625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "084 (54)",
+    "name": "Sweetwater",
+    "county": "Monroe, TN",
+    "frequencies": [
+      {
+        "freq": "769.61875",
+        "control": true
+      },
+      {
+        "freq": "770.81875",
+        "control": false
+      },
+      {
+        "freq": "771.11875",
+        "control": false
+      },
+      {
+        "freq": "771.46875",
+        "control": false
+      },
+      {
+        "freq": "771.78125",
+        "control": false
+      },
+      {
+        "freq": "772.19375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "089 (59)",
+    "name": "McMinnville 911",
+    "county": "Warren, TN",
+    "frequencies": [
+      {
+        "freq": "851.100",
+        "control": true
+      },
+      {
+        "freq": "852.5375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "2 (2)",
+    "site": "231 (E7)",
+    "name": "Bays Mountain",
+    "county": "Sullivan, TN",
+    "frequencies": [
+      {
+        "freq": "769.10625",
+        "control": true
+      },
+      {
+        "freq": "770.05625",
+        "control": true
+      },
+      {
+        "freq": "773.53125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "3 (3)",
+    "site": "010 (A)",
+    "name": "Knox County Simulcast",
+    "county": "Knox, TN",
+    "frequencies": [
+      {
+        "freq": "854.2125",
+        "control": false
+      },
+      {
+        "freq": "854.4125",
+        "control": false
+      },
+      {
+        "freq": "854.5875",
+        "control": false
+      },
+      {
+        "freq": "854.8875",
+        "control": false
+      },
+      {
+        "freq": "856.2125",
+        "control": false
+      },
+      {
+        "freq": "856.4375",
+        "control": false
+      },
+      {
+        "freq": "856.7125",
+        "control": false
+      },
+      {
+        "freq": "856.9375",
+        "control": false
+      },
+      {
+        "freq": "857.2125",
+        "control": false
+      },
+      {
+        "freq": "857.4375",
+        "control": false
+      },
+      {
+        "freq": "857.7125",
+        "control": false
+      },
+      {
+        "freq": "857.9375",
+        "control": false
+      },
+      {
+        "freq": "858.2125",
+        "control": false
+      },
+      {
+        "freq": "858.4375",
+        "control": false
+      },
+      {
+        "freq": "858.7125",
+        "control": false
+      },
+      {
+        "freq": "858.9375",
+        "control": false
+      },
+      {
+        "freq": "859.2125",
+        "control": true
+      },
+      {
+        "freq": "859.4375",
+        "control": true
+      },
+      {
+        "freq": "859.7125",
+        "control": true
+      },
+      {
+        "freq": "859.9375",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "020 (14)",
+    "name": "Jackson",
+    "county": "Madison, TN",
+    "frequencies": [
+      {
+        "freq": "769.08125",
+        "control": true
+      },
+      {
+        "freq": "769.43125",
+        "control": false
+      },
+      {
+        "freq": "769.75625",
+        "control": true
+      },
+      {
+        "freq": "770.03125",
+        "control": true
+      },
+      {
+        "freq": "770.53125",
+        "control": false
+      },
+      {
+        "freq": "770.93125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "021 (15)",
+    "name": "Trenton",
+    "county": "Gibson, TN",
+    "frequencies": [
+      {
+        "freq": "769.33125",
+        "control": true
+      },
+      {
+        "freq": "769.58125",
+        "control": false
+      },
+      {
+        "freq": "769.85625",
+        "control": true
+      },
+      {
+        "freq": "770.20625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "022 (16)",
+    "name": "Gleason",
+    "county": "Weakley, TN",
+    "frequencies": [
+      {
+        "freq": "769.80625",
+        "control": true
+      },
+      {
+        "freq": "770.33125",
+        "control": false
+      },
+      {
+        "freq": "771.53125",
+        "control": true
+      },
+      {
+        "freq": "772.13125",
+        "control": false
+      },
+      {
+        "freq": "774.78125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "023 (17)",
+    "name": "UT Martin",
+    "county": "Weakley, TN",
+    "frequencies": [
+      {
+        "freq": "769.15625",
+        "control": true
+      },
+      {
+        "freq": "769.53125",
+        "control": true
+      },
+      {
+        "freq": "771.08125",
+        "control": true
+      },
+      {
+        "freq": "771.88125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "024 (18)",
+    "name": "Paris",
+    "county": "Henry, TN",
+    "frequencies": [
+      {
+        "freq": "770.18125",
+        "control": false
+      },
+      {
+        "freq": "770.50625",
+        "control": true
+      },
+      {
+        "freq": "770.75625",
+        "control": false
+      },
+      {
+        "freq": "771.23125",
+        "control": true
+      },
+      {
+        "freq": "771.48125",
+        "control": false
+      },
+      {
+        "freq": "774.33125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "025 (19)",
+    "name": "Natchez Trace",
+    "county": "Henderson, TN",
+    "frequencies": [
+      {
+        "freq": "152.085",
+        "control": true
+      },
+      {
+        "freq": "152.570",
+        "control": true
+      },
+      {
+        "freq": "169.575",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "026 (1A)",
+    "name": "Savannah",
+    "county": "Hardin, TN",
+    "frequencies": [
+      {
+        "freq": "152.145",
+        "control": true
+      },
+      {
+        "freq": "152.505",
+        "control": true
+      },
+      {
+        "freq": "152.785",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "027 (1B)",
+    "name": "Bethel Springs",
+    "county": "McNairy, TN",
+    "frequencies": [
+      {
+        "freq": "769.35625",
+        "control": true
+      },
+      {
+        "freq": "769.60625",
+        "control": true
+      },
+      {
+        "freq": "770.00625",
+        "control": false
+      },
+      {
+        "freq": "771.70625",
+        "control": true
+      },
+      {
+        "freq": "773.59375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "028 (1C)",
+    "name": "Chickasaw",
+    "county": "Chester, TN",
+    "frequencies": [
+      {
+        "freq": "152.065",
+        "control": true
+      },
+      {
+        "freq": "152.185",
+        "control": true
+      },
+      {
+        "freq": "152.515",
+        "control": false
+      },
+      {
+        "freq": "152.745",
+        "control": true
+      },
+      {
+        "freq": "161.800",
+        "control": false
+      },
+      {
+        "freq": "161.900",
+        "control": false
+      },
+      {
+        "freq": "170.600",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "029 (1D)",
+    "name": "Chestnut Grove",
+    "county": "Haywood, TN",
+    "frequencies": [
+      {
+        "freq": "770.71875",
+        "control": true
+      },
+      {
+        "freq": "770.96875",
+        "control": false
+      },
+      {
+        "freq": "771.38125",
+        "control": true
+      },
+      {
+        "freq": "771.65625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "030 (1E)",
+    "name": "Whiteville",
+    "county": "Hardeman, TN",
+    "frequencies": [
+      {
+        "freq": "769.53125",
+        "control": true
+      },
+      {
+        "freq": "771.13125",
+        "control": false
+      },
+      {
+        "freq": "771.53125",
+        "control": true
+      },
+      {
+        "freq": "773.30625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "031 (1F)",
+    "name": "Williston",
+    "county": "Fayette, TN",
+    "frequencies": [
+      {
+        "freq": "770.83125",
+        "control": false
+      },
+      {
+        "freq": "772.48125",
+        "control": true
+      },
+      {
+        "freq": "772.75625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "032 (20)",
+    "name": "Arlington",
+    "county": "Shelby, TN",
+    "frequencies": [
+      {
+        "freq": "770.05625",
+        "control": true
+      },
+      {
+        "freq": "770.30625",
+        "control": false
+      },
+      {
+        "freq": "772.33125",
+        "control": true
+      },
+      {
+        "freq": "772.48125",
+        "control": false
+      },
+      {
+        "freq": "772.63125",
+        "control": true
+      },
+      {
+        "freq": "772.95625",
+        "control": false
+      },
+      {
+        "freq": "773.20625",
+        "control": false
+      },
+      {
+        "freq": "773.53125",
+        "control": false
+      },
+      {
+        "freq": "851.1375",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "033 (21)",
+    "name": "Memphis THP HQ",
+    "county": "Shelby, TN",
+    "frequencies": [
+      {
+        "freq": "769.55625",
+        "control": true
+      },
+      {
+        "freq": "769.80625",
+        "control": false
+      },
+      {
+        "freq": "770.19375",
+        "control": false
+      },
+      {
+        "freq": "770.44375",
+        "control": false
+      },
+      {
+        "freq": "770.69375",
+        "control": true
+      },
+      {
+        "freq": "770.94375",
+        "control": true
+      },
+      {
+        "freq": "773.29375",
+        "control": false
+      },
+      {
+        "freq": "773.45625",
+        "control": false
+      },
+      {
+        "freq": "774.20625",
+        "control": false
+      },
+      {
+        "freq": "774.65625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "034 (22)",
+    "name": "Ripley (700)",
+    "county": "Lauderdale, TN",
+    "frequencies": [
+      {
+        "freq": "769.83125",
+        "control": true
+      },
+      {
+        "freq": "770.28125",
+        "control": false
+      },
+      {
+        "freq": "771.33125",
+        "control": true
+      },
+      {
+        "freq": "773.28125",
+        "control": true
+      },
+      {
+        "freq": "773.68125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "035 (23)",
+    "name": "Millsfield",
+    "county": "Dyer, TN",
+    "frequencies": [
+      {
+        "freq": "769.28125",
+        "control": true
+      },
+      {
+        "freq": "769.78125",
+        "control": false
+      },
+      {
+        "freq": "770.10625",
+        "control": true
+      },
+      {
+        "freq": "770.68125",
+        "control": true
+      },
+      {
+        "freq": "771.00625",
+        "control": false
+      },
+      {
+        "freq": "771.08125",
+        "control": false
+      },
+      {
+        "freq": "771.55625",
+        "control": false
+      },
+      {
+        "freq": "771.80625",
+        "control": false
+      },
+      {
+        "freq": "773.08125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "036 (24)",
+    "name": "Hornbeak",
+    "county": "Obion, TN",
+    "frequencies": [
+      {
+        "freq": "769.10625",
+        "control": true
+      },
+      {
+        "freq": "770.00625",
+        "control": false
+      },
+      {
+        "freq": "771.30625",
+        "control": true
+      },
+      {
+        "freq": "771.60625",
+        "control": false
+      },
+      {
+        "freq": "774.03125",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "037 (25)",
+    "name": "Dyersburg",
+    "county": "Dyer, TN",
+    "frequencies": [
+      {
+        "freq": "854.3625",
+        "control": false
+      },
+      {
+        "freq": "856.2125",
+        "control": false
+      },
+      {
+        "freq": "856.4875",
+        "control": true
+      },
+      {
+        "freq": "857.4875",
+        "control": true
+      },
+      {
+        "freq": "858.4875",
+        "control": true
+      },
+      {
+        "freq": "859.4875",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "039 (27)",
+    "name": "WTSP - TNDOC (700)",
+    "county": "Lauderdale, TN",
+    "frequencies": [
+      {
+        "freq": "770.45625",
+        "control": false
+      },
+      {
+        "freq": "772.15625",
+        "control": true
+      },
+      {
+        "freq": "772.43125",
+        "control": true
+      },
+      {
+        "freq": "772.90625",
+        "control": false
+      },
+      {
+        "freq": "774.18125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "040 (28)",
+    "name": "Henning",
+    "county": "Lauderdale, TN",
+    "frequencies": [
+      {
+        "freq": "853.8125",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "041 (29)",
+    "name": "Union City (*)",
+    "county": "Obion, TN",
+    "frequencies": [
+      {
+        "freq": "772.53125",
+        "control": true
+      },
+      {
+        "freq": "772.80625",
+        "control": true
+      },
+      {
+        "freq": "773.18125",
+        "control": false
+      },
+      {
+        "freq": "773.65625",
+        "control": false
+      },
+      {
+        "freq": "774.91875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "044 (2C)",
+    "name": "Chickasaw State Park",
+    "county": "Hardeman, TN",
+    "frequencies": [
+      {
+        "freq": "772.14375",
+        "control": true
+      },
+      {
+        "freq": "772.93125",
+        "control": false
+      },
+      {
+        "freq": "773.18125",
+        "control": false
+      },
+      {
+        "freq": "773.43125",
+        "control": false
+      },
+      {
+        "freq": "774.45625",
+        "control": false
+      },
+      {
+        "freq": "774.89375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "045 (2D)",
+    "name": "Leach RF",
+    "county": "Carroll, TN",
+    "frequencies": [
+      {
+        "freq": "769.25625",
+        "control": true
+      },
+      {
+        "freq": "770.83125",
+        "control": true
+      },
+      {
+        "freq": "771.000",
+        "control": false
+      },
+      {
+        "freq": "771.28125",
+        "control": false
+      },
+      {
+        "freq": "771.83125",
+        "control": false
+      },
+      {
+        "freq": "773.83125",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "046 (2E)",
+    "name": "WTSP - TNDOC (800)",
+    "county": "Lauderdale, TN",
+    "frequencies": [
+      {
+        "freq": "851.075",
+        "control": false
+      },
+      {
+        "freq": "851.700",
+        "control": false
+      },
+      {
+        "freq": "852.125",
+        "control": false
+      },
+      {
+        "freq": "852.2625",
+        "control": false
+      },
+      {
+        "freq": "852.375",
+        "control": true
+      },
+      {
+        "freq": "852.650",
+        "control": true
+      },
+      {
+        "freq": "853.250",
+        "control": true
+      },
+      {
+        "freq": "853.8125",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "4 (4)",
+    "site": "052 (34)",
+    "name": "Northwest: TNDOC",
+    "county": "Lake, TN",
+    "frequencies": [
+      {
+        "freq": "854.1375",
+        "control": true
+      },
+      {
+        "freq": "856.4375",
+        "control": false
+      },
+      {
+        "freq": "856.9625",
+        "control": false
+      },
+      {
+        "freq": "857.4375",
+        "control": false
+      },
+      {
+        "freq": "857.9625",
+        "control": false
+      },
+      {
+        "freq": "858.4375",
+        "control": false
+      },
+      {
+        "freq": "859.4375",
+        "control": true
+      },
+      {
+        "freq": "860.4375",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "9 (9)",
+    "site": "002 (2)",
+    "name": "Fall Branch (Simulcast Washington Co)",
+    "county": "Washington, TN",
+    "frequencies": [
+      {
+        "freq": "771.98125",
+        "control": false
+      },
+      {
+        "freq": "772.83125",
+        "control": false
+      },
+      {
+        "freq": "773.15625",
+        "control": false
+      },
+      {
+        "freq": "774.40625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "9 (9)",
+    "site": "003 (3)",
+    "name": "Holston Mountain (Simulcast Washington Co)",
+    "county": "Sullivan, TN",
+    "frequencies": [
+      {
+        "freq": "769.10625",
+        "control": false
+      },
+      {
+        "freq": "771.65625",
+        "control": false
+      },
+      {
+        "freq": "773.20625",
+        "control": false
+      },
+      {
+        "freq": "773.70625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "9 (9)",
+    "site": "004 (4)",
+    "name": "Viking Mountain (Simulcast Washington Co)",
+    "county": "Greene, TN",
+    "frequencies": [
+      {
+        "freq": "771.28125",
+        "control": false
+      },
+      {
+        "freq": "771.85625",
+        "control": false
+      },
+      {
+        "freq": "772.65625",
+        "control": false
+      },
+      {
+        "freq": "773.40625",
+        "control": false
+      }
+    ]
+  }
+]
