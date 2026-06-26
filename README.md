@@ -1,5 +1,12 @@
 # SprontPi Scanner Project
 
+> **SB6 — Mac mini-based scanner stack, since 2026-06-23.**
+> The live host is now **`ScannerBox`** (2018 Mac mini, Ubuntu 24.04 + t2linux), replacing the Micro.
+> System-level bring-up: [`docs/sb6-bringup.md`](docs/sb6-bringup.md).
+> Micro→Mac-mini migration narrative: [`docs/mac-mini-port.md`](docs/mac-mini-port.md).
+> The hardware section below documents the prior Micro era.
+
+
 **Version:** 3.3 (2026-04-11)
 
 Scanner control UI and configuration for RTL-SDR multi-dongle airband/GMRS/WX/digital receiver with weather sounding collection.
