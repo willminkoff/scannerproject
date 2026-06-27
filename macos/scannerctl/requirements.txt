@@ -1,0 +1,5 @@
+# scannerctl thin web UI
+Flask>=3.0
+requests>=2.31
+# sqlite3 is stdlib; the clients use urllib (stdlib) for SDRangel REST.
+# Install into a venv:  python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
