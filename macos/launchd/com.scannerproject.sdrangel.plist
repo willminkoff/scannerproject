@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Auto-start template for SDRangel (analog backend).
+  TEMPLATE — adjust UserName + paths, then:
+    cp to ~/Library/LaunchAgents/ (per-user GUI agent — SDRangel is a GUI app and
+    needs an Aqua session) and load:
+      launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.sdrangel.plist
+  NOTE: a GUI app under launchd needs the user logged in (or auto-login enabled).
+  Headless sdrangelsrv is an alternative if/when proven on macOS.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>            <string>com.scannerproject.sdrangel</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/open</string>
+        <string>-a</string>
+        <string>/Applications/SDRangel.app</string>
+    </array>
+    <key>RunAtLoad</key>        <true/>
+    <key>KeepAlive</key>        <true/>
+    <key>ThrottleInterval</key> <integer>30</integer>
+    <key>StandardOutPath</key>  <string>/tmp/sdrangel.out.log</string>
+    <key>StandardErrorPath</key><string>/tmp/sdrangel.err.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- ensure SDRplay API is on the dyld path if SDRangel needs it -->
+        <key>DYLD_LIBRARY_PATH</key><string>/Library/SDRplayAPI/3.15.1/lib</string>
+    </dict>
+</dict>
+</plist>

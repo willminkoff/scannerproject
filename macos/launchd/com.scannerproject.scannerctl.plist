@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Auto-start template for the scannerctl thin web UI (Flask).
+  Headless service — can be a LaunchDaemon (system, RunAtLoad before login) OR a
+  per-user agent. As a user agent:
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.scannerctl.plist
+  TEMPLATE — adjust USERNAME, the venv python path, and the port.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>            <string>com.scannerproject.scannerctl</string>
+    <key>ProgramArguments</key>
+    <array>
+        <!-- TEMPLATE: replace USERNAME + venv path -->
+        <string>/Users/USERNAME/scannerproject/macos/scannerctl/.venv/bin/python</string>
+        <string>/Users/USERNAME/scannerproject/macos/scannerctl/app.py</string>
+    </array>
+    <key>WorkingDirectory</key> <string>/Users/USERNAME/scannerproject/macos/scannerctl</string>
+    <key>RunAtLoad</key>        <true/>
+    <key>KeepAlive</key>        <true/>
+    <key>ThrottleInterval</key> <integer>15</integer>
+    <key>StandardOutPath</key>  <string>/tmp/scannerctl.out.log</string>
+    <key>StandardErrorPath</key><string>/tmp/scannerctl.err.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SCANNERCTL_PORT</key>       <string>5050</string>
+        <key>SDRANGEL_REST</key>         <string>http://127.0.0.1:8091</string>
+        <key>SDRTRUNK_LOG</key>          <string>/Users/USERNAME/SDRTrunk/logs</string>
+    </dict>
+</dict>
+</plist>

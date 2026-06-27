@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Auto-start template for SDRTrunk (digital P25 backend).
+  TEMPLATE — adjust UserName + HOME path, then load as a per-user GUI agent:
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.sdrtrunk.plist
+  SDRTrunk is a Java GUI app — needs the user session + Java 21 on PATH.
+  Depends on the SDRplay apiService (com.sdrplay.service LaunchDaemon, vendor-installed).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>            <string>com.scannerproject.sdrtrunk</string>
+    <key>ProgramArguments</key>
+    <array>
+        <!-- TEMPLATE: replace USERNAME -->
+        <string>/Users/USERNAME/SDRTrunk/bin/sdr-trunk</string>
+    </array>
+    <key>RunAtLoad</key>        <true/>
+    <key>KeepAlive</key>        <true/>
+    <key>ThrottleInterval</key> <integer>30</integer>
+    <key>StandardOutPath</key>  <string>/tmp/sdrtrunk.out.log</string>
+    <key>StandardErrorPath</key><string>/tmp/sdrtrunk.err.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key><string>/opt/homebrew/opt/openjdk@21/bin:/usr/local/opt/openjdk@21/bin:/usr/bin:/bin</string>
+        <key>JAVA_HOME</key><string>/opt/homebrew/opt/openjdk@21</string>
+    </dict>
+</dict>
+</plist>
