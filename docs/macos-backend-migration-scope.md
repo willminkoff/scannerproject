@@ -14,6 +14,10 @@
 - **BOOM speaker** — BlueZ/PipeWire on Linux today → **CoreAudio** on macOS (simpler). Never change BOOM volume directly (standing rule).
 - **Tailscale + SSH** access pattern.
 - **Dispatch / remote-desktop** model — via macOS **Screen Sharing** or a CRD-mac equivalent (Linux side was CRD→XFCE).
+- **Claude/Dispatch integration** (same access pattern as today) — Will tells Claude what he wants while mobile; Claude drives the box on his behalf. Requires preserving through the OS swap:
+  - **SSH access from the Claude environment** to the macOS Mac mini (Tailscale + SSH key auth, same model as `ubuntu@scannerbox` today).
+  - **All third-party APIs reachable via shell/curl** from Claude's task sessions: SDRangel REST on :8091, SDRTrunk hooks, system commands (`launchctl`, logs).
+  - Whatever Claude needs to drive things programmatically must be exposed (no GUI-only choke points).
 
 ## What gets replaced (lost or migrated)
 | Linux component | Fate |
@@ -40,11 +44,20 @@
 | Linux applesmc fail (no fan) | **macOS T2 SMC fan native ✅** |
 | chirp gain-inversion bug | gone (decoders handle their own gain) |
 | `--gain 0.7` BOOM cap | macOS CoreAudio + BOOM AVRCP (different mechanism) |
+| Claude SSH → `ubuntu@scannerbox` | Claude SSH → `willminkoff@mac-mini` (or whatever user) |
+| Claude drives systemctl / cmd-bus / journalctl | Claude drives `launchctl` + REST calls + log scraping |
+| Claude drives chirp cmd-bus | Claude drives SDRangel REST :8091 + SDRTrunk hooks |
 
 ## Device/role mapping (from `etc/mac/sdr_fleet_policy.json`)
 - **RSP-A `180903EF32`** (digital) → **SDRTrunk** → MTRTRS + TACN (P25 Phase II).
 - **RSP-B `1809063632`** (airband+ground) → **SDRangel** → AM airband + NFM ground.
 - Both via the shared SDRplay apiService (`com.sdrplay.service` LaunchDaemon). Invariant: **max 1 dual-tuner RSPduo** (concurrent dual-tuner segfaults the daemon).
+
+## Mobile UX — TWO complementary paths
+Mobile control has **two valid entry points; one does not preclude the other**:
+- **Path A — thin custom web UI** on the Mac (the Option-2 thing): responsive layout over SDRangel REST + SDRTrunk hooks, surfacing the controls Will reaches for most. Build effort = Phase 2.
+- **Path B — Dispatch chat with Claude:** Will tells Claude what he wants while mobile; Claude drives the box (SSH → SDRangel REST / SDRTrunk hooks / `launchctl` / logs), exactly like today on Linux. **The easy alternative** — no UI to build — but requires Claude to remain in the loop with SSH + API access to the macOS box.
+- They complement each other: Path B is available immediately once Claude's access is preserved (Phase 4); Path A is the polished daily-driver once built (Phase 2). Path B also covers anything the thin UI doesn't expose.
 
 ## Phased plan
 - **Phase 0 — Decision** (this doc). ✅ captured.
@@ -59,7 +72,7 @@
   - SDRTrunk integration mechanism — **research needed** (JMS broadcast? poll event log? CLI/playlist hooks?).
   - Mobile-responsive; surface the controls Will reaches for most (informed by Phase 1).
 - **Phase 3 — Disk strategy**: wipe internal NVMe → macOS, or boot-from-external permanent? Trade-offs: NVMe perf vs removability vs rollback ease.
-- **Phase 4 — Re-implement glue on macOS**: launchd auto-start (SDRangel + SDRTrunk), **HPDB→CSV converter**, remote-audio path (SDRTrunk icecast done; SDRangel's piece), macOS BOOM management (CoreAudio + AVRCP).
+- **Phase 4 — Re-implement glue on macOS**: launchd auto-start (SDRangel + SDRTrunk), **HPDB→CSV converter**, remote-audio path (SDRTrunk icecast done; SDRangel's piece), macOS BOOM management (CoreAudio + AVRCP), **verify Claude/Dispatch SSH access + API reachability from Claude task sessions** (Tailscale + key auth to the macOS box; SDRangel REST :8091, SDRTrunk hooks, `launchctl`/log access, sudo equivalents all reachable).
 - **Phase 5 — Parity check** vs the Ubuntu setup (bands, audio, remote, boot-survival, thermal-under-load).
 - **Phase 6 — Physical cutover** (only after parity + rollback proven).
 
@@ -72,6 +85,7 @@
 6. **Mobile UX downgrade** until the Phase 2 custom UI ships (native apps aren't mobile-friendly).
 7. **Rollback discipline** — Phase 1 external boot must be solid before ANY internal-disk action.
 8. **Today's Linux work becomes legacy** (gain-inversion fix, `--gain 0.7` cap, boot ordering) — but stays in git as reference.
+9. **Claude/Dispatch access must survive the OS swap** — SSH key setup on macOS, Tailscale auth, `sudo`/`launchctl` equivalents, and API reachability (:8091 etc.) from Claude task sessions. If this isn't preserved, Path B (conversational control) breaks and mobile UX falls back to Path A only.
 
 ## Why now
 - Thermal critical today (**100°C**) forced stopping chirp+op25 entirely.
