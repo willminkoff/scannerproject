@@ -1,0 +1,35 @@
+# macOS backend (`macos/`)
+
+Scaffolding for the **macOS migration** of ScannerBox — see the decision/scope in
+[`docs/macos-backend-migration-scope.md`](../docs/macos-backend-migration-scope.md).
+
+Backend on macOS = **SDRangel (analog)** + **SDRTrunk (digital P25)** + a **thin
+custom web UI** (`scannerctl`), with **two mobile-control paths**: the thin UI and
+**conversational control via Claude** (SSH-drives-the-box, same as Linux today).
+
+> **Status: SCAFFOLDING.** Skeletons + working stubs, written before macOS was up.
+> Real implementation iterates against running SDRangel + SDRTrunk after Phase 1
+> (external-media validation) proves the stack. Nothing here is wired/tested live yet.
+
+## Where to go for what
+| Path | What |
+|---|---|
+| `install/bringup.md` | Ordered checklist to bring a fresh macOS install to a working scanner |
+| `install/jmbe-build.sh` | Compile the JMBE voice library SDRTrunk needs |
+| `install/post-install-checks.sh` | Verify SDRplay API, RSPduo, JMBE, REST :8091 |
+| `launchd/*.plist` | Auto-start templates (SDRangel, SDRTrunk, scannerctl) |
+| `clients/sdrangel_client.py` | SDRangel REST (:8091) wrapper — library + CLI |
+| `clients/sdrtrunk_client.py` | SDRTrunk integration scaffolding (limited control surface — see notes) |
+| `data/hpdb_to_sdrangel.py` | HPDB SQLite → SDRangel channel CSV |
+| `data/hpdb_to_sdrtrunk.py` | HPDB SQLite → SDRTrunk playlist XML |
+| `scannerctl/` | Thin Flask web UI (mobile-first) over the clients |
+
+## Device/role mapping (from `etc/mac/sdr_fleet_policy.json`)
+- **RSP `180903EF32`** → SDRTrunk → MTRTRS + TACN (P25 Phase II)
+- **RSP `1809063632`** → SDRangel → AM airband + NFM ground
+- Shared SDRplay apiService (`com.sdrplay.service`); **max 1 dual-tuner RSPduo**.
+
+## Data carried over from SB6 (Linux)
+`homepatrol.db` (52 MB) + `hp_state.json` were backed up off the Mini before the
+wipe (`~/Downloads/sb6-data-backup-2026-06-26.tar.gz`). The `data/` converters
+turn them into SDRangel CSV + SDRTrunk XML.
