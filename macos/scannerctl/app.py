@@ -1,62 +1,128 @@
 #!/usr/bin/env python3
-"""scannerctl — thin mobile-first web UI over SDRangel (analog) + SDRTrunk (digital).
+"""scannerctl — thin mobile-first web UI over the macOS SDR backend.
 
-The macOS replacement for airband-ui's *user-facing* role: the few controls Will
-reaches for on his phone. Deep config stays in the native SDRangel/SDRTrunk apps;
-this is the quick panel. (Path B — conversational control via Claude — complements
-it.)
+The macOS replacement for airband-ui's *user-facing* role: the glanceable panel + quick
+controls Will reaches for on his phone. Deep config stays in the native SDRangel/SDRTrunk
+apps; conversational control via Claude (Path B) complements it.
 
-STATUS: skeleton. Routes + client wiring are real; the actual SDRangel field names
-and SDRTrunk levers need confirming against running instances (see clients/).
+Three layers:
+  FLEET   — single-consumer reality: SDRangel (analog) and SDRTrunk (digital) share one
+            SDRplay apiService and must not run at once. Switching is done through `sdrctl`
+            (the arbiter), which enforces single-consumer + the restart throttle.
+  ANALOG  — SDRangel REST (:8091): live device/freq read; scan + squelch writes (best-effort).
+  DIGITAL — SDRTrunk decode read from event_logs (live call feed + CC health); coarse control
+            is "reload playlist" (restart via sdrctl).
 
 Run:  SCANNERCTL_PORT=5050 SDRANGEL_REST=http://127.0.0.1:8091 python3 app.py
 """
 from __future__ import annotations
-import os, sys
+import os, subprocess, sys
 from flask import Flask, jsonify, render_template, request
 
-# make ../clients importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "clients"))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "clients"))
 try:
     from sdrangel_client import SDRangel
     from sdrtrunk_client import SDRTrunk
-except Exception:  # allow the skeleton to import even if clients move
+except Exception:
     SDRangel = SDRTrunk = None
 
-app = Flask(__name__)
+SDRCTL = os.path.abspath(os.path.join(HERE, "..", "bin", "sdrctl"))
+APISERVICE = "sdrplay_apiService"
+MATCH = {"sdrangel": "SDRangel.app/Contents/MacOS/SDRangel", "sdrtrunk": "io.github.dsheirer"}
+
+# explicit root_path + instance_path so Flask never probes os.getcwd() (fails in sandboxed runners)
+app = Flask(__name__, root_path=HERE, instance_path=os.path.join(HERE, "instance"))
 SA = SDRangel(os.environ.get("SDRANGEL_REST", "http://127.0.0.1:8091")) if SDRangel else None
 ST = SDRTrunk() if SDRTrunk else None
 
 
+# ----------------------------------------------------------------------------- fleet
+def _proc_up(pat: str, exact: bool = False) -> bool:
+    flag = "-x" if exact else "-f"
+    return subprocess.run(["pgrep", flag, pat], capture_output=True).returncode == 0
+
+def fleet_status() -> dict:
+    sa = _proc_up(MATCH["sdrangel"]); st = _proc_up(MATCH["sdrtrunk"])
+    active = "sdrangel" if sa else ("sdrtrunk" if st else None)
+    return {"apiservice": _proc_up(APISERVICE, exact=True),
+            "sdrangel": sa, "sdrtrunk": st, "active": active,
+            "conflict": sa and st}
+
+def _sdrctl(action: str, consumer: str) -> None:
+    """Fire sdrctl in the background — start/stop can take 20-60s (verify + restart throttle),
+    so we never block the web request. The next status poll reflects the result."""
+    try:
+        with open("/tmp/scannerctl-sdrctl.log", "ab") as log:
+            subprocess.Popen(["/usr/bin/python3", SDRCTL, action, consumer],
+                             stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                             start_new_session=True)
+    except OSError as e:
+        app.logger.warning("sdrctl %s %s failed: %s", action, consumer, e)
+
+
+# ----------------------------------------------------------------------------- analog read
+def analog_summary() -> dict:
+    """Compact SDRangel view: per device-set, device type + center freq + channel demods."""
+    if not SA:
+        return {"ok": False, "error": "no client"}
+    inst = SA.instance_summary()
+    if "error" in inst:
+        return {"ok": False, "error": inst["error"]}
+    sets = []
+    for ds in (inst.get("devicesetlist", {}).get("deviceSets", []) or []):
+        sd = ds.get("samplingDevice", {}) or {}            # device fields live under samplingDevice
+        chans = ds.get("channels", []) or []
+        sets.append({
+            "hw": sd.get("hwType") or "?",
+            "serial": sd.get("serial"),
+            "state": sd.get("state"),                       # running / idle
+            "center_mhz": round((sd.get("centerFrequency") or 0) / 1e6, 4) or None,
+            "channels": [c.get("title") or c.get("id") for c in chans],
+            "nchan": ds.get("channelcount", len(chans)),
+        })
+    return {"ok": True, "version": inst.get("version"), "sets": sets}
+
+
+# ----------------------------------------------------------------------------- routes
 @app.route("/")
 def index():
     return render_template("index.html")
 
-
 @app.route("/api/status")
 def status():
-    """Unified status the mobile UI polls: analog (SDRangel REST) + digital (SDRTrunk logs)."""
-    out = {"analog": {"ok": False}, "digital": {"ok": False}}
-    if SA:
-        inst = SA.instance_summary()
-        out["analog"] = {"ok": "error" not in inst,
-                         "summary": inst,
-                         "devicesets": SA.devicesets() if "error" not in inst else None}
-    if ST:
-        out["digital"] = {"ok": ST.is_running(),
-                          "running": ST.is_running(),
-                          "recent": ST.recent_activity(20)}
+    fleet = fleet_status()
+    out = {"fleet": fleet, "analog": None, "digital": None}
+    if fleet["sdrangel"]:
+        out["analog"] = analog_summary()
+    if fleet["sdrtrunk"] and ST:
+        out["digital"] = {"ok": True, "system": ST.system_info(),
+                          "cc": ST.cc_health(), "calls": ST.recent_calls(25)}
     return jsonify(out)
 
+# ---- fleet control (single-consumer, via sdrctl) ----
+@app.route("/api/fleet/start/<consumer>", methods=["POST"])
+def fleet_start(consumer):
+    if consumer not in ("sdrangel", "sdrtrunk"):
+        return jsonify({"error": "unknown consumer"}), 400
+    _sdrctl("start", consumer)
+    return jsonify({"ok": True, "starting": consumer,
+                    "note": "sdrctl stops the other consumer first; allow ~20-30s"})
 
-# ---- analog (SDRangel) controls ----
+@app.route("/api/fleet/stop/<consumer>", methods=["POST"])
+def fleet_stop(consumer):
+    if consumer not in ("sdrangel", "sdrtrunk", "all"):
+        return jsonify({"error": "unknown consumer"}), 400
+    _sdrctl("stop", consumer)
+    return jsonify({"ok": True, "stopping": consumer})
+
+# ---- analog (SDRangel) controls — best-effort writes (verify channel layout) ----
 @app.route("/api/scan/<onoff>", methods=["POST"])
 def scan(onoff):
     if not SA:
         return jsonify({"error": "no SDRangel client"}), 503
-    ds = int(request.args.get("deviceset", 0)); ch = int(request.args.get("channel", 2))  # FreqScanner usually R0:2
+    ds = int(request.args.get("deviceset", 0)); ch = int(request.args.get("channel", 2))
     return jsonify(SA.scanner_set_running(ds, ch, onoff == "start"))
-
 
 @app.route("/api/squelch", methods=["POST"])
 def squelch():
@@ -65,14 +131,11 @@ def squelch():
     b = request.get_json(force=True, silent=True) or {}
     return jsonify(SA.set_squelch(int(b.get("deviceset", 0)), int(b.get("channel", 0)), float(b.get("dbfs", -55))))
 
-
-# ---- digital (SDRTrunk) — coarse: restart with a new playlist ----
+# ---- digital (SDRTrunk) — coarse: reload playlist (restart via sdrctl) ----
 @app.route("/api/digital/restart", methods=["POST"])
 def digital_restart():
-    if not ST:
-        return jsonify({"error": "no SDRTrunk client"}), 503
-    ST.restart()
-    return jsonify({"ok": True, "note": "SDRTrunk kickstarted (reloads playlist on start)"})
+    _sdrctl("restart", "sdrtrunk")
+    return jsonify({"ok": True, "note": "SDRTrunk restarting via sdrctl (reloads playlist on start)"})
 
 
 if __name__ == "__main__":

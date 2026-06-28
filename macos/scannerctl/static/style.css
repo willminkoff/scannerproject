@@ -36,3 +36,30 @@ input[type=range]{width:100%;height:40px} output{color:var(--fg);font-weight:600
 .mini{font:12px/1.35 ui-monospace,Menlo,monospace;color:var(--muted);white-space:pre-wrap;
   word-break:break-word;max-height:180px;overflow:auto;margin:0}
 footer{padding:14px 16px;color:var(--muted);text-align:center}
+
+/* ---- additions: fleet bar, device list, digital call feed ---- */
+.muted{color:var(--muted)}
+#clock{font:12px ui-monospace,Menlo,monospace;margin-left:auto;margin-right:12px}
+.span{grid-column:1/-1}                         /* fleet bar spans both columns on tablet */
+button.warn{background:transparent;color:var(--bad);border-color:var(--bad);flex:0;min-width:84px}
+button.busy{opacity:.5;pointer-events:none}
+.hint{font-size:12px;margin:2px 0 0}
+.card.dim{opacity:.45}                            /* inactive backend (single-consumer) */
+.info,.dev{font-size:13px}
+.dev{padding:4px 0;border-top:1px solid var(--line)}
+.dev:first-child{border-top:0}
+
+.sys{font-size:13px;margin-bottom:10px;font-variant-numeric:tabular-nums}
+.sys b{color:var(--fg)}
+.calls{max-height:46vh;overflow:auto;-webkit-overflow-scrolling:touch;
+  border-top:1px solid var(--line);margin-top:2px}
+.call{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);
+  font-size:14px}
+.call .t{font:11px ui-monospace,Menlo,monospace;color:var(--muted);min-width:58px}
+.call .tg{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.call .tg b{color:var(--accent)}
+.call .freq{font:12px ui-monospace,Menlo,monospace;color:var(--muted)}
+.call.is-enc{opacity:.7}
+.badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;letter-spacing:.3px}
+.badge.clr{background:color-mix(in srgb,var(--ok) 22%,transparent);color:var(--ok)}
+.badge.enc{background:color-mix(in srgb,var(--bad) 20%,transparent);color:var(--bad)}
