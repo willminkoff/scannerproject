@@ -272,12 +272,18 @@ def cmd_status(policy: dict) -> int:
             ok(f"{c}: running (pid {','.join(map(str, pids(c)))})")
         else:
             print(f"  - {c}: stopped")
+    analog_rsp = False
     if "sdrangel" in both:
-        ds = sdrangel_devices()
-        if ds is not None:
-            print(f"      SDRangel REST: {len(ds)} device set(s) on :8091")
+        ds = sdrangel_devices() or []
+        print(f"      SDRangel REST: {len(ds)} device set(s) on :8091")
+        # the real invariant is ONE SDRplay-apiService consumer; SDRangel on RTL/file coexists fine
+        analog_rsp = any("RSP" in ((d.get("samplingDevice") or {}).get("hwType") or "")
+                         or "SDRplay" in ((d.get("samplingDevice") or {}).get("hwType") or "") for d in ds)
     if len(both) == 2:
-        warn("BOTH consumers running - violates single-consumer; run `sdrctl start <one>` to reconcile")
+        if analog_rsp:
+            warn("BOTH on the SDRplay apiService - contention; `sdrctl start <one>` to reconcile")
+        else:
+            ok("coexisting: SDRangel on non-SDRplay hardware (RTL/file), SDRTrunk on the RSPduo")
     return 0
 
 # ----------------------------------------------------------------------------- main

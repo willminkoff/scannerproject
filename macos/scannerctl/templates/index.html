@@ -60,14 +60,13 @@
   const dot = (el, ok) => el.className = "dot " + (ok === null ? "" : ok ? "ok" : "bad");
   const esc = s => (s ?? "").toString().replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
 
-  function setActive(active){
-    // dim the inactive backend card (single-consumer)
-    $("#analog").classList.toggle("dim", active !== "sdrangel");
-    $("#digital").classList.toggle("dim", active !== "sdrtrunk");
+  function setActive(f){
+    // dim a backend card only if that backend is NOT running (so coexistence shows both lit)
+    $("#analog").classList.toggle("dim", !f.sdrangel);
+    $("#digital").classList.toggle("dim", !f.sdrtrunk);
   }
 
   function renderCalls(d){
-    $("#analog-dot").className = "dot";
     const sys = d.system || {}, cc = d.cc || {};
     $("#sys-line").innerHTML = sys.nac
       ? `NAC <b>x${esc(sys.nac)}</b>${sys.site ? ` · RFSS ${esc(sys.rfss)}/SITE ${esc(sys.site)}`:""}`
@@ -87,9 +86,11 @@
     const s = await api("/api/status");
     const f = s.fleet || {};
     dot($("#api-dot"), f.apiservice);
-    $("#fleet-state").textContent = f.conflict ? "⚠ both running"
-      : f.active ? `active: ${f.active.replace("sdr","SDR")}` : "all stopped";
-    setActive(f.active);
+    $("#fleet-state").textContent = f.conflict ? "⚠ apiService contention"
+      : f.coexist ? "analog + digital"
+      : f.active === "sdrangel" ? "active: SDRangel"
+      : f.active === "sdrtrunk" ? "active: SDRTrunk" : "all stopped";
+    setActive(f);
     // analog
     dot($("#analog-dot"), s.analog ? s.analog.ok : null);
     if(s.analog?.ok){

@@ -44,10 +44,7 @@ def _proc_up(pat: str, exact: bool = False) -> bool:
 
 def fleet_status() -> dict:
     sa = _proc_up(MATCH["sdrangel"]); st = _proc_up(MATCH["sdrtrunk"])
-    active = "sdrangel" if sa else ("sdrtrunk" if st else None)
-    return {"apiservice": _proc_up(APISERVICE, exact=True),
-            "sdrangel": sa, "sdrtrunk": st, "active": active,
-            "conflict": sa and st}
+    return {"apiservice": _proc_up(APISERVICE, exact=True), "sdrangel": sa, "sdrtrunk": st}
 
 def _sdrctl(action: str, consumer: str) -> None:
     """Fire sdrctl in the background — start/stop can take 20-60s (verify + restart throttle),
@@ -85,6 +82,12 @@ def analog_summary() -> dict:
 
 
 # ----------------------------------------------------------------------------- routes
+@app.after_request
+def _no_cache(resp):
+    # live dashboard — never let the browser/phone serve a stale page or status
+    resp.headers["Cache-Control"] = "no-store, must-revalidate"
+    return resp
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -98,6 +101,15 @@ def status():
     if fleet["sdrtrunk"] and ST:
         out["digital"] = {"ok": True, "system": ST.system_info(),
                           "cc": ST.cc_health(), "calls": ST.recent_calls(25)}
+    # Real invariant is ONE SDRplay-apiService (RSPduo) consumer. SDRTrunk always is; SDRangel is
+    # only if it has an RSP/SDRplay device set. SDRangel on RTL-SDRs coexists with SDRTrunk fine.
+    analog_uses_rsp = any(("RSP" in (s.get("hw") or "")) or ("SDRplay" in (s.get("hw") or ""))
+                          for s in ((out["analog"] or {}).get("sets") or []))
+    consumers = (1 if fleet["sdrtrunk"] else 0) + (1 if analog_uses_rsp else 0)
+    fleet["conflict"] = consumers > 1                                  # genuine apiService contention
+    fleet["coexist"] = fleet["sdrangel"] and fleet["sdrtrunk"] and not fleet["conflict"]
+    fleet["active"] = ("sdrangel" if fleet["sdrangel"] else None) if not fleet["sdrtrunk"] \
+        else ("sdrtrunk" if not fleet["sdrangel"] else "both")
     return jsonify(out)
 
 # ---- fleet control (single-consumer, via sdrctl) ----
