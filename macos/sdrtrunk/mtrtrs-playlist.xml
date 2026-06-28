@@ -1,0 +1,18 @@
+<playlist version="4">
+  <channel order="1" enabled="true" name="MTRTRS">
+    <alias_list_name/>
+    <source_configuration type="sourceConfigTunerMultipleFrequency" frequency_rotation_delay="200" source_type="TUNER_MULTIPLE_FREQUENCIES">
+      <frequency>856487500</frequency>
+      <frequency>856712500</frequency>
+      <frequency>857037500</frequency>
+      <frequency>857487500</frequency>
+    </source_configuration>
+    <decode_configuration type="decodeConfigP25Phase1" modulation="CQPSK" ignore_data_calls="false" traffic_channel_pool_size="20"/>
+    <record_configuration/>
+    <event_log_configuration>
+      <logger>DECODED_MESSAGE</logger>
+      <logger>CALL_EVENT</logger>
+    </event_log_configuration>
+    <aux_decode_configuration/>
+  </channel>
+</playlist>
