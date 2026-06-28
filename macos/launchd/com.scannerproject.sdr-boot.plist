@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Deterministic SINGLE-CONSUMER boot agent for the ScannerBox SDR stack.
+
+  This is the RECOMMENDED auto-start path. Instead of two competing per-app agents that race
+  for the SDRplay apiService at login (memo §C#1), this one-shot agent runs `sdrctl start <consumer>`,
+  which stops any other consumer first and guarantees exactly one holds the apiService.
+
+  Install/uninstall via:  macos/bin/sdr-autostart {install|uninstall|status}
+  (that helper also disables macOS "reopen windows" for SDRangel so it can't relaunch and race.)
+
+  TEMPLATE — sdr-autostart renders __REPO__ and __CONSUMER__. To switch the boot consumer, change
+  the `start` argument (sdrangel | sdrtrunk) and reinstall. RunAtLoad one-shot (NOT KeepAlive):
+  sdrctl launches the GUI/app, then exits. Auto-restart-on-crash is intentionally out of scope here.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>            <string>com.scannerproject.sdr-boot</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>__REPO__/macos/bin/sdrctl</string>
+        <string>start</string>
+        <string>__CONSUMER__</string>
+    </array>
+    <key>RunAtLoad</key>        <true/>
+    <key>KeepAlive</key>        <false/>
+    <key>ThrottleInterval</key> <integer>30</integer>
+    <key>StandardOutPath</key>  <string>/tmp/sdr-boot.out.log</string>
+    <key>StandardErrorPath</key><string>/tmp/sdr-boot.err.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key><string>/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>

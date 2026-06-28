@@ -19,8 +19,9 @@
   "devices": [
     {
       "id": "RSP-A", "kind": "rspduo", "serial": "180903EF32", "label": "RSP-DIGITAL",
-      "role": "op25-p25-primary", "mode": "ST", "tuner": 1, "sample_rate_hz": 2000000,
+      "role": "op25-p25-primary", "mode": "ST", "tuner": 1, "sample_rate_hz": 8000000,
       "usb_group": "G1", "shared_with": [], "dual_tuner": false,
+      "_sdrtrunk_note": "True 8 MHz single-tuner requires SDRTrunk Java pref rsp.duo.tuner.mode=SINGLE_1 (defaults to DUAL, which forces 2 MHz). See docs/sdrtrunk-shutdown-hook-fork.md / memory.",
       "device_args": "driver=sdrplay,serial=180903EF32,rspduo_mode=ST,rspduo_tuner=1"
     },
     {

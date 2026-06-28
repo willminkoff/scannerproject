@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Auto-start template for SDRTrunk (digital P25 backend).
-  TEMPLATE — adjust UserName + HOME path, then load as a per-user GUI agent:
+
+  ⚠️  SINGLE-CONSUMER: do NOT install this AND com.scannerproject.sdrangel.plist together.
+      Two RunAtLoad+KeepAlive agents both grab the SDRplay apiService at login and race
+      (memo §C#1). For a deterministic single consumer at boot use
+      com.scannerproject.sdr-boot.plist (drives `sdrctl start <consumer>`), which guarantees
+      only one consumer holds the apiService. This per-app template is a building block /
+      reference for running SDRTrunk standalone.
+
+  TEMPLATE — adjust USERNAME, then load as a per-user GUI agent:
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.sdrtrunk.plist
-  SDRTrunk is a Java GUI app — needs the user session + Java 21 on PATH.
+  NOTE: SDRTrunk ships its own bundled JRE (jpackage), so the JAVA_HOME/PATH below are only a
+  fallback; they are set for this Intel mini (Homebrew /usr/local, NOT Apple-Silicon /opt/homebrew).
   Depends on the SDRplay apiService (com.sdrplay.service LaunchDaemon, vendor-installed).
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -22,8 +31,8 @@
     <key>StandardErrorPath</key><string>/tmp/sdrtrunk.err.log</string>
     <key>EnvironmentVariables</key>
     <dict>
-        <key>PATH</key><string>/opt/homebrew/opt/openjdk@21/bin:/usr/local/opt/openjdk@21/bin:/usr/bin:/bin</string>
-        <key>JAVA_HOME</key><string>/opt/homebrew/opt/openjdk@21</string>
+        <key>PATH</key><string>/usr/local/opt/openjdk@21/bin:/usr/bin:/bin</string>
+        <key>JAVA_HOME</key><string>/usr/local/opt/openjdk@21</string>
     </dict>
 </dict>
 </plist>

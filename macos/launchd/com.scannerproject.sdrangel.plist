@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Auto-start template for SDRangel (analog backend).
+
+  ⚠️  SINGLE-CONSUMER: do NOT install this AND com.scannerproject.sdrtrunk.plist together — they
+      race for the SDRplay apiService at login (memo §C#1). For deterministic single-consumer
+      boot use com.scannerproject.sdr-boot.plist via `macos/bin/sdr-autostart install`. This
+      per-app template is a building block / reference for running SDRangel standalone.
+
   TEMPLATE — adjust UserName + paths, then:
     cp to ~/Library/LaunchAgents/ (per-user GUI agent — SDRangel is a GUI app and
     needs an Aqua session) and load:

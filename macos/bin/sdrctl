@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+"""
+sdrctl - deterministic single-consumer arbiter for the ScannerBox SDRplay stack.
+
+WHY THIS EXISTS
+    SDRangel (analog) and SDRTrunk (digital P25) both consume the shared SDRplay
+    apiService (com.sdrplay.service). When both relaunch at login and enumerate at
+    the same time they fight over the apiService: whoever opens first wins, the other
+    sees "Discovered [0] RSP devices" / "No Tuner Available" (the macos-transition-memo
+    section C.1 wart). The deterministic fix for bring-up is to never let both grab the
+    device at once: ONE consumer on the apiService at a time, started deliberately.
+
+    sdrctl is that deliberate single entry point. `start X` first gracefully stops the
+    other consumer, waits out the rspduo open-gap, then launches X and verifies it
+    actually acquired its RSPduo.
+
+CLEAN RELEASE
+    Graceful stop sends SIGTERM. SDRTrunk now carries a JVM shutdown hook (added to
+    io.github.dsheirer.gui.SDRTrunk) that releases each SDRplay device + closes the API
+    on SIGTERM, so the device frees immediately instead of lingering ~22s in the
+    apiService (memo section C.3). sdrctl therefore does NOT kickstart the apiService and
+    needs no sudo. SIGKILL is only a last-resort fallback if a process ignores SIGTERM.
+
+POLICY
+    Device->role mapping and timing invariants are read best-effort from
+    etc/mac/sdr_fleet_policy.json (rspduo_open_gap_sec, min_restart_interval_sec). The
+    file is the single source of truth; sdrctl falls back to safe defaults if it is absent.
+
+RESTART THROTTLE
+    Rapid stop/start of the RSPduo wedges the shared SDRplay apiService (it leaks USB device
+    references; decode degrades to garbage until a reboot or service kickstart). So before
+    opening the device, sdrctl waits out min_restart_interval_sec since the last open (stamped
+    in ~/.scannerproject/sdrctl_state.json). Pass --force to skip the wait (not recommended).
+
+USAGE
+    sdrctl status
+    sdrctl start  <sdrangel|sdrtrunk> [--force]   # stops the other consumer first (single-consumer)
+    sdrctl stop   <sdrangel|sdrtrunk|all>
+    sdrctl restart <sdrangel|sdrtrunk> [--force]
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+HOME = Path.home()
+REPO = Path(__file__).resolve().parents[2]          # .../scannerproject
+POLICY_FILE = REPO / "etc" / "mac" / "sdr_fleet_policy.json"
+
+SDRANGEL_REST = "http://127.0.0.1:8091/sdrangel"
+SDRTRUNK_LAUNCHER = HOME / "SDRTrunk" / "bin" / "sdr-trunk"
+SDRTRUNK_APP_LOG = HOME / "SDRTrunk" / "logs" / "sdrtrunk_app.log"
+SDRTRUNK_OUT = "/tmp/sdrtrunk.out"
+STATE_FILE = HOME / ".scannerproject" / "sdrctl_state.json"   # records last RSPduo open
+
+# Process match patterns (pgrep -f)
+MATCH = {
+    "sdrangel": "SDRangel.app/Contents/MacOS/SDRangel",
+    "sdrtrunk": "io.github.dsheirer",          # the running SDRTrunk JVM
+}
+APISERVICE_PROC = "sdrplay_apiService"
+
+# Safe defaults; overridden by the fleet policy when present.
+DEFAULTS = {"rspduo_open_gap_sec": 2.0, "min_restart_interval_sec": 30}
+
+# ----------------------------------------------------------------------------- output
+def _c(code: str, s: str) -> str:
+    return s if not sys.stdout.isatty() else f"\033[{code}m{s}\033[0m"
+
+def step(msg: str) -> None: print(_c("1;36", f"== {msg} =="))
+def ok(msg: str) -> None:   print("  " + _c("1;32", "✓") + f" {msg}")
+def warn(msg: str) -> None: print("  " + _c("1;33", "!") + f" {msg}")
+def err(msg: str) -> None:  print("  " + _c("1;31", "✗") + f" {msg}")
+
+# ----------------------------------------------------------------------------- policy
+def load_policy() -> dict:
+    inv = dict(DEFAULTS)
+    try:
+        data = json.loads(POLICY_FILE.read_text())
+        for k in DEFAULTS:
+            if k in data.get("invariants", {}):
+                inv[k] = data["invariants"][k]
+        inv["_devices"] = {d["serial"]: d for d in data.get("devices", []) if d.get("kind") == "rspduo"}
+    except FileNotFoundError:
+        warn(f"fleet policy not found ({POLICY_FILE}); using defaults")
+        inv["_devices"] = {}
+    except (json.JSONDecodeError, KeyError) as e:
+        warn(f"fleet policy unreadable ({e}); using defaults")
+        inv["_devices"] = {}
+    return inv
+
+# ------------------------------------------------------------------- restart throttle
+def _read_state() -> dict:
+    try:
+        return json.loads(STATE_FILE.read_text())
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+def _record_open() -> None:
+    """Stamp the time of the most recent RSPduo open (a consumer launch)."""
+    try:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        st = _read_state()
+        st["last_open"] = time.time()
+        STATE_FILE.write_text(json.dumps(st))
+    except OSError:
+        pass
+
+def _throttle_restart(policy: dict, force: bool) -> None:
+    """Honor min_restart_interval_sec. Rapid stop/start of the RSPduo wedges the shared SDRplay
+    apiService (it leaks USB device references; decode degrades to garbage until a reboot/kickstart).
+    So we refuse to re-open the device faster than the policy interval unless --force is given."""
+    interval = float(policy["min_restart_interval_sec"])
+    last = _read_state().get("last_open")
+    if last is None or interval <= 0:
+        return
+    remaining = interval - (time.time() - last)
+    if remaining <= 0:
+        return
+    if force:
+        warn(f"--force: skipping {remaining:.0f}s min-restart-interval wait (risks wedging the apiService)")
+        return
+    ok(f"min-restart-interval: last RSPduo open was {interval - remaining:.0f}s ago; "
+       f"waiting {remaining:.0f}s (policy {interval:.0f}s) to avoid wedging the apiService")
+    time.sleep(remaining)
+
+# ----------------------------------------------------------------------------- procs
+def pids(consumer: str) -> list[int]:
+    try:
+        out = subprocess.run(["pgrep", "-f", MATCH[consumer]], capture_output=True, text=True)
+        return [int(p) for p in out.stdout.split()] if out.returncode == 0 else []
+    except FileNotFoundError:
+        return []
+
+def running(consumer: str) -> bool:
+    return bool(pids(consumer))
+
+def apiservice_up() -> bool:
+    return subprocess.run(["pgrep", "-x", APISERVICE_PROC], capture_output=True).returncode == 0
+
+def sdrangel_devices() -> list[dict] | None:
+    """Return SDRangel's device-set list via REST, or None if the API is unreachable."""
+    try:
+        with urllib.request.urlopen(SDRANGEL_REST, timeout=3) as r:
+            data = json.loads(r.read().decode())
+        return data.get("devicesetlist", {}).get("deviceSets", [])
+    except Exception:
+        return None
+
+# ----------------------------------------------------------------------------- stop
+def stop(consumer: str, timeout: float = 30.0) -> bool:
+    """Graceful SIGTERM, poll until the process exits. SIGKILL only as last resort."""
+    ps = pids(consumer)
+    if not ps:
+        ok(f"{consumer} already stopped")
+        return True
+    step(f"Stopping {consumer} (graceful SIGTERM, pid {','.join(map(str, ps))})")
+    for p in ps:
+        try:
+            os.kill(p, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not running(consumer):
+            ok(f"{consumer} exited cleanly")
+            return True
+        time.sleep(0.5)
+    # Last resort
+    warn(f"{consumer} did not exit within {timeout:.0f}s; sending SIGKILL")
+    for p in pids(consumer):
+        try:
+            os.kill(p, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    time.sleep(1.0)
+    if running(consumer):
+        err(f"{consumer} still running after SIGKILL")
+        return False
+    warn(f"{consumer} killed (NOT a clean release - the apiService may hold the device briefly)")
+    return True
+
+# ----------------------------------------------------------------------------- start
+def _verify_sdrangel(timeout: float = 20.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        ds = sdrangel_devices()
+        if ds:
+            ok(f"SDRangel REST up; {len(ds)} device set(s)")
+            return True
+        time.sleep(1.0)
+    warn("SDRangel REST did not report device sets within timeout (check the GUI)")
+    return False
+
+def _verify_sdrtrunk(timeout: float = 25.0) -> bool:
+    """Watch the app log for 'Discovered [N] RSP devices' with N>=1."""
+    deadline = time.time() + timeout
+    start_size = SDRTRUNK_APP_LOG.stat().st_size if SDRTRUNK_APP_LOG.exists() else 0
+    while time.time() < deadline:
+        if SDRTRUNK_APP_LOG.exists():
+            try:
+                with SDRTRUNK_APP_LOG.open() as f:
+                    f.seek(start_size)
+                    for line in f:
+                        if "Discovered [" in line and "RSP" in line:
+                            n = line.split("Discovered [", 1)[1].split("]", 1)[0]
+                            if n.strip().isdigit() and int(n) >= 1:
+                                ok(f"SDRTrunk discovered [{n}] RSP device(s)")
+                                return True
+                            if n.strip() == "0":
+                                warn("SDRTrunk discovered [0] RSP devices - apiService not free?")
+                                return False
+            except OSError:
+                pass
+        time.sleep(1.0)
+    warn("SDRTrunk acquisition not confirmed in log within timeout")
+    return False
+
+def start(consumer: str, policy: dict, force: bool = False) -> bool:
+    other = "sdrtrunk" if consumer == "sdrangel" else "sdrangel"
+    # Single-consumer invariant: never let both hold the apiService.
+    if running(other):
+        warn(f"single-consumer: {other} is running - stopping it first")
+        if not stop(other):
+            err(f"could not stop {other}; aborting start of {consumer}")
+            return False
+        gap = float(policy["rspduo_open_gap_sec"])
+        ok(f"waiting {gap:.1f}s rspduo open-gap before opening {consumer}")
+        time.sleep(gap)
+
+    if running(consumer):
+        ok(f"{consumer} already running (pid {','.join(map(str, pids(consumer)))})")
+        return True
+
+    if not apiservice_up():
+        err(f"{APISERVICE_PROC} is not running - start com.sdrplay.service first")
+        return False
+
+    # Don't re-open the RSPduo faster than the policy interval (prevents apiService wedge).
+    _throttle_restart(policy, force)
+
+    step(f"Starting {consumer}")
+    _record_open()
+    if consumer == "sdrangel":
+        subprocess.run(["open", "-a", "/Applications/SDRangel.app"], check=False)
+        ok("SDRangel launched (open -a)")
+        return _verify_sdrangel()
+    else:
+        if not SDRTRUNK_LAUNCHER.exists():
+            err(f"SDRTrunk launcher missing: {SDRTRUNK_LAUNCHER}")
+            return False
+        with open(SDRTRUNK_OUT, "wb") as out:
+            subprocess.Popen([str(SDRTRUNK_LAUNCHER)], stdout=out, stderr=subprocess.STDOUT,
+                             stdin=subprocess.DEVNULL, start_new_session=True)
+        ok(f"SDRTrunk launched (headless, log: {SDRTRUNK_APP_LOG})")
+        return _verify_sdrtrunk()
+
+# ----------------------------------------------------------------------------- status
+def cmd_status(policy: dict) -> int:
+    step("SDR fleet status")
+    print("  apiService (com.sdrplay.service): " + ("up" if apiservice_up() else _c("1;31", "DOWN")))
+    both = [c for c in ("sdrangel", "sdrtrunk") if running(c)]
+    for c in ("sdrangel", "sdrtrunk"):
+        if running(c):
+            ok(f"{c}: running (pid {','.join(map(str, pids(c)))})")
+        else:
+            print(f"  - {c}: stopped")
+    if "sdrangel" in both:
+        ds = sdrangel_devices()
+        if ds is not None:
+            print(f"      SDRangel REST: {len(ds)} device set(s) on :8091")
+    if len(both) == 2:
+        warn("BOTH consumers running - violates single-consumer; run `sdrctl start <one>` to reconcile")
+    return 0
+
+# ----------------------------------------------------------------------------- main
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="sdrctl", description="single-consumer SDRplay arbiter")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("status")
+    sp = sub.add_parser("start"); sp.add_argument("consumer", choices=["sdrangel", "sdrtrunk"])
+    sp.add_argument("--force", action="store_true", help="skip the min-restart-interval wait")
+    st = sub.add_parser("stop");  st.add_argument("consumer", choices=["sdrangel", "sdrtrunk", "all"])
+    rs = sub.add_parser("restart"); rs.add_argument("consumer", choices=["sdrangel", "sdrtrunk"])
+    rs.add_argument("--force", action="store_true", help="skip the min-restart-interval wait")
+    args = ap.parse_args()
+
+    policy = load_policy()
+
+    if args.cmd == "status":
+        return cmd_status(policy)
+    if args.cmd == "stop":
+        targets = ["sdrangel", "sdrtrunk"] if args.consumer == "all" else [args.consumer]
+        return 0 if all(stop(t) for t in targets) else 1
+    if args.cmd == "start":
+        return 0 if start(args.consumer, policy, args.force) else 1
+    if args.cmd == "restart":
+        stop(args.consumer)
+        time.sleep(float(policy["rspduo_open_gap_sec"]))
+        return 0 if start(args.consumer, policy, args.force) else 1
+    return 2
+
+if __name__ == "__main__":
+    sys.exit(main())
