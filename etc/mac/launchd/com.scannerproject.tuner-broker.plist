@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  com.scannerproject.tuner-broker (SB7.2 workstream D)
+
+  The single-host SDR device-ownership broker. Every consumer (chirp
+  daemons, SDRTrunk launcher wrapper, waterfall, WX decoders, disco) must
+  claim its physical serial through this agent before opening the device.
+  Must be loaded BEFORE any SDR consumer agent (they hard-fail without it
+  unless launched with the client's best-effort flag).
+
+  Install (LaunchAgent, user session — SDR consumers all run in the user
+  session, and the sdrplay apiService is reachable from there):
+    cp etc/mac/launchd/com.scannerproject.tuner-broker.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.tuner-broker.plist
+  Logs: /opt/scannerproject/log/tuner-broker.log
+  Exit 3 in that log = fleet-policy hard-fail (fix the policy; the agent
+  will keep retrying on the KeepAlive throttle, loudly, by design).
+-->
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.tuner-broker</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/scannerproject/venv/bin/python</string>
+        <string>-m</string>
+        <string>broker</string>
+    </array>
+
+    <!-- The broker package lives in the repo checkout; the venv python
+         needs it on sys.path. WorkingDirectory covers `python -m`'s
+         cwd-prepend, PYTHONPATH below is the explicit belt-and-braces. -->
+    <key>WorkingDirectory</key>
+    <string>/Users/willminkoff/Documents/scannerproject</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SCANNER_FLEET_POLICY</key>
+        <string>/opt/scannerproject/etc/sdr_fleet_policy.json</string>
+        <key>PYTHONPATH</key>
+        <string>/Users/willminkoff/Documents/scannerproject</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Always restart: consumers cannot claim without it. ThrottleInterval
+         keeps a persistent policy hard-fail (exit 3) from hot-looping. -->
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/opt/scannerproject/log/tuner-broker.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/scannerproject/log/tuner-broker.log</string>
+</dict>
+</plist>
