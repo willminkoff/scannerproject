@@ -1,0 +1,76 @@
+{
+  "_comment": "SDR fleet policy v2 (SB7, 2026-07-04) — SINGLE-HOST deployment on the M1 Mac mini (Intel mini = cold spare). Source of truth for device->role allocation, RSPduo modes, USB grouping, and tuner-broker invariants. The broker, config generators, and wiring card all read THIS file. Address devices by serial ONLY; USB position is never trusted. Digital engine is SDRTrunk (native SDRplay API — it still MUST claim its serial through the broker so nothing else opens the device). op25 is retired (no macOS path). See docs/sb7-northstar-program.md §4.",
+  "version": 2,
+  "host": {
+    "role": "single-box",
+    "hardware": "Mac mini M1 2021 (8 GB)",
+    "os": "macOS",
+    "cold_spare": "Mac mini 2018 Intel (16 GB, macOS Sequoia ceiling — security updates end ~fall 2027)"
+  },
+  "invariants": {
+    "max_concurrent_dual_tuner_rspduo": 1,
+    "_why": "Two concurrent dual-tuner RSPduos through ONE sdrplay apiService deterministically segfault it (0x6bed) and corrupt live IQ. Single host = single apiService, so at most one device (RSP-A, and only after the D1 gate) may be dual-tuner; the broker REFUSES any second dual-tuner claim.",
+    "rspduo_open_gap_sec": 2.0,
+    "_why_gap": "The apiService does not safely serialize concurrent sdrplay_api_Open calls from different processes, even across different physical RSPduos.",
+    "master_before_slave": true,
+    "min_restart_interval_sec": 30,
+    "address_by": "serial",
+    "powered_hubs_required": true,
+    "max_rtl_streams_per_usb_controller": 5
+  },
+  "rspduo_daemon": {
+    "launchd_label": "com.sdrplay.service",
+    "api_version": "3.15.x",
+    "_note": "One apiService brokers BOTH RSPduos for chirp (via SoapySDRPlay3) AND SDRTrunk (native API). All opens funnel through the tuner-broker, spaced by rspduo_open_gap_sec. SDRTrunk launches once and stays up — no restart churn near this daemon."
+  },
+  "devices": [
+    {
+      "id": "RSP-A", "kind": "rspduo", "serial": "180903EF32", "label": "RSP-DIGITAL",
+      "role": "sdrtrunk-p25", "consumer": "sdrtrunk", "api": "sdrplay-native",
+      "mode": "ST", "tuner": 1, "sample_rate_hz": 2000000,
+      "usb_group": "G1", "shared_with": [], "dual_tuner": false,
+      "_ladder": "D3 ships Single Tuner / one P25 system. D1 (after the alert stack is live) flips SDRTrunk to native Dual Tuner mode for two systems — set dual_tuner=true then; app restart required; verify each system's channel span fits ~2 MHz/tuner first (docs/sb7-northstar-program.md §4.1b)."
+    },
+    {
+      "id": "RSP-B", "kind": "rspduo", "serial": "1809063632", "label": "RSP-AIRBAND",
+      "role": "chirp-airband", "consumer": "gr-demod@airband", "api": "soapy",
+      "mode": "ST", "tuner": 1, "sample_rate_hz": 2000000, "bandwidth_hz": 1536000,
+      "usb_group": "G2", "shared_with": [], "dual_tuner": false,
+      "device_args": "driver=sdrplay,serial=1809063632,rspduo_mode=ST,rspduo_tuner=1",
+      "_note": "ST = the proven-clean airband config (2026-06-15). chirp still calls set_bandwidth explicitly (chirp/dsp/source_sdr.py) — keep bandwidth_hz set even though ST tolerates a driver default."
+    },
+    { "id": "RTL-1", "kind": "rtlsdr", "serial": "80000003", "serial_status": "confirmed-on-micro; re-verify + reflash if needed in SB7.1",
+      "label": "GROUND", "role": "chirp-ground", "consumer": "gr-demod@ground",
+      "sample_rate_hz": 2400000, "gain_db": 32, "usb_group": "G3", "shared_with": [],
+      "_note": "Ground NFM on RTL is the proven 2026-06-18 fix. Gain 30-35 (40 clips the V4-class front end)." },
+    { "id": "RTL-2", "kind": "rtlsdr", "serial": "70613472", "serial_status": "confirmed-on-micro; re-verify in SB7.1",
+      "label": "WF-A", "role": "waterfall-a", "consumer": "scanner-waterfall",
+      "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": [] },
+    { "id": "RTL-3", "kind": "rtlsdr", "serial": "83241970", "serial_status": "confirmed-on-micro (RTL-SDR Blog V4, USB-finicky — error -71 re-enumeration history; prefer the best hub port; candidate to demote to spare if instability recurs)",
+      "label": "WF-B", "role": "waterfall-b", "consumer": "scanner-waterfall",
+      "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": [] },
+    { "id": "RTL-4", "kind": "rtlsdr", "serial": "61108285", "serial_status": "confirmed-on-micro; re-verify in SB7.1",
+      "label": "FLEX", "role": "flex", "consumer": "broker-arbitrated",
+      "sample_rate_hz": 2400000, "usb_group": "G3",
+      "shared_with": ["vdl2", "acars", "disco", "hot-spare"],
+      "_note": "PO decision pending (SB7.0): default VDL2/ACARS; broker can lease it out (disco sweep) or promote it as hot spare for any failed dedicated RTL." }
+  ],
+  "usb_groups": {
+    "G1": { "host_port": "Thunderbolt port 1", "hub": null, "_note": "RSP-A direct-cabled, own TB bus, no hub" },
+    "G2": { "host_port": "Thunderbolt port 2", "hub": null, "_note": "RSP-B direct-cabled, own TB bus, no hub" },
+    "G3": { "host_port": "USB-A (rear)", "hub": "H1 (powered, own PSU)", "members": ["RTL-1", "RTL-2", "RTL-3", "RTL-4"], "_note": "4 RTL streams ≈ 40 MB/s aggregate — fine on USB 3.0" }
+  },
+  "broker": {
+    "launchd_label": "com.scannerproject.tuner-broker",
+    "socket": "/opt/scannerproject/run/broker.sock",
+    "lock_dir": "/opt/scannerproject/run/locks",
+    "state_file": "/opt/scannerproject/run/broker_state.json",
+    "lock_key": "physical-serial",
+    "liveness_sweep_sec": 2,
+    "stale_lock_grace_sec": 5,
+    "usb_release_grace_sec": 0.5,
+    "daemon_heartbeat_sec": 30,
+    "daemon_recycle_min_interval_sec": 60,
+    "clear_locks_at_boot": true
+  }
+}
