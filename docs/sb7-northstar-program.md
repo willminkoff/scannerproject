@@ -127,30 +127,56 @@ the **open items**.
 
 ## 4. Hardware architecture
 
-### 4.1 RF plan: **ST-everywhere** (the structural kill-shot)
+### 4.1 Device map (DECIDED 2026-07-05 — M1 host, dual-tuner digital)
 
-With 2 RSPduos + 4 RTLs there is no longer any reason to run RSPduo dual-tuner
-mode at all:
+Fleet policy v2.1 (`etc/mac/sdr_fleet_policy.json`) is the machine-readable
+source of truth; this is the human wiring card. The rule that keeps it safe:
+**exactly one dual-tuner RSPduo, and it runs on SDRTrunk's native SDRplay API.**
 
-| Device | Mode | Role |
-|---|---|---|
-| RSP-B 1809063632 | **ST**, tuner 1 | chirp **airband** (proven-clean config from 2026-06-15) |
-| RSP-A 180903EF32 | ST → Dual (§4.1b) | **SDRTrunk P25** — digital restored as a first-class product |
-| RTL #1 | — | chirp **ground** NFM (proven fix from the 6/18 incident; gain 30–35) |
-| RTL #2, #3 | — | stitched **waterfall** A/B (`/sb5` Live IQ) |
-| RTL #4 | — | **flex**: VDL2/ACARS ⊕ disco ⊕ second P25 system, broker-arbitrated |
+| Device (serial) | Mode | Role | Fixed / arbitrated |
+|---|---|---|---|
+| **RSP-A** 180903EF32 | **Dual-tuner** | **SDRTrunk P25** — T1 = MTRTRS (ships first), T2 = 2nd system (Will names it) | fixed |
+| **RSP-B** 1809063632 | ST, tuner 1 | chirp **airband** (proven-clean 2026-06-15) | fixed |
+| **RTL** 80000003 (stable) | — | chirp **ground** NFM (6/18 fix; gain 30–35) | fixed, 24/7 |
+| **RTL** 70613472 (stable) | — | **DIGITAL-FLEX** — SDRTrunk 3rd P25 system when activated; else disco / hot-spare | broker |
+| **RTL** 61108285 (stable) | — | **WX** — VDL2 / ACARS | broker |
+| **RTL** 83241970 (V4, finicky) | — | **waterfall** (`/sb5` Live IQ), single-dongle | drop-tolerant |
 
-What this eliminates *by construction*:
-- **0x6bed segfault** — requires 2× dual-tuner; there are now zero dual-tuners.
-- **MA/SL retune-wedge** — requires master/slave retune contention; there is no
-  master/slave. Airband owns its RSPduo outright; ground scans on its own RTL.
-- **Master-before-Slave ordering, 59 s slave-open hangs, casual-restart wedges** —
-  the whole MA/SL operational ceremony disappears from the runbook.
+**Digital capacity:** RSP-A dual-tuner = **2 P25 systems simultaneously** (one per
+~2 MHz tuner, native SDRplay API — the most reliable digital path on macOS). MTRTRS
+ships first on tuner 1; the 2nd system slots onto tuner 2 with no hardware change
+(SDRTrunk restart to add). **Growth to a 3rd system** = promote the stable
+DIGITAL-FLEX RTL (70613472) into the same SDRTrunk instance (heterogeneous tuners
+are supported), broker-leased on demand. So the map delivers "≥2 digital systems,
+room for 3."
 
-Cost: the second trunked system (MTRTRS-class) no longer has a dedicated RSPduo
-tuner *at launch*. §4.1b lays out the multi-system ladder — SDRTrunk's native
-Dual Tuner mode covers it on the single box — so this is a sequencing choice,
-not a permanent loss.
+**What still holds by construction:** 0x6bed needs *two* concurrent dual-tuner
+RSPduos through one apiService — we run exactly one (RSP-B is ST), so it stays
+unreachable. And the ~2 h MA/SL RfUpdateError retune-wedge was an
+op25 + SoapySDRPlay3 `mode=MA/SL` phenomenon; SDRTrunk's native dual-tuner is a
+vendor-supported mechanism with none of op25's cross-process retune contention,
+so that wedge class is gone too.
+
+**Two design calls I made for you (flag if you disagree):**
+- *Reliability-aware RTL placement.* The flaky V4 (83241970) goes on the
+  drop-tolerant waterfall, never on a digital control channel or a core analog
+  band. The three stable RTLs carry ground, digital-growth, and WX.
+- *Waterfall traded down to single-dongle.* Serving "room for a 3rd digital
+  system" claimed the RTL that used to be waterfall-B, so the Live IQ pane is
+  now one dongle (~2.4 MHz span) instead of the old 2-dongle stitch. If you'd
+  rather keep the wide stitched waterfall than have a 3rd-digital growth slot,
+  say so and I'll swap DIGITAL-FLEX back to waterfall-B.
+
+**Open (only Will can answer):** the 2nd P25 system's name (for tuner 2), and —
+before either goes live — a one-time SDRangel span check that each system's
+monitored *site* fits ~2 MHz (a single trunked site normally does; statewide
+spread is irrelevant since you monitor one site at a time).
+
+**Physical (M1: 2× Thunderbolt + 2× USB-A):** each RSPduo on its own Thunderbolt
+port (own controller — the dual-tuner RSP-A especially wants the bandwidth); the
+4 RTLs on a powered hub (own PSU) on USB-A. Verify controller grouping on the box
+with `system_profiler SPUSBDataType` during SB7.1 — if the two USB-A ports share
+one controller, consider a second hub to split the RTLs.
 
 ### 4.1b Multi-system digital — REVISED for macOS: SDRTrunk is the engine
 
@@ -174,15 +200,21 @@ Because SDRTrunk talks to the SDRplay API directly, it skips the
 Soapy/gr-osmosdr chain entirely — on macOS that makes it the *most* proven
 RSPduo path, not the fallback (Will already runs it against the RSPduo today).
 
-The ladder, revised:
-- **D3 (ship first, SB7.5):** SDRTrunk, RSP-A **Single Tuner** mode, one P25
-  system. Simplest soak target.
-- **D1 (after the alert stack is live):** flip SDRTrunk to **Dual Tuner** mode —
-  two P25 systems on RSP-A's two tuners, natively, no MA/SL processes, no
-  osmosdr, no bandwidth patch. Constraints: each system's control + voice
-  channels must fit its tuner's ~2 MHz (~1.5 usable) window (verify spans with
-  SDRangel first); mode switch requires an app restart; only one dual-tuner
-  device on the host (chirp's RSP-B stays ST) keeps the fleet invariant.
+The plan (updated 2026-07-05 per Will's "≥2 digital systems" requirement —
+RSP-A ships **Dual Tuner from launch**, not gated behind the alert stack):
+- **Ship first (SB7.5):** SDRTrunk, RSP-A Dual Tuner, **MTRTRS on tuner 1**. The
+  2nd system is configured on tuner 2 as soon as Will names it — no hardware
+  change, an SDRTrunk restart to add. (Dual-from-launch is safe here: the
+  dual-tuner risk that argued for a later gate was op25's cross-process retune
+  contention; SDRTrunk manages both tuners natively in one process with none of
+  that. Single host keeps the 0x6bed invariant — RSP-B stays ST.)
+- **Grow to 3:** add the stable DIGITAL-FLEX RTL (70613472) to the same SDRTrunk
+  instance, broker-leased on demand.
+- **Constraint to verify once:** each system's monitored *site* must fit a
+  tuner's ~2 MHz (~1.5 usable) window — check spans in SDRangel before going
+  live (a single trunked site normally fits easily; you monitor one site at a
+  time, so statewide spread doesn't matter). Mode/system changes need an
+  SDRTrunk restart.
 - **Known SDRTrunk gaps we own:** no native tuner-crash recovery (open issue
   #1890) → launchd `KeepAlive` + an alert rule on stream/call cadence;
   alias-list maintenance (unaliased talkgroups silently don't stream) → a
@@ -194,9 +226,7 @@ Integration notes: hits/calls for the UI come from SDRTrunk's event/recording
 logs instead of op25's JSONL (new, small adapter); the op25-audio-bridge
 retires (SDRTrunk streams to Icecast itself).
 
-### 4.2 Box roles: observer/observed separation
-
-### 4.2 One box — DECIDED 2026-07-04 (revised): single-host deployment, no witness box
+### 4.2 One box — DECIDED 2026-07-04: single-host deployment, no witness box
 
 Will's call: no second-computer witness; the whole product runs on one Mac mini.
 

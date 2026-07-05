@@ -54,10 +54,19 @@ class RealRepoPolicyTest(unittest.TestCase):
         self.assertIsNotNone(rsp_a)
         self.assertEqual(rsp_a.role, "sdrtrunk-p25")
         self.assertEqual(rsp_a.kind, "rspduo")
-        # D3 ships single-tuner; dual_tuner flips only at the D1 gate.
-        self.assertFalse(rsp_a.dual_tuner)
-        flex = pol.devices_for_role("flex")
-        self.assertEqual([d.serial for d in flex], ["61108285"])
+        # Policy v2.1 (2026-07-05): RSP-A is dual-tuner from launch so SDRTrunk
+        # decodes 2 P25 systems at once (Will's ">=2 digital systems"
+        # requirement). It is the sole dual-tuner device (0x6bed invariant).
+        self.assertTrue(rsp_a.dual_tuner)
+        self.assertEqual(
+            [d.serial for d in pol.devices if d.dual_tuner], ["180903EF32"]
+        )
+        # RTL roles are reliability-aware: the growth-to-3rd-system dongle.
+        digflex = pol.devices_for_role("flex-digital")
+        self.assertEqual([d.serial for d in digflex], ["70613472"])
+        self.assertEqual(
+            [d.serial for d in pol.devices_for_role("chirp-ground")], ["80000003"]
+        )
         self.assertIsNone(pol.device_by_serial("nope"))
         self.assertEqual(pol.devices_for_role("nope"), [])
 
