@@ -1,13 +1,34 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import unittest
 from unittest import mock
 
+from ui import service_backend
 from ui import systemd
 
 
-class UnitActiveEnterEpochTests(unittest.TestCase):
+class _SystemdBackendTestCase(unittest.TestCase):
+    """Base: pin the cached ServiceBackend to systemd for the duration.
+
+    SB7.2 moved the systemctl subprocess bodies verbatim into
+    ui/service_backend.py::SystemdBackend; the ui/systemd.py primitives
+    are now shims over the process-wide cached backend.  These tests
+    patch ``SystemdBackend.run`` (the single systemctl funnel — the old
+    ``systemd._run_systemctl`` seam still exists but only direct callers
+    like set_bt_heal_auto_recovery route through it).
+    """
+
+    def setUp(self) -> None:
+        self._env = mock.patch.dict(os.environ, {"SCANNER_SERVICE_BACKEND": "systemd"})
+        self._env.start()
+        self.addCleanup(self._env.stop)
+        service_backend._reset_backend_for_tests()
+        self.addCleanup(service_backend._reset_backend_for_tests)
+
+
+class UnitActiveEnterEpochTests(_SystemdBackendTestCase):
     def test_returns_epoch_without_sudo_when_unprivileged_show_succeeds(self):
         result = subprocess.CompletedProcess(
             ["systemctl", "show"],
@@ -15,7 +36,9 @@ class UnitActiveEnterEpochTests(unittest.TestCase):
             stdout="1234567\n",
             stderr="",
         )
-        with mock.patch.object(systemd, "_run_systemctl", return_value=result) as run_systemctl:
+        with mock.patch.object(
+            service_backend.SystemdBackend, "run", return_value=result
+        ) as run_systemctl:
             epoch = systemd.unit_active_enter_epoch("scanner-digital-op25.service")
         self.assertEqual(1.234567, epoch)
         run_systemctl.assert_called_once()
@@ -27,7 +50,9 @@ class UnitActiveEnterEpochTests(unittest.TestCase):
             stdout="",
             stderr="Unit scanner-digital-op25.service could not be found.",
         )
-        with mock.patch.object(systemd, "_run_systemctl", return_value=result) as run_systemctl:
+        with mock.patch.object(
+            service_backend.SystemdBackend, "run", return_value=result
+        ) as run_systemctl:
             epoch = systemd.unit_active_enter_epoch("scanner-digital-op25.service")
         self.assertIsNone(epoch)
         run_systemctl.assert_called_once()
@@ -47,13 +72,25 @@ class UnitActiveEnterEpochTests(unittest.TestCase):
                 stderr="",
             ),
         ]
-        with mock.patch.object(systemd, "_run_systemctl", side_effect=results) as run_systemctl:
+        with mock.patch.object(
+            service_backend.SystemdBackend, "run", side_effect=results
+        ) as run_systemctl:
             epoch = systemd.unit_active_enter_epoch("scanner-digital-op25.service")
         self.assertEqual(7.654321, epoch)
         self.assertEqual(2, run_systemctl.call_count)
 
 
-class RestartDigitalRecoveryTests(unittest.TestCase):
+class RestartDigitalRecoveryTests(_SystemdBackendTestCase):
+    """Pin the restart_digital() systemctl cascade order.
+
+    Historically these ran the REAL ``_sdrplay_daemon_alive`` pgrep and
+    the REAL ``_wait_for_op25_health`` HTTP probe, so they only passed on
+    a box with op25 actually serving 127.0.0.1:8080 (the Micro) and
+    wedged for the full 45 s probe window anywhere else.  SB7.2 made them
+    hermetic: daemon-alive and the post-start probe are patched so the
+    assertions pin the cascade itself, machine-independently.
+    """
+
     def _ok(self, args):
         return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
@@ -76,13 +113,21 @@ class RestartDigitalRecoveryTests(unittest.TestCase):
             "unit_exists",
             side_effect=lambda unit: unit in existing_units,
         ), mock.patch.object(
-            systemd,
-            "_run_systemctl",
+            service_backend.SystemdBackend,
+            "run",
             side_effect=fake_run,
+        ), mock.patch.object(
+            systemd,
+            "_sdrplay_daemon_alive",
+            return_value=True,
         ), mock.patch.object(
             systemd,
             "_sdrplay_daemon_healthy",
             return_value=(False, "test: forced unhealthy"),
+        ), mock.patch.object(
+            systemd,
+            "_wait_for_op25_health",
+            return_value=(True, "test: probe ok"),
         ), mock.patch.object(systemd.time, "sleep") as sleep:
             ok, err = systemd.restart_digital()
 
@@ -136,13 +181,21 @@ class RestartDigitalRecoveryTests(unittest.TestCase):
             "unit_exists",
             side_effect=lambda unit: unit in existing_units,
         ), mock.patch.object(
-            systemd,
-            "_run_systemctl",
+            service_backend.SystemdBackend,
+            "run",
             side_effect=fake_run,
+        ), mock.patch.object(
+            systemd,
+            "_sdrplay_daemon_alive",
+            return_value=True,
         ), mock.patch.object(
             systemd,
             "_sdrplay_daemon_healthy",
             return_value=(True, "test: forced healthy"),
+        ), mock.patch.object(
+            systemd,
+            "_wait_for_op25_health",
+            return_value=(True, "test: probe ok"),
         ), mock.patch.object(systemd.time, "sleep") as sleep:
             ok, err = systemd.restart_digital()
 
@@ -167,9 +220,13 @@ class RestartDigitalRecoveryTests(unittest.TestCase):
             "unit_exists",
             return_value=False,
         ), mock.patch.object(
-            systemd,
-            "_run_systemctl",
+            service_backend.SystemdBackend,
+            "run",
             side_effect=fake_run,
+        ), mock.patch.object(
+            systemd,
+            "_wait_for_op25_health",
+            return_value=(True, "test: probe ok"),
         ), mock.patch.object(systemd.time, "sleep") as sleep:
             ok, err = systemd.restart_digital()
 
@@ -200,18 +257,26 @@ class RestartDigitalRecoveryTests(unittest.TestCase):
             "unit_exists",
             return_value=False,
         ), mock.patch.object(
-            systemd,
-            "_run_systemctl",
+            service_backend.SystemdBackend,
+            "run",
             side_effect=fake_run,
         ), mock.patch.object(systemd.time, "sleep") as sleep:
             ok, err = systemd.restart_digital()
 
         self.assertFalse(ok)
-        self.assertEqual("digital start: start failed", err)
+        # A gentle-attempt failure escalates through the wedge-recovery
+        # loop (OP25_WEDGE_RECOVERY_MAX_ATTEMPTS, default 2) before giving
+        # up — the caller sees the exhausted wrapper around the last
+        # underlying error.  (The pre-wedge-recovery expectation of a bare
+        # "digital start: ..." error predates the escalation loop.)
+        self.assertEqual(
+            "wedge recovery exhausted after 2 escalations: digital start: start failed",
+            err,
+        )
         sleep.assert_not_called()
 
 
-class SdrplayDaemonHealthProbeTests(unittest.TestCase):
+class SdrplayDaemonHealthProbeTests(_SystemdBackendTestCase):
     def test_unhealthy_when_daemon_not_running(self):
         pgrep_miss = subprocess.CompletedProcess(["pgrep"], 1, stdout="", stderr="")
         with mock.patch.object(systemd.subprocess, "run", return_value=pgrep_miss):

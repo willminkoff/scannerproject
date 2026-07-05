@@ -1,4 +1,13 @@
-"""System unit control via systemd."""
+"""System unit control.
+
+Historically systemd-only; since SB7.2 the low-level primitives
+(``unit_active``, ``_restart_unit``, ...) are thin shims over the
+``ServiceBackend`` abstraction in ui/service_backend.py so the same
+recovery logic drives either systemd (Linux) or launchd (the Mac mini
+port).  The module-level function names and signatures are preserved on
+purpose — every call site (handlers/actions/dongle_power/device_ownership)
+and a large test corpus reference them by name.
+"""
 import json
 import os
 import subprocess
@@ -18,6 +27,7 @@ try:
         RTL_AIRBAND_STATS_STALE_SEC,
     )
     from .sample_flow import rtl_airband_sample_flow_state
+    from .service_backend import get_backend
 except ImportError:
     from ui.config import (
         UNITS,
@@ -28,6 +38,7 @@ except ImportError:
         RTL_AIRBAND_STATS_STALE_SEC,
     )
     from ui.sample_flow import rtl_airband_sample_flow_state
+    from ui.service_backend import get_backend
 
 
 _TRUTHY = ("1", "true", "yes", "on")
@@ -39,6 +50,33 @@ _TRUTHY = ("1", "true", "yes", "on")
 # source connect.
 RTL_AIRBAND_AIRBAND_MOUNT = os.getenv("RTL_AIRBAND_AIRBAND_MOUNT", "ANALOG.mp3").strip().lstrip("/")
 RTL_AIRBAND_GROUND_MOUNT = os.getenv("RTL_AIRBAND_GROUND_MOUNT", "ANALOG_GROUND.mp3").strip().lstrip("/")
+
+# SB7.2 Task 3 (open P0): restart_rtl_airband(), restart_rtl_ground() and
+# restart_digital() are invoked from independent API handler threads
+# (profile switch on one band while the operator mashes Restart Digital,
+# watchdog firing during a manual recovery, ...).  All three bounce the
+# SHARED sdrplay daemon during escalation.  With no mutual exclusion, two
+# overlapping stop-all → daemon-restart → ordered-start sequences
+# interleave: flow A restarts the daemon while flow B is mid-way through
+# its own bounce, B's client reconnects into A's half-initialized daemon,
+# and we manufacture exactly the multi-client state corruption these
+# cascades exist to recover from.
+#
+# This lock serializes the daemon-bounce critical sections ONLY:
+#   * each escalation attempt in full (stop-all → sdrplay restart →
+#     ordered start + probes) — the whole sequence must be atomic with
+#     respect to other flows' bounces, and
+#   * the daemon check-and-bounce block inside gentle attempts (a gentle
+#     attempt bounces the daemon too when it finds it dead/unhealthy).
+# The rest of the gentle path (stop/start/probe of the caller's own unit)
+# stays unguarded on purpose: it touches only that flow's units, and
+# holding the lock through a 30-45 s health probe would needlessly stall
+# an unrelated band's recovery.
+#
+# RLock, not Lock: the escalation wrapper holds it around the whole
+# attempt, and the shared daemon check-and-bounce block inside re-acquires
+# it (no-op for the same thread; the real guard for gentle attempts).
+_SDRPLAY_RESTART_LOCK = threading.RLock()
 
 # digital restart health state. Updated by restart_digital() on every
 # invocation + post-start probe. Surfaced via digital_restart_state() so
@@ -167,94 +205,50 @@ def _wait_for_rtl_airband_health(
         time.sleep(max(0.0, poll_interval_sec))
 
 
+# ---------------------------------------------------------------------------
+# Low-level primitives (SB7.2): each is a shim over the ServiceBackend so
+# the recovery cascades below run unmodified on systemd AND launchd.  The
+# subprocess bodies that used to live here moved VERBATIM to
+# ui/service_backend.py::SystemdBackend — do not re-inline them.
+# ---------------------------------------------------------------------------
+
+
 def unit_active(unit: str) -> bool:
-    """Check if a systemd unit is currently active."""
-    return subprocess.run(["systemctl", "is-active", "--quiet", unit]).returncode == 0
+    """Check if a service unit is currently active."""
+    return get_backend().active(unit)
 
 
 def unit_exists(unit: str) -> bool:
-    """Check if a systemd unit exists."""
-    result = subprocess.run(
-        ["systemctl", "show", "-p", "LoadState", "--value", unit],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    if result.returncode != 0:
-        return False
-    return result.stdout.strip() != "not-found"
+    """Check if a service unit exists (is known to the service manager)."""
+    return get_backend().exists(unit)
 
 
 def _run_systemctl(args, use_sudo: bool = False):
-    cmd = ["systemctl"] + list(args)
-    if use_sudo:
-        cmd = ["sudo"] + cmd
-    return subprocess.run(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-    )
-
-
-def _enabled_from_result(result: subprocess.CompletedProcess[str]) -> tuple[bool, str]:
-    if result.returncode != 0:
-        return False, (result.stdout or result.stderr or "").strip()
-    state = str(result.stdout or "").strip().lower()
-    return state in ("enabled", "enabled-runtime"), state
+    """Generic escape hatch for operations without a typed primitive
+    (BT-heal timer enable/disable, host reboot).  On the launchd backend
+    this raises NotImplementedError — both in-tree callers already wrap
+    it in try/except Exception and surface (False, msg)."""
+    return get_backend().run(args, use_sudo=use_sudo)
 
 
 def unit_enabled(unit: str, use_sudo: bool = False) -> bool:
-    """Check if a systemd unit is enabled."""
-    try:
-        result = _run_systemctl(["is-enabled", unit], use_sudo=use_sudo)
-    except Exception:
-        return False
-    enabled, _state = _enabled_from_result(result)
-    return enabled
+    """Check if a service unit is enabled to start at boot/login."""
+    return get_backend().enabled(unit, use_sudo=use_sudo)
 
 
 def _restart_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
-    """Restart a systemd unit and return (ok, error)."""
-    try:
-        result = _run_systemctl(["restart", unit], use_sudo=use_sudo)
-    except Exception as e:
-        return False, str(e)
-    if result.returncode == 0:
-        return True, ""
-    err = (result.stderr or result.stdout or "").strip()
-    if not err:
-        err = f"restart failed (code {result.returncode})"
-    return False, err
+    """Restart a service unit and return (ok, error)."""
+    return get_backend().restart(unit, use_sudo=use_sudo)
 
 
 def _start_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
-    """Start a systemd unit and return (ok, error)."""
-    try:
-        result = _run_systemctl(["start", unit], use_sudo=use_sudo)
-    except Exception as e:
-        return False, str(e)
-    if result.returncode == 0:
-        return True, ""
-    err = (result.stderr or result.stdout or "").strip()
-    if not err:
-        err = f"start failed (code {result.returncode})"
-    return False, err
+    """Start a service unit and return (ok, error)."""
+    return get_backend().start(unit, use_sudo=use_sudo)
 
 
 def _stop_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
-    """Stop a systemd unit and return (ok, error)."""
-    try:
-        result = _run_systemctl(["stop", unit], use_sudo=use_sudo)
-    except Exception as e:
-        return False, str(e)
-    if result.returncode == 0:
-        return True, ""
-    err = (result.stderr or result.stdout or "").strip()
-    if not err:
-        err = f"stop failed (code {result.returncode})"
-    return False, err
+    """Stop a service unit and return (ok, error)."""
+    return get_backend().stop(unit, use_sudo=use_sudo)
 
 
 def _env_float(name: str, default: float, minimum: float = 0.0) -> float:
@@ -276,23 +270,16 @@ def _unit_configured(unit: str) -> bool:
 
 
 def _kill_unit(unit: str) -> None:
-    unit = str(unit or "").strip()
-    if not unit:
-        return
-    try:
-        _run_systemctl(["kill", "-s", "SIGKILL", unit], use_sudo=True)
-    except Exception:
-        pass
+    """SIGKILL a unit's process (best-effort, never raises)."""
+    get_backend().kill(unit)
 
 
 def _reset_failed_units(units) -> None:
-    names = [str(unit or "").strip() for unit in units if str(unit or "").strip()]
-    if not names:
-        return
-    try:
-        _run_systemctl(["reset-failed"] + names, use_sudo=True)
-    except Exception:
-        pass
+    """Clear failed/start-limit latches so the next start isn't refused.
+
+    No-op on launchd (no failed-state latch exists there — see
+    LaunchdBackend.reset_failed for the full rationale)."""
+    get_backend().reset_failed(units)
 
 
 def _sdrplay_daemon_alive() -> bool:
@@ -456,6 +443,19 @@ def _sdrplay_daemon_healthy() -> Tuple[bool, str]:
     if pgrep.returncode != 0 or not (pgrep.stdout or "").strip():
         return False, "daemon process not running"
 
+    # SB7.2: the segfault scan below reads the KERNEL journal — a
+    # Linux/systemd-ism with no launchd equivalent (macOS crash reports
+    # land in ~/Library/Logs/DiagnosticReports, not a greppable journal).
+    # On non-systemd backends, report healthy once the daemon process
+    # exists: "healthy" only means "safe to leave the daemon alone", and
+    # the post-start HTTP/stats probes + wedge escalation still catch a
+    # corrupted daemon and force the bounce on the next attempt.
+    if get_backend().name != "systemd":
+        return True, (
+            f"daemon running; kernel-journal segfault probe skipped "
+            f"({get_backend().name} backend)"
+        )
+
     try:
         jc = subprocess.run(
             ["journalctl", "-k", "--since", f"{window_sec} seconds ago", "--no-pager"],
@@ -475,78 +475,27 @@ def _sdrplay_daemon_healthy() -> Tuple[bool, str]:
 
 
 def unit_active_enter_epoch(unit: str):
-    """Return ActiveEnterTimestampUSec as epoch seconds, or None."""
-    def parse_epoch(result):
-        if result.returncode != 0:
-            return None
-        val = (result.stdout or "").strip()
-        if not val.isdigit():
-            return None
-        try:
-            return int(val) / 1_000_000.0
-        except Exception:
-            return None
+    """Return the unit's last activation time as epoch seconds, or None.
 
-    def needs_sudo_fallback(result):
-        if result.returncode == 0:
-            return False
-        detail = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
-        return (
-            "interactive authentication required" in detail
-            or "access denied" in detail
-            or "permission denied" in detail
-        )
-
-    try:
-        result = _run_systemctl(["show", "-p", "ActiveEnterTimestampUSec", "--value", unit], use_sudo=False)
-        epoch = parse_epoch(result)
-        if epoch is not None:
-            return epoch
-        if not needs_sudo_fallback(result):
-            return None
-        result = _run_systemctl(["show", "-p", "ActiveEnterTimestampUSec", "--value", unit], use_sudo=True)
-        return parse_epoch(result)
-    except Exception:
-        return None
+    systemd: ActiveEnterTimestampUSec (with the polkit sudo-fallback dance
+    — pinned by tests/test_systemd.py).  launchd: best-effort process
+    start time via pid + ``ps -o lstart=``.  None is the universal
+    "don't know"; all callers tolerate it."""
+    return get_backend().active_enter_epoch(unit)
 
 
 def unit_restart_count(unit: str):
-    """Return systemd's ``NRestarts`` counter for *unit*, or ``None``.
+    """Return the unit's monotonic restart counter, or ``None``.
 
-    ``NRestarts`` is monotonic over the unit's lifetime (since systemd
+    systemd's ``NRestarts`` is monotonic over the unit's lifetime (since
     daemon-reload).  Sampling deltas over a sliding window lets callers
     detect crash-loops that would otherwise be hidden behind the
     happens-to-be-active glitch where ``systemctl is-active`` returns
     ``active`` during the brief execution window of each restart cycle.
+    launchd has no NRestarts analog and reports a constant 0 (delta 0 =
+    loop detection disabled rather than false-alarming).
     """
-    def parse_count(result):
-        if result.returncode != 0:
-            return None
-        val = (result.stdout or "").strip()
-        if not val.lstrip("-").isdigit():
-            return None
-        try:
-            return int(val)
-        except Exception:
-            return None
-
-    try:
-        result = _run_systemctl(["show", "-p", "NRestarts", "--value", unit], use_sudo=False)
-        count = parse_count(result)
-        if count is not None:
-            return count
-        detail = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
-        needs_sudo = (
-            "interactive authentication required" in detail
-            or "access denied" in detail
-            or "permission denied" in detail
-        )
-        if not needs_sudo:
-            return None
-        result = _run_systemctl(["show", "-p", "NRestarts", "--value", unit], use_sudo=True)
-        return parse_count(result)
-    except Exception:
-        return None
+    return get_backend().restart_count(unit)
 
 
 def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
@@ -610,9 +559,15 @@ def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
     # bounce the daemon clean, bring rtl-airband back, verify its
     # sample flow, THEN restart OP25.  This is exactly the manual
     # bash-one-liner clean-cycle that always worked.
-    target_mount = (
-        RTL_AIRBAND_AIRBAND_MOUNT if service_label == "rtl_airband" else RTL_AIRBAND_GROUND_MOUNT
-    )
+    # restart_rtl() is the airband/legacy path (the old combined
+    # rtl-airband.service was the airband master); verify the airband
+    # mount. The prior `service_label == "rtl_airband"` here was a
+    # copy-paste from the _restart_rtl_service() worker (which DOES take
+    # a service_label param) — `service_label` is undefined in this
+    # function's scope, so this line raised NameError on every legacy
+    # fallback (pre-existing crash, only reachable when the gr-demod@
+    # dispatch at the top of this function doesn't fire).
+    target_mount = RTL_AIRBAND_AIRBAND_MOUNT
     digital_unit = str(UNITS.get("digital") or "").strip()
     sdrplay_unit = (
         os.getenv("UNIT_SDRPLAY")
@@ -897,6 +852,18 @@ def restart_digital(
         return False, "digital unit not configured"
 
     def _attempt(force_sdrplay_restart: bool, attempt_label: str) -> Tuple[bool, str]:
+        # SB7.2 Task 3: escalation bounces the SHARED sdrplay daemon and
+        # restarts the stack in order — hold the bounce lock across the
+        # whole sequence so a concurrent restart_rtl_airband/_ground
+        # escalation can't interleave its own bounce (see the
+        # _SDRPLAY_RESTART_LOCK comment).  Gentle attempts stay unguarded
+        # except for the daemon check-and-bounce block inside.
+        if force_sdrplay_restart:
+            with _SDRPLAY_RESTART_LOCK:
+                return _attempt_impl(force_sdrplay_restart, attempt_label)
+        return _attempt_impl(force_sdrplay_restart, attempt_label)
+
+    def _attempt_impl(force_sdrplay_restart: bool, attempt_label: str) -> Tuple[bool, str]:
         if audio_exists:
             _stop_unit(audio_unit, use_sudo=True)
         _stop_unit(digital_unit, use_sudo=True)
@@ -906,30 +873,16 @@ def restart_digital(
         _reset_failed_units([digital_unit, audio_unit if audio_exists else ""])
 
         if sdrplay_exists:
-            daemon_alive = _sdrplay_daemon_alive()
-            if force_sdrplay_restart or not daemon_alive:
-                print(
-                    f"restart_digital[{attempt_label}]: bouncing sdrplay daemon "
-                    f"(force={force_sdrplay_restart}, alive={daemon_alive})",
-                    flush=True,
-                )
-                ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
-                if not ok:
-                    return False, f"sdrplay restart: {err}"
-                if sdrplay_settle_sec > 0:
-                    time.sleep(sdrplay_settle_sec)
-            else:
-                healthy, hreason = _sdrplay_daemon_healthy()
-                if healthy:
+            # RLock: no-op re-acquire on escalation (outer wrapper already
+            # holds it); the real guard for GENTLE attempts, whose
+            # dead/unhealthy-daemon bounce must not interleave with
+            # another flow's escalation.  check + bounce are atomic.
+            with _SDRPLAY_RESTART_LOCK:
+                daemon_alive = _sdrplay_daemon_alive()
+                if force_sdrplay_restart or not daemon_alive:
                     print(
-                        f"restart_digital[{attempt_label}]: sdrplay daemon "
-                        f"healthy ({hreason}); skipping restart",
-                        flush=True,
-                    )
-                else:
-                    print(
-                        f"restart_digital[{attempt_label}]: sdrplay daemon "
-                        f"needs restart ({hreason})",
+                        f"restart_digital[{attempt_label}]: bouncing sdrplay daemon "
+                        f"(force={force_sdrplay_restart}, alive={daemon_alive})",
                         flush=True,
                     )
                     ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
@@ -937,6 +890,25 @@ def restart_digital(
                         return False, f"sdrplay restart: {err}"
                     if sdrplay_settle_sec > 0:
                         time.sleep(sdrplay_settle_sec)
+                else:
+                    healthy, hreason = _sdrplay_daemon_healthy()
+                    if healthy:
+                        print(
+                            f"restart_digital[{attempt_label}]: sdrplay daemon "
+                            f"healthy ({hreason}); skipping restart",
+                            flush=True,
+                        )
+                    else:
+                        print(
+                            f"restart_digital[{attempt_label}]: sdrplay daemon "
+                            f"needs restart ({hreason})",
+                            flush=True,
+                        )
+                        ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+                        if not ok:
+                            return False, f"sdrplay restart: {err}"
+                        if sdrplay_settle_sec > 0:
+                            time.sleep(sdrplay_settle_sec)
 
         ok, err = _start_unit(digital_unit, use_sudo=True)
         if not ok:
@@ -1284,6 +1256,19 @@ def _restart_rtl_service(
         return False, f"{service_label}: target unit not configured"
 
     def _attempt(force_sdrplay_restart: bool, attempt_label: str) -> Tuple[bool, str]:
+        # SB7.2 Task 3: escalation stops the whole analog+digital stack,
+        # bounces the SHARED sdrplay daemon and restarts everything in
+        # dependency order — hold the bounce lock across the whole
+        # sequence so a concurrent restart_digital (or the other band's
+        # escalation) can't interleave its own bounce (see the
+        # _SDRPLAY_RESTART_LOCK comment).  Gentle attempts stay unguarded
+        # except for the daemon check-and-bounce block inside.
+        if force_sdrplay_restart:
+            with _SDRPLAY_RESTART_LOCK:
+                return _attempt_impl(force_sdrplay_restart, attempt_label)
+        return _attempt_impl(force_sdrplay_restart, attempt_label)
+
+    def _attempt_impl(force_sdrplay_restart: bool, attempt_label: str) -> Tuple[bool, str]:
         _stop_unit(target_unit, use_sudo=True)
         _kill_unit(target_unit)
 
@@ -1320,24 +1305,16 @@ def _restart_rtl_service(
         _reset_failed_units(units_to_reset)
 
         if sdrplay_exists:
-            daemon_alive = _sdrplay_daemon_alive()
-            if force_sdrplay_restart or not daemon_alive:
-                print(
-                    f"restart_{service_label}[{attempt_label}]: bouncing sdrplay "
-                    f"daemon (force={force_sdrplay_restart}, alive={daemon_alive})",
-                    flush=True,
-                )
-                ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
-                if not ok:
-                    return False, f"sdrplay restart: {err}"
-                if sdrplay_settle_sec > 0:
-                    time.sleep(sdrplay_settle_sec)
-            else:
-                healthy, hreason = _sdrplay_daemon_healthy()
-                if not healthy:
+            # RLock: no-op re-acquire on escalation (outer wrapper already
+            # holds it); the real guard for GENTLE attempts, whose
+            # dead/unhealthy-daemon bounce must not interleave with
+            # another flow's escalation.  check + bounce are atomic.
+            with _SDRPLAY_RESTART_LOCK:
+                daemon_alive = _sdrplay_daemon_alive()
+                if force_sdrplay_restart or not daemon_alive:
                     print(
-                        f"restart_{service_label}[{attempt_label}]: sdrplay "
-                        f"daemon needs restart ({hreason})",
+                        f"restart_{service_label}[{attempt_label}]: bouncing sdrplay "
+                        f"daemon (force={force_sdrplay_restart}, alive={daemon_alive})",
                         flush=True,
                     )
                     ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
@@ -1345,6 +1322,19 @@ def _restart_rtl_service(
                         return False, f"sdrplay restart: {err}"
                     if sdrplay_settle_sec > 0:
                         time.sleep(sdrplay_settle_sec)
+                else:
+                    healthy, hreason = _sdrplay_daemon_healthy()
+                    if not healthy:
+                        print(
+                            f"restart_{service_label}[{attempt_label}]: sdrplay "
+                            f"daemon needs restart ({hreason})",
+                            flush=True,
+                        )
+                        ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+                        if not ok:
+                            return False, f"sdrplay restart: {err}"
+                        if sdrplay_settle_sec > 0:
+                            time.sleep(sdrplay_settle_sec)
 
         # Service start ordering: airband (Master) ALWAYS comes up
         # before ground (Slave).  Even if the operator restarted the

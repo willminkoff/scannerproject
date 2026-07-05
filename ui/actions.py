@@ -1140,12 +1140,27 @@ def _select_analog_restart(target: str, *, reason: str = "unspecified"):
         restart_rtl_airband = None
         restart_rtl_ground = None
 
+    # Resolve the split-band unit names from the single source of truth
+    # (config.UNITS) instead of the retired "rtl-airband-airband" /
+    # "rtl-airband-ground" literals. Post-chirp-cutover those literals
+    # name ghost units — the same stale-name class that stopped real
+    # daemons and started dead ones during the 30-min watchdog outage.
+    # config.UNITS now resolves these to gr-demod@airband / gr-demod@ground
+    # (or the launchd labels on macOS), so this dispatch follows the
+    # deployment's actual units.
+    try:
+        from .config import UNITS as _UNITS
+    except ImportError:  # pragma: no cover — packaging fallback
+        from ui.config import UNITS as _UNITS  # type: ignore[no-redef]
+    airband_unit = str(_UNITS.get("rtl_airband") or "").strip()
+    ground_unit = str(_UNITS.get("rtl_ground") or "").strip()
+
     if target == "airband":
-        if unit_exists and restart_rtl_airband and unit_exists("rtl-airband-airband"):
+        if unit_exists and restart_rtl_airband and airband_unit and unit_exists(airband_unit):
             return restart_rtl_airband(reason=reason)
         return restart_rtl(reason=reason)
     if target == "ground":
-        if unit_exists and restart_rtl_ground and unit_exists("rtl-airband-ground"):
+        if unit_exists and restart_rtl_ground and ground_unit and unit_exists(ground_unit):
             return restart_rtl_ground(reason=reason)
         return restart_ground(reason=reason)
     raise ValueError(f"unknown analog target: {target!r}")

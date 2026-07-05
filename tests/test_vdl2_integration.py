@@ -19,6 +19,7 @@ import time
 import unittest
 from unittest import mock
 
+from ui import service_backend
 from ui import systemd
 from ui.wxdata import (
     MetStore,
@@ -505,11 +506,17 @@ class VDL2SystemdTests(unittest.TestCase):
             calls.append((tuple(args), bool(use_sudo)))
             return _Proc(returncode=0)
 
+        # SB7.2: start/stop/restart primitives delegate to the cached
+        # ServiceBackend; SystemdBackend.run is the systemctl funnel.
+        service_backend._reset_backend_for_tests()
+        self.addCleanup(service_backend._reset_backend_for_tests)
         with mock.patch.dict(
             systemd.UNITS,
             {"vdl2": "dumpvdl2"},
             clear=False,
-        ), mock.patch.object(systemd, "_run_systemctl", side_effect=fake_run):
+        ), mock.patch.object(
+            service_backend.SystemdBackend, "run", side_effect=fake_run
+        ):
             self.assertEqual((True, ""), systemd.start_vdl2())
             self.assertEqual((True, ""), systemd.stop_vdl2())
             self.assertEqual((True, ""), systemd.restart_vdl2())
