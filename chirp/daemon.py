@@ -26,6 +26,13 @@ Recognised env vars (all optional):
     CHIRP_AUDIO_OUT       file:/abs/path  OR  icecast:host:port:/mount:pass
     CHIRP_AUDIO_RATE      audio sample rate (default 16000)
     CHIRP_ICECAST_BITRATE_KBPS  MP3 bitrate (default 32)
+    CHIRP_ICECAST_FATAL_FAILURES     consecutive reconnect-exhausted publish
+                          cycles before on_fatal → exit 4 (default 10; <=0 off)
+    CHIRP_ICECAST_FATAL_WINDOW_S     min seconds since last successful publish
+                          before that escalation may fire (default 600)
+    CHIRP_ICECAST_SPURIOUS_STOP_FATAL_S  grace window after a spurious GR
+                          stop() with no samples before on_fatal → exit 4
+                          (default 30; <=0 off) — the 2026-06-18 wedge killer
     CHIRP_MAX_CHANNELS    int  (default 32 in Phase 2)
     CHIRP_EVENT_SINK      host:port  (optional async-event UDP listener)
     CHIRP_LOG_LEVEL       DEBUG | INFO | WARN | ERROR  (default INFO)
@@ -44,7 +51,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from gnuradio import blocks, gr
 
@@ -219,6 +226,16 @@ class DaemonConfig:
     icecast_bitrate_kbps: int = 32
     # File fallback path when icecast init fails. Defaults to a tmp file.
     icecast_fallback_file: str = "/tmp/chirp_audio_fallback.f32"
+    # SB7.3-E (2026-06-18 dead-publisher wedge) no-third-state escalation.
+    # Consecutive reconnect-exhausted publish cycles + minimum seconds since
+    # the last successful publish before IcecastSink fires on_fatal (which
+    # main() turns into exit code 4 so systemd restarts the stack). And the
+    # grace window after a SPURIOUS GR stop() (flowgraph wound down while the
+    # daemon runs) with no samples before the same escalation. <=0 disables
+    # the respective escalation. See chirp/dsp/icecast_sink.py module doc.
+    icecast_fatal_failures: int = 10
+    icecast_fatal_window_s: float = 600.0
+    icecast_spurious_stop_fatal_s: float = 30.0
     # Phase 4-pre LO scheduler config.  When max_channels < 2 or the
     # channel list fits in one cluster these have no effect.
     lo_dwell_sec: float = LO_DEFAULT_DWELL_S
@@ -471,6 +488,9 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         icecast_password=icecast_password,
         icecast_bitrate_kbps=_resolve("CHIRP_ICECAST_BITRATE_KBPS", raw, "icecast_bitrate_kbps", _DC_DEFAULTS.icecast_bitrate_kbps, int),
         icecast_fallback_file=_resolve("CHIRP_ICECAST_FALLBACK_FILE", raw, "icecast_fallback_file", _DC_DEFAULTS.icecast_fallback_file, str),
+        icecast_fatal_failures=_resolve("CHIRP_ICECAST_FATAL_FAILURES", raw, "icecast_fatal_failures", _DC_DEFAULTS.icecast_fatal_failures, int),
+        icecast_fatal_window_s=_resolve("CHIRP_ICECAST_FATAL_WINDOW_S", raw, "icecast_fatal_window_s", _DC_DEFAULTS.icecast_fatal_window_s, float),
+        icecast_spurious_stop_fatal_s=_resolve("CHIRP_ICECAST_SPURIOUS_STOP_FATAL_S", raw, "icecast_spurious_stop_fatal_s", _DC_DEFAULTS.icecast_spurious_stop_fatal_s, float),
         sdr_device_args=os.environ.get(
             "CHIRP_SDR_DEVICE_ARGS",
             (raw.get("sdr") or {}).get("device_args"),
@@ -573,6 +593,7 @@ class ChirpFlowgraph(gr.top_block):
         cfg: DaemonConfig,
         server: CommandServer,
         state_store: Optional[StateStore] = None,
+        on_icecast_fatal: Optional[Callable[[str], None]] = None,
     ) -> None:
         super().__init__("chirp")
         self._cfg = cfg
@@ -666,10 +687,21 @@ class ChirpFlowgraph(gr.top_block):
                 denoise_model=cfg.denoise_model,
                 denoise_gain_db=float(cfg.denoise_gain_db),
                 audio_eq=cfg.audio_eq,
+                # SB7.3-E no-third-state escalation thresholds (2026-06-18).
+                fatal_reconnect_failures=int(cfg.icecast_fatal_failures),
+                fatal_window_s=float(cfg.icecast_fatal_window_s),
+                spurious_stop_fatal_s=float(cfg.icecast_spurious_stop_fatal_s),
             )
             ice_ok = False
             try:
-                self.icecast_sink = IcecastSink(sink_cfg, flow_probe=self.flow_probe)
+                self.icecast_sink = IcecastSink(
+                    sink_cfg,
+                    flow_probe=self.flow_probe,
+                    # SB7.3-E: irrecoverable publishing escalates here; main()
+                    # wires this to a structured exit (code 4) so systemd
+                    # restarts the stack instead of an all-day silent wedge.
+                    on_fatal=on_icecast_fatal,
+                )
                 ice_ok = True
             except Exception:
                 log.exception("IcecastSink instantiation failed — falling back to file output")
@@ -1340,6 +1372,10 @@ class ChirpFlowgraph(gr.top_block):
                 "pool_free": sum(1 for s in self.slots if s.user_id is None),
             }
             # Phase 3: surface icecast publisher state.
+            # SB7.3-E adds the truth-telling fields: on 2026-06-18 this block
+            # kept reporting plausible values for a publish loop that had been
+            # dead since 19:11:49 (byte counter frozen, state "disconnected",
+            # nothing that said WHY or that the thread was gone).
             if self.icecast_sink is not None:
                 snap = self.icecast_sink.snapshot()
                 data.update({
@@ -1349,6 +1385,10 @@ class ChirpFlowgraph(gr.top_block):
                     "icecast_drop_count": snap["icecast_drop_count"],
                     "icecast_mount": snap["icecast_mount"],
                     "icecast_bitrate_kbps": snap["icecast_bitrate_kbps"],
+                    "publish_loop_alive": snap.get("publish_loop_alive", False),
+                    "publish_loop_restarts": snap.get("publish_loop_restarts", 0),
+                    "last_publish_error": snap.get("last_publish_error"),
+                    "spurious_stop_count": snap.get("spurious_stop_count", 0),
                 })
             else:
                 data.update({
@@ -1356,6 +1396,10 @@ class ChirpFlowgraph(gr.top_block):
                     "icecast_bytes_sent": 0,
                     "icecast_reconnect_count": 0,
                     "icecast_drop_count": 0,
+                    "publish_loop_alive": False,
+                    "publish_loop_restarts": 0,
+                    "last_publish_error": None,
+                    "spurious_stop_count": 0,
                 })
             # Phase 4-pre: surface LO scheduler state for the dashboard.
             data["lo_scheduler"] = self.lo_scheduler.snapshot()
@@ -1540,6 +1584,28 @@ class ChirpFlowgraph(gr.top_block):
         self.lo_scheduler.stop()
         self.hit_detector.stop()
 
+    # -- flowgraph stop (SB7.3-E shutdown-intent handshake) -----------------
+
+    def stop(self):
+        """Daemon-initiated flowgraph stop.
+
+        Declares shutdown INTENT on the icecast sink FIRST, so the GR-invoked
+        ``IcecastSink.stop()`` (fired from the block_executor destructor as
+        scheduler threads exit) is recognized as genuine shutdown rather than
+        the 2026-06-18 spurious wind-down. ``sink.shutdown()`` also performs
+        the full (idempotent) teardown here because after a 6/18-style
+        wind-down GR has already destroyed the block's executor and will never
+        call the block's stop() again — without this call, lame and the shout
+        connection would leak on exit.
+        """
+        sink = self.icecast_sink
+        if sink is not None:
+            try:
+                sink.shutdown()
+            except Exception:  # noqa: BLE001 — teardown must reach super().stop()
+                log.exception("icecast sink shutdown raised")
+        return super().stop()
+
     # -- shutdown drain ----------------------------------------------------
 
     def shutdown_drain(self, drain_timeout: float = 2.0) -> None:
@@ -1654,7 +1720,21 @@ def main() -> int:
         dispatch=lambda env, args: tb.dispatch(env, args),  # late-bound via closure
     )
 
-    tb = ChirpFlowgraph(cfg, server)
+    # SB7.3-E: the icecast sink's on_fatal escalation. Fires (at most once)
+    # when publishing is genuinely irrecoverable — N reconnect-exhausted
+    # cycles over T minutes, or a spurious GR stop() with no samples for the
+    # grace window (the 2026-06-18 wedge: flowgraph dead, daemon scanning,
+    # /ANALOG_GROUND.mp3 sourceless all day). Runs on a sink thread, so it
+    # only records the reason and wakes the main loop; the structured exit
+    # (code 4, distinct from config=3 / source-contract=2) happens there.
+    fatal_reason: list[str] = []
+    fatal_evt = threading.Event()
+
+    def _on_icecast_fatal(reason: str) -> None:
+        fatal_reason.append(str(reason))
+        fatal_evt.set()
+
+    tb = ChirpFlowgraph(cfg, server, on_icecast_fatal=_on_icecast_fatal)
     tb.start()
     tb.start_health()
 
@@ -1699,9 +1779,42 @@ def main() -> int:
                 help="band-wide squelch threshold (dBFS) applied to all channels",
             )
 
+        def _collect_publish_health(reg, _tb=tb, _lbl=_daemon_lbl):
+            # SB7.3-E (2026-06-18): the gauge that says whether the icecast
+            # publish thread is actually running. byte counters freeze at a
+            # plausible value when the loop dies; this cannot.
+            sink = getattr(_tb, "icecast_sink", None)
+            if sink is None:
+                return
+            try:
+                snap = sink.snapshot()
+            except Exception:  # noqa: BLE001
+                return
+            reg.set_gauge(
+                "chirp_publish_loop_alive",
+                1.0 if snap.get("publish_loop_alive") else 0.0,
+                labels=_lbl,
+                help="1 while the icecast publish thread is alive "
+                     "(0 = the 2026-06-18 dead-publisher wedge)",
+            )
+            reg.set_counter(
+                "chirp_publish_loop_restarts_total",
+                float(snap.get("publish_loop_restarts", 0)),
+                labels=_lbl,
+                help="publish-loop supervisor restarts after transient errors",
+            )
+            reg.set_counter(
+                "chirp_icecast_spurious_stop_total",
+                float(snap.get("spurious_stop_count", 0)),
+                labels=_lbl,
+                help="GR stop() calls received outside daemon shutdown "
+                     "(flowgraph wound down under a live daemon)",
+            )
+
         metrics.REGISTRY.register_callback(_collect_alive)
         metrics.REGISTRY.register_callback(_collect_audio_bytes)
         metrics.REGISTRY.register_callback(_collect_global_squelch)
+        metrics.REGISTRY.register_callback(_collect_publish_health)
 
     try:
         server.start()
@@ -1767,9 +1880,38 @@ def main() -> int:
     # a transition (not every 10 s) and so a recovery is announced once.
     audio_branch_ok = True
 
+    exit_code = 0
     try:
         while not stop_evt.is_set():
             time.sleep(0.25)
+            # SB7.3-E: irrecoverable-publishing escalation from the icecast
+            # sink. Exit with a STRUCTURED diagnostic + distinct code 4 so
+            # systemd restarts the whole stack — the no-third-state answer to
+            # the 2026-06-18 all-day dead-air wedge (config hard-fail = 3,
+            # source-contract violation = 2).
+            if fatal_evt.is_set():
+                reason = fatal_reason[0] if fatal_reason else "unknown"
+                log.critical(
+                    "ICECAST PUBLISH FATAL — exiting for systemd restart: %s",
+                    json.dumps({
+                        "event": "icecast_publish_fatal",
+                        "band": cfg.band,
+                        "reason": reason,
+                        "exit_code": 4,
+                    }),
+                )
+                server.emit_event(
+                    "icecast_publish_fatal", band=cfg.band, reason=reason,
+                )
+                _sd_notify(None, f"icecast publish fatal: {reason}")
+                if _metrics_enabled:
+                    metrics.REGISTRY.inc_counter(
+                        "chirp_daemon_restart_total", 1,
+                        labels={"daemon": cfg.band, "reason": "icecast_publish_fatal"},
+                        help="chirp daemon process starts by reason (process-local)",
+                    )
+                exit_code = 4
+                break
             now = time.monotonic()
             if now - last_watchdog >= _WATCHDOG_INTERVAL_S:
                 # SB6 audio-flow gate: when the probe is enabled and the audio
@@ -1825,7 +1967,7 @@ def main() -> int:
             time.sleep(drain_s)
 
         log.info("chirp stopped")
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
