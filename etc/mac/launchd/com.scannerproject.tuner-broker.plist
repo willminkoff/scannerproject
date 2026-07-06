@@ -29,18 +29,22 @@
         <string>broker</string>
     </array>
 
-    <!-- The broker package lives in the repo checkout; the venv python
-         needs it on sys.path. WorkingDirectory covers `python -m`'s
-         cwd-prepend, PYTHONPATH below is the explicit belt-and-braces. -->
+    <!-- Runs from /opt/scannerproject/app (a deploy copy of the repo), NOT the
+         ~/Documents git checkout. CRITICAL macOS gotcha: ~/Documents is a
+         TCC-privacy-protected location, and a headless launchd process whose
+         cwd/sys.path touches it HANGS on the consent check (no UI to answer) —
+         Python blocks during interpreter init scanning cwd for the encodings
+         module. /opt is not TCC-protected. Deploy = rsync the repo to
+         /opt/scannerproject/app. (M1 provisioning finding, 2026-07-05.) -->
     <key>WorkingDirectory</key>
-    <string>/Users/willminkoff/Documents/scannerproject</string>
+    <string>/opt/scannerproject/app</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>SCANNER_FLEET_POLICY</key>
         <string>/opt/scannerproject/etc/sdr_fleet_policy.json</string>
         <key>PYTHONPATH</key>
-        <string>/Users/willminkoff/Documents/scannerproject</string>
+        <string>/opt/scannerproject/app</string>
         <key>PYTHONUNBUFFERED</key>
         <string>1</string>
     </dict>
