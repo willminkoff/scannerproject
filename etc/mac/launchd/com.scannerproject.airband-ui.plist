@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  com.scannerproject.airband-ui (SB7.6)
+
+  The web dashboard (ui/app.py, stdlib http.server on 0.0.0.0:5050) — status,
+  hit log, squelch/gain controls, sitrep, and (once Will wires up SDRTrunk
+  profiles) the digital view. Runs under /opt/scannerproject/venv, NOT
+  radioconda — ui/chirp_client.py and ui/chirp_adapter.py are stdlib-only by
+  design so the UI never needs a gnuradio import to talk to the chirp
+  daemons over UDP.
+
+  Unlike the chirp/tuner-broker plists, this one does NOT hardcode its
+  environment. ui/config.py reads ~140 os.getenv() calls (every path, unit
+  name, and port the UI needs), and scannerproject.env's own header comment
+  says exactly this file is meant to be sourced by "every scannerproject
+  process (UI, op25 bridge, decoders)". Duplicating that many vars into the
+  plist would create a second copy that silently drifts from the real one —
+  precisely the stale-config bug class this project keeps finding elsewhere
+  (chirp/config/airband.json, the fleet policy). So ProgramArguments is a
+  small zsh wrapper that sources the env file, then execs the UI — matching
+  exactly how it was launched by hand for testing during 2026-07-06 bring-up.
+
+  Runs from /opt/scannerproject/app (the rsync deploy copy), NOT the
+  ~/Documents git checkout, for the same TCC reason as every other SB7
+  service: a headless launchd process touching ~/Documents hangs on the
+  consent check with no UI to answer it (macos-launchagent-tcc memory
+  finding, 2026-07-05).
+
+  Install (LaunchAgent, user session):
+    cp etc/mac/launchd/com.scannerproject.airband-ui.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.airband-ui.plist
+  Logs: /opt/scannerproject/log/airband-ui.log
+  URL:  http://<m1-tailscale-ip>:5050/sb5
+-->
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.airband-ui</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-c</string>
+        <string>set -a; source /opt/scannerproject/etc/scannerproject.env; set +a; exec /opt/scannerproject/venv/bin/python ui/airband_ui.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/scannerproject/app</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/opt/scannerproject/log/airband-ui.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/scannerproject/log/airband-ui.log</string>
+</dict>
+</plist>
