@@ -22,10 +22,10 @@
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.chirp-ground.plist
   Logs: /opt/scannerproject/log/chirp-ground.log
 
-  Still targets /CHIRP_GROUND_TEST.mp3 (chirp's built-in prod-mount refusal
-  list is /ANALOG.mp3, /ANALOG_GROUND.mp3, /DIGITAL.mp3, /VFO.mp3 — see
-  chirp/daemon.py). Flip to /ANALOG_GROUND.mp3 + CHIRP_ALLOW_PROD_MOUNT=1 only
-  after this has soaked clean.
+  Targets the PRODUCTION mount /ANALOG_GROUND.mp3 with CHIRP_ALLOW_PROD_MOUNT=1
+  (chirp's built-in prod-mount refusal list is /ANALOG.mp3, /ANALOG_GROUND.mp3,
+  /DIGITAL.mp3, /VFO.mp3 — see chirp/daemon.py; this template intentionally
+  overrides it, having soaked clean first on /CHIRP_GROUND_TEST.mp3, 2026-07-06).
 -->
 <dict>
     <key>Label</key>
@@ -72,7 +72,9 @@
         <key>CHIRP_CONFIG_REQUIRED</key>
         <string>1</string>
         <key>CHIRP_AUDIO_OUT</key>
-        <string>icecast:127.0.0.1:8000:/CHIRP_GROUND_TEST.mp3:CHANGE_ME_ICECAST_SOURCE_PASSWORD</string>
+        <string>icecast:127.0.0.1:8000:/ANALOG_GROUND.mp3:CHANGE_ME_ICECAST_SOURCE_PASSWORD</string>
+        <key>CHIRP_ALLOW_PROD_MOUNT</key>
+        <string>1</string>
         <key>CHIRP_AUDIO_PROBE_ENABLED</key>
         <string>1</string>
         <key>CHIRP_METRICS_ENABLED</key>

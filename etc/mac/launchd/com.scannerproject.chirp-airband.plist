@@ -39,15 +39,16 @@
   (30s, the anti-churn guard against rapid sdrplay_api open/close cycles) so a
   KeepAlive respawn never hot-loops against a broker denial.
 
-  CHIRP_AUDIO_OUT below targets the TEST mount with a PLACEHOLDER password —
-  this template is committed to git as-is. Deploy substitutes the real
-  generated icecast source password (from /opt/scannerproject/etc/
-  icecast-credentials.env, chmod 600, never committed) via sed into the copy
-  installed at ~/Library/LaunchAgents — the placeholder must NEVER reach that
-  installed copy unsubstituted, or the daemon will fail to authenticate.
-  Flip CHIRP_AUDIO_OUT's mount to /ANALOG.mp3 + add CHIRP_ALLOW_PROD_MOUNT=1
-  only after this has soaked clean on the test mount (chirp refuses the
-  production mount by default — a deliberate safety gate, see chirp/daemon.py).
+  CHIRP_AUDIO_OUT below targets the PRODUCTION mount /ANALOG.mp3, with
+  CHIRP_ALLOW_PROD_MOUNT=1 (chirp refuses that mount by default — a
+  deliberate safety gate, see chirp/daemon.py — this template intentionally
+  overrides it, having soaked clean first on /CHIRP_TEST.mp3, 2026-07-06).
+  The password field below is a PLACEHOLDER; this template is committed to
+  git as-is. Deploy substitutes the real generated icecast source password
+  (from /opt/scannerproject/etc/icecast-credentials.env, chmod 600, never
+  committed) via sed into the copy installed at ~/Library/LaunchAgents —
+  the placeholder must NEVER reach that installed copy unsubstituted, or the
+  daemon will fail to authenticate.
 
   Install:
     sed -e "s/CHANGE_ME_ICECAST_SOURCE_PASSWORD/$(grep ICECAST_SOURCE_PASSWORD /opt/scannerproject/etc/icecast-credentials.env | cut -d= -f2)/" \
@@ -100,7 +101,9 @@
         <key>CHIRP_CONFIG_REQUIRED</key>
         <string>1</string>
         <key>CHIRP_AUDIO_OUT</key>
-        <string>icecast:127.0.0.1:8000:/CHIRP_TEST.mp3:CHANGE_ME_ICECAST_SOURCE_PASSWORD</string>
+        <string>icecast:127.0.0.1:8000:/ANALOG.mp3:CHANGE_ME_ICECAST_SOURCE_PASSWORD</string>
+        <key>CHIRP_ALLOW_PROD_MOUNT</key>
+        <string>1</string>
         <key>CHIRP_AUDIO_PROBE_ENABLED</key>
         <string>1</string>
         <key>CHIRP_METRICS_ENABLED</key>
