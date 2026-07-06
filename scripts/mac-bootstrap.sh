@@ -188,6 +188,61 @@ PYEOF
       bash "$RC_INSTALLER" -b -p "$RC_PREFIX" || die "radioconda install failed"
       ok "radioconda installed at $RC_PREFIX"
     fi
+    # macOS 26's dyld hard-rejects any Mach-O carrying duplicate LC_RPATH load
+    # commands. radioconda's install-time relocation leaves many libs
+    # (libgfortran, libquadmath, libopenblas, ...) with @loader_path repeated
+    # and/or a @loader_path/ trailing-slash variant, so numpy — and the whole
+    # GNU Radio stack — fail to import. Dedupe every dylib/.so's rpaths and
+    # re-sign ad-hoc (modifying a dylib invalidates its signature; arm64 needs
+    # a valid one to load). Idempotent. DYLD_* env vars do NOT work around this.
+    # Discovered provisioning the M1 on 2026-07-05.
+    warn "normalising radioconda dylib LC_RPATHs for macOS dyld (dedupe + re-sign)"
+    /usr/bin/python3 - "$RC_PREFIX/lib" <<'PYFIX'
+import os, subprocess, sys
+root = sys.argv[1]
+def rpaths(p):
+    out = subprocess.run(["otool", "-l", p], capture_output=True, text=True).stdout
+    r, L = [], out.splitlines()
+    for i, l in enumerate(L):
+        if "cmd LC_RPATH" in l:
+            for j in range(i, min(i + 4, len(L))):
+                s = L[j].strip()
+                if s.startswith("path "):
+                    r.append(s[5:].rsplit(" (offset", 1)[0]); break
+    return r
+fixed = 0
+for dp, _, fs in os.walk(root):
+    for fn in fs:
+        if not (fn.endswith(".dylib") or fn.endswith(".so")):
+            continue
+        p = os.path.join(dp, fn)
+        if os.path.islink(p):
+            continue
+        try:
+            rps = rpaths(p)
+        except Exception:
+            continue
+        seen, keep = set(), []
+        for r in rps:
+            k = r.rstrip("/")
+            if k not in seen:
+                seen.add(k); keep.append(k)
+        if len(keep) == len(rps) and all(r == r.rstrip("/") for r in rps):
+            continue
+        g = 0
+        while g < 60:
+            cur = rpaths(p)
+            if not cur:
+                break
+            subprocess.run(["install_name_tool", "-delete_rpath", cur[0], p], capture_output=True)
+            g += 1
+        for k in keep:
+            subprocess.run(["install_name_tool", "-add_rpath", k, p], capture_output=True)
+        subprocess.run(["codesign", "-f", "-s", "-", p], capture_output=True)
+        fixed += 1
+print("  rpath-normalised %d libs" % fixed)
+PYFIX
+    ok "radioconda dylib rpaths normalised for dyld"
     if ! gr_verify; then
       warn "GR imports incomplete — installing from conda-forge (idempotent)"
       RC_CONDA="$RC_PREFIX/bin/mamba"
