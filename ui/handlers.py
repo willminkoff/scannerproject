@@ -3531,8 +3531,8 @@ def _compute_heartbeat_payload() -> dict:
         # actual analog pipeline.
         service_units = [
             ("airband-ui",          UNITS.get("ui", "airband-ui")),
-            ("gr-demod@airband",    "gr-demod@airband.service"),
-            ("gr-demod@ground",     "gr-demod@ground.service"),
+            ("gr-demod@airband",    UNITS.get("rtl_airband", "gr-demod@airband.service")),
+            ("gr-demod@ground",     UNITS.get("rtl_ground", "gr-demod@ground.service")),
             ("icecast2",            UNITS.get("icecast", "icecast2")),
             ("scanner-vlc-digital", "scanner-vlc-digital.service"),
         ]
@@ -4849,8 +4849,8 @@ def _sitrep_active_service_units() -> tuple[tuple[str, str], ...]:
         chirp_on = False
     if chirp_on:
         analog_rows = (
-            ("gr-demod@airband", "gr-demod@airband.service"),
-            ("gr-demod@ground",  "gr-demod@ground.service"),
+            ("gr-demod@airband", UNITS.get("rtl_airband", "gr-demod@airband.service")),
+            ("gr-demod@ground",  UNITS.get("rtl_ground", "gr-demod@ground.service")),
         )
     else:
         analog_rows = (
