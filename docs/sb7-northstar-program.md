@@ -26,7 +26,7 @@ program that gets there — designed around the hardware actually on hand:
 | Mac mini 2018 | Intel i5-8500B 6-core 3.0 GHz, 16 GB RAM, 4× TB3 (2 buses) + 2× USB-A |
 | Mac mini 2021 | Apple M1, 8 GB RAM, 2× TB/USB4 + 2× USB-A |
 | 2× SDRplay RSPduo | serials 180903EF32 (RSP-A), 1809063632 (RSP-B) |
-| 3× RTL-SDR (attached) | 61108285 (ground), 83241970 (Blog V4, VFO), 56919602 (NESDR, waterfall+WX shared) — verified on the M1, 2026-07-06. A 4th is not currently attached. |
+| 3× RTL-SDR (attached) | 61108285 (ground), 83241970 (Blog V4, VFO), 56919602 (NESDR, WX) — verified on the M1, 2026-07-06. A 4th is not currently attached; waterfall is deferred until it is. |
 
 ---
 
@@ -142,7 +142,8 @@ entirely), drove the final RTL assignment below.
 | **RSP-B** 1809063632 | ST, tuner 1 | chirp **airband** — **LIVE** on `/ANALOG.mp3` | fixed |
 | **RTL** 61108285 (stable) | — | chirp **ground** NFM — **LIVE** on `/ANALOG_GROUND.mp3` | fixed, 24/7 |
 | **RTL** 83241970 (Blog V4, best RF) | — | **VFO** (`scripts/vfo.py`, manual tune + mini-waterfall → `/VFO.mp3`) | fixed |
-| **RTL** 56919602 (reliability TBD) | — | **waterfall** (`/sb5` Live IQ) *and* **WX** (VDL2/ACARS) — time-share, broker-arbitrated | shared |
+| **RTL** 56919602 (reliability TBD) | — | **WX** (VDL2/ACARS), dedicated, unshared | fixed |
+| *(none)* | — | **waterfall** (`/sb5` Live IQ) — **DEFERRED**, not a priority per Will (2026-07-06); no dongle allocated until a 4th RTL arrives | pending hardware |
 
 Both analog bands are **confirmed running** as broker-arbitrated launchd
 services (`com.scannerproject.chirp-airband`/`-ground`), verified end-to-end
@@ -154,7 +155,9 @@ ships first on tuner 1; the 2nd system slots onto tuner 2 with no hardware chang
 (SDRTrunk restart to add). **Growth to a 3rd system** needs a **4th physical RTL**
 (none of the 3 attached are spare — see below); the growth mechanism itself
 (heterogeneous tuners in one SDRTrunk instance, broker-leased on demand) is
-unchanged from the original design.
+unchanged from the original design. Note the next RTL to arrive has two
+competing claims on it (a 3rd P25 system, or un-deferring waterfall) — whoever
+gets there first is a call for whenever that RTL actually shows up, not now.
 
 **What still holds by construction:** 0x6bed needs *two* concurrent dual-tuner
 RSPduos through one apiService — we run exactly one (RSP-B is ST), so it stays
@@ -170,14 +173,13 @@ separate feature (manually-tunable live receiver + its own mini-waterfall,
 the gap surfaced: **VFO reclaims the RTL-SDR Blog V4 (83241970)**, restoring
 its original micro-era assignment (chosen there specifically for the Blog V4's
 better front-end/SNR — it moved 80000003 → 61108285 → 83241970 over micro's
-life for exactly that reason). Cost: waterfall and WX now **time-share** the
-one remaining RTL (56919602) via the broker instead of each having one.
-Neither `scripts/waterfall.py` nor the WX decoders are broker-integrated yet —
-that's a prerequisite before either goes live on this box (claim by serial,
-not by role — see the fleet policy's `_shared_with_mechanism` note; the
-broker's `shared_with` field is documentation only, not enforced routing).
-If the waterfall/WX contention becomes a real problem in practice, the fix is
-a 4th RTL, not a policy change.
+life for exactly that reason). **Waterfall is deferred** (not a priority per
+Will, same conversation) — it has no dongle allocated at all right now, not
+even shared; the remaining RTL (56919602) is WX's, dedicated. When a 4th RTL
+arrives, give it to whichever of {waterfall, 3rd-P25} is the priority then;
+this doc doesn't need to pre-decide it. WX itself is not broker-integrated yet
+(the decoder scripts predate the broker) — wiring the claim-by-serial call in
+is a prerequisite before it goes live on this box.
 
 **Open (only Will can answer):** the 2nd P25 system's name (for tuner 2), and —
 before either goes live — a one-time SDRangel span check that each system's
