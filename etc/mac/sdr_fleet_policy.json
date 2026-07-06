@@ -60,18 +60,18 @@
       "label": "VFO", "role": "vfo", "consumer": "scripts/vfo.py",
       "reliability": "best-RF-quality (R828D tuner + TCXO); historically flaky USB re-enumeration on micro (error -71) — watch during soak on the M1's own ports/cables",
       "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": [],
-      "_note": "Dedicated to VFO (2026-07-06, restoring its original micro-era assignment) per Will's call: VFO is a manually-tunable live receiver (scripts/vfo.py, publishes /VFO.mp3 + a mini-waterfall) and specifically wants this dongle's superior front-end/SNR for tuning into weak signals — it went 80000003 -> 61108285 -> 83241970 on micro for exactly that reason, landing here. NOT the auto-scanning waterfall (that's RTL-WF-WX below) — do not conflate the two." },
-    { "id": "RTL-WX", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-05 (NESDR SMArt v5; new to the fleet, reliability TBD in soak)",
-      "label": "WX", "role": "wx", "consumer": "broker-arbitrated",
+      "_note": "Dedicated to VFO (2026-07-06, restoring its original micro-era assignment) per Will's call: VFO is a manually-tunable live receiver (scripts/vfo.py, publishes /VFO.mp3 + a mini-waterfall) and specifically wants this dongle's superior front-end/SNR for tuning into weak signals — it went 80000003 -> 61108285 -> 83241970 on micro for exactly that reason, landing here. NOT the same thing as the auto-scanning waterfall (/sb5 Live IQ) — that's a different, currently-DEFERRED feature with NO dongle at all (not even this one); do not conflate the two." },
+    { "id": "RTL-SOUNDING", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-05 (NESDR SMArt v5; new to the fleet, reliability TBD in soak)",
+      "label": "SOUNDING", "role": "sounding", "consumer": "broker-arbitrated",
       "reliability": "unknown", "sample_rate_hz": 2400000, "usb_group": "G3",
       "shared_with": [],
-      "_note": "WX (VDL2/ACARS) dedicated, unshared (2026-07-06). Waterfall (/sb5 Live IQ) is DEFERRED — not a priority per Will — until a 4th RTL is added; it has NO dongle right now, not even a shared one. When a 4th RTL arrives, give waterfall that new dongle (simplest) rather than re-introducing a share here. WX itself is not broker-integrated yet (scripts predate the broker) — wiring the claim-by-serial call in is still a prerequisite before this goes live." }
+      "_note": "\"Sounding\" (2026-07-06 naming, Will's call) = the atmospheric-sounding decoder family: ACARS + VDL2 (aircraft-datalink weather reports, adjacent VHF aviation channels ~130-137 MHz, can plausibly share one wideband RTL capture) and radiosonde (weather-balloon telemetry, ~400-406 MHz US — a DIFFERENT band, cannot run simultaneously with ACARS/VDL2 on this one dongle; needs its own dongle or a broker-arbitrated time-share, which suits radiosonde's scheduled-flight-window usage pattern anyway). Dedicated, unshared. Waterfall (/sb5 Live IQ) is DEFERRED — not a priority per Will — until a 4th RTL is added; it has NO dongle right now. None of the sounding decoders are broker-integrated yet (scripts predate the broker) — wiring the claim-by-serial call in is still a prerequisite before any of them go live." }
   ],
   "usb_groups": {
     "G1": { "host_port": "Thunderbolt/USB4 port 1", "hub": null, "_note": "RSP-A (dual-tuner, heaviest) direct-cabled, own controller, no hub" },
     "G2": { "host_port": "Thunderbolt/USB4 port 2", "hub": null, "_note": "RSP-B direct-cabled, own controller, no hub" },
-    "G3": { "host_port": "USB-A", "hub": "H1 (powered, own PSU)", "members": ["RTL-GROUND", "RTL-VFO", "RTL-WF-WX"],
-            "_note": "3 RTLs on a powered hub. VERIFY on the box with `system_profiler SPUSBDataType`: the M1's two USB-A ports may share one controller — if so, consider splitting across a 2nd powered hub if throughput/overflow shows up in soak. A 4th RTL (to un-share waterfall/WX, or for a 3rd P25 growth system) would land here or on a 2nd hub." }
+    "G3": { "host_port": "USB-A", "hub": "H1 (powered, own PSU)", "members": ["RTL-GROUND", "RTL-VFO", "RTL-SOUNDING"],
+            "_note": "3 RTLs on a powered hub. VERIFY on the box with `system_profiler SPUSBDataType`: the M1's two USB-A ports may share one controller — if so, consider splitting across a 2nd powered hub if throughput/overflow shows up in soak. A 4th RTL (to un-defer waterfall, or for a 3rd P25 growth system) would land here or on a 2nd hub." }
   },
   "broker": {
     "launchd_label": "com.scannerproject.tuner-broker",
