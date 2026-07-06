@@ -1009,24 +1009,23 @@ def reboot_host() -> Tuple[bool, str]:
     return False, err
 
 
-def stop_rtl():
-    """Stop the rtl-airband scanner."""
-    subprocess.run(
-        ["systemctl", "stop", UNITS["rtl"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+def stop_rtl() -> Tuple[bool, str]:
+    """Stop the rtl-airband scanner.
+
+    Was a hardcoded `subprocess.run(["systemctl", ...])` — bypassed the
+    ServiceBackend abstraction entirely, so it raised FileNotFoundError on
+    any backend without a literal `systemctl` binary (e.g. LaunchdBackend on
+    macOS) instead of routing through get_backend(). Found during the SB7 UI
+    macOS bring-up, 2026-07-06. All callers discard the return value already,
+    so widening None -> Tuple[bool, str] to match _stop_unit is safe.
+    """
+    return _stop_unit(UNITS["rtl"])
 
 
-def stop_ground():
-    """Stop the ground scanner."""
-    subprocess.run(
-        ["systemctl", "stop", UNITS["ground"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+def stop_ground() -> Tuple[bool, str]:
+    """Stop the ground scanner. See stop_rtl() docstring for why this
+    changed from a hardcoded systemctl call to the backend abstraction."""
+    return _stop_unit(UNITS["ground"])
 
 
 def stop_digital() -> Tuple[bool, str]:
@@ -1034,22 +1033,14 @@ def stop_digital() -> Tuple[bool, str]:
     return _stop_unit(UNITS["digital"])
 
 
-def start_rtl():
-    """Start the rtl-airband scanner."""
-    subprocess.Popen(
-        ["systemctl", "start", "--no-block", UNITS["rtl"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+def start_rtl() -> Tuple[bool, str]:
+    """Start the rtl-airband scanner. See stop_rtl() docstring."""
+    return _start_unit(UNITS["rtl"])
 
 
-def start_ground():
-    """Start the ground scanner."""
-    subprocess.Popen(
-        ["systemctl", "start", "--no-block", UNITS["ground"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+def start_ground() -> Tuple[bool, str]:
+    """Start the ground scanner. See stop_rtl() docstring."""
+    return _start_unit(UNITS["ground"])
 
 
 def start_acars() -> Tuple[bool, str]:
