@@ -11,7 +11,7 @@
   "digital_capacity": {
     "primary_systems": 2,
     "_primary": "RSP-A in SDRTrunk native Dual Tuner mode = 2 P25 systems at once, one per ~2 MHz tuner. MTRTRS ships first on tuner 1; the 2nd system slots onto tuner 2 (Will to name it). Each system's monitored SITE must fit ~2 MHz — verify spans in SDRangel before committing (a single trunked site's control+traffic normally fits well under 2 MHz; statewide spread does NOT matter because you monitor one site).",
-    "growth_to_3": "A 3rd P25 system = add RTL 'DIGITAL-FLEX' (70613472) to the SAME SDRTrunk instance (heterogeneous tuners are supported). The broker leases that RTL to SDRTrunk on demand; drops disco/hot-spare use of it while active.",
+    "growth_to_3": "A 3rd P25 system = add a 4TH RTL (not currently attached — only 3 RTLs are on the M1 as of 2026-07-05) to the SAME SDRTrunk instance (heterogeneous tuners are supported). The broker leases that RTL to SDRTrunk on demand; drops disco/hot-spare use of it while active. Until a 4th RTL is plugged in, digital = the 2 RSP-A dual-tuner systems only.",
     "_0x6bed_safe": "RSP-A dual + RSP-B single-tuner through ONE apiService is compliant (max_concurrent_dual_tuner_rspduo=1). The never-tested combo here is SDRTrunk(native API) + chirp(SoapySDRPlay3) sharing one apiService — validate in the SB7.1 soak before trusting 24/7."
   },
   "invariants": {
@@ -52,26 +52,20 @@
       "device_args": "driver=sdrplay,serial=1809063632,rspduo_mode=ST,rspduo_tuner=1",
       "_note": "ST = the proven-clean airband config (2026-06-15). chirp calls set_bandwidth explicitly (chirp/dsp/source_sdr.py) — keep bandwidth_hz set even though ST tolerates a driver default."
     },
-    { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "80000003", "serial_status": "confirmed-on-micro; re-verify + reflash if needed in SB7.1",
+    { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "61108285", "serial_status": "PRESENT-on-M1 2026-07-05 (was micro's WX dongle; micro-confirmed stable)",
       "label": "GROUND", "role": "chirp-ground", "consumer": "gr-demod@ground",
       "reliability": "stable", "sample_rate_hz": 2400000, "gain_db": 32, "usb_group": "G3", "shared_with": [],
-      "_note": "FIXED, 24/7 core analog. Ground NFM on RTL is the proven 2026-06-18 fix. Stable dongle chosen deliberately. Gain 30-35 (40 clips the V4-class front end)." },
-    { "id": "RTL-DIGFLEX", "kind": "rtlsdr", "serial": "70613472", "serial_status": "confirmed-on-micro; re-verify in SB7.1",
-      "label": "DIGITAL-FLEX", "role": "flex-digital", "consumer": "broker-arbitrated",
-      "reliability": "stable", "sample_rate_hz": 2400000, "usb_group": "G3",
-      "shared_with": ["sdrtrunk-p25-3", "disco", "hot-spare"],
-      "priority": ["sdrtrunk-p25-3", "hot-spare", "disco"],
-      "_note": "The growth path to a 3rd P25 system. Stable dongle (a digital control channel needs reliability). Default idle role = disco sweep / hot-spare; broker promotes it to SDRTrunk's 3rd system when Will activates one." },
-    { "id": "RTL-WX", "kind": "rtlsdr", "serial": "61108285", "serial_status": "confirmed-on-micro; re-verify in SB7.1",
+      "_note": "FIXED, 24/7 core analog. The most-reliable attached RTL deliberately on the 24/7 ground band. Ground NFM on RTL is the proven 2026-06-18 fix. Gain 30-35 (40 clips the front end)." },
+    { "id": "RTL-WX", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-05 (NESDR SMArt v5; new to the fleet, reliability TBD in soak)",
       "label": "WX", "role": "wx", "consumer": "broker-arbitrated",
-      "reliability": "stable", "sample_rate_hz": 2400000, "usb_group": "G3",
+      "reliability": "unknown", "sample_rate_hz": 2400000, "usb_group": "G3",
       "shared_with": ["vdl2", "acars", "hot-spare"],
       "priority": ["vdl2", "acars", "hot-spare"],
-      "_note": "Weather decoders (VDL2 / ACARS). Drop-tolerant. Can be surrendered to hot-spare if a dedicated dongle dies." },
-    { "id": "RTL-WF", "kind": "rtlsdr", "serial": "83241970", "serial_status": "confirmed-on-micro (RTL-SDR Blog V4, USB-finicky — error -71 re-enumeration history)",
+      "_note": "Weather decoders (VDL2 / ACARS). Drop-tolerant role for a not-yet-proven dongle." },
+    { "id": "RTL-WF", "kind": "rtlsdr", "serial": "83241970", "serial_status": "PRESENT-on-M1 2026-07-05 (RTL-SDR Blog V4; USB-finicky on micro, enumerates clean on M1)",
       "label": "WATERFALL", "role": "waterfall", "consumer": "scanner-waterfall",
       "reliability": "finicky", "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": ["hot-spare"],
-      "_note": "Live IQ waterfall (/sb5), SINGLE-dongle mode (~2.4 MHz span). The flaky V4 lands here on purpose — the waterfall is drop-tolerant, digital/analog decode is not. Put it on the best hub port. NOTE: this is a step down from the old 2-dongle stitched waterfall — that RTL was reallocated to DIGITAL-FLEX to serve Will's '≥2 digital systems, room for 3' requirement. If Will prefers the wide stitched waterfall over a 3rd digital system, swap RTL-DIGFLEX back to waterfall-B." }
+      "_note": "Live IQ waterfall (/sb5), single-dongle. The flaky V4 on the drop-tolerant role by design. NOTE: only 3 RTLs are attached — the DIGITAL-FLEX slot (3rd-P25 growth / disco / hot-spare) has NO dongle; add a 4th RTL to enable it." }
   ],
   "usb_groups": {
     "G1": { "host_port": "Thunderbolt/USB4 port 1", "hub": null, "_note": "RSP-A (dual-tuner, heaviest) direct-cabled, own controller, no hub" },
