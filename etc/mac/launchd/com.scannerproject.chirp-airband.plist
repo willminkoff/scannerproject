@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  com.scannerproject.chirp-airband (SB7.5)
+
+  Runs chirp's airband daemon UNDER the tuner-broker's CLI wrapper
+  (`python -m broker.client run`), which is exactly what that wrapper was
+  built for (SB7.2-D): it claims serial 1809063632 (RSP-B) before the daemon
+  ever touches SoapySDR, holds the lease for the daemon's whole lifetime (the
+  broker connection socket IS the lease — this plist's own process holds it
+  open), and releases automatically on exit for any reason, including a crash.
+  This is what keeps a second consumer from ever opening RSP-B underneath
+  chirp, and what serializes/rate-limits opens near the fragile sdrplay
+  apiService.
+
+  Two process layers, deliberately:
+    outer  = venv python running broker.client (stdlib-only; holds the lease,
+             forwards signals, waits on the child)
+    inner  = radioconda python running chirp.daemon (needs gnuradio, which is
+             not pip-installable — see docs/mac-mini-port.md / SB7 §4.3)
+
+  CRITICAL macOS gotchas baked in here (all found + fixed 2026-07-05/06,
+  see memory/sb7-first-audio-m1.md):
+    - WorkingDirectory/PYTHONPATH point at /opt/scannerproject/app, NOT the
+      ~/Documents git checkout — ~/Documents is TCC-protected and a headless
+      launchd process touching it hangs with no consent UI to answer.
+    - PATH includes radioconda/bin — chirp spawns `lame` by bare name.
+    - SOAPY_SDR_PLUGIN_PATH is mandatory — radioconda's SoapySDR has a
+      compiled-in module path that does not survive relocation; without this,
+      SoapySDR reports the sdrplay driver MISSING.
+    - SoftResourceLimits/HardResourceLimits NumberOfFiles — GNU Radio's
+      vmcircbuf shared-memory buffers need far more fds than macOS's default
+      soft limit (256); "shmat: Too many open files" otherwise. RLIMIT_NOFILE
+      is inherited across fork/exec, so setting it here on the outer process
+      covers the exec'd chirp.daemon child too.
+
+  ThrottleInterval (45s) is set ABOVE the fleet policy's min_restart_interval_sec
+  (30s, the anti-churn guard against rapid sdrplay_api open/close cycles) so a
+  KeepAlive respawn never hot-loops against a broker denial.
+
+  CHIRP_AUDIO_OUT below targets the PRODUCTION mount /ANALOG.mp3, with
+  CHIRP_ALLOW_PROD_MOUNT=1 (chirp refuses that mount by default — a
+  deliberate safety gate, see chirp/daemon.py — this template intentionally
+  overrides it, having soaked clean first on /CHIRP_TEST.mp3, 2026-07-06).
+  The password field below is a PLACEHOLDER; this template is committed to
+  git as-is. Deploy substitutes the real generated icecast source password
+  (from /opt/scannerproject/etc/icecast-credentials.env, chmod 600, never
+  committed) via sed into the copy installed at ~/Library/LaunchAgents —
+  the placeholder must NEVER reach that installed copy unsubstituted, or the
+  daemon will fail to authenticate.
+
+  Install:
+    sed -e "s/CHANGE_ME_ICECAST_SOURCE_PASSWORD/$(grep ICECAST_SOURCE_PASSWORD /opt/scannerproject/etc/icecast-credentials.env | cut -d= -f2)/" \
+      etc/mac/launchd/com.scannerproject.chirp-airband.plist > ~/Library/LaunchAgents/com.scannerproject.chirp-airband.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.chirp-airband.plist
+  Logs: /opt/scannerproject/log/chirp-airband.log
+-->
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.chirp-airband</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/scannerproject/venv/bin/python</string>
+        <string>-m</string>
+        <string>broker.client</string>
+        <string>run</string>
+        <string>--serial</string>
+        <string>1809063632</string>
+        <string>--consumer</string>
+        <string>chirp-airband</string>
+        <string>--reason</string>
+        <string>chirp airband service (SB7.5)</string>
+        <string>--require</string>
+        <string>--</string>
+        <string>/opt/scannerproject/radioconda/bin/python</string>
+        <string>-m</string>
+        <string>chirp.daemon</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/scannerproject/app</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/scannerproject/radioconda/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>/opt/scannerproject/app</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>SOAPY_SDR_PLUGIN_PATH</key>
+        <string>/opt/scannerproject/radioconda/lib/SoapySDR/modules0.8</string>
+        <key>SCANNER_FLEET_POLICY</key>
+        <string>/opt/scannerproject/etc/sdr_fleet_policy.json</string>
+        <key>CHIRP_BAND</key>
+        <string>airband</string>
+        <key>CHIRP_SOURCE</key>
+        <string>sdr</string>
+        <key>CHIRP_CONFIG_REQUIRED</key>
+        <string>1</string>
+        <key>CHIRP_AUDIO_OUT</key>
+        <string>icecast:127.0.0.1:8000:/ANALOG.mp3:CHANGE_ME_ICECAST_SOURCE_PASSWORD</string>
+        <key>CHIRP_ALLOW_PROD_MOUNT</key>
+        <string>1</string>
+        <key>CHIRP_AUDIO_PROBE_ENABLED</key>
+        <string>1</string>
+        <key>CHIRP_METRICS_ENABLED</key>
+        <string>1</string>
+        <key>CHIRP_METRICS_PORT</key>
+        <string>9101</string>
+        <key>CHIRP_STATE_PATH</key>
+        <string>/opt/scannerproject/run/chirp_airband.state.json</string>
+        <key>CHIRP_HIT_LOG</key>
+        <string>/opt/scannerproject/run/airband_hits.jsonl</string>
+    </dict>
+
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>10240</integer>
+    </dict>
+    <key>HardResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>10240</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>45</integer>
+
+    <key>StandardOutPath</key>
+    <string>/opt/scannerproject/log/chirp-airband.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/scannerproject/log/chirp-airband.log</string>
+</dict>
+</plist>

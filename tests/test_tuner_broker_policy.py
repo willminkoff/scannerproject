@@ -41,7 +41,7 @@ class RealRepoPolicyTest(unittest.TestCase):
     def test_repo_policy_parses(self):
         pol = load_policy(REAL_POLICY)
         self.assertEqual(pol.version, 2)
-        self.assertEqual(len(pol.devices), 6)
+        self.assertEqual(len(pol.devices), 5)  # 2 RSPduo + 3 RTL (M1 actual)
         self.assertEqual(pol.invariants.max_concurrent_dual_tuner_rspduo, 1)
         self.assertEqual(pol.invariants.rspduo_open_gap_sec, 2.0)
         self.assertEqual(pol.invariants.min_restart_interval_sec, 30.0)
@@ -61,12 +61,15 @@ class RealRepoPolicyTest(unittest.TestCase):
         self.assertEqual(
             [d.serial for d in pol.devices if d.dual_tuner], ["180903EF32"]
         )
-        # RTL roles are reliability-aware: the growth-to-3rd-system dongle.
-        digflex = pol.devices_for_role("flex-digital")
-        self.assertEqual([d.serial for d in digflex], ["70613472"])
+        # RTL roles reconciled to the ACTUAL dongles enumerated on the M1
+        # (2026-07-05): 3 RTLs attached (61108285, 56919602, 83241970), no 4th.
+        # The stable micro-confirmed dongle is on the 24/7 ground band; the
+        # flex-digital (3rd-P25 growth) slot has no dongle until a 4th is added.
         self.assertEqual(
-            [d.serial for d in pol.devices_for_role("chirp-ground")], ["80000003"]
+            [d.serial for d in pol.devices_for_role("chirp-ground")], ["61108285"]
         )
+        self.assertEqual(pol.devices_for_role("flex-digital"), [])
+        self.assertEqual(len(pol.devices), 5)  # 2 RSPduo + 3 RTL
         self.assertIsNone(pol.device_by_serial("nope"))
         self.assertEqual(pol.devices_for_role("nope"), [])
 

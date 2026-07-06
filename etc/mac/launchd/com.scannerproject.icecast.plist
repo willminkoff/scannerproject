@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  com.scannerproject.icecast (SB7.5)
+
+  The streaming server all chirp/SDRTrunk audio mounts publish to. Built from
+  source against radioconda (no Homebrew — see scripts/mac-bootstrap.sh); real
+  source/admin passwords live ONLY in /opt/scannerproject/etc/icecast.xml on
+  the box (generated at provisioning time, never committed to git).
+
+  Runs from /opt/scannerproject/app for the same reason as the tuner-broker:
+  a headless launchd process must NOT touch a TCC-protected directory
+  (~/Documents) or it hangs on the consent check with no UI to answer it
+  (see etc/mac/launchd/com.scannerproject.tuner-broker.plist's comment / the
+  macos-launchagent-tcc memory finding, 2026-07-05). icecast itself doesn't
+  read from the repo, but WorkingDirectory is set for consistency and so a
+  future icecast.xml <basedir> logging-relative-path mistake fails safe.
+
+  Install (LaunchAgent, user session):
+    cp etc/mac/launchd/com.scannerproject.icecast.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.icecast.plist
+  Logs: /opt/scannerproject/log/icecast.out (also icecast's own error.log/access.log
+  under <logdir> in icecast.xml).
+-->
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.icecast</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/scannerproject/icecast/bin/icecast</string>
+        <string>-c</string>
+        <string>/opt/scannerproject/etc/icecast.xml</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/scannerproject/app</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
+    <key>StandardOutPath</key>
+    <string>/opt/scannerproject/log/icecast.out</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/scannerproject/log/icecast.out</string>
+</dict>
+</plist>

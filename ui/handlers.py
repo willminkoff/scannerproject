@@ -156,6 +156,7 @@ try:
         RTL_AIRBAND_AIRBAND_STATS_PATH,
         RTL_AIRBAND_GROUND_STATS_PATH,
         RTL_AIRBAND_STATS_STALE_SEC,
+        VFO_STATE_DIR,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
         SB3_CONNECTED_SYSTEM_REFRESH_SEC,
         SB3_CONNECTED_PROFILES_REFRESH_SEC,
@@ -304,6 +305,7 @@ except ImportError:
         RTL_AIRBAND_AIRBAND_STATS_PATH,
         RTL_AIRBAND_GROUND_STATS_PATH,
         RTL_AIRBAND_STATS_STALE_SEC,
+        VFO_STATE_DIR,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
         SB3_CONNECTED_SYSTEM_REFRESH_SEC,
         SB3_CONNECTED_PROFILES_REFRESH_SEC,
@@ -3570,7 +3572,7 @@ def _compute_heartbeat_payload() -> dict:
     extended_service_units = [
         ("scanner-digital-op25",        "scanner-digital-op25.service"),
         ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service"),
-        ("scanner-vfo",                 "scanner-vfo.service"),
+        ("scanner-vfo",                 UNITS.get("vfo", "scanner-vfo")),
         ("scanner-tuner-broker",        "scanner-tuner-broker.service"),
         ("dumpvdl2",                    "dumpvdl2.service"),
         ("acarsdec",                    "acarsdec.service"),
@@ -4023,7 +4025,6 @@ def _waterfall_write_config(
 # stub rather than 500ing.
 # =====================================================================
 
-VFO_STATE_DIR = "/run/scannerproject/vfo"
 VFO_STATE_PATH = os.path.join(VFO_STATE_DIR, "state.json")
 VFO_CONFIG_PATH = os.path.join(VFO_STATE_DIR, "config.json")
 VFO_STALE_SEC = 5.0
@@ -4821,7 +4822,7 @@ _SITREP_SERVICE_UNITS_STATIC_TAIL: tuple[tuple[str, str], ...] = (
     ("scanner-digital-op25",        "scanner-digital-op25.service"),
     ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service"),
     ("scanner-waterfall",           "scanner-waterfall.service"),
-    ("scanner-vfo",                 "scanner-vfo.service"),
+    ("scanner-vfo",                 UNITS.get("vfo", "scanner-vfo")),
     ("scanner-tuner-broker",        "scanner-tuner-broker.service"),
     ("disco-coordinator",           "disco-coordinator.service"),
     ("dumpvdl2",                    "dumpvdl2.service"),
@@ -6493,6 +6494,33 @@ class Handler(BaseHTTPRequestHandler):
 
             rtl_ok = rtl_unit_active and sample_flow_ok
             ground_ok = rtl_ok and ground_present
+            # SB7 (2026-07-06): under SB5_USE_GR_DEMOD=true there is no
+            # rtl-airband/rtl-ground unit at all -- chirp-airband/chirp-ground
+            # ARE the analog engine -- so every signal above is checking units
+            # and stats files that will never exist on this host. Unlike the
+            # sitrep service list and gain/squelch read-back (which already
+            # got this swap in Phase 4c/4d), this block was never updated,
+            # which is why /api/status reported airband_active/ground_active
+            # as permanently False despite chirp actually streaming. Mirror
+            # the same is_alive() liveness check used for the dongle-evidence
+            # rows in _sitrep_dongles().
+            try:
+                _chirp_on_status = bool(_chirp_use_gr_demod())
+            except Exception:
+                _chirp_on_status = False
+            if _chirp_on_status:
+                try:
+                    rtl_airband_ok = bool(_chirp_airband_client().is_alive())
+                except Exception:
+                    rtl_airband_ok = False
+                try:
+                    rtl_ground_ok = bool(_chirp_ground_client().is_alive())
+                except Exception:
+                    rtl_ground_ok = False
+                rtl_airband_unit_active = rtl_airband_ok
+                rtl_ground_unit_active = rtl_ground_ok
+                rtl_ok = rtl_airband_ok
+                ground_ok = rtl_ground_ok and ground_present
             ice_unit_active = _unit_active_cached(UNITS["icecast"])
             icecast_mounts = []
             icecast_status_text = ""
@@ -7332,6 +7360,9 @@ class Handler(BaseHTTPRequestHandler):
                 airband_gain = controls_snapshot["airband_gain"]
                 airband_dbfs = controls_snapshot["airband_dbfs"]
                 airband_mode = controls_snapshot["airband_mode"]
+                ground_gain = controls_snapshot["ground_gain"]
+                ground_dbfs = controls_snapshot["ground_dbfs"]
+                ground_mode = controls_snapshot["ground_mode"]
                 rtl_unit_active = _unit_active_cached(UNITS["rtl"])
                 ground_unit_active = _unit_active_cached(UNITS["ground"])
                 combined_info = combined_device_summary()
@@ -7370,6 +7401,24 @@ class Handler(BaseHTTPRequestHandler):
                 # See /api/status above: trust unit-active alone because
                 # the rtl-airband stats file isn't updated frequently
                 # enough to pass the 15s freshness gate on RSPduo.
+                # SB7 (2026-07-06): mirror the /api/status chirp override —
+                # under SB5_USE_GR_DEMOD=true there is no rtl-airband/
+                # rtl-ground unit, so the split-signals above are always
+                # False here. Ask the chirp daemons directly.
+                try:
+                    _chirp_on_sse = bool(_chirp_use_gr_demod())
+                except Exception:
+                    _chirp_on_sse = False
+                if _chirp_on_sse:
+                    try:
+                        rtl_airband_unit_active = bool(_chirp_airband_client().is_alive())
+                    except Exception:
+                        rtl_airband_unit_active = False
+                    try:
+                        rtl_ground_unit_active = bool(_chirp_ground_client().is_alive())
+                    except Exception:
+                        rtl_ground_unit_active = False
+                    rtl_active = rtl_airband_unit_active
                 airband_active = (
                     bool(rtl_airband_unit_active)
                     if rtl_airband_unit_active

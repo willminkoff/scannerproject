@@ -26,7 +26,7 @@ program that gets there — designed around the hardware actually on hand:
 | Mac mini 2018 | Intel i5-8500B 6-core 3.0 GHz, 16 GB RAM, 4× TB3 (2 buses) + 2× USB-A |
 | Mac mini 2021 | Apple M1, 8 GB RAM, 2× TB/USB4 + 2× USB-A |
 | 2× SDRplay RSPduo | serials 180903EF32 (RSP-A), 1809063632 (RSP-B) |
-| 4× RTL-SDR | serials TBD-verify in SB7.1 (micro-confirmed pool: 70613472, 61108285, 83241970 V4, 80000003) |
+| 3× RTL-SDR (attached) | 61108285 (ground), 83241970 (Blog V4, VFO), 56919602 (NESDR, sounding) — verified on the M1, 2026-07-06. A 4th is not currently attached; waterfall is deferred until it is. |
 
 ---
 
@@ -127,28 +127,37 @@ the **open items**.
 
 ## 4. Hardware architecture
 
-### 4.1 Device map (DECIDED 2026-07-05 — M1 host, dual-tuner digital)
+### 4.1 Device map (reconciled to ACTUAL hardware, 2026-07-06)
 
 Fleet policy v2.1 (`etc/mac/sdr_fleet_policy.json`) is the machine-readable
 source of truth; this is the human wiring card. The rule that keeps it safe:
 **exactly one dual-tuner RSPduo, and it runs on SDRTrunk's native SDRplay API.**
+Only **3 RTLs are physically attached** to the M1 (not 4, as earlier planning
+assumed) — that constraint, plus VFO (a role earlier planning missed
+entirely), drove the final RTL assignment below.
 
 | Device (serial) | Mode | Role | Fixed / arbitrated |
 |---|---|---|---|
 | **RSP-A** 180903EF32 | **Dual-tuner** | **SDRTrunk P25** — T1 = MTRTRS (ships first), T2 = 2nd system (Will names it) | fixed |
-| **RSP-B** 1809063632 | ST, tuner 1 | chirp **airband** (proven-clean 2026-06-15) | fixed |
-| **RTL** 80000003 (stable) | — | chirp **ground** NFM (6/18 fix; gain 30–35) | fixed, 24/7 |
-| **RTL** 70613472 (stable) | — | **DIGITAL-FLEX** — SDRTrunk 3rd P25 system when activated; else disco / hot-spare | broker |
-| **RTL** 61108285 (stable) | — | **WX** — VDL2 / ACARS | broker |
-| **RTL** 83241970 (V4, finicky) | — | **waterfall** (`/sb5` Live IQ), single-dongle | drop-tolerant |
+| **RSP-B** 1809063632 | ST, tuner 1 | chirp **airband** — **LIVE** on `/ANALOG.mp3` | fixed |
+| **RTL** 61108285 (stable) | — | chirp **ground** NFM — **LIVE** on `/ANALOG_GROUND.mp3` | fixed, 24/7 |
+| **RTL** 83241970 (Blog V4, best RF) | — | **VFO** (`scripts/vfo.py`, manual tune + mini-waterfall → `/VFO.mp3`) | fixed |
+| **RTL** 56919602 (reliability TBD) | — | **sounding** (ACARS/VDL2/radiosonde), dedicated, unshared | fixed |
+| *(none)* | — | **waterfall** (`/sb5` Live IQ) — **DEFERRED**, not a priority per Will (2026-07-06); no dongle allocated until a 4th RTL arrives | pending hardware |
+
+Both analog bands are **confirmed running** as broker-arbitrated launchd
+services (`com.scannerproject.chirp-airband`/`-ground`), verified end-to-end
+including clean-shutdown + anti-churn self-heal (§6 build status).
 
 **Digital capacity:** RSP-A dual-tuner = **2 P25 systems simultaneously** (one per
 ~2 MHz tuner, native SDRplay API — the most reliable digital path on macOS). MTRTRS
 ships first on tuner 1; the 2nd system slots onto tuner 2 with no hardware change
-(SDRTrunk restart to add). **Growth to a 3rd system** = promote the stable
-DIGITAL-FLEX RTL (70613472) into the same SDRTrunk instance (heterogeneous tuners
-are supported), broker-leased on demand. So the map delivers "≥2 digital systems,
-room for 3."
+(SDRTrunk restart to add). **Growth to a 3rd system** needs a **4th physical RTL**
+(none of the 3 attached are spare — see below); the growth mechanism itself
+(heterogeneous tuners in one SDRTrunk instance, broker-leased on demand) is
+unchanged from the original design. Note the next RTL to arrive has two
+competing claims on it (a 3rd P25 system, or un-deferring waterfall) — whoever
+gets there first is a call for whenever that RTL actually shows up, not now.
 
 **What still holds by construction:** 0x6bed needs *two* concurrent dual-tuner
 RSPduos through one apiService — we run exactly one (RSP-B is ST), so it stays
@@ -157,15 +166,25 @@ op25 + SoapySDRPlay3 `mode=MA/SL` phenomenon; SDRTrunk's native dual-tuner is a
 vendor-supported mechanism with none of op25's cross-process retune contention,
 so that wedge class is gone too.
 
-**Two design calls I made for you (flag if you disagree):**
-- *Reliability-aware RTL placement.* The flaky V4 (83241970) goes on the
-  drop-tolerant waterfall, never on a digital control channel or a core analog
-  band. The three stable RTLs carry ground, digital-growth, and WX.
-- *Waterfall traded down to single-dongle.* Serving "room for a 3rd digital
-  system" claimed the RTL that used to be waterfall-B, so the Live IQ pane is
-  now one dongle (~2.4 MHz span) instead of the old 2-dongle stitch. If you'd
-  rather keep the wide stitched waterfall than have a 3rd-digital growth slot,
-  say so and I'll swap DIGITAL-FLEX back to waterfall-B.
+**The VFO gap (found and closed, 2026-07-06):** earlier planning allocated all
+3 RTLs to ground/sounding/waterfall and never accounted for VFO — a genuinely
+separate feature (manually-tunable live receiver + its own mini-waterfall,
+`scripts/vfo.py`) that on micro had its own dedicated dongle. Will's call, once
+the gap surfaced: **VFO reclaims the RTL-SDR Blog V4 (83241970)**, restoring
+its original micro-era assignment (chosen there specifically for the Blog V4's
+better front-end/SNR — it moved 80000003 → 61108285 → 83241970 over micro's
+life for exactly that reason). **Waterfall is deferred** (not a priority per
+Will, same conversation) — it has no dongle allocated at all right now, not
+even shared; the remaining RTL (56919602) is sounding's, dedicated. When a 4th
+RTL arrives, give it to whichever of {waterfall, 3rd-P25} is the priority then;
+this doc doesn't need to pre-decide it. "Sounding" is Will's 2026-07-06 name
+for the ACARS + VDL2 + radiosonde decoder family (atmospheric-sounding data —
+aircraft weather reports plus weather-balloon telemetry; ACARS/VDL2 share the
+VHF aviation band and can plausibly run off one wideband capture, radiosonde
+is a different UHF band and needs its own dongle or a scheduled time-share).
+Sounding itself is not broker-integrated yet (the decoder scripts predate the
+broker) — wiring the claim-by-serial call in is a prerequisite before it goes
+live on this box.
 
 **Open (only Will can answer):** the 2nd P25 system's name (for tuner 2), and —
 before either goes live — a one-time SDRangel span check that each system's
@@ -174,7 +193,7 @@ spread is irrelevant since you monitor one site at a time).
 
 **Physical (M1: 2× Thunderbolt + 2× USB-A):** each RSPduo on its own Thunderbolt
 port (own controller — the dual-tuner RSP-A especially wants the bandwidth); the
-4 RTLs on a powered hub (own PSU) on USB-A. Verify controller grouping on the box
+3 RTLs on a powered hub (own PSU) on USB-A. Verify controller grouping on the box
 with `system_profiler SPUSBDataType` during SB7.1 — if the two USB-A ports share
 one controller, consider a second hub to split the RTLs.
 
@@ -244,7 +263,7 @@ easier on the M1" — it is, on the evidence already gathered:
 
 **What the Intel gave up, managed:** (a) *RAM* — 8 GB vs 16 GB. Budget: chirp ×2
 (~1–2 GB), SDRTrunk JVM (capped ~1.5 GB), icecast/UI/waterfall (~1 GB),
-monitoring (~1 GB) ≈ 5–6 GB. Workable; WX decoders become opt-in, and the pool
+monitoring (~1 GB) ≈ 5–6 GB. Workable; sounding decoders become opt-in, and the pool
 caps stay repo-enforced. (b) *Ports* — 2× TB + 2× USB-A: RSPduo-A → TB1,
 RSPduo-B → TB2 (isolated buses, per fleet policy), 4 RTLs on one powered hub on
 USB-A (≈40 MB/s aggregate, fine on USB 3). (c) One M1-specific caveat: SDRTrunk's
@@ -442,7 +461,7 @@ Then the tuner broker as designed in fleet-policy v1: AF_UNIX CLAIM/GRANT, one
 flock lease per physical serial (auto-release on crash), open-gap +
 min-restart-interval enforcement, dual-tuner invariant refusal (max 1 per host),
 hot-spare promotion for a failed RTL. Headless unit tests for every invariant.
-All claimants (chirp ×2, SDRTrunk launcher, waterfall, WX, disco) go through it;
+All claimants (chirp ×2, SDRTrunk launcher, waterfall, sounding, disco) go through it;
 the silent-empty exclusion resolver (open P0 #5) is deleted, replaced by broker
 denial-with-reason.
 
@@ -529,7 +548,7 @@ failure classes the old hardware forced us to live with.
 | SDRTrunk alias gap = talkgroups silently not streamed | wildcard catch-all alias per system, CI check in the playlist generator |
 | Dual-tuner window: a system's channels may exceed ~2 MHz/tuner | verify spans in SDRangel before D1; fall back to two ST boxes/one system |
 | DIGITAL.mp3 becomes queued call audio, not live | accepted texture change (Broadcastify-style); Delay + max-age tuned in SB7.5 |
-| 8 GB on the M1 | budget in §4.2 (~5–6 GB); WX decoders opt-in; JVM heap capped; monitoring retention trimmed |
+| 8 GB on the M1 | budget in §4.2 (~5–6 GB); sounding decoders opt-in; JVM heap capped; monitoring retention trimmed |
 | Whole-box death pages nobody (no witness) | accepted by PO; optional healthchecks.io dead-man ping (SB7.4 checkbox) |
 | Scope creep re-opening the scheduler rewrite early | SB7.7 explicitly gated on prober drift data |
 

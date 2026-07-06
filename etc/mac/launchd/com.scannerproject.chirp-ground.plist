@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  com.scannerproject.chirp-ground (SB7.5)
+
+  Same pattern as com.scannerproject.chirp-airband.plist — see that file's
+  comment for the full rationale (broker-arbitrated leasing, the TCC/PATH/
+  SOAPY_SDR_PLUGIN_PATH/fd-limit gotchas, the anti-churn ThrottleInterval).
+  This one claims RTL-SDR serial 61108285 (NOT the RSPduo) — ground moved off
+  the RSPduo SL tuner entirely in the SB7 device map (see
+  chirp/config/ground.json's updated _comment and etc/mac/sdr_fleet_policy.json
+  — ground.json's old device_args targeting RSPduo mode=SL was retired dead
+  config from the pre-SB7 MA/SL era). Separate metrics port (9102, matching
+  the airband/ground split already assumed by monitoring/prometheus.yml) and
+  separate cmd_port (7401, set in chirp/config/ground.json) keep the two
+  daemons from colliding.
+
+  Install:
+    sed -e "s/CHANGE_ME_ICECAST_SOURCE_PASSWORD/$(grep ICECAST_SOURCE_PASSWORD /opt/scannerproject/etc/icecast-credentials.env | cut -d= -f2)/" \
+      etc/mac/launchd/com.scannerproject.chirp-ground.plist > ~/Library/LaunchAgents/com.scannerproject.chirp-ground.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.chirp-ground.plist
+  Logs: /opt/scannerproject/log/chirp-ground.log
+
+  Targets the PRODUCTION mount /ANALOG_GROUND.mp3 with CHIRP_ALLOW_PROD_MOUNT=1
+  (chirp's built-in prod-mount refusal list is /ANALOG.mp3, /ANALOG_GROUND.mp3,
+  /DIGITAL.mp3, /VFO.mp3 — see chirp/daemon.py; this template intentionally
+  overrides it, having soaked clean first on /CHIRP_GROUND_TEST.mp3, 2026-07-06).
+-->
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.chirp-ground</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/scannerproject/venv/bin/python</string>
+        <string>-m</string>
+        <string>broker.client</string>
+        <string>run</string>
+        <string>--serial</string>
+        <string>61108285</string>
+        <string>--consumer</string>
+        <string>chirp-ground</string>
+        <string>--reason</string>
+        <string>chirp ground service (SB7.5)</string>
+        <string>--require</string>
+        <string>--</string>
+        <string>/opt/scannerproject/radioconda/bin/python</string>
+        <string>-m</string>
+        <string>chirp.daemon</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/scannerproject/app</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/scannerproject/radioconda/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>/opt/scannerproject/app</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>SOAPY_SDR_PLUGIN_PATH</key>
+        <string>/opt/scannerproject/radioconda/lib/SoapySDR/modules0.8</string>
+        <key>SCANNER_FLEET_POLICY</key>
+        <string>/opt/scannerproject/etc/sdr_fleet_policy.json</string>
+        <key>CHIRP_BAND</key>
+        <string>ground</string>
+        <key>CHIRP_SOURCE</key>
+        <string>sdr</string>
+        <key>CHIRP_CONFIG_REQUIRED</key>
+        <string>1</string>
+        <key>CHIRP_AUDIO_OUT</key>
+        <string>icecast:127.0.0.1:8000:/ANALOG_GROUND.mp3:CHANGE_ME_ICECAST_SOURCE_PASSWORD</string>
+        <key>CHIRP_ALLOW_PROD_MOUNT</key>
+        <string>1</string>
+        <key>CHIRP_AUDIO_PROBE_ENABLED</key>
+        <string>1</string>
+        <key>CHIRP_METRICS_ENABLED</key>
+        <string>1</string>
+        <key>CHIRP_METRICS_PORT</key>
+        <string>9102</string>
+        <key>CHIRP_STATE_PATH</key>
+        <string>/opt/scannerproject/run/chirp_ground.state.json</string>
+        <key>CHIRP_HIT_LOG</key>
+        <string>/opt/scannerproject/run/ground_hits.jsonl</string>
+    </dict>
+
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>10240</integer>
+    </dict>
+    <key>HardResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>10240</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>45</integer>
+
+    <key>StandardOutPath</key>
+    <string>/opt/scannerproject/log/chirp-ground.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/scannerproject/log/chirp-ground.log</string>
+</dict>
+</plist>

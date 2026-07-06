@@ -11,7 +11,7 @@
   "digital_capacity": {
     "primary_systems": 2,
     "_primary": "RSP-A in SDRTrunk native Dual Tuner mode = 2 P25 systems at once, one per ~2 MHz tuner. MTRTRS ships first on tuner 1; the 2nd system slots onto tuner 2 (Will to name it). Each system's monitored SITE must fit ~2 MHz — verify spans in SDRangel before committing (a single trunked site's control+traffic normally fits well under 2 MHz; statewide spread does NOT matter because you monitor one site).",
-    "growth_to_3": "A 3rd P25 system = add RTL 'DIGITAL-FLEX' (70613472) to the SAME SDRTrunk instance (heterogeneous tuners are supported). The broker leases that RTL to SDRTrunk on demand; drops disco/hot-spare use of it while active.",
+    "growth_to_3": "A 3rd P25 system = add a 4TH RTL (not currently attached — only 3 RTLs are on the M1 as of 2026-07-05) to the SAME SDRTrunk instance (heterogeneous tuners are supported). The broker leases that RTL to SDRTrunk on demand; drops disco/hot-spare use of it while active. Until a 4th RTL is plugged in, digital = the 2 RSP-A dual-tuner systems only.",
     "_0x6bed_safe": "RSP-A dual + RSP-B single-tuner through ONE apiService is compliant (max_concurrent_dual_tuner_rspduo=1). The never-tested combo here is SDRTrunk(native API) + chirp(SoapySDRPlay3) sharing one apiService — validate in the SB7.1 soak before trusting 24/7."
   },
   "invariants": {
@@ -52,32 +52,26 @@
       "device_args": "driver=sdrplay,serial=1809063632,rspduo_mode=ST,rspduo_tuner=1",
       "_note": "ST = the proven-clean airband config (2026-06-15). chirp calls set_bandwidth explicitly (chirp/dsp/source_sdr.py) — keep bandwidth_hz set even though ST tolerates a driver default."
     },
-    { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "80000003", "serial_status": "confirmed-on-micro; re-verify + reflash if needed in SB7.1",
+    { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "61108285", "serial_status": "PRESENT-on-M1 2026-07-05 (was micro's WX dongle; micro-confirmed stable)",
       "label": "GROUND", "role": "chirp-ground", "consumer": "gr-demod@ground",
       "reliability": "stable", "sample_rate_hz": 2400000, "gain_db": 32, "usb_group": "G3", "shared_with": [],
-      "_note": "FIXED, 24/7 core analog. Ground NFM on RTL is the proven 2026-06-18 fix. Stable dongle chosen deliberately. Gain 30-35 (40 clips the V4-class front end)." },
-    { "id": "RTL-DIGFLEX", "kind": "rtlsdr", "serial": "70613472", "serial_status": "confirmed-on-micro; re-verify in SB7.1",
-      "label": "DIGITAL-FLEX", "role": "flex-digital", "consumer": "broker-arbitrated",
-      "reliability": "stable", "sample_rate_hz": 2400000, "usb_group": "G3",
-      "shared_with": ["sdrtrunk-p25-3", "disco", "hot-spare"],
-      "priority": ["sdrtrunk-p25-3", "hot-spare", "disco"],
-      "_note": "The growth path to a 3rd P25 system. Stable dongle (a digital control channel needs reliability). Default idle role = disco sweep / hot-spare; broker promotes it to SDRTrunk's 3rd system when Will activates one." },
-    { "id": "RTL-WX", "kind": "rtlsdr", "serial": "61108285", "serial_status": "confirmed-on-micro; re-verify in SB7.1",
-      "label": "WX", "role": "wx", "consumer": "broker-arbitrated",
-      "reliability": "stable", "sample_rate_hz": 2400000, "usb_group": "G3",
-      "shared_with": ["vdl2", "acars", "hot-spare"],
-      "priority": ["vdl2", "acars", "hot-spare"],
-      "_note": "Weather decoders (VDL2 / ACARS). Drop-tolerant. Can be surrendered to hot-spare if a dedicated dongle dies." },
-    { "id": "RTL-WF", "kind": "rtlsdr", "serial": "83241970", "serial_status": "confirmed-on-micro (RTL-SDR Blog V4, USB-finicky — error -71 re-enumeration history)",
-      "label": "WATERFALL", "role": "waterfall", "consumer": "scanner-waterfall",
-      "reliability": "finicky", "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": ["hot-spare"],
-      "_note": "Live IQ waterfall (/sb5), SINGLE-dongle mode (~2.4 MHz span). The flaky V4 lands here on purpose — the waterfall is drop-tolerant, digital/analog decode is not. Put it on the best hub port. NOTE: this is a step down from the old 2-dongle stitched waterfall — that RTL was reallocated to DIGITAL-FLEX to serve Will's '≥2 digital systems, room for 3' requirement. If Will prefers the wide stitched waterfall over a 3rd digital system, swap RTL-DIGFLEX back to waterfall-B." }
+      "_note": "FIXED, 24/7 core analog. The most-reliable attached RTL deliberately on the 24/7 ground band. Ground NFM on RTL is the proven 2026-06-18 fix. Gain 30-35 (40 clips the front end). CONFIRMED LIVE on the M1, 2026-07-06 — streaming to icecast /ANALOG_GROUND.mp3 via com.scannerproject.chirp-ground." },
+    { "id": "RTL-VFO", "kind": "rtlsdr", "serial": "83241970", "serial_status": "PRESENT-on-M1 2026-07-06 (RTL-SDR Blog V4)",
+      "label": "VFO", "role": "vfo", "consumer": "scripts/vfo.py",
+      "reliability": "best-RF-quality (R828D tuner + TCXO); historically flaky USB re-enumeration on micro (error -71) — watch during soak on the M1's own ports/cables",
+      "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": [],
+      "_note": "Dedicated to VFO (2026-07-06, restoring its original micro-era assignment) per Will's call: VFO is a manually-tunable live receiver (scripts/vfo.py, publishes /VFO.mp3 + a mini-waterfall) and specifically wants this dongle's superior front-end/SNR for tuning into weak signals — it went 80000003 -> 61108285 -> 83241970 on micro for exactly that reason, landing here. NOT the same thing as the auto-scanning waterfall (/sb5 Live IQ) — that's a different, currently-DEFERRED feature with NO dongle at all (not even this one); do not conflate the two." },
+    { "id": "RTL-SOUNDING", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-05 (NESDR SMArt v5; new to the fleet, reliability TBD in soak)",
+      "label": "SOUNDING", "role": "sounding", "consumer": "broker-arbitrated",
+      "reliability": "unknown", "sample_rate_hz": 2400000, "usb_group": "G3",
+      "shared_with": [],
+      "_note": "\"Sounding\" (2026-07-06 naming, Will's call) = the atmospheric-sounding decoder family: ACARS + VDL2 (aircraft-datalink weather reports, adjacent VHF aviation channels ~130-137 MHz, can plausibly share one wideband RTL capture) and radiosonde (weather-balloon telemetry, ~400-406 MHz US — a DIFFERENT band, cannot run simultaneously with ACARS/VDL2 on this one dongle; needs its own dongle or a broker-arbitrated time-share, which suits radiosonde's scheduled-flight-window usage pattern anyway). Dedicated, unshared. Waterfall (/sb5 Live IQ) is DEFERRED — not a priority per Will — until a 4th RTL is added; it has NO dongle right now. None of the sounding decoders are broker-integrated yet (scripts predate the broker) — wiring the claim-by-serial call in is still a prerequisite before any of them go live." }
   ],
   "usb_groups": {
     "G1": { "host_port": "Thunderbolt/USB4 port 1", "hub": null, "_note": "RSP-A (dual-tuner, heaviest) direct-cabled, own controller, no hub" },
     "G2": { "host_port": "Thunderbolt/USB4 port 2", "hub": null, "_note": "RSP-B direct-cabled, own controller, no hub" },
-    "G3": { "host_port": "USB-A", "hub": "H1 (powered, own PSU)", "members": ["RTL-GROUND", "RTL-DIGFLEX", "RTL-WX", "RTL-WF"],
-            "_note": "4 RTLs on a powered hub. VERIFY on the box with `system_profiler SPUSBDataType`: the M1's two USB-A ports may share one controller — if so, 4 RTLs on one controller is within max_rtl_streams_per_usb_controller=5 but near it; consider splitting across a 2nd powered hub on the other USB-A port if throughput/overflow shows up in the SB7.1 soak." }
+    "G3": { "host_port": "USB-A", "hub": "H1 (powered, own PSU)", "members": ["RTL-GROUND", "RTL-VFO", "RTL-SOUNDING"],
+            "_note": "3 RTLs on a powered hub. VERIFY on the box with `system_profiler SPUSBDataType`: the M1's two USB-A ports may share one controller — if so, consider splitting across a 2nd powered hub if throughput/overflow shows up in soak. A 4th RTL (to un-defer waterfall, or for a 3rd P25 growth system) would land here or on a 2nd hub." }
   },
   "broker": {
     "launchd_label": "com.scannerproject.tuner-broker",
