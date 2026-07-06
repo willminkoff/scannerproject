@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  com.scannerproject.caffeinate (SB7.1)
+
+  Keeps the headless M1 appliance awake WITHOUT sudo. macOS default pmset lets
+  the box sleep on idle, which drops it off Tailscale/the network and needs a
+  physical power-cycle to recover (observed 2026-07-05). `sudo pmset` (via
+  scripts/mac-appliance-setup.sh) is the fuller fix — it also sets autorestart
+  after power loss — but this user LaunchAgent solves the SLEEP half with no
+  privilege, and it survives reboot (RunAtLoad + KeepAlive).
+
+  Install (LaunchAgent, user session):
+    cp etc/mac/launchd/com.scannerproject.caffeinate.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.caffeinate.plist
+-->
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.caffeinate</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-dimsu</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>

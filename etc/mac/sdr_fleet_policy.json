@@ -1,10 +1,24 @@
 {
-  "_comment": "Foolproof SDR fleet policy for the Mac mini (replaces micro). Single source of truth for device->role allocation, RSPduo modes, USB grouping, and broker invariants. The tuner-broker, config generators, and wiring card all read THIS file. Address devices by serial ONLY; USB position is never trusted. See docs/mac-mini-port.md.",
-  "version": 1,
+  "_comment": "SDR fleet policy v2.1 (SB7, 2026-07-05) — SINGLE-HOST on the M1 Mac mini (host confirmed by Will; Intel mini = cold spare). Source of truth for device->role allocation, RSPduo modes, USB grouping, and tuner-broker invariants. The broker, config generators, and wiring card all read THIS file. Address devices by serial ONLY; USB position is never trusted. Digital engine = SDRTrunk (native SDRplay API; it MUST still claim its serial(s) through the broker so nothing else opens the device). op25 is retired (no macOS path). See docs/sb7-northstar-program.md §4.",
+  "version": 2,
+  "revision": "2.1-2026-07-05",
+  "host": {
+    "role": "single-box",
+    "hardware": "Mac mini M1 2021 (8 GB)",
+    "os": "macOS",
+    "cold_spare": "Mac mini 2018 Intel (16 GB, macOS Sequoia ceiling — security updates end ~fall 2027)"
+  },
+  "digital_capacity": {
+    "primary_systems": 2,
+    "_primary": "RSP-A in SDRTrunk native Dual Tuner mode = 2 P25 systems at once, one per ~2 MHz tuner. MTRTRS ships first on tuner 1; the 2nd system slots onto tuner 2 (Will to name it). Each system's monitored SITE must fit ~2 MHz — verify spans in SDRangel before committing (a single trunked site's control+traffic normally fits well under 2 MHz; statewide spread does NOT matter because you monitor one site).",
+    "growth_to_3": "A 3rd P25 system = add a 4TH RTL (not currently attached — only 3 RTLs are on the M1 as of 2026-07-05) to the SAME SDRTrunk instance (heterogeneous tuners are supported). The broker leases that RTL to SDRTrunk on demand; drops disco/hot-spare use of it while active. Until a 4th RTL is plugged in, digital = the 2 RSP-A dual-tuner systems only.",
+    "_0x6bed_safe": "RSP-A dual + RSP-B single-tuner through ONE apiService is compliant (max_concurrent_dual_tuner_rspduo=1). The never-tested combo here is SDRTrunk(native API) + chirp(SoapySDRPlay3) sharing one apiService — validate in the SB7.1 soak before trusting 24/7."
+  },
   "invariants": {
     "max_concurrent_dual_tuner_rspduo": 1,
-    "_why": "Two concurrent dual-tuner RSPduos deterministically segfault the shared sdrplay daemon (0x6bed) and corrupt live IQ. Exactly one device (RSP-B) may be dual-tuner; the broker REFUSES any second dual-tuner claim.",
+    "_why": "Two concurrent dual-tuner RSPduos through ONE sdrplay apiService deterministically segfault it (0x6bed) and corrupt live IQ. Single host = single apiService, so exactly one device (RSP-A) may be dual-tuner; the broker REFUSES any second dual-tuner claim. RSP-B stays single-tuner.",
     "rspduo_open_gap_sec": 2.0,
+    "_why_gap": "The apiService does not safely serialize concurrent sdrplay_api_Open calls from different processes, even across different physical RSPduos.",
     "master_before_slave": true,
     "min_restart_interval_sec": 30,
     "address_by": "serial",
@@ -13,52 +27,51 @@
   },
   "rspduo_daemon": {
     "launchd_label": "com.sdrplay.service",
-    "api_version": "3.15.1",
-    "_note": "One daemon brokers BOTH RSPduos. All sdrplay_api_Open calls funnel through the broker, spaced by rspduo_open_gap_sec."
+    "api_version": "3.15.x",
+    "_note": "One apiService brokers BOTH RSPduos: chirp airband via SoapySDRPlay3, SDRTrunk digital via the native API. All opens funnel through the tuner-broker, spaced by rspduo_open_gap_sec. SDRTrunk launches once and stays up (KeepAlive) — no restart churn near this daemon."
   },
   "devices": [
     {
       "id": "RSP-A", "kind": "rspduo", "serial": "180903EF32", "label": "RSP-DIGITAL",
-      "role": "op25-p25-primary", "mode": "ST", "tuner": 1, "sample_rate_hz": 2000000,
-      "usb_group": "G1", "shared_with": [], "dual_tuner": false,
-      "device_args": "driver=sdrplay,serial=180903EF32,rspduo_mode=ST,rspduo_tuner=1"
+      "role": "sdrtrunk-p25", "consumer": "sdrtrunk", "api": "sdrplay-native",
+      "mode": "DUAL", "dual_tuner": true, "sample_rate_hz": 2000000,
+      "usb_group": "G1", "shared_with": [],
+      "tuners": [
+        { "tuner": 1, "system": "MTRTRS", "status": "ships-first",
+          "_note": "D3 launch target. Pin the MTRTRS control channel to this tuner via SDRTrunk's per-channel Preferred Tuner." },
+        { "tuner": 2, "system": "TBD-2nd-P25", "status": "awaiting-Will",
+          "_note": "2nd P25 system — Will names it. Slots on here with no hardware change; SDRTrunk restart to add. Verify its site span fits ~2 MHz." }
+      ],
+      "_note": "SDRTrunk native Dual Tuner — NOT osmosdr mode=MA/SL (that was op25, retired). No device_args; SDRTrunk manages both tuners internally from its playlist. The broker leases the ONE serial 180903EF32 to SDRTrunk (dual_tuner=true consumes the single allowed dual slot)."
     },
     {
       "id": "RSP-B", "kind": "rspduo", "serial": "1809063632", "label": "RSP-AIRBAND",
-      "role": "airband+ground", "mode": "MA+SL", "sample_rate_hz": 2000000,
-      "usb_group": "G2", "shared_with": [], "dual_tuner": true,
-      "tuners": [
-        { "role": "airband", "mode": "MA", "tuner": 1, "bandwidth_hz": 1536000,
-          "device_args": "driver=sdrplay,serial=1809063632,rspduo_mode=MA,rspduo_tuner=1,bandwidth=1536000" },
-        { "role": "ground", "mode": "SL", "tuner": 2, "bandwidth_hz": 1536000,
-          "device_args": "driver=sdrplay,serial=1809063632,rspduo_mode=SL,rspduo_tuner=2,bandwidth=1536000" }
-      ],
-      "_critical": "bandwidth_hz=1536000 on BOTH tuners is MANDATORY — MA without explicit bandwidth produces broadband noise (see airband-master-mode-root-cause)."
+      "role": "chirp-airband", "consumer": "gr-demod@airband", "api": "soapy",
+      "mode": "ST", "tuner": 1, "dual_tuner": false, "sample_rate_hz": 2000000, "bandwidth_hz": 1536000,
+      "usb_group": "G2", "shared_with": [],
+      "device_args": "driver=sdrplay,serial=1809063632,rspduo_mode=ST,rspduo_tuner=1",
+      "_note": "ST = the proven-clean airband config (2026-06-15). chirp calls set_bandwidth explicitly (chirp/dsp/source_sdr.py) — keep bandwidth_hz set even though ST tolerates a driver default."
     },
-    { "id": "RTL-1", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PLACEHOLDER-flash-with-rtl_eeprom",
-      "label": "DIG-CTRL-2", "role": "op25-control-2", "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": [] },
-    { "id": "RTL-2", "kind": "rtlsdr", "serial": "14306619", "serial_status": "PLACEHOLDER-flash-with-rtl_eeprom",
-      "label": "DIG-CTRL-3", "role": "op25-control-3", "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": [] },
-    { "id": "RTL-3", "kind": "rtlsdr", "serial": "70613472", "serial_status": "confirmed-on-micro",
-      "label": "DIG-TRAFFIC/WF-A", "role": "op25-traffic", "sample_rate_hz": 2400000, "usb_group": "G3",
-      "shared_with": ["waterfall-a"], "_share": "op25 traffic XOR waterfall channel A, broker-arbitrated" },
-    { "id": "RTL-4", "kind": "rtlsdr", "serial": "61108285", "serial_status": "confirmed-on-micro",
-      "label": "WF-B/ACARS", "role": "waterfall-b", "sample_rate_hz": 2000000, "usb_group": "G4",
-      "shared_with": ["acars"], "_share": "waterfall channel B XOR acarsdec, broker-arbitrated" },
-    { "id": "RTL-5", "kind": "rtlsdr", "serial": "83241970", "serial_status": "confirmed-on-micro (RTL-SDR Blog V4, USB-finicky)",
-      "label": "VDL2", "role": "vdl2", "sample_rate_hz": 2400000, "usb_group": "G4", "shared_with": [] },
-    { "id": "RTL-6", "kind": "rtlsdr", "serial": "45469635", "serial_status": "PLACEHOLDER-flash-with-rtl_eeprom",
-      "label": "DISCO/SONDE", "role": "disco-sweep", "sample_rate_hz": 2400000, "usb_group": "G4",
-      "shared_with": ["radiosonde"], "_share": "disco sweep XOR radiosonde_auto_rx, broker-arbitrated" },
-    { "id": "RTL-7", "kind": "rtlsdr", "serial": "80000003", "serial_status": "confirmed-on-micro",
-      "label": "SPARE", "role": "spare", "sample_rate_hz": 2400000, "usb_group": "G4",
-      "shared_with": ["disco-2"], "_share": "hot spare; broker promotes it for any failed dedicated dongle" }
+    { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "61108285", "serial_status": "PRESENT-on-M1 2026-07-05 (was micro's WX dongle; micro-confirmed stable)",
+      "label": "GROUND", "role": "chirp-ground", "consumer": "gr-demod@ground",
+      "reliability": "stable", "sample_rate_hz": 2400000, "gain_db": 32, "usb_group": "G3", "shared_with": [],
+      "_note": "FIXED, 24/7 core analog. The most-reliable attached RTL deliberately on the 24/7 ground band. Ground NFM on RTL is the proven 2026-06-18 fix. Gain 30-35 (40 clips the front end). CONFIRMED LIVE on the M1, 2026-07-06 — streaming to icecast /ANALOG_GROUND.mp3 via com.scannerproject.chirp-ground." },
+    { "id": "RTL-VFO", "kind": "rtlsdr", "serial": "83241970", "serial_status": "PRESENT-on-M1 2026-07-06 (RTL-SDR Blog V4)",
+      "label": "VFO", "role": "vfo", "consumer": "scripts/vfo.py",
+      "reliability": "best-RF-quality (R828D tuner + TCXO); historically flaky USB re-enumeration on micro (error -71) — watch during soak on the M1's own ports/cables",
+      "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": [],
+      "_note": "Dedicated to VFO (2026-07-06, restoring its original micro-era assignment) per Will's call: VFO is a manually-tunable live receiver (scripts/vfo.py, publishes /VFO.mp3 + a mini-waterfall) and specifically wants this dongle's superior front-end/SNR for tuning into weak signals — it went 80000003 -> 61108285 -> 83241970 on micro for exactly that reason, landing here. NOT the same thing as the auto-scanning waterfall (/sb5 Live IQ) — that's a different, currently-DEFERRED feature with NO dongle at all (not even this one); do not conflate the two." },
+    { "id": "RTL-SOUNDING", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-05 (NESDR SMArt v5; new to the fleet, reliability TBD in soak)",
+      "label": "SOUNDING", "role": "sounding", "consumer": "broker-arbitrated",
+      "reliability": "unknown", "sample_rate_hz": 2400000, "usb_group": "G3",
+      "shared_with": [],
+      "_note": "\"Sounding\" (2026-07-06 naming, Will's call) = the atmospheric-sounding decoder family: ACARS + VDL2 (aircraft-datalink weather reports, adjacent VHF aviation channels ~130-137 MHz, can plausibly share one wideband RTL capture) and radiosonde (weather-balloon telemetry, ~400-406 MHz US — a DIFFERENT band, cannot run simultaneously with ACARS/VDL2 on this one dongle; needs its own dongle or a broker-arbitrated time-share, which suits radiosonde's scheduled-flight-window usage pattern anyway). Dedicated, unshared. Waterfall (/sb5 Live IQ) is DEFERRED — not a priority per Will — until a 4th RTL is added; it has NO dongle right now. None of the sounding decoders are broker-integrated yet (scripts predate the broker) — wiring the claim-by-serial call in is still a prerequisite before any of them go live." }
   ],
   "usb_groups": {
-    "G1": { "host": "rear Thunderbolt port 1", "hub": null, "_note": "RSP-A direct-cabled, isolated bus, no hub" },
-    "G2": { "host": "rear Thunderbolt port 2", "hub": null, "_note": "RSP-B direct-cabled, isolated bus, no hub" },
-    "G3": { "host": "front USB-C controller", "hub": "H1 (powered, own PSU)", "members": ["RTL-1","RTL-2","RTL-3"] },
-    "G4": { "host": "rear Thunderbolt port 3", "hub": "H2 (powered, own PSU)", "members": ["RTL-4","RTL-5","RTL-6","RTL-7"] }
+    "G1": { "host_port": "Thunderbolt/USB4 port 1", "hub": null, "_note": "RSP-A (dual-tuner, heaviest) direct-cabled, own controller, no hub" },
+    "G2": { "host_port": "Thunderbolt/USB4 port 2", "hub": null, "_note": "RSP-B direct-cabled, own controller, no hub" },
+    "G3": { "host_port": "USB-A", "hub": "H1 (powered, own PSU)", "members": ["RTL-GROUND", "RTL-VFO", "RTL-SOUNDING"],
+            "_note": "3 RTLs on a powered hub. VERIFY on the box with `system_profiler SPUSBDataType`: the M1's two USB-A ports may share one controller — if so, consider splitting across a 2nd powered hub if throughput/overflow shows up in soak. A 4th RTL (to un-defer waterfall, or for a 3rd P25 growth system) would land here or on a 2nd hub." }
   },
   "broker": {
     "launchd_label": "com.scannerproject.tuner-broker",

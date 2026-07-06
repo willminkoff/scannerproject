@@ -4,6 +4,7 @@ import io
 import json
 
 from ui import handlers
+from ui import service_backend
 from ui import system_stats
 from ui import systemd
 
@@ -133,11 +134,19 @@ class WxDecoderControlTests(unittest.TestCase):
             calls.append((tuple(args), bool(use_sudo)))
             return _Proc(returncode=0)
 
+        # SB7.2: start/stop/restart primitives delegate to the cached
+        # ServiceBackend; SystemdBackend.run is now the systemctl funnel
+        # for them (systemd._run_systemctl remains the seam only for
+        # direct callers like set_bt_heal_auto_recovery/reboot_host).
+        service_backend._reset_backend_for_tests()
+        self.addCleanup(service_backend._reset_backend_for_tests)
         with mock.patch.dict(
             systemd.UNITS,
             {"acars": "acarsdec", "radiosonde": "radiosonde-auto-rx"},
             clear=False,
-        ), mock.patch.object(systemd, "_run_systemctl", side_effect=fake_run):
+        ), mock.patch.object(
+            service_backend.SystemdBackend, "run", side_effect=fake_run
+        ):
             self.assertEqual((True, ""), systemd.start_acars())
             self.assertEqual((True, ""), systemd.stop_acars())
             self.assertEqual((True, ""), systemd.restart_acars())

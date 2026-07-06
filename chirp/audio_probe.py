@@ -41,6 +41,36 @@ The probe is PURE PYTHON (no gnuradio / numpy import) so its decision logic is
 unit-testable in any environment.  ``IcecastSink`` does the one cheap numpy
 reduction (``abs(block).max()``) and hands the scalar peak in.
 
+Second wedge class: the whole flowgraph stops ticking (2026-07-06)
+--------------------------------------------------------------------
+Found live on the M1 during SB7 SDRTrunk bring-up: an sdrplay_apiService bounce
+(needed to clear an unrelated RSPduo wedge) silently broke chirp-airband's SDR
+source. GNU Radio's scheduler blocked waiting on a source that had stopped
+producing samples WITHOUT raising an exception — so ``IcecastSink.work()``
+(and therefore :meth:`observe_peak`) simply stopped being called at all.
+Everything downstream froze in lockstep, INCLUDING the hit detector's own
+``audio_path_health`` computation (it also depends on fresh samples ticking
+through the same dead flowgraph) — it froze reporting whatever value it last
+held ("no_open", since nothing happened to be squelch-open at the instant of
+death). The original design's ``health != "live" → always ping`` branch (the
+"don't punish legitimate quiet" rule above) had no way to tell a frozen
+"no_open" apart from a genuinely fresh one, so the mount went dead — bytes
+frozen, zero new hits, zero new audio — for **over an hour** before anyone
+noticed, entirely unflagged by ``watchdog_ok``.
+
+The fix: track "time since ANY block was observed" (:attr:`_last_block_ts`,
+updated on *every* :meth:`observe_peak` call regardless of peak value) as a
+signal independent of ``health``. Under normal operation the mixer feeds
+``IcecastSink.work()`` continuously — every parked/squelch-closed channel
+still contributes near-zero samples through the sync-block chain (the
+Phase-3 park-CPU topology rule) — so blocks should arrive many times a
+second no matter what ``health`` says. If NO block at all has arrived within
+``block_stall_s`` (comfortably longer than any GR scheduling jitter, far
+shorter than the silence_grace_s tolerance a *legitimately* quiet live period
+needs), that is unambiguous evidence the flowgraph itself died, and the probe
+reports it BEFORE consulting ``health`` at all — a frozen health value can no
+longer disguise it.
+
 Rollback
 --------
 Disabled by default.  ``CHIRP_AUDIO_PROBE_ENABLED=1`` turns the gating on;
@@ -73,6 +103,17 @@ DEFAULT_SILENCE_GRACE_S = 10.0
 # HitDetector._audio_path["audio_path_health"].
 _HEALTH_LIVE = "live"
 
+# How long the flowgraph may go with ZERO blocks observed (silent OR not)
+# before we call it stalled, REGARDLESS of the health value. Under normal
+# operation the mixer feeds IcecastSink.work() continuously — every parked /
+# squelch-closed channel still contributes near-zero samples through the
+# sync-block chain (the Phase-3 park-CPU topology rule) — so blocks arrive
+# many times a second no matter what health says. This must be short enough
+# to catch a dead flowgraph promptly but comfortably longer than any GR
+# scheduling jitter; it is deliberately much shorter than silence_grace_s,
+# which instead tolerates a *legitimately* quiet live period.
+DEFAULT_BLOCK_STALL_S = 20.0
+
 
 class AudioFlowProbe:
     """Measures real audio sample-flow and decides whether to ping the
@@ -85,11 +126,13 @@ class AudioFlowProbe:
         enabled: bool = False,
         silence_grace_s: float = DEFAULT_SILENCE_GRACE_S,
         silence_eps: float = DEFAULT_SILENCE_EPS,
+        block_stall_s: float = DEFAULT_BLOCK_STALL_S,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self.enabled = bool(enabled)
         self._grace = float(silence_grace_s)
         self._eps = float(silence_eps)
+        self._block_stall_s = float(block_stall_s)
         self._mono = monotonic
         self._lock = threading.Lock()
         now = self._mono()
@@ -97,6 +140,10 @@ class AudioFlowProbe:
         # branch that NEVER produces audio (the afternoon-ground "silent since
         # migration" case) is flagged once it goes live for the grace window.
         self._last_flow = now
+        # Last block observed AT ALL, silent or not. Seeded to construction
+        # time so a flowgraph that never ticks even once is caught after
+        # block_stall_s, the same cold-start reasoning as _last_flow above.
+        self._last_block_ts = now
         # When the path most recently ENTERED the live state.  Used so a freshly
         # opened channel that has not yet had a block reach the probe is not
         # flagged before the grace window — we require both "no flow for grace"
@@ -121,9 +168,10 @@ class AudioFlowProbe:
         with self._lock:
             self._blocks += 1
             self._last_peak = float(peak)
+            self._last_block_ts = self._mono()
             if peak > self._eps:
                 self._nonsilent_blocks += 1
-                self._last_flow = self._mono()
+                self._last_flow = self._last_block_ts
 
     # -- consumer side (main loop thread) ----------------------------------
 
@@ -138,6 +186,7 @@ class AudioFlowProbe:
 
         with self._lock:
             gap = now - self._last_flow
+            block_gap = now - self._last_block_ts
             if health == _HEALTH_LIVE:
                 if self._live_since is None:
                     self._live_since = now
@@ -147,6 +196,17 @@ class AudioFlowProbe:
                 # next live spell measures its own grace window from scratch.
                 self._live_since = None
                 live_for = 0.0
+
+        # Checked BEFORE consulting health: a fully-stalled flowgraph freezes
+        # hit_detector's health computation too (it depends on the same dead
+        # samples), so a stale-but-plausible health value can no longer hide
+        # this class of wedge (2026-07-06 incident — see module docstring).
+        if block_gap >= self._block_stall_s:
+            return (
+                False,
+                f"flowgraph_stalled health={health} block_gap={block_gap:.1f}s "
+                f"stall_threshold={self._block_stall_s:.0f}s",
+            )
 
         if health != _HEALTH_LIVE:
             return True, f"flow_ok health={health} gap={gap:.1f}s"
@@ -170,10 +230,12 @@ class AudioFlowProbe:
                 "enabled": self.enabled,
                 "silence_grace_s": self._grace,
                 "silence_eps": self._eps,
+                "block_stall_s": self._block_stall_s,
                 "blocks_observed": self._blocks,
                 "nonsilent_blocks": self._nonsilent_blocks,
                 "last_peak": round(self._last_peak, 6),
                 "seconds_since_flow": round(now - self._last_flow, 2),
+                "seconds_since_any_block": round(now - self._last_block_ts, 2),
             }
 
 
@@ -181,4 +243,5 @@ __all__ = [
     "AudioFlowProbe",
     "DEFAULT_SILENCE_EPS",
     "DEFAULT_SILENCE_GRACE_S",
+    "DEFAULT_BLOCK_STALL_S",
 ]

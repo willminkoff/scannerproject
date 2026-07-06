@@ -322,7 +322,9 @@ def check_op25() -> dict:
 
 def check_vfo() -> dict:
     """VFO daemon dongle health + frame age."""
-    path = "/run/scannerproject/vfo/state.json"
+    path = os.path.join(
+        os.getenv("VFO_STATE_DIR", "/run/scannerproject/vfo"), "state.json"
+    )
     try:
         with open(path) as f:
             state = json.load(f)

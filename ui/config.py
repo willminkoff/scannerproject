@@ -68,6 +68,12 @@ RTL_AIRBAND_GROUND_STATS_PATH = os.getenv(
 )
 RTL_AIRBAND_STATS_STALE_SEC = float(os.getenv("RTL_AIRBAND_STATS_STALE_SEC", "15"))
 
+# VFO (Phase 6b, single tunable RTL-SDR) state dir. scripts/vfo.py and the
+# UI's file-backed pass-through (ui/handlers.py) must agree on this path;
+# was hardcoded to the Linux "/run/..." default in both places until the
+# SB7 macOS port needed it overridden (there is no /run on macOS).
+VFO_STATE_DIR = os.getenv("VFO_STATE_DIR", "/run/scannerproject/vfo")
+
 # Filter Configuration
 FILTER_CONFIG_DIR = os.getenv("FILTER_CONFIG_DIR", "/run")
 FILTER_AIRBAND_PATH = os.path.join(FILTER_CONFIG_DIR, "rtl_airband_filter.json")
@@ -332,13 +338,25 @@ BT_HEAL_TIMER_UNIT = os.getenv("UNIT_BT_HEAL_TIMER", "scanner-bt-audio-heal.time
 BT_HEAL_SERVICE_UNIT = os.getenv("UNIT_BT_HEAL_SERVICE", "scanner-bt-audio-heal.service").strip() or "scanner-bt-audio-heal.service"
 BT_HEAL_DEFAULT_ENABLED = os.getenv("BT_HEAL_DEFAULT_ENABLED", "0").strip().lower() in _TRUTHY
 
-# Systemd Units
+# Service Units
 #
-# MA/SL split-process architecture (2026-05-26):
-#   "rtl_airband" + "rtl_ground" — the new per-tuner rtl-airband units
-#                                  introduced by the split.  Master
-#                                  (airband) + Slave (ground) on the
-#                                  same RSPduo, daemon-coordinated.
+# ⚠ SB7.2 ghost-name fix (2026-07-04, open P0): the live analog daemons
+# are chirp's templated units gr-demod@airband / gr-demod@ground (Phase
+# 4d: chirp gr-demod replaced rtl-airband — see ui/handlers.py core-unit
+# rows and ui/reliability.py display names).  The previous defaults here
+# ("rtl-airband-airband"/"rtl-airband-ground") still named the RETIRED
+# MA/SL rtl-airband split units (2026-05-26 architecture).  Every
+# systemctl call against those ghosts "succeeded" at the API layer while
+# controlling nothing — restart buttons and watchdog recoveries bounced
+# units that no longer exist, which turned a routine recovery into a
+# 30-minute outage.  Defaults now track the live daemons; keep them in
+# lockstep with the units actually installed on the box.
+#
+# Key map:
+#   "rtl_airband" + "rtl_ground" — the per-band analog demod daemons
+#                                  (chirp gr-demod@airband = Master
+#                                  tuner, gr-demod@ground = Slave, same
+#                                  RSPduo, daemon-coordinated).
 #   "rtl" — legacy alias retained for backward compat with in-tree
 #           callers that still reference UNITS["rtl"]:
 #             - ui/handlers.py state-check call sites
@@ -346,16 +364,16 @@ BT_HEAL_DEFAULT_ENABLED = os.getenv("BT_HEAL_DEFAULT_ENABLED", "0").strip().lowe
 #             - ui/scanner.py hit-list / last-hit reads
 #             - ui/systemd.py legacy restart_rtl() and stop/start seq
 #             - ui/dongle_power.py power-on/power-off sequencing
-#           Post-MA/SL-split it resolves to the master tuner unit
-#           (rtl-airband-airband); the slave follows via Requires=
-#           cascade, preserving pre-split single-unit semantics for
-#           these consumers.  Env-var name UNIT_RTL is preserved so
-#           operator deployments overriding it continue to work.
+#           It resolves to the airband (master tuner) daemon.
+#   "ground" — legacy alias; resolves to the ground (slave) daemon.
+# Env-var names (UNIT_RTL, UNIT_RTL_AIRBAND, UNIT_RTL_GROUND,
+# UNIT_GROUND, ...) are unchanged so operator env-file overrides
+# continue to work.
 UNITS = {
-    "rtl": os.getenv("UNIT_RTL", "rtl-airband-airband"),
-    "rtl_airband": os.getenv("UNIT_RTL_AIRBAND", "rtl-airband-airband"),
-    "rtl_ground":  os.getenv("UNIT_RTL_GROUND",  "rtl-airband-ground"),
-    "ground": os.getenv("UNIT_GROUND", "rtl-airband-ground"),
+    "rtl": os.getenv("UNIT_RTL", "gr-demod@airband"),
+    "rtl_airband": os.getenv("UNIT_RTL_AIRBAND", "gr-demod@airband"),
+    "rtl_ground":  os.getenv("UNIT_RTL_GROUND",  "gr-demod@ground"),
+    "ground": os.getenv("UNIT_GROUND", "gr-demod@ground"),
     "icecast": os.getenv("UNIT_ICECAST", "icecast2"),
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
     "ui": os.getenv("UNIT_UI", "airband-ui"),
@@ -367,7 +385,7 @@ UNITS = {
     "acars": os.getenv("UNIT_ACARS", "acarsdec"),
     "vdl2": os.getenv("UNIT_VDL2", "dumpvdl2"),
     "radiosonde": os.getenv("UNIT_RADIOSONDE", "radiosonde-auto-rx"),
-    "digital_audio": os.getenv("UNIT_DIGITAL_AUDIO", "scanner-digital-op25-audio"),
+    "vfo": os.getenv("UNIT_VFO", "scanner-vfo"),
 }
 
 # Mixer Configuration

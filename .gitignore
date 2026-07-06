@@ -69,3 +69,6 @@ disco/configs/sweep.yaml
 .claude/
 # hp_state.json pre-save snapshots (runtime, never committed)
 data/hp_state.json.history/
+
+# deploy runtime logs (never commit)
+.deploy-logs/

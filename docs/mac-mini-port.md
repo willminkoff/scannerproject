@@ -1,5 +1,19 @@
 # Mac mini port — full replacement of `micro`
 
+> **2026-07-04 AMENDMENTS (SB7 — see docs/sb7-northstar-program.md, which
+> supersedes this doc where they disagree):**
+> - Deployment is now a **single box: the M1 mini** (Intel 2018 mini = cold
+>   spare). No witness box.
+> - **op25 is retired** — no viable macOS path. The digital engine is
+>   **SDRTrunk** (native SDRplay API, native RSPduo dual-tuner, native Icecast
+>   streaming). §"M5 op25" no longer applies.
+> - **GR stack via radioconda/conda-forge (osx-arm64), not Homebrew** — brew's
+>   gnuradio formula is deprecated (Qt5 EOL). Only SoapySDRPlay3 is self-built.
+> - **Services run as launchd LaunchAgents in the auto-logged-in user session,
+>   NOT boot LaunchDaemons** (§3 below is amended): USB SDR access requires a
+>   user session. Appliance conventions: auto-login + FileVault OFF, `pmset`
+>   never-sleep + autorestart, HDMI dummy plug for GUI apps over Screen Sharing.
+
 **Goal (chosen path, "Path A"):** the Mac mini *becomes* the scannerproject box —
 headless, always-on, multi-band airband + ground scan, op25 P25 digital, Icecast
 streaming, the web UI, WX decoders, **and** local/Bluetooth audio output. Full

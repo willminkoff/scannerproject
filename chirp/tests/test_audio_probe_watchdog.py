@@ -27,6 +27,7 @@ from chirp.audio_probe import (
     AudioFlowProbe,
     DEFAULT_SILENCE_EPS,
     DEFAULT_SILENCE_GRACE_S,
+    DEFAULT_BLOCK_STALL_S,
 )
 
 
@@ -52,10 +53,16 @@ NONSILENT = 0.5  # a real audio peak, well above eps
 SILENT = 0.0     # the -180 dBFS wedge
 
 
-def _probe(clock: FakeClock, enabled: bool = True) -> AudioFlowProbe:
+def _probe(clock: FakeClock, enabled: bool = True, block_stall_s: float = None) -> AudioFlowProbe:
+    # Tests that only exercise the silence_grace_s (health=="live") mechanism
+    # get a huge block_stall_s by default so the two independent ceilings
+    # never coincidentally interact — the block-stall behavior is covered
+    # explicitly by TestFlowgraphStall below.
     return AudioFlowProbe(
         enabled=enabled, silence_grace_s=GRACE,
-        silence_eps=DEFAULT_SILENCE_EPS, monotonic=clock,
+        silence_eps=DEFAULT_SILENCE_EPS,
+        block_stall_s=1e9 if block_stall_s is None else block_stall_s,
+        monotonic=clock,
     )
 
 
@@ -87,7 +94,10 @@ class TestProbeDisabled:
 class TestSilenceExpected:
     """health != "live" means nothing is keyed / all parked / all muted →
     silence is EXPECTED and the watchdog must keep pinging no matter how long
-    it stays quiet. This is the "don't regress legitimate quiet" guarantee."""
+    it stays quiet — AS LONG AS THE FLOWGRAPH IS STILL ALIVE (blocks keep
+    arriving, silent or not; see TestFlowgraphStall for the case where blocks
+    stop arriving entirely, which is a different, always-a-wedge condition).
+    This is the "don't regress legitimate quiet" guarantee."""
 
     @pytest.mark.parametrize("health", ["no_open", "no_live", "all_muted", "unknown"])
     def test_non_live_health_always_pings(self, health):
@@ -166,6 +176,90 @@ class TestWedgeDetection:
         ok, reason = p.evaluate(clock(), "live")
         assert ok is True
         assert "flow_ok" in reason
+
+
+class TestFlowgraphStall:
+    """2026-07-06 regression: the whole flowgraph stops ticking (GR scheduler
+    blocks on a dead source) and hit_detector's own health computation freezes
+    right along with it, at whatever value it last held. A frozen "no_open"
+    is indistinguishable from a fresh one under the health-only rule above —
+    this is the second, independent ceiling that catches it: zero blocks
+    observed AT ALL (not just zero non-silent ones) for block_stall_s, checked
+    BEFORE health is even consulted."""
+
+    STALL = 5.0  # a small, explicit value distinct from GRACE for clarity
+
+    def _probe(self, clock: FakeClock) -> AudioFlowProbe:
+        return AudioFlowProbe(
+            enabled=True, silence_grace_s=GRACE, silence_eps=DEFAULT_SILENCE_EPS,
+            block_stall_s=self.STALL, monotonic=clock,
+        )
+
+    def test_default_constant_is_shorter_than_silence_grace_would_allow(self):
+        # Sanity check on the shipped default: it must be short enough to
+        # catch a dead flowgraph promptly, not just "eventually".
+        assert DEFAULT_BLOCK_STALL_S < 60.0
+
+    @pytest.mark.parametrize("health", ["no_open", "no_live", "all_muted", "live"])
+    def test_zero_blocks_ever_is_flagged_regardless_of_health(self, health):
+        """THE regression: a flowgraph that never ticks even once must be
+        caught after block_stall_s, no matter what health claims — this is
+        exactly the shape of the 2026-07-06 incident (over an HOUR of frozen
+        blocks_observed went unflagged under the old health-only logic)."""
+        clock = FakeClock()
+        p = self._probe(clock)
+        clock.advance(self.STALL + 1.0)
+        ok, reason = p.evaluate(clock(), health)
+        assert ok is False, "a flowgraph with zero blocks ever must be flagged as stalled"
+        assert "flowgraph_stalled" in reason
+
+    def test_silent_blocks_keep_flowing_with_no_open_health_never_stalls(self):
+        """The legitimate case this must NOT regress: health=no_open (nothing
+        currently keyed) but the mixer keeps feeding the sink silent blocks
+        (the Phase-3 park-CPU topology contract) — the flowgraph is alive,
+        just quiet. Must never be flagged, no matter how long this persists."""
+        clock = FakeClock()
+        p = self._probe(clock)
+        for _ in range(50):
+            clock.advance(1.0)
+            p.observe_peak(SILENT)
+            ok, reason = p.evaluate(clock(), "no_open")
+            assert ok is True, f"silent-but-ticking flowgraph must not stall-wedge (t={clock()})"
+
+    def test_stall_detected_before_health_branch_even_on_live(self):
+        """A stalled flowgraph with health frozen at "live" (not just
+        no_open) must ALSO be caught — the stall check runs before the
+        health-based silence_grace_s logic, so it fires even faster than the
+        pre-existing audio_branch_silent path would for a genuinely shorter
+        block_stall_s."""
+        clock = FakeClock()
+        p = self._probe(clock)
+        p.observe_peak(NONSILENT)
+        p.evaluate(clock(), "live")
+        clock.advance(self.STALL + 1.0)  # no more observe_peak calls at all
+        ok, reason = p.evaluate(clock(), "live")
+        assert ok is False
+        assert "flowgraph_stalled" in reason
+
+    def test_recovery_after_stall_resumes_pinging(self):
+        clock = FakeClock()
+        p = self._probe(clock)
+        clock.advance(self.STALL + 1.0)
+        assert p.evaluate(clock(), "no_open")[0] is False  # stalled
+        # The flowgraph starts ticking again.
+        p.observe_peak(SILENT)
+        ok, reason = p.evaluate(clock(), "no_open")
+        assert ok is True
+        assert "flow_ok" in reason
+
+    def test_snapshot_exposes_seconds_since_any_block(self):
+        clock = FakeClock()
+        p = self._probe(clock)
+        p.observe_peak(SILENT)
+        clock.advance(2.0)
+        snap = p.snapshot()
+        assert snap["seconds_since_any_block"] == 2.0
+        assert snap["block_stall_s"] == self.STALL
 
 
 class TestLiveForGuard:

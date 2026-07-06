@@ -20,7 +20,7 @@
   "denoise_model": "chirp/models/sh.rnnn",
   "denoise_gain_db": 25.0,
   "audio_eq": "",
-  "max_channels": 32,
+  "max_channels": 12,
   "icecast_bitrate_kbps": 64,
   "icecast_fallback_file": "/tmp/chirp_airband_fallback.f32",
   "log_level": "INFO",
@@ -31,14 +31,14 @@
   "priority_gate_enabled": true,
   "global_squelch_dbfs": -56.0,
   "sdr": {
-    "_comment": "SDR source defaults for airband. Production cutover (Phase 4d) targets the analog RSPduo serial 1809063632 with mode=MA tuner=1, matching rtl-airband-airband. center_freq_hz must be set to whichever sub-band chirp is currently scanning; with 1 Msps the LO must be retuned by an external scheduler to cover the full 121-385 MHz airband list.",
-    "device_args": "soapy=,driver=sdrplay,serial=1809063632,mode=MA,tuner=1",
+    "_comment": "SDR source defaults for airband. SB7 (M1, macOS): RSPduo RSP-B serial 1809063632 in SINGLE-TUNER mode (rspduo_mode=ST) — the proven-clean config (2026-06-15). Master mode (mode=MA) corrupts the IQ into broadband noise; ST is the structural kill-shot. Uses SoapySDRPlay3 arg keys rspduo_mode/rspduo_tuner (NOT osmosdr's mode/tuner). center_freq_hz is retuned by the LO scheduler to cover the airband list.",
+    "device_args": "soapy=,driver=sdrplay,serial=1809063632,rspduo_mode=ST,rspduo_tuner=1",
     "center_freq_hz": 127500000.0,
     "gain_db": 32.8,
     "gain_mode_auto": false,
     "bandwidth_hz": 1536000.0,
     "ppm": 0.0,
-    "antenna": null,
+    "antenna": "Tuner 1 50 ohm",
     "element_gains": {}
   }
 }
