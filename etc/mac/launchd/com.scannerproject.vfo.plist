@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  com.scannerproject.vfo (SB7.7)
+
+  scripts/vfo.py — the manual-tune "VFO" receiver: one dedicated RTL-SDR
+  (RTL-SDR Blog V4, serial 83241970, chosen for its R828D + TCXO front end)
+  opened directly via SoapySDR's rtlsdr driver (NOT gr-osmosdr — this is a
+  plain SoapySDR readStream + numpy loop, no GNU Radio flowgraph at all).
+  Publishes 32 kbps MP3 to icecast's /VFO.mp3 mount via ffmpeg on stdin, plus
+  a mini-waterfall + tuning state to VFO_STATE_DIR/state.json, which the UI
+  (ui/handlers.py's file-backed pass-through, /api/vfo) reads and writes
+  config.json into for tune/mod/squelch/gain changes.
+
+  Wrapped in the same tuner-broker CLI pattern as chirp-airband/-ground
+  (SB7.2-D): claims serial 83241970 before the daemon ever touches SoapySDR,
+  holds the lease for the daemon's whole lifetime, releases automatically on
+  any exit including a crash.
+
+  Runs the inner process under radioconda's python (not
+  /opt/scannerproject/venv, which is deliberately minimal/stdlib-only) --
+  vfo.py needs numpy, scipy.signal, and the SoapySDR Python bindings, all of
+  which radioconda already provides for the chirp/GR stack. Two macOS
+  gotchas carried over from chirp-airband/-ground (see
+  memory/sb7-first-audio-m1.md):
+    - PATH includes radioconda/bin -- vfo.py spawns `ffmpeg` by bare name
+      (radioconda bundles ffmpeg; confirmed present at
+      /opt/scannerproject/radioconda/bin/ffmpeg, no Homebrew needed).
+    - SOAPY_SDR_PLUGIN_PATH is mandatory -- radioconda's SoapySDR has a
+      compiled-in module path that does not survive relocation.
+  NumberOfFiles bump is included for consistency with the other
+  radioconda-python services even though this script doesn't touch GNU
+  Radio's vmcircbuf buffers (cheap insurance, not required by profiling).
+
+  VFO_STATE_DIR points at /opt/scannerproject/run/vfo (there is no /run on
+  macOS) -- must match the UI's VFO_STATE_DIR env var exactly, or the
+  dashboard's Manual Tune card will read/write a different path than the
+  daemon and appear permanently "DOWN" despite the daemon being healthy.
+
+  ICECAST_SOURCE_PASSWORD below is a PLACEHOLDER; this template is committed
+  to git as-is (scripts/vfo.py's own hardcoded fallback of "062352" must
+  NEVER be relied on -- that string is the same compromised placeholder
+  found in the legacy rtl_airband_combined.conf). Deploy substitutes the
+  real generated password from /opt/scannerproject/etc/icecast-credentials.env
+  (chmod 600, never committed) via sed into the copy installed at
+  ~/Library/LaunchAgents -- the placeholder must NEVER reach that installed
+  copy unsubstituted.
+
+  Install:
+    sed -e "s/CHANGE_ME_ICECAST_SOURCE_PASSWORD/$(grep ICECAST_SOURCE_PASSWORD /opt/scannerproject/etc/icecast-credentials.env | cut -d= -f2)/" \
+      etc/mac/launchd/com.scannerproject.vfo.plist > ~/Library/LaunchAgents/com.scannerproject.vfo.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.vfo.plist
+  Logs: /opt/scannerproject/log/vfo.log
+-->
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.vfo</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/scannerproject/venv/bin/python</string>
+        <string>-m</string>
+        <string>broker.client</string>
+        <string>run</string>
+        <string>--serial</string>
+        <string>83241970</string>
+        <string>--consumer</string>
+        <string>vfo</string>
+        <string>--reason</string>
+        <string>VFO tunable receiver (SB7.7)</string>
+        <string>--require</string>
+        <string>--</string>
+        <string>/opt/scannerproject/radioconda/bin/python</string>
+        <string>scripts/vfo.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/scannerproject/app</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/scannerproject/radioconda/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONPATH</key>
+        <string>/opt/scannerproject/app</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>SOAPY_SDR_PLUGIN_PATH</key>
+        <string>/opt/scannerproject/radioconda/lib/SoapySDR/modules0.8</string>
+        <key>SCANNER_FLEET_POLICY</key>
+        <string>/opt/scannerproject/etc/sdr_fleet_policy.json</string>
+        <key>VFO_SERIAL</key>
+        <string>83241970</string>
+        <key>VFO_STATE_DIR</key>
+        <string>/opt/scannerproject/run/vfo</string>
+        <key>ICECAST_HOST</key>
+        <string>127.0.0.1</string>
+        <key>ICECAST_PORT</key>
+        <string>8000</string>
+        <key>ICECAST_SOURCE_USER</key>
+        <string>source</string>
+        <key>ICECAST_SOURCE_PASSWORD</key>
+        <string>CHANGE_ME_ICECAST_SOURCE_PASSWORD</string>
+        <key>VFO_ICECAST_MOUNT</key>
+        <string>/VFO.mp3</string>
+    </dict>
+
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>10240</integer>
+    </dict>
+    <key>HardResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>10240</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>45</integer>
+
+    <key>StandardOutPath</key>
+    <string>/opt/scannerproject/log/vfo.log</string>
+    <key>StandardErrorPath</key>
+    <string>/opt/scannerproject/log/vfo.log</string>
+</dict>
+</plist>

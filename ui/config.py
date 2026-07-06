@@ -68,6 +68,12 @@ RTL_AIRBAND_GROUND_STATS_PATH = os.getenv(
 )
 RTL_AIRBAND_STATS_STALE_SEC = float(os.getenv("RTL_AIRBAND_STATS_STALE_SEC", "15"))
 
+# VFO (Phase 6b, single tunable RTL-SDR) state dir. scripts/vfo.py and the
+# UI's file-backed pass-through (ui/handlers.py) must agree on this path;
+# was hardcoded to the Linux "/run/..." default in both places until the
+# SB7 macOS port needed it overridden (there is no /run on macOS).
+VFO_STATE_DIR = os.getenv("VFO_STATE_DIR", "/run/scannerproject/vfo")
+
 # Filter Configuration
 FILTER_CONFIG_DIR = os.getenv("FILTER_CONFIG_DIR", "/run")
 FILTER_AIRBAND_PATH = os.path.join(FILTER_CONFIG_DIR, "rtl_airband_filter.json")
@@ -379,6 +385,7 @@ UNITS = {
     "acars": os.getenv("UNIT_ACARS", "acarsdec"),
     "vdl2": os.getenv("UNIT_VDL2", "dumpvdl2"),
     "radiosonde": os.getenv("UNIT_RADIOSONDE", "radiosonde-auto-rx"),
+    "vfo": os.getenv("UNIT_VFO", "scanner-vfo"),
 }
 
 # Mixer Configuration

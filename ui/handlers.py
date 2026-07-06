@@ -156,6 +156,7 @@ try:
         RTL_AIRBAND_AIRBAND_STATS_PATH,
         RTL_AIRBAND_GROUND_STATS_PATH,
         RTL_AIRBAND_STATS_STALE_SEC,
+        VFO_STATE_DIR,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
         SB3_CONNECTED_SYSTEM_REFRESH_SEC,
         SB3_CONNECTED_PROFILES_REFRESH_SEC,
@@ -304,6 +305,7 @@ except ImportError:
         RTL_AIRBAND_AIRBAND_STATS_PATH,
         RTL_AIRBAND_GROUND_STATS_PATH,
         RTL_AIRBAND_STATS_STALE_SEC,
+        VFO_STATE_DIR,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
         SB3_CONNECTED_SYSTEM_REFRESH_SEC,
         SB3_CONNECTED_PROFILES_REFRESH_SEC,
@@ -3570,7 +3572,7 @@ def _compute_heartbeat_payload() -> dict:
     extended_service_units = [
         ("scanner-digital-op25",        "scanner-digital-op25.service"),
         ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service"),
-        ("scanner-vfo",                 "scanner-vfo.service"),
+        ("scanner-vfo",                 UNITS.get("vfo", "scanner-vfo")),
         ("scanner-tuner-broker",        "scanner-tuner-broker.service"),
         ("dumpvdl2",                    "dumpvdl2.service"),
         ("acarsdec",                    "acarsdec.service"),
@@ -4023,7 +4025,6 @@ def _waterfall_write_config(
 # stub rather than 500ing.
 # =====================================================================
 
-VFO_STATE_DIR = "/run/scannerproject/vfo"
 VFO_STATE_PATH = os.path.join(VFO_STATE_DIR, "state.json")
 VFO_CONFIG_PATH = os.path.join(VFO_STATE_DIR, "config.json")
 VFO_STALE_SEC = 5.0
@@ -4821,7 +4822,7 @@ _SITREP_SERVICE_UNITS_STATIC_TAIL: tuple[tuple[str, str], ...] = (
     ("scanner-digital-op25",        "scanner-digital-op25.service"),
     ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service"),
     ("scanner-waterfall",           "scanner-waterfall.service"),
-    ("scanner-vfo",                 "scanner-vfo.service"),
+    ("scanner-vfo",                 UNITS.get("vfo", "scanner-vfo")),
     ("scanner-tuner-broker",        "scanner-tuner-broker.service"),
     ("disco-coordinator",           "disco-coordinator.service"),
     ("dumpvdl2",                    "dumpvdl2.service"),
