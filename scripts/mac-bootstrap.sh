@@ -283,12 +283,33 @@ PYFIX
                       -DCMAKE_BUILD_TYPE=Release \
           && make -j"$(sysctl -n hw.ncpu)" \
           && make install ) || die "SoapySDRPlay3 build/install failed"
-      ok "SoapySDRPlay3 built + installed into $RC_PREFIX"
+      # The built module links @rpath/libsdrplay_api.so.3 and
+      # @rpath/libSoapySDR.0.8.dylib but ships with NO usable LC_RPATH, so dyld
+      # can't resolve either → the driver loads MISSING. Add rpaths to the
+      # SDRplay API (/usr/local/lib) and to radioconda's lib (@loader_path/../..
+      # from the module dir), then re-sign ad-hoc. (M1 provisioning 2026-07-05.)
+      MOD=$(ls "$RC_PREFIX"/lib/SoapySDR/modules*/libsdrPlaySupport.so 2>/dev/null | head -1)
+      if [ -n "$MOD" ]; then
+        install_name_tool -add_rpath /usr/local/lib "$MOD" 2>/dev/null || true
+        install_name_tool -add_rpath @loader_path/../.. "$MOD" 2>/dev/null || true
+        codesign -f -s - "$MOD" >/dev/null 2>&1 || true
+      fi
+      ok "SoapySDRPlay3 built + installed into $RC_PREFIX (rpaths patched)"
     fi
-    if "$RC_PREFIX/bin/SoapySDRUtil" --info 2>/dev/null | grep -qi sdrplay; then
-      ok "radioconda SoapySDR loads the sdrplay module"
+    # radioconda's SoapySDR-rtlsdr module wants librtlsdr.2.dylib but the
+    # rtl-sdr package installs only librtlsdr.2.0.1.dylib — add the symlink.
+    if [ -f "$RC_PREFIX/lib/librtlsdr.2.0.1.dylib" ] && [ ! -e "$RC_PREFIX/lib/librtlsdr.2.dylib" ]; then
+      ( cd "$RC_PREFIX/lib" && ln -s librtlsdr.2.0.1.dylib librtlsdr.2.dylib )
+      ok "linked librtlsdr.2.dylib -> librtlsdr.2.0.1.dylib"
+    fi
+    # radioconda's SoapySDR has a compiled-in module path that does NOT survive
+    # relocation: the driver reads MISSING unless SOAPY_SDR_PLUGIN_PATH points at
+    # the modules dir. scannerproject.env exports it for every chirp/GR process.
+    SPP="$RC_PREFIX/lib/SoapySDR/modules0.8"
+    if SOAPY_SDR_PLUGIN_PATH="$SPP" "$RC_PREFIX/bin/SoapySDRUtil" --check=sdrplay 2>/dev/null | grep -qi "PRESENT"; then
+      ok "SoapySDR loads the sdrplay driver (needs SOAPY_SDR_PLUGIN_PATH=$SPP)"
     else
-      warn "SoapySDRUtil --info does not list an sdrplay module — check the build output above"
+      warn "SoapySDRUtil --check=sdrplay not PRESENT even with SOAPY_SDR_PLUGIN_PATH — check build output"
     fi
   fi
 fi
