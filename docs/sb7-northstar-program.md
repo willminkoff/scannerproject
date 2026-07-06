@@ -26,7 +26,7 @@ program that gets there — designed around the hardware actually on hand:
 | Mac mini 2018 | Intel i5-8500B 6-core 3.0 GHz, 16 GB RAM, 4× TB3 (2 buses) + 2× USB-A |
 | Mac mini 2021 | Apple M1, 8 GB RAM, 2× TB/USB4 + 2× USB-A |
 | 2× SDRplay RSPduo | serials 180903EF32 (RSP-A), 1809063632 (RSP-B) |
-| 4× RTL-SDR | serials TBD-verify in SB7.1 (micro-confirmed pool: 70613472, 61108285, 83241970 V4, 80000003) |
+| 3× RTL-SDR (attached) | 61108285 (ground), 83241970 (Blog V4, VFO), 56919602 (NESDR, waterfall+WX shared) — verified on the M1, 2026-07-06. A 4th is not currently attached. |
 
 ---
 
@@ -127,28 +127,34 @@ the **open items**.
 
 ## 4. Hardware architecture
 
-### 4.1 Device map (DECIDED 2026-07-05 — M1 host, dual-tuner digital)
+### 4.1 Device map (reconciled to ACTUAL hardware, 2026-07-06)
 
 Fleet policy v2.1 (`etc/mac/sdr_fleet_policy.json`) is the machine-readable
 source of truth; this is the human wiring card. The rule that keeps it safe:
 **exactly one dual-tuner RSPduo, and it runs on SDRTrunk's native SDRplay API.**
+Only **3 RTLs are physically attached** to the M1 (not 4, as earlier planning
+assumed) — that constraint, plus VFO (a role earlier planning missed
+entirely), drove the final RTL assignment below.
 
 | Device (serial) | Mode | Role | Fixed / arbitrated |
 |---|---|---|---|
 | **RSP-A** 180903EF32 | **Dual-tuner** | **SDRTrunk P25** — T1 = MTRTRS (ships first), T2 = 2nd system (Will names it) | fixed |
-| **RSP-B** 1809063632 | ST, tuner 1 | chirp **airband** (proven-clean 2026-06-15) | fixed |
-| **RTL** 80000003 (stable) | — | chirp **ground** NFM (6/18 fix; gain 30–35) | fixed, 24/7 |
-| **RTL** 70613472 (stable) | — | **DIGITAL-FLEX** — SDRTrunk 3rd P25 system when activated; else disco / hot-spare | broker |
-| **RTL** 61108285 (stable) | — | **WX** — VDL2 / ACARS | broker |
-| **RTL** 83241970 (V4, finicky) | — | **waterfall** (`/sb5` Live IQ), single-dongle | drop-tolerant |
+| **RSP-B** 1809063632 | ST, tuner 1 | chirp **airband** — **LIVE** on `/ANALOG.mp3` | fixed |
+| **RTL** 61108285 (stable) | — | chirp **ground** NFM — **LIVE** on `/ANALOG_GROUND.mp3` | fixed, 24/7 |
+| **RTL** 83241970 (Blog V4, best RF) | — | **VFO** (`scripts/vfo.py`, manual tune + mini-waterfall → `/VFO.mp3`) | fixed |
+| **RTL** 56919602 (reliability TBD) | — | **waterfall** (`/sb5` Live IQ) *and* **WX** (VDL2/ACARS) — time-share, broker-arbitrated | shared |
+
+Both analog bands are **confirmed running** as broker-arbitrated launchd
+services (`com.scannerproject.chirp-airband`/`-ground`), verified end-to-end
+including clean-shutdown + anti-churn self-heal (§6 build status).
 
 **Digital capacity:** RSP-A dual-tuner = **2 P25 systems simultaneously** (one per
 ~2 MHz tuner, native SDRplay API — the most reliable digital path on macOS). MTRTRS
 ships first on tuner 1; the 2nd system slots onto tuner 2 with no hardware change
-(SDRTrunk restart to add). **Growth to a 3rd system** = promote the stable
-DIGITAL-FLEX RTL (70613472) into the same SDRTrunk instance (heterogeneous tuners
-are supported), broker-leased on demand. So the map delivers "≥2 digital systems,
-room for 3."
+(SDRTrunk restart to add). **Growth to a 3rd system** needs a **4th physical RTL**
+(none of the 3 attached are spare — see below); the growth mechanism itself
+(heterogeneous tuners in one SDRTrunk instance, broker-leased on demand) is
+unchanged from the original design.
 
 **What still holds by construction:** 0x6bed needs *two* concurrent dual-tuner
 RSPduos through one apiService — we run exactly one (RSP-B is ST), so it stays
@@ -157,15 +163,21 @@ op25 + SoapySDRPlay3 `mode=MA/SL` phenomenon; SDRTrunk's native dual-tuner is a
 vendor-supported mechanism with none of op25's cross-process retune contention,
 so that wedge class is gone too.
 
-**Two design calls I made for you (flag if you disagree):**
-- *Reliability-aware RTL placement.* The flaky V4 (83241970) goes on the
-  drop-tolerant waterfall, never on a digital control channel or a core analog
-  band. The three stable RTLs carry ground, digital-growth, and WX.
-- *Waterfall traded down to single-dongle.* Serving "room for a 3rd digital
-  system" claimed the RTL that used to be waterfall-B, so the Live IQ pane is
-  now one dongle (~2.4 MHz span) instead of the old 2-dongle stitch. If you'd
-  rather keep the wide stitched waterfall than have a 3rd-digital growth slot,
-  say so and I'll swap DIGITAL-FLEX back to waterfall-B.
+**The VFO gap (found and closed, 2026-07-06):** earlier planning allocated all
+3 RTLs to ground/WX/waterfall and never accounted for VFO — a genuinely
+separate feature (manually-tunable live receiver + its own mini-waterfall,
+`scripts/vfo.py`) that on micro had its own dedicated dongle. Will's call, once
+the gap surfaced: **VFO reclaims the RTL-SDR Blog V4 (83241970)**, restoring
+its original micro-era assignment (chosen there specifically for the Blog V4's
+better front-end/SNR — it moved 80000003 → 61108285 → 83241970 over micro's
+life for exactly that reason). Cost: waterfall and WX now **time-share** the
+one remaining RTL (56919602) via the broker instead of each having one.
+Neither `scripts/waterfall.py` nor the WX decoders are broker-integrated yet —
+that's a prerequisite before either goes live on this box (claim by serial,
+not by role — see the fleet policy's `_shared_with_mechanism` note; the
+broker's `shared_with` field is documentation only, not enforced routing).
+If the waterfall/WX contention becomes a real problem in practice, the fix is
+a 4th RTL, not a policy change.
 
 **Open (only Will can answer):** the 2nd P25 system's name (for tuner 2), and —
 before either goes live — a one-time SDRangel span check that each system's
@@ -174,7 +186,7 @@ spread is irrelevant since you monitor one site at a time).
 
 **Physical (M1: 2× Thunderbolt + 2× USB-A):** each RSPduo on its own Thunderbolt
 port (own controller — the dual-tuner RSP-A especially wants the bandwidth); the
-4 RTLs on a powered hub (own PSU) on USB-A. Verify controller grouping on the box
+3 RTLs on a powered hub (own PSU) on USB-A. Verify controller grouping on the box
 with `system_profiler SPUSBDataType` during SB7.1 — if the two USB-A ports share
 one controller, consider a second hub to split the RTLs.
 

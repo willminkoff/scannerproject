@@ -55,23 +55,24 @@
     { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "61108285", "serial_status": "PRESENT-on-M1 2026-07-05 (was micro's WX dongle; micro-confirmed stable)",
       "label": "GROUND", "role": "chirp-ground", "consumer": "gr-demod@ground",
       "reliability": "stable", "sample_rate_hz": 2400000, "gain_db": 32, "usb_group": "G3", "shared_with": [],
-      "_note": "FIXED, 24/7 core analog. The most-reliable attached RTL deliberately on the 24/7 ground band. Ground NFM on RTL is the proven 2026-06-18 fix. Gain 30-35 (40 clips the front end)." },
-    { "id": "RTL-WX", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-05 (NESDR SMArt v5; new to the fleet, reliability TBD in soak)",
-      "label": "WX", "role": "wx", "consumer": "broker-arbitrated",
+      "_note": "FIXED, 24/7 core analog. The most-reliable attached RTL deliberately on the 24/7 ground band. Ground NFM on RTL is the proven 2026-06-18 fix. Gain 30-35 (40 clips the front end). CONFIRMED LIVE on the M1, 2026-07-06 — streaming to icecast /ANALOG_GROUND.mp3 via com.scannerproject.chirp-ground." },
+    { "id": "RTL-VFO", "kind": "rtlsdr", "serial": "83241970", "serial_status": "PRESENT-on-M1 2026-07-06 (RTL-SDR Blog V4)",
+      "label": "VFO", "role": "vfo", "consumer": "scripts/vfo.py",
+      "reliability": "best-RF-quality (R828D tuner + TCXO); historically flaky USB re-enumeration on micro (error -71) — watch during soak on the M1's own ports/cables",
+      "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": [],
+      "_note": "Dedicated to VFO (2026-07-06, restoring its original micro-era assignment) per Will's call: VFO is a manually-tunable live receiver (scripts/vfo.py, publishes /VFO.mp3 + a mini-waterfall) and specifically wants this dongle's superior front-end/SNR for tuning into weak signals — it went 80000003 -> 61108285 -> 83241970 on micro for exactly that reason, landing here. NOT the auto-scanning waterfall (that's RTL-WF-WX below) — do not conflate the two." },
+    { "id": "RTL-WF-WX", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-05 (NESDR SMArt v5; new to the fleet, reliability TBD in soak)",
+      "label": "WF-WX", "role": "waterfall", "consumer": "broker-arbitrated",
       "reliability": "unknown", "sample_rate_hz": 2400000, "usb_group": "G3",
-      "shared_with": ["vdl2", "acars", "hot-spare"],
-      "priority": ["vdl2", "acars", "hot-spare"],
-      "_note": "Weather decoders (VDL2 / ACARS). Drop-tolerant role for a not-yet-proven dongle." },
-    { "id": "RTL-WF", "kind": "rtlsdr", "serial": "83241970", "serial_status": "PRESENT-on-M1 2026-07-05 (RTL-SDR Blog V4; USB-finicky on micro, enumerates clean on M1)",
-      "label": "WATERFALL", "role": "waterfall", "consumer": "scanner-waterfall",
-      "reliability": "finicky", "sample_rate_hz": 2400000, "usb_group": "G3", "shared_with": ["hot-spare"],
-      "_note": "Live IQ waterfall (/sb5), single-dongle. The flaky V4 on the drop-tolerant role by design. NOTE: only 3 RTLs are attached — the DIGITAL-FLEX slot (3rd-P25 growth / disco / hot-spare) has NO dongle; add a 4th RTL to enable it." }
+      "shared_with": ["wx"],
+      "_shared_with_mechanism": "shared_with is DOCUMENTATION ONLY — the broker's devices_for_role() matches on the single declared 'role' field alone; it does NOT consult shared_with for role-based lookups (verified against broker/policy.py, 2026-07-06). Real sharing works because the broker enforces mutual exclusion PER SERIAL regardless of role: the wx/vdl2/acars launcher must claim BY SERIAL (--serial 56919602, not --role wx) to get this same physical dongle when waterfall isn't holding it. Whichever claims first wins until release; the other gets an already-leased denial naming the holder.",
+      "_note": "Only one RTL remained after VFO reclaimed the Blog V4 (2026-07-06), so waterfall (/sb5 Live IQ) and WX (VDL2/ACARS) now time-share this single dongle via the broker instead of each having one. Neither integration is broker-aware yet (scripts/waterfall.py and the WX decoders predate the broker) — wiring that claim-by-serial call into both is a prerequisite before either goes live on this box. If this contention becomes a problem in practice, the fix is a 4th RTL, not a policy change." }
   ],
   "usb_groups": {
     "G1": { "host_port": "Thunderbolt/USB4 port 1", "hub": null, "_note": "RSP-A (dual-tuner, heaviest) direct-cabled, own controller, no hub" },
     "G2": { "host_port": "Thunderbolt/USB4 port 2", "hub": null, "_note": "RSP-B direct-cabled, own controller, no hub" },
-    "G3": { "host_port": "USB-A", "hub": "H1 (powered, own PSU)", "members": ["RTL-GROUND", "RTL-DIGFLEX", "RTL-WX", "RTL-WF"],
-            "_note": "4 RTLs on a powered hub. VERIFY on the box with `system_profiler SPUSBDataType`: the M1's two USB-A ports may share one controller — if so, 4 RTLs on one controller is within max_rtl_streams_per_usb_controller=5 but near it; consider splitting across a 2nd powered hub on the other USB-A port if throughput/overflow shows up in the SB7.1 soak." }
+    "G3": { "host_port": "USB-A", "hub": "H1 (powered, own PSU)", "members": ["RTL-GROUND", "RTL-VFO", "RTL-WF-WX"],
+            "_note": "3 RTLs on a powered hub. VERIFY on the box with `system_profiler SPUSBDataType`: the M1's two USB-A ports may share one controller — if so, consider splitting across a 2nd powered hub if throughput/overflow shows up in soak. A 4th RTL (to un-share waterfall/WX, or for a 3rd P25 growth system) would land here or on a 2nd hub." }
   },
   "broker": {
     "launchd_label": "com.scannerproject.tuner-broker",
