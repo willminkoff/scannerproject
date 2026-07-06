@@ -13,12 +13,12 @@
   "log_level": "INFO",
   "lo_dwell_sec": 3.0,
   "sdr": {
-    "_comment": "SDR source defaults for ground. Production cutover (Phase 4d) targets the analog RSPduo serial 1809063632 with mode=SL tuner=2 to coexist with rtl-airband-airband's MA-master on the same physical RSPduo. center_freq_hz set to 138.05 MHz (177th Fighter Wing \u2014 the busiest ground channel by far in rtl-airband's stats).",
-    "device_args": "soapy=,driver=sdrplay,serial=1809063632,mode=SL,tuner=2",
+    "_comment": "SDR source defaults for ground. SB7 (M1, macOS): ground moved OFF the RSPduo SL tuner (the old MA/SL device_args below is retired dead config \u2014 SL required a Master already open on the same physical RSPduo, and SB7's device map runs airband ST-only on its own RSPduo with no MA/SL at all). Ground now runs on its own dedicated RTL-SDR (serial 61108285, the most-reliable attached dongle per etc/mac/sdr_fleet_policy.json). gr-osmosdr addresses RTL by its NATIVE 'rtl=<serial>' source type, not soapy=driver=rtlsdr (verified empirically on the M1, 2026-07-06: 'built-in source types: ... rtl ... soapy ...' \u2014 rtl is the dedicated osmosdr backend). No bandwidth_hz needed for RTL (0 = driver default; the SDRplay-master-mode bandwidth requirement that broke airband doesn't apply to RTL's architecture). center_freq_hz set to 138.05 MHz (177th Fighter Wing \u2014 the busiest ground channel by far in rtl-airband's stats).",
+    "device_args": "rtl=61108285",
     "center_freq_hz": 138050000.0,
-    "gain_db": 32.8,
+    "gain_db": 32.0,
     "gain_mode_auto": false,
-    "bandwidth_hz": 1536000.0,
+    "bandwidth_hz": 0.0,
     "ppm": 0.0,
     "antenna": null,
     "element_gains": {}
