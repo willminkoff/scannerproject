@@ -56,24 +56,46 @@ die()  { printf "  \033[1;31m✗\033[0m %s\n" "$*"; exit 1; }
 # ---------- 0. deps ----------------------------------------------------------
 step "Architecture + Homebrew"
 ARCH=$(uname -m); ok "arch=$ARCH"; sw_vers | sed 's/^/  /'
-command -v brew >/dev/null 2>&1 || die "no Homebrew — install from https://brew.sh first"
-ok "brew: $(brew --version | head -1)"
+# Homebrew is OPTIONAL, not required (revised 2026-07-05). The M1 provisioning
+# session proved the whole stack — GR, SoapySDRPlay3, icecast, libshout,
+# python-shout, ffmpeg, lame, cmake, pkg-config — builds via radioconda/
+# conda-forge + source builds with ZERO Homebrew installed. HAVE_BREW gates the
+# brew-dependency steps below; the icecast/libshout phase always runs (it now
+# builds from source against radioconda when brew is absent).
+HAVE_BREW=0
+if command -v brew >/dev/null 2>&1; then
+  HAVE_BREW=1
+  ok "brew: $(brew --version | head -1)"
+else
+  warn "no Homebrew — proceeding brew-free (radioconda + source builds cover the RF/audio stack)"
+fi
 
-step "Homebrew dependencies"
-# Core RF/audio + build toolchain — LEAF TOOLS ONLY (SB7 §4.3). gnuradio does
-# NOT come from brew (deprecated formula); it comes from radioconda in phase 5.
-# The brew gnuradio/boost pile is pulled only for the deprecated forced-op25 path.
-BREW_PKGS=(
-  icecast ffmpeg sox lame libshout libconfig fftw libusb jansson
-  rtl-sdr soapysdr cmake pkg-config git python@3.12
-)
-[ "$FORCE_OP25" = "1" ] && BREW_PKGS+=( gnuradio boost swig cppunit log4cpp uhd pybind11 )
-for pkg in "${BREW_PKGS[@]}"; do
-  if brew list "$pkg" >/dev/null 2>&1; then ok "$pkg"; else
-    warn "installing $pkg"; brew install "$pkg" || warn "$pkg install failed (may not be critical)"
-  fi
-done
-command -v "$PY" >/dev/null 2>&1 || die "python3.12 not on PATH after brew install"
+if [ "$HAVE_BREW" = "1" ]; then
+  step "Homebrew dependencies"
+  # Core RF/audio + build toolchain — LEAF TOOLS ONLY (SB7 §4.3). gnuradio does
+  # NOT come from brew (deprecated formula); it comes from radioconda in phase 5.
+  # The brew gnuradio/boost pile is pulled only for the deprecated forced-op25 path.
+  # NOTE: rtl_airband (phase 4) still assumes libconfig/fftw/jansson from here —
+  # that combo was NOT validated brew-free this session; if you're brew-free and
+  # rtl_airband's build fails on those, that's the known gap.
+  BREW_PKGS=(
+    icecast ffmpeg sox lame libshout libconfig fftw libusb jansson
+    rtl-sdr soapysdr cmake pkg-config git python@3.12
+  )
+  [ "$FORCE_OP25" = "1" ] && BREW_PKGS+=( gnuradio boost swig cppunit log4cpp uhd pybind11 )
+  for pkg in "${BREW_PKGS[@]}"; do
+    if brew list "$pkg" >/dev/null 2>&1; then ok "$pkg"; else
+      warn "installing $pkg"; brew install "$pkg" || warn "$pkg install failed (may not be critical)"
+    fi
+  done
+fi
+# python3.12: brew's python@3.12 if present, else radioconda's (installed in
+# phase 5 --gr; if neither exists yet PY resolution below will fail loudly at
+# the venv-creation step rather than here, since --gr may not have run yet).
+if ! command -v "$PY" >/dev/null 2>&1 && [ -x "$RC_PY" ]; then
+  PY="$RC_PY"
+  ok "python3.12 resolved via radioconda: $PY"
+fi
 
 # ---------- 1. runtime layout ------------------------------------------------
 step "Runtime layout under ${PREFIX}"
@@ -101,14 +123,102 @@ pip install requests numpy >/dev/null 2>&1 || warn "base pip deps failed"
 ok "venv python: $(python --version 2>&1)  ($(command -v python))"
 deactivate
 
-# ---------- 3. icecast --------------------------------------------------------
-step "Icecast config"
-ICE_SRC="$REPO/etc/icecast2/icecast.xml"
-if [ -f "$ICE_SRC" ]; then
-  cp "$ICE_SRC" "$PREFIX/etc/icecast.xml"
-  ok "icecast.xml -> $PREFIX/etc/icecast.xml (review <paths>/<logdir> for macOS)"
+# ---------- 3. icecast + libshout + python-shout -----------------------------
+# Validated brew-free on the M1, 2026-07-05: icecast 2.4.4 and libshout 2.4.6
+# both build from source against radioconda's ogg/vorbis/xml2/xslt/curl (all
+# present once phase 5 --gr has run). python-shout then builds against that
+# libshout via pip. If brew's icecast/libshout are already present, skip.
+step "Icecast (brew if present, else source build against radioconda)"
+if command -v icecast >/dev/null 2>&1; then
+  ok "icecast already on PATH ($(command -v icecast))"
+elif [ -x "$PREFIX/icecast/bin/icecast" ]; then
+  ok "icecast already built at $PREFIX/icecast"
 else
-  warn "no repo icecast.xml at $ICE_SRC — generate one or copy brew's sample"
+  if [ ! -x "$RC_PY" ]; then
+    warn "no icecast (brew or built) and radioconda not present yet — run with --gr first, or install icecast via brew"
+  else
+    IC_VER=2.4.4
+    IC_SRC="$HOME/icecast-$IC_VER"
+    [ -f "$HOME/icecast-$IC_VER.tar.gz" ] || curl -fL "https://downloads.xiph.org/releases/icecast/icecast-$IC_VER.tar.gz" -o "$HOME/icecast-$IC_VER.tar.gz" || die "icecast download failed"
+    [ -d "$IC_SRC" ] || ( cd "$HOME" && tar xzf "icecast-$IC_VER.tar.gz" ) || die "icecast untar failed"
+    (
+      cd "$IC_SRC"
+      export PKG_CONFIG_PATH="$RC_PREFIX/lib/pkgconfig"
+      export CPPFLAGS="-I$RC_PREFIX/include"
+      export LDFLAGS="-L$RC_PREFIX/lib -Wl,-rpath,$RC_PREFIX/lib"
+      ./configure --prefix="$PREFIX/icecast" --with-ogg="$RC_PREFIX" --with-vorbis="$RC_PREFIX" \
+        --with-xslt-config="$RC_PREFIX/bin/xslt-config" --with-curl-config="$RC_PREFIX/bin/curl-config" \
+        --without-openssl
+      # icecast 2.4.4's --without-openssl is buggy: it leaves HAVE_OPENSSL
+      # defined in config.h (linker then wants -lssl against a broken "no/lib"
+      # path). We don't need TLS for localhost mounts, so disable it directly.
+      sed -i '' 's|#define HAVE_OPENSSL 1|/* HAVE_OPENSSL disabled for macOS build — no TLS needed for localhost mounts */|' config.h
+      make -j"$(sysctl -n hw.ncpu)" && make install
+    ) || die "icecast build failed"
+    codesign -f -s - "$PREFIX/icecast/bin/icecast" >/dev/null 2>&1 || true
+    ok "icecast built -> $PREFIX/icecast"
+  fi
+fi
+
+step "libshout + python-shout (needed by chirp's IcecastSink)"
+if "$RC_PY" -c "import shout" >/dev/null 2>&1; then
+  ok "python-shout already importable under radioconda"
+elif [ -x "$RC_PY" ]; then
+  LS_VER=2.4.6
+  LS_SRC="$HOME/libshout-$LS_VER"
+  [ -f "$HOME/libshout-$LS_VER.tar.gz" ] || curl -fL "https://downloads.xiph.org/releases/libshout/libshout-$LS_VER.tar.gz" -o "$HOME/libshout-$LS_VER.tar.gz" || die "libshout download failed"
+  [ -d "$LS_SRC" ] || ( cd "$HOME" && tar xzf "libshout-$LS_VER.tar.gz" ) || die "libshout untar failed"
+  (
+    cd "$LS_SRC"
+    export PKG_CONFIG_PATH="$RC_PREFIX/lib/pkgconfig"
+    export CPPFLAGS="-I$RC_PREFIX/include"
+    export LDFLAGS="-L$RC_PREFIX/lib -Wl,-rpath,$RC_PREFIX/lib"
+    ./configure --prefix="$RC_PREFIX" --with-ogg="$RC_PREFIX" --with-vorbis="$RC_PREFIX" --with-theora="$RC_PREFIX"
+    make -j"$(sysctl -n hw.ncpu)" && make install
+  ) || die "libshout build failed"
+  # make install's shout.pc sometimes lands in the source tree instead of
+  # $RC_PREFIX/lib/pkgconfig (observed on this build) — copy it explicitly.
+  [ -f "$RC_PREFIX/lib/pkgconfig/shout.pc" ] || cp "$LS_SRC/shout.pc" "$RC_PREFIX/lib/pkgconfig/shout.pc" 2>/dev/null || true
+  # python-shout's setup.py shells out to a bare `pkg-config` — it must be on
+  # PATH (radioconda's pkg-config isn't, by default).
+  PATH="$RC_PREFIX/bin:$PATH" PKG_CONFIG_PATH="$RC_PREFIX/lib/pkgconfig" \
+    CPPFLAGS="-I$RC_PREFIX/include" LDFLAGS="-L$RC_PREFIX/lib -Wl,-rpath,$RC_PREFIX/lib" \
+    "$RC_PREFIX/bin/pip" install --no-cache-dir python-shout || die "python-shout install failed"
+  "$RC_PY" -c "import shout" >/dev/null 2>&1 && ok "python-shout installed + importable" \
+    || die "python-shout installed but import still fails"
+else
+  warn "radioconda not present — run with --gr first (chirp's icecast sink needs python-shout under $RC_PY)"
+fi
+
+step "Icecast config"
+mkdir -p "$PREFIX/etc"
+if [ ! -f "$PREFIX/etc/icecast.xml" ]; then
+  IC_BASEDIR="$PREFIX/icecast/share/icecast"
+  [ -d "$IC_BASEDIR" ] || IC_BASEDIR="$(brew --prefix icecast 2>/dev/null)/share/icecast" || IC_BASEDIR=""
+  cat > "$PREFIX/etc/icecast.xml" <<XML
+<icecast>
+  <limits><clients>50</clients><sources>12</sources><queue-size>524288</queue-size></limits>
+  <authentication>
+    <source-password>CHANGE_ME_source_password</source-password>
+    <admin-user>admin</admin-user>
+    <admin-password>CHANGE_ME_admin_password</admin-password>
+  </authentication>
+  <hostname>localhost</hostname>
+  <listen-socket><port>8000</port><bind-address>127.0.0.1</bind-address></listen-socket>
+  <paths>
+    <basedir>${IC_BASEDIR}</basedir>
+    <logdir>${PREFIX}/log</logdir>
+    <webroot>${IC_BASEDIR}/web</webroot>
+    <adminroot>${IC_BASEDIR}/admin</adminroot>
+    <pidfile>${PREFIX}/run/icecast.pid</pidfile>
+  </paths>
+  <logging><loglevel>3</loglevel><logsize>10000</logsize></logging>
+  <fileserve>1</fileserve>
+</icecast>
+XML
+  warn "icecast.xml written with PLACEHOLDER passwords — edit $PREFIX/etc/icecast.xml before going live"
+else
+  ok "icecast.xml already present at $PREFIX/etc/icecast.xml (not overwritten)"
 fi
 
 # ---------- 4. rtl_airband (build native) ------------------------------------
