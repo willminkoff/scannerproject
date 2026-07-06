@@ -41,7 +41,7 @@ class RealRepoPolicyTest(unittest.TestCase):
     def test_repo_policy_parses(self):
         pol = load_policy(REAL_POLICY)
         self.assertEqual(pol.version, 2)
-        self.assertEqual(len(pol.devices), 6)
+        self.assertEqual(len(pol.devices), 5)  # 2 RSPduo + 3 RTL (M1 actual)
         self.assertEqual(pol.invariants.max_concurrent_dual_tuner_rspduo, 1)
         self.assertEqual(pol.invariants.rspduo_open_gap_sec, 2.0)
         self.assertEqual(pol.invariants.min_restart_interval_sec, 30.0)
