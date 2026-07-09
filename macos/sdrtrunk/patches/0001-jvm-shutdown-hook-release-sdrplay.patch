@@ -1,0 +1,70 @@
+diff --git a/src/main/java/io/github/dsheirer/gui/SDRTrunk.java b/src/main/java/io/github/dsheirer/gui/SDRTrunk.java
+index c7e083b..a9a1e0d 100644
+--- a/src/main/java/io/github/dsheirer/gui/SDRTrunk.java
++++ b/src/main/java/io/github/dsheirer/gui/SDRTrunk.java
+@@ -83,6 +83,7 @@ import java.nio.file.Path;
+ import java.util.List;
+ import java.util.Locale;
+ import java.util.Optional;
++import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.prefs.Preferences;
+ import javafx.application.Platform;
+ import javafx.embed.swing.JFXPanel;
+@@ -141,6 +142,12 @@ public class SDRTrunk implements Listener<TunerEvent>
+     private ResourceMonitor mResourceMonitor;
+     private JFXPanel mResourceStatusPanel;
+ 
++    /**
++     * Guards the SDR hardware release so it runs at most once, whether triggered by the normal GUI
++     * shutdown sequence or by the JVM shutdown hook (SIGTERM/SIGINT / headless termination).
++     */
++    private final AtomicBoolean mTunersReleased = new AtomicBoolean(false);
++
+     private String mTitle;
+ 
+     public SDRTrunk()
+@@ -192,6 +199,13 @@ public class SDRTrunk implements Listener<TunerEvent>
+         mTunerManager = new TunerManager(mUserPreferences);
+         mTunerManager.start();
+ 
++        //Register a JVM shutdown hook so SDRplay (and LibUsb) devices are cleanly released when the
++        //process is terminated by SIGTERM/SIGINT - e.g. headless operation or external process control -
++        //and not only when the GUI window is closed.  Without this, a killed process leaves the RSPduo
++        //open in the SDRplay apiService until it times out the dead client (~22s), which blocks the next
++        //start with "Discovered [0] RSP devices".
++        Runtime.getRuntime().addShutdownHook(new Thread(this::releaseTuners, "sdrtrunk-tuner-release-hook"));
++
+         mSettingsManager = new SettingsManager();
+ 
+         AliasModel aliasModel = new AliasModel();
+@@ -651,11 +665,29 @@ public class SDRTrunk implements Listener<TunerEvent>
+         mLog.info("Stopping spectral display ...");
+         mSpectralPanel.clearTuner();
+         mLog.info("Stopping tuners ...");
+-        mTunerManager.stop();
++        releaseTuners();
+         mLog.info("Shutdown complete.");
+         mApplicationLog.stop();
+     }
+ 
++    /**
++     * Releases all tuners and closes the SDRplay API.  Safe to call multiple times and from any
++     * thread - the underlying TunerManager.stop() runs at most once, guarded by {@link #mTunersReleased}.
++     *
++     * Invoked both from the normal GUI shutdown sequence ({@link #processShutdown()}) and from a JVM
++     * shutdown hook registered in the constructor, so a SIGTERM/kill (including headless operation,
++     * where processShutdown() is never reached) still cleanly releases SDRplay devices instead of
++     * leaving them open in the apiService.  Deliberately does NOT touch any GUI state so it is safe to
++     * run headless.
++     */
++    private void releaseTuners()
++    {
++        if(mTunerManager != null && mTunersReleased.compareAndSet(false, true))
++        {
++            mTunerManager.stop();
++        }
++    }
++
+     /**
+      * Lazy constructor for broadcast status panel
+      */
