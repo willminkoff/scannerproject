@@ -6,13 +6,19 @@
 
   Runs chirp's airband daemon UNDER the tuner-broker's CLI wrapper
   (`python -m broker.client run`), which is exactly what that wrapper was
-  built for (SB7.2-D): it claims serial 1809063632 (RSP-B) before the daemon
-  ever touches SoapySDR, holds the lease for the daemon's whole lifetime (the
-  broker connection socket IS the lease — this plist's own process holds it
-  open), and releases automatically on exit for any reason, including a crash.
-  This is what keeps a second consumer from ever opening RSP-B underneath
-  chirp, and what serializes/rate-limits opens near the fragile sdrplay
-  apiService.
+  built for (SB7.2-D): it claims the airband RTL serial before the daemon ever
+  opens the device, holds the lease for the daemon's whole lifetime (the broker
+  connection socket IS the lease — this plist's own process holds it open), and
+  releases automatically on exit for any reason, including a crash.
+
+  Revision 4.0 (arrangement C, 2026-07-08): airband AM runs on the RTL-SDR
+  Blog V4 (serial 83241970) via gr-osmosdr's 'rtl=' backend — NOT the RSP. The
+  RSP is digital-only now (SDRTrunk owns it), so chirp never touches the sdrplay
+  apiService and the historical Soapy/apiService airband corruption is gone.
+  Each device has exactly one broker consumer, so there is no shared-serial /
+  dual-open hazard. STATUS: airband-on-RTL is pending a soak (proven by lineage
+  + composition; see chirp/config/airband.json and the fleet policy) — the rest
+  of the stack is validated.
 
   Two process layers, deliberately:
     outer  = venv python running broker.client (stdlib-only; holds the lease,
@@ -67,11 +73,11 @@
         <string>broker.client</string>
         <string>run</string>
         <string>--serial</string>
-        <string>1809063632</string>
+        <string>83241970</string>
         <string>--consumer</string>
         <string>chirp-airband</string>
         <string>--reason</string>
-        <string>chirp airband service (SB7.5)</string>
+        <string>chirp airband service (rev 4.0) — RTL-SDR Blog V4, AM</string>
         <string>--require</string>
         <string>--</string>
         <string>/opt/scannerproject/radioconda/bin/python</string>

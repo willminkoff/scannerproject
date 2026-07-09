@@ -7,14 +7,13 @@
   Same pattern as com.scannerproject.chirp-airband.plist — see that file's
   comment for the full rationale (broker-arbitrated leasing, the TCC/PATH/
   SOAPY_SDR_PLUGIN_PATH/fd-limit gotchas, the anti-churn ThrottleInterval).
-  This one claims RTL-SDR serial 61108285 (NOT the RSPduo) — ground moved off
-  the RSPduo SL tuner entirely in the SB7 device map (see
-  chirp/config/ground.json's updated _comment and etc/mac/sdr_fleet_policy.json
-  — ground.json's old device_args targeting RSPduo mode=SL was retired dead
-  config from the pre-SB7 MA/SL era). Separate metrics port (9102, matching
-  the airband/ground split already assumed by monitoring/prometheus.yml) and
-  separate cmd_port (7401, set in chirp/config/ground.json) keep the two
-  daemons from colliding.
+  Revision 4.0 (arrangement C, 2026-07-08): ground NFM runs on its dedicated
+  RTL-SDR (serial 61108285) — the proven 2026-06-18 config, UNCHANGED. (Revision
+  3.0 briefly moved ground onto an RSP tuner; C reverts that — the RSP is
+  digital-only now.) Each device has exactly one broker consumer, so there is no
+  shared-serial / dual-open hazard. Separate metrics port (9102) and separate
+  cmd_port (7401, set in chirp/config/ground.json) keep the two analog daemons
+  from colliding.
 
   Install:
     sed -e "s/CHANGE_ME_ICECAST_SOURCE_PASSWORD/$(grep ICECAST_SOURCE_PASSWORD /opt/scannerproject/etc/icecast-credentials.env | cut -d= -f2)/" \
@@ -42,7 +41,7 @@
         <string>--consumer</string>
         <string>chirp-ground</string>
         <string>--reason</string>
-        <string>chirp ground service (SB7.5)</string>
+        <string>chirp ground service (rev 4.0) — RTL 61108285, NFM</string>
         <string>--require</string>
         <string>--</string>
         <string>/opt/scannerproject/radioconda/bin/python</string>

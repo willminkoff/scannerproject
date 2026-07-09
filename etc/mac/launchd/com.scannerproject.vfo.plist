@@ -2,7 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <!--
-  com.scannerproject.vfo (SB7.7)
+  ============================================================================
+  ⚠⚠ RETIRED 2026-07-08 (fleet policy v3.0) — DO NOT LOAD ⚠⚠
+  The VFO role is retired: its dongle (RTL-SDR Blog V4, serial 83241970) was
+  reassigned to DIGITAL (SDRTrunk P25) per Will's call. This service MUST NOT be
+  loaded — if it is, it will claim serial 83241970 through the broker and
+  starve SDRTrunk of the digital tuner. `Disabled=true` and `RunAtLoad=false`
+  are set below as belt-and-suspenders; also `launchctl bootout` it if it was
+  ever loaded. Kept in git (not deleted) so the history/rationale is preserved
+  and the role can be revived if a spare RTL is later dedicated to VFO.
+  ============================================================================
+
+  com.scannerproject.vfo (SB7.7 — RETIRED under v3.0)
 
   scripts/vfo.py — the manual-tune "VFO" receiver: one dedicated RTL-SDR
   (RTL-SDR Blog V4, serial 83241970, chosen for its R828D + TCXO front end)
@@ -56,6 +67,10 @@
 <dict>
     <key>Label</key>
     <string>com.scannerproject.vfo</string>
+
+    <!-- RETIRED v3.0 (2026-07-08): dongle 83241970 reassigned to digital. -->
+    <key>Disabled</key>
+    <true/>
 
     <key>ProgramArguments</key>
     <array>
@@ -118,9 +133,9 @@
     </dict>
 
     <key>RunAtLoad</key>
-    <true/>
+    <false/>
     <key>KeepAlive</key>
-    <true/>
+    <false/>
     <key>ThrottleInterval</key>
     <integer>45</integer>
 

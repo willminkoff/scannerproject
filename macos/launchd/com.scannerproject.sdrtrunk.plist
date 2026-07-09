@@ -5,6 +5,20 @@
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.sdrtrunk.plist
   SDRTrunk is a Java GUI app — needs the user session + Java 21 on PATH.
   Depends on the SDRplay apiService (com.sdrplay.service LaunchDaemon, vendor-installed).
+
+  Revision 4.1 (2026-07-08): digital tuner = the RSP serial 1809063632 (the
+  former RSP-B) via SDRTrunk's NATIVE SDRplay API — the project's proven-clean
+  RSP path — run DUAL-TUNER for up to 2 P25 systems in one process (MTRTRS on
+  tuner 1; a 2nd system on tuner 2). SERIAL CHANGED: the old digital RSP
+  180903EF32 was physically removed from the mini and taken to another host on
+  2026-07-08, so digital now runs on the one remaining RSP, 1809063632. SDRTrunk
+  must claim serial 1809063632 through the tuner-broker (consumer "sdrtrunk") so
+  nothing else opens the RSP; because it owns both tuners in one process there is
+  no 0x6bed / MA-SL exposure. Select the SDRplay RSPduo in SDRTrunk (View ->
+  Tuners), enable both tuners, and pin each P25 system to its Preferred Tuner.
+  NOTE: digital-on-RSP was proven on 180903EF32 — reconfirm it's clean on
+  1809063632 (pending-soak). See etc/mac/sdr_fleet_policy.json (RSP-B /
+  1809063632) and scripts/mac-start-sdrtrunk.sh.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
