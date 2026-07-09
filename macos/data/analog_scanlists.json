@@ -1,0 +1,39 @@
+{
+  "_comment": "CURRENT MODE = AIRBAND-ONLY (2026-06-28, for air travel): only airband runs on the RTL '970 dongle'; digital (SDRTrunk) + 70cm are PAUSED. Running all three overloaded the 2018 mini — SDRangel's 70cm 8 MHz channelizer pegged ~420% CPU, load hit ~17, and SDRTrunk died. sdrangel-restore.py is in airband-only mode (70cm route commented out); SDRTrunk launchd agent booted-out. Re-enable 70cm/digital by uncommenting and reloading the agents. Full architecture when enabled: airband on RTL dongle (serial 83241970, the '970 dongle'); 70cm on RSP-B (SDRplayV3 1809063632) single-tuner, 8 MHz window 442.1-450.1; digital (MTRTRS+TACN) on RSP-A/SDRTrunk. NOTE: SDRangel SDRplayV3 path is SINGLE-TUNER ONLY and crashes on (a) RSPduo dual-tuner attempts and (b) rapid bulk channel ops at wide sample rates. Stable recipe: change devSampleRate GRADUALLY, add/delete channels ONE AT A TIME with delays. At 8 MHz set bandwidthIndex=7 (8 MHz IF) or window edges roll off ~15 dB. SDRangel reverts to a stale plist on crash; persistence handled by native presets (REST) + macos/bin/sdrangel-restore.py (idempotent) + sdrangel-start.sh launcher (crash-tested), with etc/mac/com.scannerproject.sdrangel.plist watchdog available (not auto-installed). AUDIO: every channel on both routes outputs to SDRangel 'System default device' (index -1, follows the OS default = Mac mini Speakers), unmuted, volume 2; audio engine confirmed live at 48 kHz.",
+  "airband": {
+    "_device": "RTL-SDR 83241970 (970 dongle), center 118.925 MHz, 2.4 Msps, AM, 8 kHz channels",
+    "_mode": "AM",
+    "deployed": [
+      {"mhz": 118.400, "label": "Nashville App/Dep East"},
+      {"mhz": 118.600, "label": "BNA Tower"},
+      {"mhz": 119.350, "label": "Nashville App/Dep West"},
+      {"mhz": 119.450, "label": "Nashville Approach"}
+    ],
+    "candidates_from_hpdb": [
+      {"mhz": 124.750, "label": "Nashville Final Approach"},
+      {"mhz": 127.175, "label": "Nashville Approach Control"},
+      {"mhz": 128.450, "label": "Nashville App/Dep"}
+    ],
+    "_needs_confirmation": ["JWN Tower (John C. Tune)", "Bowling Green KBWG Tower", "Memphis ARTCC low sector over BNA"]
+  },
+  "70cm": {
+    "_device": "RSP-B SDRplayV3 1809063632, center 446.1 MHz, 8 Msps (442.1-450.1), bandwidthIndex 7 (8 MHz IF), NFM 12.5 kHz",
+    "_mode": "NFM",
+    "simplex": [446.000, 446.025, 446.050, 446.075, 446.100, 446.125, 446.150, 446.175],
+    "repeaters": [
+      {"output_mhz": 442.750, "input_mhz": 447.750, "call": "N4OEM", "pl": 100.0, "name": "Davidson County ARES (Nashville)"},
+      {"output_mhz": 442.800, "input_mhz": 447.800, "call": "NE4MA", "pl": 107.2, "name": "MTEARS Nashville (19)"}
+    ],
+    "_note": "Carrier (power) squelch -77 dB (~12 dB above the -89 dBFS noise floor at 8 MHz/IF7), not CTCSS; PL tones recorded for future tone-squelch. More local repeater outputs (442-450) can be added gently into this window."
+  },
+  "ground_reference": {
+    "_note": "NOT currently deployed. Standard federal/ham channel plans, band-accurate everywhere. Could go on a 2nd dongle or swap with 70cm if needed.",
+    "MURS": [151.820, 151.880, 151.940, 154.570, 154.600],
+    "FRS_GMRS_simplex": [462.5625, 462.5875, 462.6125, 462.6375, 462.6625, 462.6875, 462.7125,
+                          467.5625, 467.5875, 467.6125, 467.6375, 467.6625, 467.6875, 467.7125,
+                          462.5500, 462.5750, 462.6000, 462.6250, 462.6500, 462.6750, 462.7000, 462.7250],
+    "GMRS_repeater_inputs": [467.5500, 467.5750, 467.6000, 467.6250, 467.6500, 467.6750, 467.7000, 467.7250],
+    "2m_simplex": [146.400, 146.430, 146.460, 146.490, 146.520, 146.535, 146.550, 146.565,
+                    147.420, 147.450, 147.480, 147.510, 147.540, 147.570]
+  }
+}
