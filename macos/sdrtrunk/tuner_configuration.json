@@ -70,39 +70,6 @@
     "minimumFrequency" : 0,
     "maximumFrequency" : 0,
     "frequency" : 101100000,
-    "uniqueID" : "RSPduo Tuner 1 SER#180903EF32",
-    "autoPPMCorrectionEnabled" : true
-  }, {
-    "type" : "rspDuoTuner2Configuration",
-    "rfNotch" : false,
-    "rfDabNotch" : false,
-    "biasT" : false,
-    "externalReferenceOutput" : false,
-    "lna" : 0,
-    "sampleRate" : "RATE_8_000",
-    "agcMode" : "ENABLE",
-    "basebandGainReduction" : 50,
-    "frequencyCorrection" : 0.0,
-    "minimumFrequency" : 0,
-    "maximumFrequency" : 0,
-    "frequency" : 101100000,
-    "uniqueID" : "RSPduo Tuner 2 SER#180903EF32",
-    "autoPPMCorrectionEnabled" : true
-  }, {
-    "type" : "rspDuoTuner1Configuration",
-    "rfNotch" : false,
-    "rfDabNotch" : false,
-    "amNotch" : false,
-    "amPort" : "PORT_2",
-    "externalReferenceOutput" : false,
-    "lna" : 0,
-    "sampleRate" : "RATE_8_000",
-    "agcMode" : "ENABLE",
-    "basebandGainReduction" : 50,
-    "frequencyCorrection" : 0.0,
-    "minimumFrequency" : 0,
-    "maximumFrequency" : 0,
-    "frequency" : 101100000,
     "uniqueID" : "RSPduo Tuner 1 SER#1809063632",
     "autoPPMCorrectionEnabled" : true
   }, {
@@ -122,14 +89,5 @@
     "uniqueID" : "RSPduo Tuner 2 SER#1809063632",
     "autoPPMCorrectionEnabled" : true
   } ],
-  "disabledTuners" : [ {
-    "tunerClass" : "RSP",
-    "id" : "RSPduo Tuner 2 SER#180903EF32"
-  }, {
-    "tunerClass" : "RSP",
-    "id" : "RSPduo Tuner 1 SER#1809063632"
-  }, {
-    "tunerClass" : "RSP",
-    "id" : "RSPduo Tuner 2 SER#1809063632"
-  } ]
+  "disabledTuners" : [ ]
 }
