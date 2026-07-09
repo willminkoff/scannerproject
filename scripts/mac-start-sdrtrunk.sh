@@ -3,6 +3,20 @@
 # One-shot launcher: make sure the SDRplay API service is healthy, then open SDRTrunk
 # with the RSPduo available.
 #
+# ============================================================================
+# Revision 4.1 (2026-07-08): DIGITAL IS ON THE RSP serial 1809063632 (the former
+#   RSP-B) via SDRTrunk's native SDRplay API, DUAL-TUNER for up to 2 P25 systems.
+#   So the SDRplay apiService health dance below DOES apply. SERIAL CHANGED: the
+#   old digital RSP 180903EF32 was physically removed from the mini (taken to
+#   another host) on 2026-07-08, so digital moved to the one remaining RSP,
+#   1809063632. SDRTrunk must claim serial 1809063632 through the tuner-broker
+#   (consumer "sdrtrunk") so nothing else opens the RSP; it owns both tuners in
+#   one process (no 0x6bed / MA-SL exposure). In SDRTrunk (View -> Tuners), add
+#   the SDRplay RSPduo, enable both tuners, and pin each P25 system to its
+#   Preferred Tuner. (digital-on-RSP was proven on 180903EF32 — reconfirm clean
+#   on 1809063632; pending-soak.)
+# ============================================================================
+#
 # WHY THIS EXISTS
 #   SDRTrunk does NOT talk to the RSPduo directly. It talks to the SDRplay API *service*
 #   (sdrplay_apiService), which owns the USB device. That service is installed as a

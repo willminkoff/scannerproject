@@ -40,8 +40,12 @@ class RealRepoPolicyTest(unittest.TestCase):
 
     def test_repo_policy_parses(self):
         pol = load_policy(REAL_POLICY)
+        # `version` is the SCHEMA version the broker enforces (stays 2); the
+        # human arrangement label lives in the policy's `revision` string.
         self.assertEqual(pol.version, 2)
-        self.assertEqual(len(pol.devices), 5)  # 2 RSPduo + 3 RTL (M1 actual)
+        # Revision 4.0 (arrangement C, 2026-07-08): 1 RSPduo (RSP-A = digital)
+        # + 3 RTLs (airband/ground/sounding). RSP-B removed to retired_devices.
+        self.assertEqual(len(pol.devices), 4)  # 1 RSPduo + 3 RTL (M1 actual)
         self.assertEqual(pol.invariants.max_concurrent_dual_tuner_rspduo, 1)
         self.assertEqual(pol.invariants.rspduo_open_gap_sec, 2.0)
         self.assertEqual(pol.invariants.min_restart_interval_sec, 30.0)
@@ -50,26 +54,33 @@ class RealRepoPolicyTest(unittest.TestCase):
 
     def test_repo_policy_device_lookups(self):
         pol = load_policy(REAL_POLICY)
-        rsp_a = pol.device_by_serial("180903EF32")
-        self.assertIsNotNone(rsp_a)
-        self.assertEqual(rsp_a.role, "sdrtrunk-p25")
-        self.assertEqual(rsp_a.kind, "rspduo")
-        # Policy v2.1 (2026-07-05): RSP-A is dual-tuner from launch so SDRTrunk
-        # decodes 2 P25 systems at once (Will's ">=2 digital systems"
-        # requirement). It is the sole dual-tuner device (0x6bed invariant).
-        self.assertTrue(rsp_a.dual_tuner)
+        # Revision 4.1 (2026-07-08): the ONE RSP is serial 1809063632 (ex-RSP-B)
+        # and it runs DIGITAL — dual-tuner from launch so SDRTrunk decodes 2 P25
+        # systems at once via the native SDRplay API (the project's proven-clean
+        # RSP path). It is the sole dual-tuner device (0x6bed invariant).
+        rsp = pol.device_by_serial("1809063632")
+        self.assertIsNotNone(rsp)
+        self.assertEqual(rsp.role, "sdrtrunk-p25")
+        self.assertEqual(rsp.kind, "rspduo")
+        self.assertTrue(rsp.dual_tuner)
         self.assertEqual(
-            [d.serial for d in pol.devices if d.dual_tuner], ["180903EF32"]
+            [d.serial for d in pol.devices if d.dual_tuner], ["1809063632"]
         )
-        # RTL roles reconciled to the ACTUAL dongles enumerated on the M1
-        # (2026-07-05): 3 RTLs attached (61108285, 56919602, 83241970), no 4th.
-        # The stable micro-confirmed dongle is on the 24/7 ground band; the
-        # flex-digital (3rd-P25 growth) slot has no dongle until a 4th is added.
+        # The former digital RSP 180903EF32 was physically removed 2026-07-08
+        # (relocated to another host) — it must NOT be in the active device list.
+        self.assertIsNone(pol.device_by_serial("180903EF32"))
+        # RTL roles reconciled to the ACTUAL dongles on the M1 (3 RTLs, no 4th):
+        # airband AM on the Blog V4 (83241970), ground NFM on 61108285 (the
+        # proven 2026-06-18 fix), sounding on 56919602. Both analog bands are
+        # RTL-only under C; the RSP is digital-only.
+        self.assertEqual(
+            [d.serial for d in pol.devices_for_role("chirp-airband")], ["83241970"]
+        )
         self.assertEqual(
             [d.serial for d in pol.devices_for_role("chirp-ground")], ["61108285"]
         )
         self.assertEqual(pol.devices_for_role("flex-digital"), [])
-        self.assertEqual(len(pol.devices), 5)  # 2 RSPduo + 3 RTL
+        self.assertEqual(len(pol.devices), 4)  # 1 RSPduo + 3 RTL
         self.assertIsNone(pol.device_by_serial("nope"))
         self.assertEqual(pol.devices_for_role("nope"), [])
 

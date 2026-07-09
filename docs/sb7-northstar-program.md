@@ -25,8 +25,8 @@ program that gets there — designed around the hardware actually on hand:
 |---|---|
 | Mac mini 2018 | Intel i5-8500B 6-core 3.0 GHz, 16 GB RAM, 4× TB3 (2 buses) + 2× USB-A |
 | Mac mini 2021 | Apple M1, 8 GB RAM, 2× TB/USB4 + 2× USB-A |
-| 2× SDRplay RSPduo | serials 180903EF32 (RSP-A), 1809063632 (RSP-B) |
-| 3× RTL-SDR (attached) | 61108285 (ground), 83241970 (Blog V4, VFO), 56919602 (NESDR, sounding) — verified on the M1, 2026-07-06. A 4th is not currently attached; waterfall is deferred until it is. |
+| 1× SDRplay RSPduo (on the mini) | serial 1809063632 — DIGITAL. The other RSPduo, 180903EF32, was removed 2026-07-08 and relocated to another host. |
+| 3× RTL-SDR (attached) | 83241970 (Blog V4, airband), 61108285 (ground), 56919602 (NESDR, sounding) — verified on the M1, 2026-07-06. A 4th is not currently attached; waterfall is deferred until it is. |
 
 ---
 
@@ -127,27 +127,57 @@ the **open items**.
 
 ## 4. Hardware architecture
 
-### 4.1 Device map (reconciled to ACTUAL hardware, 2026-07-06)
+### 4.1 Device map (reconciled to ACTUAL hardware, 2026-07-08 — revision 4.1, arrangement C)
 
-Fleet policy v2.1 (`etc/mac/sdr_fleet_policy.json`) is the machine-readable
-source of truth; this is the human wiring card. The rule that keeps it safe:
-**exactly one dual-tuner RSPduo, and it runs on SDRTrunk's native SDRplay API.**
-Only **3 RTLs are physically attached** to the M1 (not 4, as earlier planning
-assumed) — that constraint, plus VFO (a role earlier planning missed
-entirely), drove the final RTL assignment below.
+Fleet policy revision 4.1 (`etc/mac/sdr_fleet_policy.json`) is the machine-readable
+source of truth; this is the human wiring card. **Arrangement C (confirmed by
+Will 2026-07-08):** the ONE RSP runs **digital** (SDRTrunk native API, dual-tuner
+for up to 2 P25 systems); **both analog bands run on RTLs**. This is essentially
+the proven v2.1 shape with one RSP.
 
-| Device (serial) | Mode | Role | Fixed / arbitrated |
+**⚠ Hardware change 2026-07-08 (revision 4.1):** Will physically **removed RSP
+`180903EF32`** (the former digital RSP) and took it to another computer. The one
+RSP still on the mini is **`1809063632`** (the former RSP-B), so **digital now
+runs on `1809063632`**. The proven digital-on-RSP result was measured on
+`180903EF32`, so digital on the new serial is **pending soak** (same RSPduo
+model — expected to hold — but a different physical device). **Confirm the
+attached serial on the box** with `SoapySDRUtil --find="driver=sdrplay"` (or
+`bash macos/install/post-install-checks.sh`, or SDRTrunk → View → Tuners) before
+trusting this. (Note: the policy's machine `version` is the schema version and
+stays **2** — the broker enforces `(2,)`; the human label "4.1" lives in
+`revision`.)
+
+**Why this shape — two RSPs on one host is toxic; keep the proven paths.** Both
+RSPs funnel through the single `sdrplay_apiService`; concurrent opens across two
+physical RSPs is what produces the 0x6bed segfault + corrupt IQ. The durable fix
+is **one RSP**, and the one path this project has *proven clean* for the RSP is
+**SDRTrunk's native SDRplay API** — so the RSP does digital, in a single process
+that owns both tuners (no cross-process master/slave, no 0x6bed even at
+dual-tuner). Analog goes to RTLs using only proven configs: ground NFM on
+`61108285` (the 2026-06-18 fix) and airband AM on the Blog V4 (what rtl_airband
+ran for years). Net: one RSP (digital), three RTLs (airband + ground + sounding).
+
+| Device (serial) | Mode | Role | Status |
 |---|---|---|---|
-| **RSP-A** 180903EF32 | **Dual-tuner** | **SDRTrunk P25** — T1 = MTRTRS (ships first), T2 = 2nd system (Will names it) | fixed |
-| **RSP-B** 1809063632 | ST, tuner 1 | chirp **airband** — **LIVE** on `/ANALOG.mp3` | fixed |
-| **RTL** 61108285 (stable) | — | chirp **ground** NFM — **LIVE** on `/ANALOG_GROUND.mp3` | fixed, 24/7 |
-| **RTL** 83241970 (Blog V4, best RF) | — | **VFO** (`scripts/vfo.py`, manual tune + mini-waterfall → `/VFO.mp3`) | fixed |
-| **RTL** 56919602 (reliability TBD) | — | **sounding** (ACARS/VDL2/radiosonde), dedicated, unshared | fixed |
-| *(none)* | — | **waterfall** (`/sb5` Live IQ) — **DEFERRED**, not a priority per Will (2026-07-06); no dongle allocated until a 4th RTL arrives | pending hardware |
+| **RSP** 1809063632 (ex-RSP-B) | **Dual-tuner (native SDRplay API)** | **SDRTrunk P25 digital** — T1 = MTRTRS, T2 = 2nd system → `/DIGITAL.mp3` | **pending soak** (proven on 180903EF32; reconfirm on this serial) |
+| ~~**RSP** 180903EF32~~ | — | **REMOVED / RELOCATED** 2026-07-08 — physically taken to another computer | gone from the mini |
+| **RTL** 83241970 (Blog V4, best RF) | — | chirp **airband** AM (`rtl=`) → `/ANALOG.mp3` | **pending soak** |
+| **RTL** 61108285 (stable) | — | chirp **ground** NFM (`rtl=`) → `/ANALOG_GROUND.mp3` | **VALIDATED** (2026-06-18 fix) |
+| **RTL** 56919602 (reliability TBD) | — | **sounding** (ACARS/VDL2/radiosonde), dedicated, unshared | pending soak |
+| *(none)* | — | **VFO** — RETIRED; **waterfall** (`/sb5` Live IQ) — DEFERRED, removed from the sb5 UI | n/a |
 
-Both analog bands are **confirmed running** as broker-arbitrated launchd
-services (`com.scannerproject.chirp-airband`/`-ground`), verified end-to-end
-including clean-shutdown + anti-churn self-heal (§6 build status).
+**Hazard status: RESOLVED — no dual-open exposure.** The v3.0 concern (two chirp
+daemons contending for one RSPduo via Soapy = the corrupting master/slave path)
+is gone under C: chirp never touches the RSP (analog is RTL-only), and each
+device has exactly **one** broker consumer. The RSP's single consumer (SDRTrunk)
+owns both tuners internally via the native API. The broker's
+`lock_key=physical-serial` fits with no tuner-granular arbitration. Removing
+`180903EF32` only reinforces the one-RSP invariant — there is now physically only
+one RSP on the host. **Two pieces are pending a soak:** chirp **airband on an
+RTL** (proven by lineage + composition, not yet soaked as a unit under the
+current engine) and, new in revision 4.1, **digital on RSP `1809063632`** (the
+proven result was on the now-removed `180903EF32` — same RSPduo model, expected
+to hold, but reconfirm on this device). Everything else is validated.
 
 **Digital capacity:** RSP-A dual-tuner = **2 P25 systems simultaneously** (one per
 ~2 MHz tuner, native SDRplay API — the most reliable digital path on macOS). MTRTRS
@@ -209,26 +239,27 @@ device args with **no bandwidth set** — scripts/ensure-op25-runtime.py:148 —
 exact aliased-noise config that was the airband root cause, and a plausible
 explanation for MTRTRS's chronically weak decode.)
 
-**Digital = SDRTrunk on the box with RSP-A, native SDRplay API.** Verified
-2026-07-04: official **osx-x86_64** builds with a bundled JDK (v0.6.1 stable +
-active nightlies; the SDRplay dylib-name bug was fixed in 0.6.0), **native
-RSPduo dual-tuner support** (two independent ~2 MHz tuners, per-channel
-Preferred Tuner pinning), and native Icecast source streaming (continuous
-connection, **queued per-call audio** — delayed/serialized, not live).
-Because SDRTrunk talks to the SDRplay API directly, it skips the
-Soapy/gr-osmosdr chain entirely — on macOS that makes it the *most* proven
-RSPduo path, not the fallback (Will already runs it against the RSPduo today).
+**Digital = SDRTrunk on RSP-A, native SDRplay API.** Restored 2026-07-08
+(arrangement C): the RSP is digital-only and SDRTrunk drives it in native
+Dual-Tuner mode — the project's *most-proven clean RSP path* ("Will already
+runs it against the RSPduo"). SDRTrunk's macOS build (v0.6.1 stable, bundled
+JDK) supports native RSPduo dual-tuner (two independent ~2 MHz tuners,
+per-channel Preferred-Tuner pinning) and streams to Icecast directly
+(**queued per-call audio** — delayed/serialized, not live). Because it talks
+to the SDRplay API directly in one process that owns both tuners, it skips the
+Soapy/gr-osmosdr chain and has no cross-process master/slave (0x6bed)
+exposure. (Revision 3.0 briefly put digital on an RTL and gave up the 2-system
+capability; C moves it back to the RSP and frees the Blog V4 RTL for airband.)
 
-The plan (updated 2026-07-05 per Will's "≥2 digital systems" requirement —
-RSP-A ships **Dual Tuner from launch**, not gated behind the alert stack):
-- **Ship first (SB7.5):** SDRTrunk, RSP-A Dual Tuner, **MTRTRS on tuner 1**. The
-  2nd system is configured on tuner 2 as soon as Will names it — no hardware
-  change, an SDRTrunk restart to add. (Dual-from-launch is safe here: the
-  dual-tuner risk that argued for a later gate was op25's cross-process retune
-  contention; SDRTrunk manages both tuners natively in one process with none of
-  that. Single host keeps the 0x6bed invariant — RSP-B stays ST.)
-- **Grow to 3:** add the stable DIGITAL-FLEX RTL (70613472) to the same SDRTrunk
-  instance, broker-leased on demand.
+The plan (revision 4.1 — the one RSP, serial 1809063632, dual-tuner, up to 2 P25
+systems in one process):
+- **Ship first (SB7.5):** SDRTrunk, native Dual Tuner, **MTRTRS on tuner
+  1**. SDRTrunk claims serial **1809063632** through the broker so nothing else
+  opens the RSP. (Was 180903EF32 before that RSP was removed 2026-07-08.)
+- **Grow to 2:** the 2nd system slots onto **tuner 2** with no hardware change
+  (SDRTrunk restart to add) — Will names it. No extra dongle needed.
+- **Grow to 3:** would need a **4th physical RTL** added to the same SDRTrunk
+  instance (all 3 attached RTLs are committed to analog + sounding under C).
 - **Constraint to verify once:** each system's monitored *site* must fit a
   tuner's ~2 MHz (~1.5 usable) window — check spans in SDRangel before going
   live (a single trunked site normally fits easily; you monitor one site at a

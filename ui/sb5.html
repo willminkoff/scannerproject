@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1426">
-<title>Scanner · sb5 · 5-pane</title>
+<title>Scanner · sb5 · 3-card</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -238,8 +238,8 @@
   .pane-hd-titles .subtitle { font-size: var(--type-body-sm); color: var(--text-2); font-family: ui-monospace, monospace; line-height: 1.2; }
 
   /* ============ Player card — dedicated dashboard pane ============
-     Phase 3b: multi-select Web Audio player over the 4 icecast mounts
-     (Airband, Ground, Digital, VFO). Pills are independent toggles, per-pill
+     Phase 3b: multi-select Web Audio player over the 3 icecast mounts
+     (Airband, Ground, Digital). Pills are independent toggles, per-pill
      dots are real RMS meters, one transport drives all, master gain feeds a
      bus compressor. Wired by wireAudioBar() (#pl-pills / #pl-play). */
   .pane-player {
@@ -252,11 +252,11 @@
     gap: 14px;
   }
   /* ---- Phase 3b: multi-select Web Audio player ----
-     Pills are independent toggles (any subset 0..4); per-pill dots are real
+     Pills are independent toggles (any subset 0..3); per-pill dots are real
      RMS meters; one transport drives all active streams; master gain feeds a
      bus compressor. Reuses SB5 tokens — no parallel palette. Graph + behavior
      ported from ui/mocks/player-card-mock.html. Wired by wireAudioBar(). */
-  .pane-player .pl-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .pane-player .pl-pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
   .pane-player .pl-pill {
     appearance: none; cursor: pointer;
     border: 1px solid var(--line-2);
@@ -365,7 +365,7 @@
   .ev-cell .val.bad { color: #ffb3ad; }
   .ev-cell .val.info { color: var(--sky-2); opacity: 0.75; }
 
-  /* ============ overall grid — desktop = 5-pane, mobile = stack ============ */
+  /* ============ overall grid — desktop = 3-card + disco/sounding/player, mobile = stack ============ */
   .panes {
     padding: 14px;
     display: flex; flex-direction: column; gap: 14px;
@@ -1732,43 +1732,41 @@
     color: var(--red);
   }
 
-  /* ============ DESKTOP — 8-pane grid layout (Phase 7f) ============
-     The former ANALOG card is now split into AIR and GROUND, giving the
-     top row four equal-width cards: AIR · GROUND · DIGITAL · VFO. Row 3
-     still shares Sounding (left ~3/4) and Player (right ~1/4).
+  /* ============ DESKTOP — grid layout (v3.0 — three band cards) ============
+     v3.0 (2026-07-08): the dashboard is three band cards — AIR · GROUND ·
+     DIGITAL — on the top row. The VFO and Waterfall panes are removed
+     (VFO retired; waterfall deferred). Row 2 = Discovery full-width; row 3
+     = Sounding (left ~2/3) + Player (right ~1/3).
      On <1100px viewports the panes drop to a single stacked column
      (default block flow), so each card lands below the previous one. */
   @media (min-width: 1100px) {
     .panes {
       padding: 16px;
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       grid-template-rows: auto auto auto;
       grid-template-areas:
-        "air         ground      digital     vfo"
-        "waterfall   waterfall   disco       disco"
-        "sounding    sounding    sounding    player";
+        "air         ground      digital"
+        "disco       disco       disco"
+        "sounding    sounding    player";
       gap: 16px;
       align-items: stretch;
     }
     .pane-air       { grid-area: air; }
     .pane-ground    { grid-area: ground; }
     .pane-digital   { grid-area: digital; }
-    .pane-vfo       { grid-area: vfo; }
-    .pane-waterfall { grid-area: waterfall; }
     .pane-disco     { grid-area: disco; }
     .pane-sounding  { grid-area: sounding; }
     .pane-player    { grid-area: player; }
     .pane { min-height: 0; }
-    .wf-canvas-wrap { height: 240px; }
   }
   @media (min-width: 1600px) {
     .panes {
-      grid-template-columns: 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       grid-template-areas:
-        "air         ground      digital     vfo"
-        "waterfall   waterfall   disco       disco"
-        "sounding    sounding    sounding    player";
+        "air         ground      digital"
+        "disco       disco       disco"
+        "sounding    sounding    player";
     }
   }
 
@@ -3142,7 +3140,7 @@
       <span id="state-badge-word">…</span>
     </button>
     <span class="tb-time mono" id="tb-time">—:—</span>
-    <span class="tb-title">Scanner<span class="sub" id="tb-sub">sb5 · 5-pane</span></span>
+    <span class="tb-title">Scanner<span class="sub" id="tb-sub">sb5 · 3-card</span></span>
 
     <!-- heartbeat headline + Details are now hidden in the topbar — the
          state-badge on the left carries the health signal (color) and the
@@ -3403,12 +3401,12 @@
     </div>
   </section>
 
-  <!-- ============ DIGITAL pane (RSPduo 2 — LIVE) ============ -->
+  <!-- ============ DIGITAL pane (rev 4.1 — SDRTrunk P25 on the RSP 1809063632 native, dual-tuner / up to 2 systems; ex-RSP 180903EF32 removed 2026-07-08) ============ -->
   <section class="pane pane-digital" id="pane-digital">
     <div class="pane-hd">
       <span class="title">Digital Trunked</span>
       <span class="live-tag">LIVE</span>
-      <span class="sub">OP25</span>
+      <span class="sub">SDRTrunk P25</span>
     </div>
     <div class="pane-body">
       <div class="now-row" id="digital-now">
@@ -3439,7 +3437,7 @@
           <span class="lab">Mute BT speaker</span>
           <span class="toggle off" data-band-mute="digital"
                 role="switch" aria-checked="false"
-                title="Mute the digital (P25) audio output to the BT speaker. OP25 + icecast keep running."></span>
+                title="Mute the digital (P25) audio output to the BT speaker. SDRTrunk + icecast keep running."></span>
         </div>
       </div>
       <div class="pane-disclosure" id="digital-disclosure">
@@ -3455,248 +3453,12 @@
               data-sitrep="open"
               title="Tuner status — click to open Sitrep for detail"
               aria-label="Open Sitrep for tuner detail">
-        <span class="db-num" id="ev-digital-badge-num">—/1</span>
+        <span class="db-num" id="ev-digital-badge-num">—/2</span>
         <span class="db-lbl">tuner</span>
       </button>
     </div>
   </section>
 
-  <!-- ============ VFO pane (1 RTL-SDR — LIVE, Phase 6b) ============ -->
-  <section class="pane pane-vfo" id="pane-vfo">
-    <div class="pane-hd">
-      <span class="title">Manual Tune</span>
-      <span class="live-tag" id="vfo-live-tag">Live · 80000003</span>
-      <span class="sub">2.4 MS/s</span>
-    </div>
-    <div class="pane-body">
-      <div class="vfo-grid">
-        <div class="vfo-row vfo-row-freq">
-          <span class="label">Frequency</span>
-          <input type="text" class="vfo-input mono" id="vfo-freq" value="127.700" inputmode="decimal">
-          <button type="button" class="vfo-tune-btn" id="vfo-tune"
-                  title="Tune the VFO to the entered frequency">Tune</button>
-        </div>
-        <div class="vfo-row">
-          <span class="label">Mode</span>
-          <select class="vfo-select" id="vfo-mod">
-            <option value="am">AM</option>
-            <option value="nfm">NFM</option>
-            <option value="wfm">WFM</option>
-            <option value="usb">USB (not yet)</option>
-            <option value="lsb">LSB (not yet)</option>
-          </select>
-        </div>
-        <!-- Phase 6b.2 — per-VFO squelch + gain. Reuses the
-             .band-controls component pattern shipped in d536928 for
-             AIR/GROUND so the visual language stays consistent. The
-             VFO demod is a single-process loop, so changes apply
-             live (no service restart) — values POST to:
-               POST /api/vfo/squelch  {threshold_dbfs, auto}
-               POST /api/vfo/gain     {gain_db}
-             which merge into config.json and are picked up by
-             scripts/vfo.py via mtime poll within ~250ms. -->
-        <div class="band-controls" data-band="vfo" id="ctl-vfo">
-          <div class="band-ctl">
-            <span class="ctl-lbl">Squelch</span>
-            <div class="band-ctl-row">
-              <input type="range" min="-80" max="0" step="1" value="-60"
-                     class="ctl-squelch" data-band="vfo"
-                     aria-label="VFO squelch threshold in dBFS">
-              <button type="button" class="band-ctl-btn ctl-auto"
-                      data-band="vfo"
-                      aria-pressed="false"
-                      title="Toggle automatic squelch (noise-floor follower)">Auto</button>
-            </div>
-            <span class="ctl-val" data-role="squelch-val">—</span>
-          </div>
-          <div class="band-ctl">
-            <span class="ctl-lbl">Gain</span>
-            <div class="band-ctl-row">
-              <input type="range" min="0" max="49" step="1" value="40"
-                     class="ctl-gain" data-band="vfo"
-                     aria-label="VFO dongle gain in dB">
-              <button type="button" class="band-ctl-btn ctl-default"
-                      data-band="vfo"
-                      title="Reset gain to 40 dB (R820T2 design intent for the VFO dongle)">Default</button>
-            </div>
-            <span class="ctl-val" data-role="gain-val">—</span>
-            <span class="band-ctl-hint" data-role="ctl-hint"></span>
-          </div>
-        </div>
-      </div>
-      <!-- 2026-06-05 — Per-band BT-speaker mute toggle.  See AIRBAND
-           card above for the contract.  Backend resolves "vfo" to
-           scanner-vlc-vfo.service's PipeWire sink-input.  VFO is
-           always routed to BT — the service is enabled at the systemd
-           level, so this toggle is the only operator control. -->
-      <div class="band-mute-row">
-        <div class="band-mute-card" data-band-mute-card="vfo">
-          <span class="icon" aria-hidden="true">🔊</span>
-          <span class="lab">Mute BT speaker</span>
-          <span class="toggle off" data-band-mute="vfo"
-                role="switch" aria-checked="false"
-                title="Mute the VFO output to the BT speaker. Icecast + scanner-vlc-vfo keep running."></span>
-        </div>
-      </div>
-      <div class="dongle-overlay" id="vfo-down-overlay">
-        <div class="icon">⚠</div>
-        <div class="label">DONGLE LOST <span id="vfo-down-since">—</span></div>
-        <div class="sub">VFO dongle stopped reporting frames.</div>
-        <div class="countdown">reconnect in <span id="vfo-down-cd">—</span>s</div>
-      </div>
-    </div>
-    <div class="pane-evidence" id="vfo-evidence">
-      <button type="button" class="dongle-badge" id="ev-vfo-badge"
-              data-sitrep="open"
-              title="Tuner status — click to open Sitrep for detail"
-              aria-label="Open Sitrep for tuner detail">
-        <span class="db-num" id="ev-vfo-badge-num">—/1</span>
-        <span class="db-lbl">tuner</span>
-      </button>
-    </div>
-  </section>
-
-  <!-- ============ WATERFALL pane (2 RTL-SDRs stitched, SB5 redesign) ============
-       Desktop layout matches the SDR# studio model:
-         - tall spectrum + waterfall stack inside .wf-display-region
-         - right-side vertical zoom + contrast sliders (.wf-side-controls)
-         - red draggable tuning needle (.wf-needle) inside the main display,
-           with a live freq readout above the grip that follows the drag
-         - fullscreen button (.wf-fs-btn) expands the pane to fill the viewport
-         - click-and-drag on empty waterfall pans the visible window within
-           the full 4.0 MHz hw BW when zoomed in (wireWfDesktopPan, JS)
-       Mobile (<= 700px) hides the side sliders, needle, and FS button and
-       falls back to the legacy compact view (drag-to-pan retunes the hw
-       band, .freq-window center marker, bw input). All pills / jump chips
-       / step buttons / center input remain shared across both layouts.
-       2026-06-05: the minimap strip (full-BW draggable viewport box) was
-       removed — its pan affordance moved to direct drag on the waterfall. -->
-  <section class="pane pane-waterfall" id="pane-waterfall" tabindex="0">
-    <div class="pane-hd">
-      <div class="pane-hd-titles">
-        <span class="title">LIVE IQ</span>
-        <span class="subtitle" id="wf-title">125 — 130 MHz · stitched</span>
-      </div>
-      <span class="live-tag" id="wf-live-tag">Live · 2 dongles · 4.0 MHz</span>
-      <button type="button" class="wf-fs-btn" id="wf-fs-btn"
-              title="Toggle full-screen Live IQ"
-              aria-label="Toggle full-screen Live IQ">
-        <span class="wf-fs-icon" aria-hidden="true">⛶</span>
-      </button>
-      <span class="sub" id="wf-sub">2 × RTL-SDR</span>
-    </div>
-    <div class="pane-body">
-      <!-- ===== Main display + right-side vertical sliders =====
-           (minimap removed 2026-06-05 — pan-within-hw-BW is now done by
-           click-drag directly on the waterfall, wireWfDesktopPan in JS) -->
-      <div class="wf-display-row">
-        <div class="wf-display-region" id="wf-display-region">
-          <div class="spec-canvas-wrap">
-            <canvas id="wf-spec" class="spec-canvas"></canvas>
-            <div class="wf-marker" id="wf-spec-marker" style="left: 50%; display: none;"></div>
-            <div class="wf-marker-label mono" id="wf-spec-marker-label" style="left: 50%; display: none;">—</div>
-          </div>
-          <div class="wf-canvas-wrap">
-            <canvas id="wf-canvas"></canvas>
-            <!-- legacy mobile center marker (hidden on desktop) -->
-            <div class="freq-window" id="wf-window" style="left: 39%;">
-              <div class="center-mark"></div>
-              <div class="label mono" id="wf-window-label">127.500 MHz</div>
-            </div>
-            <!-- desktop draggable red tuning needle -->
-            <div class="wf-needle" id="wf-needle" style="left: 50%;">
-              <div class="wf-needle-grip" aria-hidden="true"></div>
-              <div class="wf-needle-label mono" id="wf-needle-label">123.700 MHz</div>
-            </div>
-            <div class="wf-cursor-chip mono" id="wf-cursor-chip">—</div>
-            <div class="wf-marker" id="wf-canvas-marker" style="left: 50%; display: none;"></div>
-          </div>
-          <div class="wf-axis mono">
-            <span id="wf-axis-min">—</span>
-            <span id="wf-axis-mid">—</span>
-            <span id="wf-axis-max">—</span>
-          </div>
-        </div>
-        <div class="wf-side-controls" id="wf-side-controls" aria-label="Live IQ display controls">
-          <div class="wf-slider-group">
-            <span class="wf-slider-label">ZOOM</span>
-            <div class="wf-slider-track">
-              <input type="range" class="wf-slider-vert" id="wf-zoom-slider"
-                     min="100" max="400" value="100" step="5"
-                     aria-label="Zoom (1x – 4x)">
-            </div>
-            <span class="wf-slider-val mono" id="wf-zoom-val">1.0×</span>
-          </div>
-          <div class="wf-slider-group">
-            <span class="wf-slider-label">CONTRAST</span>
-            <div class="wf-slider-track">
-              <input type="range" class="wf-slider-vert" id="wf-contrast-slider"
-                     min="40" max="220" value="100" step="5"
-                     aria-label="Contrast (0.4x – 2.2x)">
-            </div>
-            <span class="wf-slider-val mono" id="wf-contrast-val">1.0×</span>
-          </div>
-        </div>
-      </div>
-      <div class="wf-meta">
-        <span class="pill mono" id="wf-pill-center">center —</span>
-        <span class="pill mono" id="wf-pill-bw">bw —</span>
-        <span class="pill mono peak" id="wf-pill-peak">peak —</span>
-        <span class="pill" id="wf-pill-age">last frame —</span>
-      </div>
-      <div class="wf-tune-row">
-        <div class="wf-tune-caption">Tunable 24 MHz – 1.7 GHz · drag the red needle, type a freq, or jump to a band</div>
-        <div class="wf-tune-input-wrap">
-          <label class="wf-tune-label" for="wf-center-input">Center freq</label>
-          <input type="number" id="wf-center-input" class="wf-tune-input mono"
-                 step="0.001" min="24" max="1700" placeholder="MHz" inputmode="decimal">
-          <span class="wf-tune-unit">MHz</span>
-        </div>
-        <!-- bw input retained for mobile fallback (hidden on desktop) -->
-        <div class="wf-tune-input-wrap wf-mobile-only">
-          <label class="wf-tune-label" for="wf-bw-input">Bandwidth</label>
-          <input type="number" id="wf-bw-input" class="wf-tune-input mono"
-                 step="0.2" min="1" max="4.0" placeholder="MHz" inputmode="decimal"
-                 style="width:56px;">
-          <span class="wf-tune-unit">MHz</span>
-        </div>
-        <button type="button" id="wf-apply-btn" class="wf-apply-btn">Apply</button>
-      </div>
-      <div class="wf-jump-row" id="wf-jump-row">
-        <button type="button" class="wf-jump" data-center="124.0" data-bw="4.0">Airband 118–137</button>
-        <button type="button" class="wf-jump" data-center="133.5" data-bw="4.0">AIR 133.5</button>
-        <button type="button" class="wf-jump" data-center="159.0" data-bw="4.0">VHF Marine 156–162</button>
-        <button type="button" class="wf-jump" data-center="157.0" data-bw="4.0">VHF Public 154–160</button>
-        <button type="button" class="wf-jump" data-center="300.0" data-bw="4.0">UHF Mil-air 225–400</button>
-        <button type="button" class="wf-jump" data-center="855.0" data-bw="4.0">800 MHz</button>
-      </div>
-      <div class="wf-step-row" id="wf-step-row" aria-label="Tune step buttons">
-        <button type="button" class="wf-step" data-step-mhz="-10">-10 MHz</button>
-        <button type="button" class="wf-step" data-step-mhz="-1">-1 MHz</button>
-        <button type="button" class="wf-step" data-step-mhz="-0.1">-100 kHz</button>
-        <button type="button" class="wf-step" data-step-mhz="0.1">+100 kHz</button>
-        <button type="button" class="wf-step" data-step-mhz="1">+1 MHz</button>
-        <button type="button" class="wf-step" data-step-mhz="10">+10 MHz</button>
-        <button type="button" class="wf-step wf-vfo-btn" id="wf-to-vfo-btn"
-                title="Tune VFO to current Live IQ needle freq, auto-pick mode by band">&rarr; VFO</button>
-      </div>
-      <div class="dongle-overlay" id="wf-down-overlay">
-        <div class="icon">⚠</div>
-        <div class="label">DONGLE LOST <span id="wf-down-since">4m ago</span></div>
-        <div class="sub">Live IQ stitch lost frames from dongle A.</div>
-        <div class="countdown">reconnect in <span id="wf-down-cd">8</span>s</div>
-      </div>
-    </div>
-    <div class="pane-evidence" id="wf-evidence">
-      <button type="button" class="dongle-badge" id="ev-wf-badge"
-              data-sitrep="open"
-              title="Tuner status — click to open Sitrep for detail"
-              aria-label="Open Sitrep for tuner detail">
-        <span class="db-num" id="ev-wf-badge-num">—/2</span>
-        <span class="db-lbl">tuner</span>
-      </button>
-    </div>
-  </section>
 
   <!-- ============ DISCO pane (Phase 6c — N-dongle unified sweep, LIVE) ============ -->
   <section class="pane pane-disco" id="pane-disco">
@@ -3820,9 +3582,6 @@
         <button type="button" class="pl-pill" aria-pressed="false" data-mount="DIGITAL.mp3"       data-name="Digital">
           <span class="pdot"></span><span class="plabel">Digital</span>
         </button>
-        <button type="button" class="pl-pill" aria-pressed="false" data-mount="VFO.mp3"           data-name="VFO">
-          <span class="pdot"></span><span class="plabel">VFO</span>
-        </button>
       </div>
 
       <div class="pl-transport">
@@ -3884,7 +3643,7 @@
             <button type="button" class="ac-preset" data-preset="rf"
                     data-prompt="Read /api/waterfall and /api/disco state. Are the SDR receivers actively producing FFT data? What's the current noise floor and peak signal level on the Live IQ band? Is the Discovery sweep producing classified detections? If anything is silent, identify why.">Check RF</button>
             <button type="button" class="ac-preset" data-preset="audio"
-                    data-prompt="Check the icecast mounts (/ANALOG.mp3, /ANALOG_GROUND.mp3, /DIGITAL.mp3, /VFO.mp3) by hitting http://localhost:8000/status-json.xsl. Are all 4 mounts publishing live audio? If any are silent, identify the broken link in the chain (rtl-airband demod, op25 voice, vfo demod, vlc bridge, pipewire sink).">Check audio stream</button>
+                    data-prompt="Check the icecast mounts (/ANALOG.mp3, /ANALOG_GROUND.mp3, /DIGITAL.mp3) by hitting http://localhost:8000/status-json.xsl. Are all 3 mounts publishing live audio? If any are silent, identify the broken link in the chain (chirp airband on the RTL Blog V4, chirp ground on RTL 61108285, SDRTrunk P25 on the RSP (1809063632) native apiService, vlc bridge, pipewire sink).">Check audio stream</button>
             <button type="button" class="ac-preset" data-preset="disco"
                     data-prompt="Read /api/disco. Is the sweep range active? How many classified detections in the last 30 minutes? What's the average confidence? Which frequencies have been most active? Recommend whether the sweep range or thresholds should be tuned.">Check Discovery</button>
           </div>
@@ -9364,36 +9123,28 @@ function wireSounding() {
 }
 
 function boot() {
-  // WebGL for the Live IQ spec + waterfall canvases.  MUST run before
-  // wireSpecPeakClicks (which attaches mouse listeners to #wf-spec) so
-  // both code paths see the same canvas element — a canvas's first
-  // requested context type becomes permanent.
-  _initLiveIQGL();
+  // v3.0 (2026-07-08): the Waterfall (Live IQ) and VFO panes were removed
+  // from the dashboard (VFO retired; waterfall deferred). Their wiring +
+  // pollers are disabled below. The wiring functions all early-return on
+  // missing DOM, so leaving the calls would be harmless — but the pollers
+  // (pollWaterfall/pollVFO) would keep hitting /api/waterfall + /api/vfo,
+  // so they are dropped outright. wireSpecPeakClicks() is KEPT: it also
+  // serves the Discovery pane's spec canvas and guards the removed ones.
+  //
+  //   -- removed with the waterfall pane --
+  //   _initLiveIQGL(); wireWfPan(); wireWfNeedleDrag(); wireWfDesktopPan();
+  //   wireWfZoomSlider(); wireWfContrastSlider(); wireWfFullscreen();
+  //   wireWfCenterInput(); wireWfStepButtons(); wireWfKeyboard();
+  //   wireWfVFOButton(); pollWaterfall();
+  //   -- removed with the VFO pane --
+  //   wireVFOControls(); wireVFOSliders(); pollVFO();
 
-  // Live IQ: on mobile this attaches drag-to-pan (legacy hw retune on
-  // drag). On desktop the function early-returns and the SB5 needle +
-  // desktop-pan handler take over (the minimap was retired 2026-06-05).
-  wireWfPan();
-  // SB5 desktop redesign wires (no-ops on mobile — they just bind to
-  // DOM nodes that media queries have set to display:none).
-  wireWfNeedleDrag();
-  wireWfDesktopPan();
-  wireWfZoomSlider();
-  wireWfContrastSlider();
-  wireWfFullscreen();
-
-  wireVFOControls();
-  wireVFOSliders();
   // 2026-06-05 — per-band BT mute toggles on AIRBAND/GROUND/DIGITAL.
   // Seed runs in parallel with the rest of boot; the toggles render
   // .off by default so the dashboard is interactive immediately.
   wireBandMuteToggles();
   seedBandMuteFromSitrep();
   wireAudioBar();
-  wireWfCenterInput();
-  wireWfStepButtons();
-  wireWfKeyboard();
-  wireWfVFOButton();
   wireSpecPeakClicks();
   wireDiscoRangeControls();
   wireSitrep();
@@ -9410,8 +9161,6 @@ function boot() {
   pollHits();
   pollProfile();
   pollBandControls();
-  pollWaterfall();
-  pollVFO();
   pollDisco();
   pollSounding();
   pollSoundingDetail();
