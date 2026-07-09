@@ -31,14 +31,14 @@
   "priority_gate_enabled": true,
   "global_squelch_dbfs": -56.0,
   "sdr": {
-    "_comment": "SDR source defaults for airband. SB7 (M1, macOS): RSPduo RSP-B serial 1809063632 in SINGLE-TUNER mode (rspduo_mode=ST) — the proven-clean config (2026-06-15). Master mode (mode=MA) corrupts the IQ into broadband noise; ST is the structural kill-shot. Uses SoapySDRPlay3 arg keys rspduo_mode/rspduo_tuner (NOT osmosdr's mode/tuner). center_freq_hz is retuned by the LO scheduler to cover the airband list.",
-    "device_args": "soapy=,driver=sdrplay,serial=1809063632,rspduo_mode=ST,rspduo_tuner=1",
+    "_comment": "SDR source defaults for airband. Revision 4.0 (arrangement C, M1, macOS, 2026-07-08): airband AM runs on the RTL-SDR Blog V4 (serial 83241970) via gr-osmosdr's native 'rtl=' backend — exactly like ground, NOT Soapy/SDRplay. The RSP is digital-only now (SDRTrunk), so chirp never touches it and the historical Soapy/apiService airband corruption is out of the picture entirely. STATUS pending-soak: airband-AM-on-RTL is proven by lineage (rtl_airband ran Nashville airband AM on RTLs for years) and by composition (chirp-on-RTL is proven on ground; chirp AM demod is proven), but this exact combo hasn't been soaked under the current chirp engine — flip the device status to validated after a clean soak. No bandwidth_hz needed for RTL (0 = driver default). center_freq_hz is retuned by the LO scheduler to cover the airband list (the RTL's ~2.4 MHz window, hopped just as on the RSP). The Blog V4's R828D + TCXO front end is excellent for airband.",
+    "device_args": "rtl=83241970",
     "center_freq_hz": 127500000.0,
     "gain_db": 32.8,
     "gain_mode_auto": false,
-    "bandwidth_hz": 1536000.0,
+    "bandwidth_hz": 0.0,
     "ppm": 0.0,
-    "antenna": "Tuner 1 50 ohm",
+    "antenna": null,
     "element_gains": {}
   }
 }
