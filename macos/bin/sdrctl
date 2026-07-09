@@ -18,8 +18,24 @@ CLEAN RELEASE
     Graceful stop sends SIGTERM. SDRTrunk now carries a JVM shutdown hook (added to
     io.github.dsheirer.gui.SDRTrunk) that releases each SDRplay device + closes the API
     on SIGTERM, so the device frees immediately instead of lingering ~22s in the
-    apiService (memo section C.3). sdrctl therefore does NOT kickstart the apiService and
-    needs no sudo. SIGKILL is only a last-resort fallback if a process ignores SIGTERM.
+    apiService (memo section C.3). SIGKILL is only a last-resort fallback if a process
+    ignores SIGTERM.
+
+DIRTY-DAEMON REMEDIATION (2026-07-03)
+    SDRangel has NO shutdown hook: when it segfaults while streaming an SDRplay device,
+    the apiService is left with leaked libusb refs and a half-destroyed mutex
+    ("pthread_mutex_destroy: Resource busy" in /Library/Logs/sdrplayservice_err.log).
+    Every later sdrplay_api_Init then segfaults inside sdrplay_api_device::mutexLock -
+    i.e. starting ANY new SDRplay radio crashes the client. The only cure is restarting
+    the daemon. Before starting a consumer, sdrctl now checks for SDRangel crash reports
+    (~/Library/Logs/DiagnosticReports/SDRangel-*.ips) NEWER than the apiService process
+    start: if any exist, the daemon is presumed dirty and gets a kickstart first. That
+    needs root, so install the one-command scoped sudoers rule once:
+        sudo macos/bin/install-sdrctl-sudoers.sh
+    Without the rule, sdrctl prints the manual command and continues with a warning.
+
+USAGE
+    sdrctl kickstart                              # manual daemon restart (uses the sudoers rule)
 
 POLICY
     Device->role mapping and timing invariants are read best-effort from
@@ -66,6 +82,10 @@ MATCH = {
     "sdrtrunk": "io.github.dsheirer",          # the running SDRTrunk JVM
 }
 APISERVICE_PROC = "sdrplay_apiService"
+APISERVICE_LAUNCHD = "system/com.sdrplay.service"
+CRASH_DIR = HOME / "Library" / "Logs" / "DiagnosticReports"
+# Exact command the sudoers rule whitelists (install-sdrctl-sudoers.sh); -n = never prompt.
+KICKSTART_CMD = ["sudo", "-n", "/bin/launchctl", "kickstart", "-k", APISERVICE_LAUNCHD]
 
 # Safe defaults; overridden by the fleet policy when present.
 DEFAULTS = {"rspduo_open_gap_sec": 2.0, "min_restart_interval_sec": 30}
@@ -144,6 +164,59 @@ def running(consumer: str) -> bool:
 
 def apiservice_up() -> bool:
     return subprocess.run(["pgrep", "-x", APISERVICE_PROC], capture_output=True).returncode == 0
+
+# ------------------------------------------------------- dirty-daemon remediation
+def _apiservice_start_time() -> float | None:
+    """Epoch time the apiService process started, or None if it isn't running."""
+    out = subprocess.run(["pgrep", "-x", APISERVICE_PROC], capture_output=True, text=True)
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    pid = out.stdout.split()[0]
+    et = subprocess.run(["ps", "-o", "etime=", "-p", pid],
+                        capture_output=True, text=True).stdout.strip()
+    if not et:
+        return None
+    # etime is [[dd-]hh:]mm:ss (locale-safe, unlike lstart)
+    days, rest = et.split("-", 1) if "-" in et else ("0", et)
+    parts = [int(p) for p in rest.split(":")]
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    return time.time() - (int(days) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2])
+
+def _sdrangel_crashes_since(t: float) -> list[Path]:
+    """SDRangel crash reports written after epoch t. A crash while a device was
+    streaming leaves the apiService with leaked refs + a corrupt mutex; any report
+    newer than the daemon's start means the daemon may be dirty."""
+    try:
+        return sorted((p for p in CRASH_DIR.glob("SDRangel-*.ips") if p.stat().st_mtime > t),
+                      key=lambda p: p.stat().st_mtime)
+    except OSError:
+        return []
+
+def apiservice_dirty() -> list[Path]:
+    """Crash reports implicating the current apiService incarnation ([] = presumed clean)."""
+    started = _apiservice_start_time()
+    return _sdrangel_crashes_since(started) if started is not None else []
+
+def kickstart_apiservice() -> bool:
+    """Restart com.sdrplay.service via the scoped sudoers rule; verify it comes back."""
+    step("Kickstarting com.sdrplay.service (clears dirty client state)")
+    r = subprocess.run(KICKSTART_CMD, capture_output=True, text=True)
+    if r.returncode != 0:
+        err("passwordless kickstart unavailable (sudoers rule not installed?)")
+        err("run manually:  sudo launchctl kickstart -k " + APISERVICE_LAUNCHD)
+        err(f"enable auto-remediation once:  sudo {REPO}/macos/bin/install-sdrctl-sudoers.sh")
+        return False
+    time.sleep(1.0)                       # let the old process die before polling
+    deadline = time.time() + 15.0
+    while time.time() < deadline:
+        started = _apiservice_start_time()
+        if started is not None and time.time() - started < 20.0:
+            ok("apiService restarted (fresh process, dirty state cleared)")
+            return True
+        time.sleep(0.5)
+    err("apiService did not come back within 15s after kickstart")
+    return False
 
 def sdrangel_devices() -> list[dict] | None:
     """Return SDRangel's device-set list via REST, or None if the API is unreachable."""
@@ -240,8 +313,17 @@ def start(consumer: str, policy: dict, force: bool = False) -> bool:
         return True
 
     if not apiservice_up():
-        err(f"{APISERVICE_PROC} is not running - start com.sdrplay.service first")
-        return False
+        warn(f"{APISERVICE_PROC} is not running - attempting kickstart")
+        if not kickstart_apiservice():
+            err(f"{APISERVICE_PROC} is not running - start com.sdrplay.service first")
+            return False
+    else:
+        crashes = apiservice_dirty()
+        if crashes:
+            warn(f"{len(crashes)} SDRangel crash report(s) newer than the apiService "
+                 f"(latest: {crashes[-1].name}) - daemon presumed dirty")
+            if not kickstart_apiservice():
+                warn("continuing WITHOUT kickstart - sdrplay_api_Init may segfault on device start")
 
     # Don't re-open the RSPduo faster than the policy interval (prevents apiService wedge).
     _throttle_restart(policy, force)
@@ -266,6 +348,10 @@ def start(consumer: str, policy: dict, force: bool = False) -> bool:
 def cmd_status(policy: dict) -> int:
     step("SDR fleet status")
     print("  apiService (com.sdrplay.service): " + ("up" if apiservice_up() else _c("1;31", "DOWN")))
+    crashes = apiservice_dirty()
+    if crashes:
+        warn(f"presumed DIRTY: {len(crashes)} SDRangel crash(es) since the daemon started "
+             f"(latest: {crashes[-1].name}); `sdrctl kickstart` to clear")
     both = [c for c in ("sdrangel", "sdrtrunk") if running(c)]
     for c in ("sdrangel", "sdrtrunk"):
         if running(c):
@@ -291,6 +377,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(prog="sdrctl", description="single-consumer SDRplay arbiter")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
+    sub.add_parser("kickstart", help="restart com.sdrplay.service (clears dirty state after a client crash)")
+    sub.add_parser("kickstart-if-dirty",
+                   help="kickstart only when SDRangel crash reports postdate the daemon (watchdog-safe no-op otherwise)")
     sp = sub.add_parser("start"); sp.add_argument("consumer", choices=["sdrangel", "sdrtrunk"])
     sp.add_argument("--force", action="store_true", help="skip the min-restart-interval wait")
     st = sub.add_parser("stop");  st.add_argument("consumer", choices=["sdrangel", "sdrtrunk", "all"])
@@ -302,6 +391,26 @@ def main() -> int:
 
     if args.cmd == "status":
         return cmd_status(policy)
+    if args.cmd == "kickstart":
+        for c in ("sdrangel", "sdrtrunk"):
+            if running(c):
+                warn(f"{c} is running and will lose its device - stopping it first")
+                if not stop(c):
+                    return 1
+        return 0 if kickstart_apiservice() else 1
+    if args.cmd == "kickstart-if-dirty":
+        crashes = apiservice_dirty()
+        if not crashes:
+            ok("apiService presumed clean (no SDRangel crashes since it started)")
+            return 0
+        warn(f"{len(crashes)} SDRangel crash(es) since the daemon started "
+             f"(latest: {crashes[-1].name}) - kickstarting")
+        for c in ("sdrangel", "sdrtrunk"):
+            if running(c):
+                warn(f"{c} is running and will lose its device - stopping it first")
+                if not stop(c):
+                    return 1
+        return 0 if kickstart_apiservice() else 1
     if args.cmd == "stop":
         targets = ["sdrangel", "sdrtrunk"] if args.consumer == "all" else [args.consumer]
         return 0 if all(stop(t) for t in targets) else 1
