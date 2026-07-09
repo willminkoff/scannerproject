@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Boot agent for SDRTrunk (digital P25 — RSP-A).
+  RunAtLoad starts SDRTrunk at login; KeepAlive (SuccessfulExit=false) restarts it if it
+  CRASHES (non-zero exit, incl. SIGTERM/SIGKILL) but NOT on a deliberate clean quit.
+
+  The job runs macos/bin/sdrtrunk-boot.sh, which waits for the SDRplay apiService and then
+  `exec`s the SDRTrunk JVM so the JVM IS the launchd job and survives (a backgrounded child
+  would be reaped). COEXISTENCE-safe: it does not touch SDRangel (no single-consumer stop).
+
+  REQUIRES: auto-login enabled (System Settings > Users & Groups > Automatically log in as ...)
+  so a GUI session exists at boot for this user LaunchAgent to fire.
+
+  Install (user LaunchAgent, no sudo):
+    cp etc/mac/com.scannerproject.sdrtrunk.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.sdrtrunk.plist
+  Stop / uninstall (e.g. before an apiService --reset):
+    launchctl bootout gui/$(id -u)/com.scannerproject.sdrtrunk
+
+  FIRST retire the obsolete single-consumer boot agent (it would stop SDRTrunk):
+    macos/bin/sdr-autostart uninstall
+
+  NOTE: edit the path below if the repo is not at ~/scannerproject.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.scannerproject.sdrtrunk</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/willminkoff-scannerbox/scannerproject/macos/bin/sdrtrunk-boot.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/willminkoff-scannerbox/.scannerproject/sdrtrunk-boot.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/willminkoff-scannerbox/.scannerproject/sdrtrunk-boot.log</string>
+
+  <key>ProcessType</key>
+  <string>Interactive</string>
+</dict>
+</plist>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Watchdog LaunchAgent for the SDRangel analog scanner (airband + 70cm).
+  Runs at login and every 180s: relaunches SDRangel if it crashed and re-applies
+  the airband + 70cm config (idempotent — a no-op when already healthy).
+  This is what makes the analog side survive crashes/reboots unattended on travel.
+
+  Install (user LaunchAgent, not root):
+    cp etc/mac/com.scannerproject.sdrangel.plist ~/Library/LaunchAgents/
+    launchctl load -w ~/Library/LaunchAgents/com.scannerproject.sdrangel.plist
+  Uninstall:
+    launchctl unload -w ~/Library/LaunchAgents/com.scannerproject.sdrangel.plist
+
+  NOTE: edit the ProgramArguments path below if the repo is not at ~/scannerproject.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.scannerproject.sdrangel</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/willminkoff-scannerbox/scannerproject/macos/bin/sdrangel-start.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StartInterval</key>
+  <integer>180</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/willminkoff-scannerbox/.scannerproject/sdrangel-watchdog.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/willminkoff-scannerbox/.scannerproject/sdrangel-watchdog.log</string>
+
+  <key>ProcessType</key>
+  <string>Interactive</string>
+</dict>
+</plist>
