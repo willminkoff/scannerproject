@@ -1,0 +1,11 @@
+Freq (Hz),Enable,Notes,Channel,Ch BW (Hz),TH (dB),Sq (dB)
+147360000,true,Philadelphia Co SKYWARN PRIMARY 2m PL131.8 (NWS Mt Holly - verified),R1:2,12500,-55.0,-55.0
+444050000,true,Philadelphia Co SKYWARN SECONDARY 70cm PL131.8 (NWS Mt Holly - verified),R1:2,12500,-55.0,-55.0
+224500000,true,Philadelphia Co SKYWARN 1.25m PL131.8 (NWS Mt Holly - verified),R1:2,12500,-55.0,-55.0
+146520000,true,2m national simplex calling frequency,R1:2,12500,-55.0,-55.0
+147030000,true,W3PMR Philmont Mobile RC (per Will) PL131.8 UNVERIFIED - NWS SKYWARN primary is 147.360,R1:2,12500,-55.0,-55.0
+147300000,false,Bucks Co (Complex) 2m PL131.8 SKYWARN ~20mi N - reach uncertain from S Philly,R1:2,12500,-55.0,-55.0
+444200000,false,WA3BXW Bears Lower Bucks 70cm PL131.8 SKYWARN ~15mi NE,R1:2,12500,-55.0,-55.0
+442950000,false,WA3BXW Bears Upper Bucks 70cm PL131.8 SKYWARN ~30mi N,R1:2,12500,-55.0,-55.0
+447125000,false,WA3BXW Bears Chester PA 70cm PL131.8 SKYWARN ~15mi SW,R1:2,12500,-55.0,-55.0
+145230000,false,Complex Monroe Co 2m PL77.0 SKYWARN ~80mi (likely too far from S Philly),R1:2,12500,-55.0,-55.0

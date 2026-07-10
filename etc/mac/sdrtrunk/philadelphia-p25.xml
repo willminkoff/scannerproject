@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<playlist version="4">
+    <alias_list/>
+    <channel name="Philadelphia P25 (PPD/PFD)" enabled="true" order="1">
+        <source_configuration type="sourceConfigTunerMultipleFrequency">
+            <frequency>853312500</frequency>
+            <frequency>853337500</frequency>
+            <frequency>853537500</frequency>
+            <frequency>853562500</frequency>
+            <frequency>853587500</frequency>
+            <frequency>853787500</frequency>
+            <frequency>853812500</frequency>
+            <frequency>853837500</frequency>
+        </source_configuration>
+        <decode_configuration type="decodeConfigP25Phase1" modulation="CQPSK"/>
+        <event_log_configuration type="eventLogConfiguration">
+            <logger>DECODED_MESSAGE</logger>
+            <logger>CALL_EVENT</logger>
+        </event_log_configuration>
+    </channel>
+</playlist>
