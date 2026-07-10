@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.scannerproject.icecast</string>
+  <key>ProgramArguments</key><array>
+    <string>/usr/local/bin/icecast</string>
+    <string>-c</string>
+    <string>/Users/willminkoff-scannerbox/scannerproject/etc/mac/icecast.xml</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/Users/willminkoff-scannerbox/scannerproject/logs/icecast.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/willminkoff-scannerbox/scannerproject/logs/icecast.err.log</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict></plist>

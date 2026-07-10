@@ -72,3 +72,8 @@ data/hp_state.json.history/
 
 # deploy runtime logs (never commit)
 .deploy-logs/
+etc/mac/icecast-credentials.env
+etc/mac/icecast.xml
+logs/
+macos/scannerctl/.venv/
+**/__pycache__/
