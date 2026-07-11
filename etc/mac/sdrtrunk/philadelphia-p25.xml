@@ -1,21 +1,27 @@
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <playlist version="4">
-    <alias_list/>
-    <channel name="Philadelphia P25 (PPD/PFD)" enabled="true" order="1">
-        <source_configuration type="sourceConfigTunerMultipleFrequency">
-            <frequency>853312500</frequency>
-            <frequency>853337500</frequency>
-            <frequency>853537500</frequency>
-            <frequency>853562500</frequency>
-            <frequency>853587500</frequency>
-            <frequency>853787500</frequency>
-            <frequency>853812500</frequency>
-            <frequency>853837500</frequency>
-        </source_configuration>
-        <decode_configuration type="decodeConfigP25Phase1" modulation="CQPSK"/>
-        <event_log_configuration type="eventLogConfiguration">
-            <logger>DECODED_MESSAGE</logger>
-            <logger>CALL_EVENT</logger>
-        </event_log_configuration>
-    </channel>
+  <stream type="icecastHTTPConfiguration" name="neptune-digital" enabled="true" format="MP3" host="127.0.0.1" port="8000" mount_point="/neptune-digital.mp3" user_name="source" password="REPLACE_WITH_ICECAST_SOURCE_PASSWORD" bit_rate="16" inline="false" />
+  <alias list="Philadelphia P25" name="All P25 Voice">
+    <id type="talkgroupRange" min="1" max="65535" protocol="APCO25" />
+    <id type="broadcastChannel" channel="neptune-digital" />
+  </alias>
+  <channel name="Philadelphia P25 (PPD/PFD)" order="1" enabled="true">
+    <event_log_configuration>
+      <logger>DECODED_MESSAGE</logger>
+      <logger>CALL_EVENT</logger>
+    </event_log_configuration>
+    <aux_decode_configuration />
+    <source_configuration type="sourceConfigTunerMultipleFrequency" frequency_rotation_delay="200" source_type="TUNER_MULTIPLE_FREQUENCIES">
+      <frequency>853312500</frequency>
+      <frequency>853337500</frequency>
+      <frequency>853537500</frequency>
+      <frequency>853562500</frequency>
+      <frequency>853587500</frequency>
+      <frequency>853787500</frequency>
+      <frequency>853812500</frequency>
+      <frequency>853837500</frequency>
+    </source_configuration>
+    <decode_configuration type="decodeConfigP25Phase1" modulation="CQPSK" traffic_channel_pool_size="20" ignore_data_calls="false" />
+    <record_configuration />
+    <alias_list_name>Philadelphia P25</alias_list_name>
+  </channel>
 </playlist>
