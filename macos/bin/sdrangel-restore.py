@@ -1,35 +1,36 @@
 #!/usr/bin/env python3
 """
-sdrangel-restore.py — idempotent restore of the Venus analog scanner config into SDRangel.
+sdrangel-restore.py — idempotent restore of the analog scanner config into SDRangel.
+
+Host-aware: the same tool runs on both minis and picks its route set by hostname.
+  - Venus  (macmini / Intel):  airband RSPduo + 443.975 NFM RTL.
+  - Neptune (m1mini / M1):     2m Philadelphia SKYWARN on RTL 83241970.
+A wrong host match is a SAFE no-op — find_or_assign only acts on serials that
+SDRangel actually enumerates, so the other box's routes simply skip.
 
 Travel-stability tool: SDRangel keeps its working config in RAM and reverts to a stale
-on-disk plist on crash/restart, so the airband + 70cm scanner (and, critically, the fixed
-gain that keeps the noise floor below squelch) vanish after any crash. This script
-re-applies them deterministically via the REST API, using the only recipe SDRangel's
-SDRplayV3 path tolerates: PATCH a RUNNING device, and add/delete channels ONE AT A TIME
-with delays (rapid bulk ops crash it).
+on-disk plist on crash/restart, so the scanner (and, critically, the fixed gain that
+keeps the noise floor below squelch) vanishes after any crash. This script re-applies
+them deterministically via the REST API, using the only recipe SDRangel's device path
+tolerates: PATCH a RUNNING device, and add/delete channels ONE AT A TIME with delays
+(rapid bulk ops crash it).
 
 Idempotent: if a route already matches the desired device + center + channels + RUNNING
-state AND the fixed gain AND the channel volume, it is left alone (only GETs) — safe to run
-on a timer / from the copytoudp watchdog. The gain + volume checks matter: a stale-plist
-reload can restore the right topology but the old ifAGC=1 gain (noise floor floats up over
-squelch -> continuous hiss) or the old volume, so those are verified, not just the topology.
+state AND the fixed gain AND the channel volume, it is left alone (only GETs) — safe to
+run on a timer / from the copytoudp watchdog. The gain check tolerates the RTL's snap to
+the nearest supported step (a requested 400 reads back as 402), so a correct route is not
+churned every cycle; SDRplay IF/LNA gains are exact-settable and checked exactly.
 
-Venus config (2026-07 — devices are swapped vs the older SB7 mapping):
-  - AIRBAND -> RSPduo SDRplayV3 serial 1809063632, 118.925 MHz, 2 Msps.
-      Fixed gain ifAGC=0 / ifGain=-40 / lnaIndex=3 (floor ~-67 dB, well below squelch -40).
-      4x AMDemod: 118.400 / 118.600 / 119.350 / 119.450, 8 kHz, squelch -40, VOLUME 4.5.
-  - NFM     -> RTL-SDR serial 45469635, 444 MHz, 1.024 Msps, fixed gain 28 dB (gain=280), agc off.
-      1x NFMDemod at 443.975 (offset -25 kHz), 12.5 kHz, squelch -60, volume 2.0.
-  Every channel outputs to "System default device" so the audio mixes into the idx-0
-  copyToUDP tap that macos/bin/venus-audio-bridge.sh streams to icecast (the tap itself is
-  re-armed independently by macos/bin/copytoudp-watchdog.sh). Digital (SDRTrunk) is separate.
+Every channel outputs to "System default device" so the audio mixes into the idx-0
+copyToUDP tap that the host audio bridge streams to icecast (the tap itself is re-armed
+independently by macos/bin/copytoudp-watchdog.sh). Digital (SDRTrunk) is separate.
 """
-import json, os, sys, time, urllib.request, urllib.error
+import json, os, socket, sys, time, urllib.request, urllib.error
 
 BASE = os.environ.get("SDRANGEL_REST", "http://127.0.0.1:8091/sdrangel")
 AUDIO = {"audioDeviceName": "System default device", "audioMute": 0}
 
+# ---- Venus (macmini / Intel) routes -------------------------------------------------
 AIRBAND = dict(
     name="airband", serial="1809063632", hw="SDRplayV3", center=118_925_000, prefer_ds=0,
     dev={"deviceHwType": "SDRplayV3", "direction": 0,
@@ -55,7 +56,30 @@ NFM = dict(
                                     "afBandwidth": 3000, "squelch": -60, "volume": 2.0,
                                     "title": title, **AUDIO},
 )
-ROUTES = [AIRBAND, NFM]
+
+# ---- Neptune (m1mini / M1) routes ---------------------------------------------------
+# 2m Philadelphia SKYWARN on RTL 83241970: center 147.0 MHz / 2.048 Msps / 40 dB fixed.
+# squelch -53 sits ~5 dB above the measured ~-58 dBFS noise floor (gates hiss, opens on
+# real transmissions). RSPduo 180903EF32 is owned by SDRTrunk (P25), not SDRangel.
+SKYWARN_2M = dict(
+    name="skywarn-2m", serial="83241970", hw="RTLSDR", center=147_000_000, prefer_ds=0,
+    dev={"deviceHwType": "RTLSDR", "direction": 0,
+         "rtlSdrSettings": {"centerFrequency": 147_000_000, "devSampleRate": 2_048_000,
+                            "gain": 400, "agc": 0, "log2Decim": 0}},
+    gain_check={"gain": 400, "agc": 0},
+    ch_type="NFMDemod", ch_key="NFMDemodSettings", ch_volume=2.0,
+    channels=[(-480_000, "146.520 2m simplex"), (30_000, "147.030 W3PMR Philmont"),
+              (360_000, "147.360 Philly SKYWARN primary")],
+    ch_settings=lambda off, title: {"inputFrequencyOffset": off, "rfBandwidth": 12500,
+                                    "afBandwidth": 3000, "squelch": -53, "volume": 2.0,
+                                    "title": title, **AUDIO},
+)
+
+HOST = socket.gethostname().lower()
+if "m1mini" in HOST or "neptune" in HOST:
+    HOST_LABEL, ROUTES = "Neptune (m1mini)", [SKYWARN_2M]
+else:
+    HOST_LABEL, ROUTES = "Venus (macmini)", [AIRBAND, NFM]
 
 
 def log(m): print(m, flush=True)
@@ -188,6 +212,20 @@ def apply_device_settings(ds_idx, spec):
     return False
 
 
+def gain_ok(ds_idx, spec):
+    """Fixed gain matches? RTL snaps requested gain to the nearest supported step
+    (400 -> 402), so 'gain' is compared with tolerance; SDRplay IF/LNA are exact."""
+    blk = dev_block(ds_idx)
+    for k, v in spec["gain_check"].items():
+        cur = blk.get(k)
+        if k == "gain":
+            if cur is None or abs(cur - v) > 6:
+                return False
+        elif cur != v:
+            return False
+    return True
+
+
 def route_healthy(ds_idx, spec):
     """Fully idempotent: topology AND fixed gain AND channel volume must all match desired."""
     sets = devicesets()
@@ -197,8 +235,7 @@ def route_healthy(ds_idx, spec):
     if not (ds_serial(ds) == spec["serial"] and abs(ds_center(ds) - spec["center"]) < 5000
             and len(ds.get("channels", [])) == len(spec["channels"]) and ds_state(ds) == "running"):
         return False
-    blk = dev_block(ds_idx)
-    if any(blk.get(k) != v for k, v in spec["gain_check"].items()):
+    if not gain_ok(ds_idx, spec):
         return False  # stale plist reloaded the old gain -> re-apply
     v = ch_volume(ds_idx, spec["ch_key"])
     if v is None or abs(float(v) - spec["ch_volume"]) > 0.01:
@@ -241,7 +278,8 @@ def main():
     if not wait_rest():
         log("SDRangel REST not reachable — is SDRangel running? Aborting.")
         sys.exit(1)
-    log("Restoring Venus analog scanner config into SDRangel (airband + 443.975 NFM)...")
+    log(f"Restoring {HOST_LABEL} analog scanner config into SDRangel "
+        f"({', '.join(r['name'] for r in ROUTES)})...")
     for spec in ROUTES:
         restore_route(spec)
     log("Done.")
