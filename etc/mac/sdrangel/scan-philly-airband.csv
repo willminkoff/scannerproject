@@ -1,0 +1,27 @@
+Freq (Hz),Enable,Notes,Channel,Ch BW (Hz),TH (dB),Sq (dB)
+121500000,true,AIR GUARD 121.5 emergency (universal),R1:0,8000,-55.0,-55.0
+118500000,true,AIR KPHL Tower primary Rwy 08/26 09L/27R (AirNav-verified),R1:0,8000,-55.0,-55.0
+135100000,true,AIR KPHL Tower Rwy 09R/27L (AirNav-verified),R1:0,8000,-55.0,-55.0
+121900000,true,AIR KPHL Ground (AirNav-verified),R1:0,8000,-55.0,-55.0
+121650000,true,AIR KPHL Ground secondary (AirNav-verified),R1:0,8000,-55.0,-55.0
+118850000,true,AIR KPHL Clearance Delivery/PDC (AirNav-verified),R1:0,8000,-55.0,-55.0
+123800000,true,AIR Philadelphia Approach/Departure primary (AirNav-verified; also KPNE/KTTN),R1:0,8000,-55.0,-55.0
+124350000,true,AIR Philadelphia Approach/Departure sector (AirNav-verified),R1:0,8000,-55.0,-55.0
+126850000,true,AIR Philadelphia Approach/Departure sector (AirNav-verified; also KLOM),R1:0,8000,-55.0,-55.0
+128400000,true,AIR Philadelphia Approach/Departure sector (AirNav-verified),R1:0,8000,-55.0,-55.0
+127350000,false,AIR Philadelphia Approach alt sector (AirNav-verified; enable if active),R1:0,8000,-55.0,-55.0
+133875000,false,AIR Philadelphia Approach alt sector (AirNav-verified; enable if active),R1:0,8000,-55.0,-55.0
+118350000,false,AIR Philadelphia Approach south sector serving KILG (AirNav-verified),R1:0,8000,-55.0,-55.0
+133400000,false,AIR KPHL D-ATIS Arrival continuous - tune manually (AirNav-verified),R1:0,8000,-55.0,-55.0
+135925000,false,AIR KPHL D-ATIS Departure continuous - tune manually (AirNav-verified),R1:0,8000,-55.0,-55.0
+122950000,false,AIR KPHL UNICOM (AirNav-verified; rare at Class B),R1:0,8000,-55.0,-55.0
+126900000,false,AIR KPNE Northeast Philly Tower/CTAF ~7mi NE (AirNav-verified),R1:0,8000,-55.0,-55.0
+121150000,false,AIR KPNE Northeast Philly ATIS (AirNav-verified),R1:0,8000,-55.0,-55.0
+121700000,false,AIR KPNE Northeast Philly Ground (AirNav-verified),R1:0,8000,-55.0,-55.0
+127250000,false,AIR KPNE Northeast Philly Clearance (AirNav-verified),R1:0,8000,-55.0,-55.0
+120700000,false,AIR KTTN Trenton-Mercer Tower/CTAF ~30mi NE (AirNav-verified; reach uncertain),R1:0,8000,-55.0,-55.0
+126775000,false,AIR KTTN Trenton-Mercer ATIS (AirNav-verified),R1:0,8000,-55.0,-55.0
+126000000,false,AIR KILG Wilmington DE Tower/CTAF ~25mi SW (AirNav-verified; reach uncertain),R1:0,8000,-55.0,-55.0
+123950000,false,AIR KILG Wilmington DE ATIS (AirNav-verified),R1:0,8000,-55.0,-55.0
+123000000,false,AIR KLOM Wings Field CTAF/UNICOM ~15mi NW GA (AirNav-verified),R1:0,8000,-55.0,-55.0
+118925000,false,AIR KLOM Wings Field AWOS-3 weather (AirNav-verified),R1:0,8000,-55.0,-55.0
