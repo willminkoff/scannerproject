@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.scannerproject.sdrtrunk</string>
+  <!-- jpackage runtime-image launcher (there is NO sdr-trunk.app bundle); opens the GUI. -->
+  <key>ProgramArguments</key><array>
+    <string>/Users/willminkoff/sdr-trunk-osx-aarch64-v0.6.1/bin/sdr-trunk</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>LimitLoadToSessionType</key><string>Aqua</string>
+  <key>KeepAlive</key><dict>
+    <key>SuccessfulExit</key><false/>
+  </dict>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/Users/willminkoff/scannerproject/logs/sdrtrunk.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/willminkoff/scannerproject/logs/sdrtrunk.err.log</string>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+</dict></plist>
