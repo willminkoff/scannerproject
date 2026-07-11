@@ -17,6 +17,11 @@ admin/logs/
 
 # secrets (we keep an example file instead)
 icecast/icecast.xml
+# mac icecast configs carry inline source/admin passwords — never commit (per-host, live on the box)
+etc/mac/icecast.xml
+etc/mac/icecast-*.xml
+etc/mac/icecast-credentials.env
+etc/mac/icecast-*-credentials.env
 
 # Python bytecode and caches
 __pycache__/
