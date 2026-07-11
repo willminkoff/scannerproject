@@ -58,20 +58,23 @@ NFM = dict(
 )
 
 # ---- Neptune (m1mini / M1) routes ---------------------------------------------------
-# 2m Philadelphia SKYWARN on RTL 83241970: center 147.0 MHz / 2.048 Msps / 40 dB fixed.
-# squelch -53 sits ~5 dB above the measured ~-58 dBFS noise floor (gates hiss, opens on
-# real transmissions). RSPduo 180903EF32 is owned by SDRTrunk (P25), not SDRangel.
+# 2m Philadelphia SKYWARN on RTL 83241970: center 147.0 MHz / 2.048 Msps / 25 dB fixed.
+# Gain 250 (snaps to 254) tuned with the window antenna connected: at 40 dB the antenna's
+# ambient 2m-band pickup floated the floor to ~-47 dBFS (above squelch -> leaked hiss); 25 dB
+# drops the floor to a clean ~-60 dBFS while staying ~8 dB above the receiver thermal floor
+# (still hearing the band). squelch -54 sits ~6 dB above that floor (gates hiss, opens on real
+# transmissions). RSPduo 180903EF32 is owned by SDRTrunk (P25), not SDRangel.
 SKYWARN_2M = dict(
     name="skywarn-2m", serial="83241970", hw="RTLSDR", center=147_000_000, prefer_ds=0,
     dev={"deviceHwType": "RTLSDR", "direction": 0,
          "rtlSdrSettings": {"centerFrequency": 147_000_000, "devSampleRate": 2_048_000,
-                            "gain": 400, "agc": 0, "log2Decim": 0}},
-    gain_check={"gain": 400, "agc": 0},
+                            "gain": 250, "agc": 0, "log2Decim": 0}},
+    gain_check={"gain": 250, "agc": 0},
     ch_type="NFMDemod", ch_key="NFMDemodSettings", ch_volume=2.0,
     channels=[(-480_000, "146.520 2m simplex"), (30_000, "147.030 W3PMR Philmont"),
               (360_000, "147.360 Philly SKYWARN primary")],
     ch_settings=lambda off, title: {"inputFrequencyOffset": off, "rfBandwidth": 12500,
-                                    "afBandwidth": 3000, "squelch": -53, "volume": 2.0,
+                                    "afBandwidth": 3000, "squelch": -54, "volume": 2.0,
                                     "title": title, **AUDIO},
 )
 
