@@ -1,5 +1,5 @@
 <playlist version="4">
-  <stream type="icecastHTTPConfiguration" name="neptune-digital" enabled="true" format="MP3" host="127.0.0.1" port="8000" mount_point="/neptune-digital.mp3" user_name="source" password="REPLACE_WITH_ICECAST_SOURCE_PASSWORD" bit_rate="16" inline="false" />
+  <stream type="icecastHTTPConfiguration" name="neptune-digital" enabled="true" format="MP3" host="127.0.0.1" port="8000" mount_point="/neptune-trunk.mp3" user_name="source" password="REPLACE_WITH_ICECAST_SOURCE_PASSWORD" bit_rate="16" inline="false" />
   <alias list="Philadelphia P25" name="All P25 Voice">
     <id type="talkgroupRange" min="1" max="65535" protocol="APCO25" />
     <id type="broadcastChannel" channel="neptune-digital" />
