@@ -4,6 +4,9 @@
 **Date:** 2026-07-16
 **Status:** DESIGN / RESEARCH. Nothing built, nothing deployed. No box was touched to write this.
 **Branch:** `sb3-neptune-plan` (off `origin/main` @ `e2dbb48`)
+**Updated 2026-07-16:** Will confirmed the RSPduo serials — **Neptune = `180903EF32`, Venus =
+`1809063632`** (§5.1). `etc/mac/sdr_fleet_policy.json` rev 4.1 has them **reversed** and is
+wrong until fixed separately; cleanup survey in §7.5.
 
 **Method note.** This is a repo-only pass. No REST calls were made against SDRangel or
 SDRTrunk on Neptune, Venus, or BreakroomDe; no box state was read or changed. Every claim
@@ -120,7 +123,9 @@ One file per band, selected by `CHIRP_BAND`. Precedence is env > json > dataclas
 (`daemon.py:371-383`). Flat scalars plus one nested `sdr` block:
 
 ```jsonc
-// chirp/config/airband.json — the real thing, abridged
+// chirp/config/airband.json — the real thing, abridged.
+// NB: serial 1809063632 here is the MICRO's airband RSPduo (Linux era) — historically
+// correct, unrelated to the Neptune/Venus assignment in §5.1. Not a reversal artifact.
 { "version": 1, "band": "airband", "pool_mode": "am",
   "cmd_port": 7400, "source_samp_rate": 2000000.0, "audio_rate": 16000.0,
   "am_agc_enabled": false, "am_fixed_gain": 10.0,
@@ -297,6 +302,7 @@ There is no `Device` class. The device is `SdrSourceConfig.device_args: str`
 
 ```jsonc
 // SDRplay RSPduo via SoapySDRPlay3 — note rspduo_* keys, NOT osmosdr's mode/tuner
+// (serial = the Micro's airband RSPduo, Linux era. See §5.1 for the Neptune/Venus map.)
 "device_args": "soapy=,driver=sdrplay,serial=1809063632,rspduo_mode=ST,rspduo_tuner=1"
 // RTL via osmosdr's NATIVE backend — NOT soapy=,driver=rtlsdr (empirical, M1, 2026-07-06)
 "device_args": "rtl=61108285"
@@ -627,10 +633,15 @@ Playlist schema (from `etc/mac/sdrtrunk/philadelphia-p25.xml`):
    RSPduos collapse the USB isochronous stream."* Read that carefully: the warning is about
    **two RSPduos**, not two tuners of one. Going dual means emptying `disabledTuners` — which
    the fleet policy explicitly plans for. **It does not violate the invariant.**
-3. **The tuner-label string format is inconsistent in-repo** and must be read off the live
-   `View → Tuners` list:
-   - `build_sugar_tree_playlist.py`: `"RSPduo SER:180903EF32 Tuner 1"`
-   - `macos/sdrtrunk/tuner_configuration.json`: `"RSPduo Tuner 1 SER#1809063632"`
+3. **The tuner-label string is inconsistent in-repo — in BOTH format and serial** — and must
+   be read off the live `View → Tuners` list:
+   - `build_sugar_tree_playlist.py`: `"RSPduo SER:180903EF32 Tuner 1"` — ✅ right serial
+   - `macos/sdrtrunk/tuner_configuration.json:73`: `"RSPduo Tuner 1 SER#1809063632"` —
+     ❌ **wrong serial** (§7.5), *and* a different format.
+
+   This one is functional, not cosmetic: `preferred_tuner` matches on this exact string, so a
+   wrong serial means no tuner match and the dual-digital pinning silently fails. **Fix it as
+   part of the §7.5 cleanup, then verify the format against the live list.**
 
 **Don't hand-write the two-system playlist.** `scripts/ensure-digital-runtime.py` (1,169
 lines) already implements `_sync_source_configuration()`, `_sync_tuner_configuration()`,
@@ -903,27 +914,37 @@ can construct a defensible argument for either answer.
 
 ## 5. Hardware / USB topology for Neptune
 
-### 5.1 What Neptune has (and the contradiction that has to be resolved first)
+### 5.1 What Neptune has — serials CONFIRMED by Will, 2026-07-16
 
-**The repo contradicts itself about which RSPduo is on Neptune, and the fleet policy is
-almost certainly stale.**
+> ## ✅ **Neptune RSPduo = `180903EF32`.  Venus RSPduo = `1809063632`.**
+>
+> **Confirmed by Will, 2026-07-16.** This is the authoritative assignment for this plan.
+> It matches the validated Philly decode (`project_neptune_philly_p25_validated`,
+> 2026-07-10) and the live Venus SDRangel airband route (`sdrangel-restore.py:35`).
 
-| Source | Date | Claim |
-|---|---|---|
-| `etc/mac/sdr_fleet_policy.json` rev 4.1 | 2026-07-08 | RSP `180903EF32` was **"physically UNPLUGGED and taken to a DIFFERENT computer."** The M1 keeps `1809063632`. |
-| `docs/scan-philadelphia.md` | ~2026-07 | **"No RSPduo on Neptune"** — only 2 RTLs (`61108285`, `83241970`). |
-| `project_neptune_philly_p25_validated` (memory) | **2026-07-10** | **Neptune decodes Philly P25 on RSPduo `180903EF32`.** 1,756 msgs, real call events. |
-| `sdrangel-restore.py` Venus route | live | Venus airband = SDRplayV3 **`1809063632`**. |
+**`etc/mac/sdr_fleet_policy.json` rev 4.1 has the two serials reversed and must be treated as
+WRONG until it is fixed separately** (§7.5). It asserts that `180903EF32` left the M1 and that
+`1809063632` stayed to carry digital. **Both halves are backwards.** Everything that copied
+from rev 4.1 inherited the error.
 
-**Reading these together: the policy has it backwards.** `180903EF32` went *to* Neptune (and
-is validated decoding there, two days after the policy was written); `1809063632` went to
-Venus. The policy's "different computer" was Venus, and it named the wrong device as the one
-that moved.
+How the evidence lines up, now that the answer is known:
 
-**→ Phase 0 gate: read the actual serial off the box** (`SoapySDRUtil --find="driver=sdrplay"`,
-or SDRTrunk `View → Tuners`) **and rewrite `sdr_fleet_policy.json` to rev 5.0.** Do not build
-against a policy file that contradicts a validated decode. Note the policy's own instruction
-already anticipates this: *"CONFIRM ON THE BOX which RSP is present before trusting this."*
+| Source | Date | Claim | Verdict |
+|---|---|---|---|
+| `project_neptune_philly_p25_validated` (memory) | 2026-07-10 | Neptune decodes Philly P25 on RSPduo **`180903EF32`** | ✅ **right** |
+| `macos/bin/sdrangel-restore.py:35` (Venus `AIRBAND` route) | live | Venus airband = SDRplayV3 **`1809063632`** | ✅ **right** |
+| `macos/bin/sdrangel-restore.py:66` (Neptune comment) | live | *"RSPduo 180903EF32 is owned by SDRTrunk (P25), not SDRangel"* | ✅ **right** |
+| `etc/mac/sdr_fleet_policy.json` rev 4.1 | 2026-07-08 | `180903EF32` was *"physically UNPLUGGED and taken to a DIFFERENT computer"*; the M1 keeps `1809063632` | ❌ **reversed** |
+| `docs/scan-philadelphia.md` | ~2026-07 | *"No RSPduo on Neptune"* — only 2 RTLs | ❌ **stale** (predates the move) |
+
+**The live code was right the whole time; only the policy file was wrong.** That's a useful
+signal about which artifacts to trust: `sdrangel-restore.py` runs every 10 minutes on both
+boxes and would have failed loudly if its serials were wrong. The policy file is read by the
+broker and by humans, and nothing was exercising it hard enough to catch the reversal.
+
+**No Phase 0 serial-reading gate is needed** — the question is answered. Phase 0 still rewrites
+the policy to **rev 5.0** (§7.5), but as a *correction to a known-wrong file*, not an
+investigation.
 
 **The RTL role assignment is also changing.** Will's brief reassigns two of three:
 
@@ -932,6 +953,9 @@ already anticipates this: *"CONFIRM ON THE BOX which RSP is present before trust
 | `83241970` | RTL-SDR Blog V4 | chirp-airband (was VFO) | **Air / airband** | same intent |
 | `56919602` | NESDR SMArt v5 | sounding (ACARS/VDL2/sonde) | **Ground — TBD** | ⚠️ **changed** |
 | `61108285` | NESDR | chirp-ground | **Disco + ACARS + survey** | ⚠️ **changed** |
+
+**The RTL serials were never in doubt** — the reversal is RSPduo-only. `83241970` (Blog V4),
+`56919602`, and `61108285` are consistent across the policy, the brief, and the live scripts.
 
 The Blog V4 keeps airband, which is right — it was chosen for airband historically
 *specifically* for its better front-end/SNR (R828D + TCXO), and it moved
@@ -989,7 +1013,7 @@ controller, consider a second hub to split the RTLs."*
 
 ```
 ┌─ Thunderbolt / USB4 port 1 ─────────────────────────────────┐
-│   RSPduo  (180903EF32 — VERIFY, §5.1)   DIRECT, no hub      │
+│   RSPduo  180903EF32  (CONFIRMED §5.1)  DIRECT, no hub      │
 │   dual-tuner, SDRTrunk, native SDRplay API                   │
 │   → own controller, own 480 Mbps domain, ~128 Mbps           │
 └──────────────────────────────────────────────────────────────┘
@@ -1075,9 +1099,12 @@ prior phases' invariants still hold.
 
 **Nobody writes SB3 code in this phase.**
 
-- Read the **actual RSPduo serial** off Neptune (`SoapySDRUtil --find="driver=sdrplay"` /
-  SDRTrunk `View → Tuners`). Rewrite `sdr_fleet_policy.json` → **rev 5.0** to match physical
-  truth. Resolve §5.1.
+- Rewrite `sdr_fleet_policy.json` → **rev 5.0**: Neptune RSPduo = `180903EF32` (confirmed
+  2026-07-16, §5.1). The rev-4.1 reversal is a known defect, not an open question. Then work
+  the **serial-reversal cleanup list** in §7.5 — the policy is the root, but seven artifacts
+  copied from it. `broker/policy.py` hard-fails on a bad policy, so this gates Phase 1.
+- One-line confirmation on the box while you're there (cheap, closes it for good):
+  `SoapySDRUtil --find="driver=sdrplay"` on each mini, or SDRTrunk `View → Tuners`.
 - Root-cause and fix the **two wedged NESDRs**. Power? Enumeration? Tahoe/libusb?
 - Install the **powered USB-3 hub**; wire per §5.3.
 - `system_profiler SPUSBDataType`: all 4 SDRs, each at 480 Mb/s, controller grouping recorded.
@@ -1089,7 +1116,8 @@ prior phases' invariants still hold.
 
 **✅ Invariant:** All 4 SDRs enumerate at 480 Mb/s across two USB-2 domains and survive a
 reboot. `neptune-angel.mp3` and `neptune-trunk.mp3` are both live and audible on the phone.
-`sdr_fleet_policy.json` matches `ioreg`. **Nothing regressed — this phase only adds hardware.**
+`sdr_fleet_policy.json` rev 5.0 matches `ioreg`, and no artifact in §7.5 still claims
+Neptune's RSPduo is `1809063632`. **Nothing regressed — this phase only adds hardware.**
 
 ---
 
@@ -1219,10 +1247,11 @@ injected fault produced a structured diagnostic. **All prior invariants still ho
 
 ### 7.1 Must be answered before Phase 1
 
-**Q1 — Which RSPduo is physically on Neptune?** 🔴 **Blocking.**
-The fleet policy says `1809063632`; a validated decode two days later says `180903EF32`
-(§5.1). Everything digital keys off this. **Read it off the box. Rewrite the policy to rev
-5.0.** Cost of getting it wrong: Phase 3 builds against a device that isn't there.
+**Q1 — Which RSPduo is physically on Neptune?** ✅ **ANSWERED 2026-07-16 — Will confirmed:
+Neptune = `180903EF32`, Venus = `1809063632`.**
+This matched the validated Philly decode and the live `sdrangel-restore.py` routing. The
+`sdr_fleet_policy.json` rev 4.1 serial reversal is now a **known defect with a cleanup list**
+(§7.5), not an open question. Phase 3 builds against `180903EF32`.
 
 **Q2 — Does the broker stay up through `sb3-ctl kill`?** 🔴 **Blocking, Will's call.**
 §4.5. I recommend **yes** — reservations outlive the control plane, and the disco/ACARS/survey
@@ -1274,7 +1303,7 @@ Phase 4 is a profile-authoring exercise and the design is already done.
 | 3 | **RSPduo dirty-release → reboot** | 🔴 | `sb3-ctl` owns SDRTrunk lifecycle: SIGTERM only, 25 s wait, `ioreg` verify. Never SIGKILL. |
 | 4 | **CPU** — the Intel mini hit ~420% on SDRangel's channelizer and **killed SDRTrunk**. Neptune is M1/8 GB. | 🔴 | Phase 4 invariant = ≥30% headroom. Measure per-phase, not at the end. Sample rates are a budget. |
 | 5 | **Mount-200 is a lie** — ffmpeg encodes silence at full bitrate; the keepalive channel *guarantees* non-silence | 🟠 | Verify tap bytes AND mount AND ≥1 real hit/window (§4.4). |
-| 6 | **Fleet policy contradicts reality** (§5.1) | 🟠 | Phase 0 rev 5.0. Policy is code — `broker/policy.py` hard-fails on it. |
+| 6 | **Fleet policy has the RSPduo serials reversed**, and 7 artifacts copied the error (§5.1, §7.5) | 🟠 | Phase 0 rev 5.0 + the §7.5 cleanup list. Policy is code — `broker/policy.py` hard-fails on it, so a wrong serial there is a Phase 1 boot failure, not a silent drift. |
 | 7 | **Both NESDRs wedged after reboot** | 🟠 | Phase 0 root-cause. Per-port-switched hub as a lever. |
 | 8 | **Tahoe USB + RTL** — SDRTrunk's README wants the nightly + `libusb --HEAD` on recent macOS. SDRplay's native path is unaffected. | 🟠 | Phase 0 verifies all 3 RTLs at 480 Mb/s post-reboot. |
 | 9 | **Two P25 on one RSPduo is unproven here** — the clean dual-tuner result was on `180903EF32`, and the *simultaneous* two-system case has never run | 🟠 | Phase 3 = the proof. Site spans verified first. Fall back to one system + `preferred_tuner`. |
@@ -1299,6 +1328,61 @@ Phase 4 is a profile-authoring exercise and the design is already done.
 - **Does not build a second-box witness.** Descoped by PO call 2026-07-04.
 - **Does not run any of this.** This document is research. Phase 0 is the first thing that
   touches hardware.
+- **Does not fix the serial reversal.** §7.5 is a survey, not a patch. Out of scope for this
+  branch by instruction.
+
+---
+
+### 7.5 Serial-reversal cleanup needed
+
+**Follow-up task. NOT in scope for this branch — nothing below was modified.**
+
+Will confirmed 2026-07-16: **Neptune = `180903EF32`, Venus = `1809063632`** (§5.1).
+`etc/mac/sdr_fleet_policy.json` rev 4.1 (2026-07-08) has them reversed, and seven artifacts
+copied from it. This is the survey; the fix is its own change.
+
+#### A. Wrong — asserts Neptune's digital RSPduo is `1809063632`
+
+| File | Lines | What it claims |
+|---|---|---|
+| **`etc/mac/sdr_fleet_policy.json`** ⚠️ **ROOT** | `2`, `5`, `6`, `7`, `8`, `17`, `18`, `23`, `25`, `37`, `42`, `53`, `74`, `76`, `79`, `89` | The whole rev-4.1 narrative: `180903EF32` "removed/relocated" → `retired_devices`; `1809063632` = `RSP-B` / `RSP-DIGITAL`, `role: sdrtrunk-p25`, `mode: DUAL`, USB group `G2`. **Both halves reversed.** `_detection` (line 6) says "Expected serial: 1809063632" — wrong. Fix this first; the rest is downstream. |
+| `docs/sb7-northstar-program.md` | `28`, `139`–`142`, `162`–`163`, `175`, `178`–`179`, `254`, `257`–`258` | Hardware table + §4.1 device map + §4.1b plan. Line 163 strikes through `180903EF32` as "REMOVED / RELOCATED". |
+| `macos/launchd/com.scannerproject.sdrtrunk.plist` | `9`, `13`–`15`, `19`–`21` | Header comments: "digital tuner = the RSP serial 1809063632"; SDRTrunk "must claim serial 1809063632 through the tuner-broker". |
+| `scripts/mac-start-sdrtrunk.sh` | `7`, `10`, `12`, `16`–`17` | "DIGITAL IS ON THE RSP serial 1809063632". |
+| **`macos/sdrtrunk/tuner_configuration.json`** | `73`, `89` | `uniqueID: "RSPduo Tuner 1 SER#1809063632"` / `"...Tuner 2 SER#1809063632"`. ⚠️ **Functional, not just prose** — these are the tuner labels `preferred_tuner` matches on. Wrong serial = no tuner match = §3.5's dual-digital pinning silently fails. |
+| `tests/test_tuner_broker_policy.py` | `57`, `61`, `67` | Asserts `device_by_serial("1809063632")` and that it's the sole `dual_tuner` device. **The test encodes the wrong fact and will pass against a wrong policy** — update alongside rev 5.0 or it blocks the fix. |
+| `ui/sb5.html` | `3404`, `3646` | DIGITAL pane comment + the "Check audio stream" Claude prompt. Cosmetic, but the prompt feeds a diagnostic. |
+
+#### B. Stale — pre-4.1 "both RSPduos on one host" era; re-check when the fleet is rewritten
+
+| File | Lines | Note |
+|---|---|---|
+| `macos/README.md` | `28`, `29` | `180903EF32 → SDRTrunk` ✅ right for Neptune; `1809063632 → SDRangel` now describes **Venus**, not this host. |
+| `docs/macos-backend-migration-scope.md` | `52`, `53` | Same two-RSP mapping. Historical scope doc — arguably leave as the record of what was decided then. |
+| `docs/macos-transition-memo.md` | `19`, `24`, `66`, `110`, `123` | Two-RSP era; line 66/110 reference `RSPduo Tuner 1 SER#180903EF32`. |
+| `docs/remote-and-stability-plan.md` | `32`, `33` | "RSP-A `180903EF32` → SDRTrunk. RSP-B `1809063632` → SDRangel (70cm/ground)." |
+| `ui/reliability.py` | `52`, `53` | Serial→label map. Roles stale (`"RSPduo Digital (op25)"` — op25 retired), but the device→role *intent* happens to match Neptune. |
+
+#### C. Correct — do not touch
+
+| File | Lines | Why it's right |
+|---|---|---|
+| **`macos/bin/sdrangel-restore.py`** | `35`, `66`, `81`–`85` | `AIRBAND` route `serial="1809063632"` sits in the **Venus** `ROUTES` branch (line 85) — ✅ correct. Line 66's Neptune comment: *"RSPduo 180903EF32 is owned by SDRTrunk (P25), not SDRangel"* — ✅ correct. **The live code had it right the whole time.** |
+| `macos/data/analog_scanlists.json` | `2`, `20` | 70cm on "RSP-B SDRplayV3 1809063632" = the Venus/Intel config. ✅ correct for Venus. |
+| `macos/sdrtrunk/README.md` | `17` | `disabledTuners` pins `RSPduo Tuner 1 SER#180903EF32`. ✅ correct for Neptune — and note it **disagrees with `tuner_configuration.json` above**, which is itself evidence of the reversal. |
+| `scripts/build_sugar_tree_playlist.py` | `24`, `25` | `"RSPduo SER:180903EF32 Tuner 1/2"` ✅ correct device (Nashville/TACN content, but the serial is right). Also the §3.5 worked example. |
+| Linux/Micro-era: `chirp/PROGRESS.md`, `chirp/config/*.json`, `tests/test_{config_validator,build_service_config,rspduo_dedicated_exclusion,…}.py`, `snapshots/`, `SB5_Phase0_Spike_Report.md`, `docs/sb6-bringup.md`, `docs/session-handoff-2026-06-1{3,4}.md`, `docs/research-ground-nfm-rtl-fix.md`, `etc/airband-ui.conf`, `etc/scannerbox/`, `broker/client.py`, `scripts/_*_capture.py`, `scripts/recover-sdrplay.sh` | — | `1809063632` = the Micro's **airband** RSPduo. ✅ **Historically accurate — leave alone.** These describe a box that no longer exists in this arrangement; "fixing" them would corrupt the record. |
+
+**Two lessons worth keeping:**
+
+1. **The live code was right; the doc-shaped artifacts were wrong.** `sdrangel-restore.py`
+   runs every 10 minutes on both boxes — a wrong serial there fails loudly. The policy file
+   is read by the broker and by humans, and nothing exercised it hard enough to catch this.
+   **Trust the thing that runs.**
+2. **`macos/sdrtrunk/tuner_configuration.json` vs `macos/sdrtrunk/README.md` already
+   disagreed** — one says `SER#1809063632`, the other `SER#180903EF32`, in the same
+   directory. That contradiction was sitting in the repo, unflagged, and is exactly the
+   class of thing §3.5's "read the tuner label off `View → Tuners`" step exists to catch.
 
 ---
 
@@ -1314,7 +1398,7 @@ Phase 4 is a profile-authoring exercise and the design is already done.
 | `macos/clients/sdrtrunk_client.py` | The best statement of the SDRangel/SDRTrunk asymmetry |
 | `scripts/ensure-digital-runtime.py` | The playlist generator to generalize, not rewrite |
 | `scripts/build_sugar_tree_playlist.py` | Worked two-tuner `preferred_tuner` example |
-| `etc/mac/sdr_fleet_policy.json` | Device map. ⚠️ **contradicts reality — rev 5.0 in Phase 0** |
+| `etc/mac/sdr_fleet_policy.json` | Device map. ⚠️ **rev 4.1 has the RSPduo serials REVERSED — treat as wrong until rev 5.0 lands (§5.1, §7.5)** |
 | `macos/data/analog_scanlists.json` | Profile ancestor + the densest SDRangel operational notes in the repo |
 | `broker/` | The device-lease design. Survives unchanged. |
 | memory `reference_two_box_audio_harness` | Every copyToUDP/keepalive/orphan-ffmpeg landmine |
