@@ -9,8 +9,11 @@
 **reversed** and is wrong until fixed separately; cleanup survey in §7.5.
 **Updated 2026-07-16 (decisions):** ① **`sb3-ctl kill` is a FULL teardown** — controller,
 broker, orchestration, all of it; only SDRangel + SDRTrunk survive (§4). ② **Disco moves to a
-HackRF One**, freeing RTL `61108285` for ACARS-only — 5 SDRs now, and the three-way dongle
-collision is gone (§3.6, §3.7, §5).
+HackRF One** (✅ on hand), freeing RTL `61108285` for ACARS-only — 5 SDRs now, and the
+three-way dongle collision is gone (§3.6, §3.7, §5). ③ **Ground = "anything not Airband and not
+digital"** — the catch-all analog role on `56919602`, as switchable sub-profiles (§3.9).
+**All role-level and hardware-availability questions are now closed** (§7.1); every remaining
+open item is a Phase 0 measurement.
 
 **Method note.** This is a repo-only pass. No REST calls were made against SDRangel or
 SDRTrunk on Neptune, Venus, or BreakroomDe; no box state was read or changed. Every claim
@@ -66,6 +69,29 @@ in play (§7.1). Scanning — the thing a scanner does — is the one control su
 API does not expose. Every other risk in this document is a scheduling problem. That one is
 a design problem, and it is the reason §3.4 proposes hunt-mode be built out of multiplexed
 demods rather than FreqScanner.
+
+**Where that bites is now precise, and it's narrower than it first looked.** With Ground
+defined (§3.9), the two analog roles turn out to be opposites:
+
+- **Air fits one window.** Nashville airband is 118.400–119.450 = **1.05 MHz** inside a ~2 MHz
+  tuner. Every channel demodulates in parallel — no scanning, no hopping, **no FreqScanner
+  dependency at all.** It is strictly better than the chirp design it replaces, which could
+  only pass one open channel at a time.
+- **Ground is "anything not Air and not digital"** — ~144 to ~470 MHz of territory against
+  that same ~2 MHz window. It is **two orders of magnitude too big to multiplex**, so Ground
+  sub-profiles are **switchable, not concurrent**, and the wide ones are exactly where
+  cross-window hunting is unavoidable.
+
+So the FreqScanner gap costs Air nothing, costs the tight Ground sub-profiles (WX/NOAA,
+FRS/GMRS-462, local public-safety clusters) nothing, and costs the wide Ground sub-profiles
+(ham 2m, 70cm, mil UHF AM) real capability. **That is a Phase 4 question with a Phase 4
+answer** — not a foundation crack. Ship what fits one window first; let the wide bands force
+the measurement.
+
+**As of 2026-07-16 every decision this plan needed is made.** Serials confirmed, kill-switch
+scope settled, disco's radio chosen and in hand, Ground defined. **What's left is measurement,
+not deliberation** — the SDRangel version's REST surface, and Neptune's USB controller map
+(§7.6). Phase 0 takes both.
 
 ---
 
@@ -864,6 +890,105 @@ stylistic — every step encodes a landmine from §3.2.**
 + channel count + `state=="running"` + gain (±6, for the RTL step-snap) + volume (±0.01).
 **Add `audioDeviceName` to that list** — its absence is the latent Neptune/Venus bug in §3.3.
 
+### 3.9 The Ground role — DEFINED 2026-07-16, and its fundamental constraint
+
+> ## **Ground = "anything not Airband and not digital."** — Will, 2026-07-16
+>
+> The catch-all analog role. Public safety VHF/UHF · ham 2m/70cm · marine VHF · business
+> VHF/UHF · mil AM UHF ground crew · FRS/GMRS · MURS · WX/NOAA · whatever else turns up.
+> **RTL NESDR `56919602` owns it.**
+
+That is a clean definition — Ground is defined by **exclusion**, which makes it open-ended by
+design and means the profile system must accommodate bands nobody has thought of yet. Good.
+But it collides with one hard physical fact, and that collision is the whole design:
+
+> ### ⚠️ Ground profiles are SWITCHABLE, not concurrent.
+>
+> `56919602` at 2.048 Msps sees a **~2 MHz instantaneous window** (~2.4 MHz at the RTL's
+> practical 2.4 Msps ceiling). Ground's territory spans **~144 MHz to ~470 MHz** — and mil AM
+> UHF reaches 400 MHz. That is **two orders of magnitude more spectrum than the window.**
+>
+> **Air can be one big multiplex. Ground fundamentally cannot.**
+
+Air works as a single camp-mode multiplex because the whole role fits one window: Nashville
+airband is 118.400–119.450 = **1.05 MHz**, comfortably inside 2 MHz, so every channel is
+demodulated in parallel (§3.4). **Ground has no such luck.** One tuner, one centre, one window
+at a time → **one Ground sub-profile active at a time, switched by user selection or profile
+priority.**
+
+#### Sub-profiles, and why the band name doesn't decide the mode
+
+```
+profiles/ground-nashville-publicsafety-vhf.json    role: ground   } one at a time
+profiles/ground-nashville-ham-2m.json              role: ground   } switched by
+profiles/ground-frs-gmrs.json                      role: ground   } selection or
+profiles/ground-wx-noaa.json                       role: ground   } priority
+profiles/ground-marine-vhf.json                    role: ground   }
+profiles/ground-mil-uhf-am.json                    role: ground   }  ← note: AM, not NFM
+```
+
+**The naïve assumption — "a sub-profile is a band" — is wrong, and it's worth killing now.**
+Most named Ground bands **do not fit one window** either:
+
+| Sub-profile | Band span | Fits ~2 MHz? |
+|---|---|---|
+| WX/NOAA | 162.400–162.550 = **150 kHz** | ✅ trivially |
+| FRS/GMRS **462 only** | 462.5500–462.7250 = **175 kHz** | ✅ (proven on Neptune — 15 NFMDemods) |
+| FRS/GMRS **462 + 467** | 462.55–467.7125 = **5.16 MHz** | ❌ needs 2 windows |
+| MURS | 151.820–154.600 = **2.78 MHz** | ❌ *barely* misses |
+| Ham 2m | 144–148 = **4 MHz** | ❌ |
+| Marine VHF | 156.05–162.025 = **~6 MHz** | ❌ |
+| Public safety VHF | 150.8–162 = **11.2 MHz** | ❌ |
+| Public safety UHF | 450–470 = **20 MHz** | ❌ |
+| Ham 70cm | 420–450 = **30 MHz** | ❌ |
+| **Mil UHF AM ground** | 225–400 = **175 MHz** | ❌❌ |
+
+**→ A Ground sub-profile is defined by its ACTUAL CHANNEL LIST, not by a band.** In practice a
+locality's channels of interest cluster tightly — Nashville public-safety VHF might be eight
+channels inside 154.0–155.5 (1.5 MHz), which fits fine even though "public safety VHF" as a
+band does not. **Whether a sub-profile is camp or hunt is a property you compute, not one you
+declare:** run `cluster_planner.plan_clusters()` (§3.4) over the channel list and see how many
+clusters come back. One cluster → camp. More than one → hunt.
+
+**The profile schema already handles this** — §3.3's `channels[]` is a list of actual
+frequencies, and `mode: camp | hunt` is the answer the planner gives, not an author's guess.
+**The loader should compute it and reject a profile whose declared mode contradicts the
+planner**, rather than trusting the label. That is `broker/policy.py`'s "don't run on a guess"
+stance applied to profiles.
+
+**Ground is multi-modal, not just multi-band.** Mil UHF ground crew (225–400) is **AM**;
+everything else here is **NFM**. §3.3's per-profile `demod` block covers it — but it means
+"the Ground demod type" is not a thing, and any code that assumes NFM for Ground is wrong.
+
+#### ⚠️ Ground is where §3.4's hunt-mode risk actually lands
+
+This is the most important consequence, and it reframes the plan's biggest open risk:
+
+- **Air never needed hunt mode.** It fits one window. The FreqScanner-not-REST-settable
+  problem (§3.4, risk 1) costs Air nothing.
+- **Ground needs hunt mode for anything wider than a tight local cluster** — and it is exactly
+  the role with no upper bound on span.
+
+**→ Phase 4 is where "can SB3 hunt across windows?" stops being theoretical.** Sequencing that
+holds: ship the sub-profiles that **fit one window first** (WX/NOAA, FRS/GMRS-462, tight local
+public-safety clusters) — all pure camp mode, all working with what Phase 2 already built —
+and let the wide ones (ham 2m, 70cm, mil UHF AM) force the cross-window question with real
+measurements behind it. **Most of what Will actually listens to is probably in the first
+group**, which is why this ordering is a real strategy and not a stall.
+
+#### Switching cost is real — budget it
+
+A Ground switch is not free: re-PATCH the centre, delete N channels, add M channels — **one at
+a time with ~0.4 s delays** (§3.2 landmine 4) — then verify. For 15 channels that is **6+
+seconds** of teardown/rebuild, during which `neptune-ground.mp3` has nothing to say.
+
+- **Fine for user-initiated switching.** Will picks a sub-profile; six seconds is nothing.
+- **NOT fine as an automatic scan mechanism.** Anything that switches sub-profiles on a timer
+  is rebuilding chirp's LO scheduler out of the slowest possible primitive.
+- **The keepalive channel matters more here than anywhere** (§3.2 landmine 7): a mount that
+  goes silent for 6 s during a rebuild will 404 on icecast's source timeout. **Add the
+  keepalive channel FIRST in the rebuild sequence, remove it LAST.**
+
 ---
 
 ## 4. Kill switch design
@@ -1157,16 +1282,16 @@ investigation.
 |---|---|---|---|---|---|
 | 1 | **RSPduo** | `180903EF32` | **Dual digital** — P25 sys 1 (T1) + sys 2 (T2) | SDRTrunk (native API) | ~128 Mbps |
 | 2 | **RTL-SDR Blog V4** | `83241970` | **Air** (airband AM) | SDRangel | ~33 Mbps |
-| 3 | **RTL NESDR** | `56919602` | **Ground** — ⚠️ still TBD (§7.2) | SDRangel | ~33 Mbps |
+| 3 | **RTL NESDR** | `56919602` | **Ground** — *anything not Air, not digital* (§3.9). Switchable sub-profiles, one at a time | SDRangel | ~33 Mbps |
 | 4 | **RTL NESDR** | `61108285` | **ACARS/VDL2 only** — freed from disco | acarsdec + dumpvdl2 | ~33 Mbps |
-| 5 | **HackRF One** 🆕 | *(TBD — read at Phase 0)* | **Disco + spectrum survey** | SoapyHackRF / `hackrf_sweep` | **~160–320 Mbps** |
+| 5 | **HackRF One** 🆕 | *(32-hex — read at Phase 0)* | **Disco + spectrum survey**. ✅ on hand | SoapyHackRF / `hackrf_sweep` | **~160–320 Mbps** |
 
 **What changed from fleet policy 4.1:**
 
 | Serial | Policy 4.1 role | **Now** | Δ |
 |---|---|---|---|
 | `83241970` | chirp-airband (was VFO) | Air / airband | same intent |
-| `56919602` | sounding (ACARS/VDL2/sonde) | **Ground — TBD** | ⚠️ changed |
+| `56919602` | sounding (ACARS/VDL2/sonde) | **Ground** (catch-all analog, §3.9) | ⚠️ changed |
 | `61108285` | chirp-ground | **ACARS/VDL2 only** | ⚠️ changed (was "disco+ACARS+survey" — HackRF freed it, §3.6) |
 | *(new)* | — | **HackRF → disco + survey** | 🆕 **new device** |
 
@@ -1314,7 +1439,7 @@ rest — via a dock with its own xHCI, per §5.2.
 │   (one host controller — the hub does NOT add a domain, §5.2)       │
 │                                                                     │
 │     port 1 ── RTL 83241970  Blog V4  → AIR      (~33 Mbps)          │
-│     port 2 ── RTL 56919602  NESDR    → GROUND   (~33 Mbps, §7.2)    │
+│     port 2 ── RTL 56919602  NESDR    → GROUND   (~33 Mbps, §3.9)    │
 │     port 3 ── RTL 61108285  NESDR    → ACARS/VDL2 (~33 Mbps)        │
 │     port 4 ── spare (4th RTL → 3rd P25, or waterfall)               │
 │                                                                     │
@@ -1414,42 +1539,61 @@ prior phases' invariants still hold.
 - One-line confirmation on the box while you're there (cheap, closes it for good):
   `SoapySDRUtil --find="driver=sdrplay"` on each mini, or SDRTrunk `View → Tuners`.
 - Root-cause and fix the **two wedged NESDRs**. Power? Enumeration? Tahoe/libusb?
-- **⚠️ PREREQUISITE: the HackRF One must be on hand.** Phase 0 cannot complete without it —
-  the whole USB layout (§5.3) is built around giving it a dedicated controller, and that can't
-  be validated against a device that isn't there. **Assume it is acquired before Phase 0
-  completes.** *(Not speccing a purchase — just naming the dependency. If it slips, Phases 1–4
-  are unaffected: disco is Phase 5. The layout is the only thing that waits.)*
-- **Read the HackRF serial** (`hackrf_info` or `SoapySDRUtil --find="driver=hackrf"`) and pin
-  the policy to it — 32-hex-char, unlike the RTL/RSP short form. Never address it as bare
-  `driver=hackrf` (§5.1).
-- **Install SoapyHackRF into radioconda's `modules0.8`** and confirm
-  `SoapySDRUtil --find="driver=hackrf"` sees it *through that plugin path* — the
-  `SOAPY_SDR_PLUGIN_PATH` gotcha the chirp plists document. A HackRF that `hackrf_info` finds
-  but SoapySDR doesn't is a Phase 5 blocker discovered three phases early. Cheap here.
 - **MEASURE THE CONTROLLER MAP** — `system_profiler SPUSBDataType`. All **5** SDRs at 480 Mb/s;
   count xHCI controllers; record device→controller. **This is the measurement the layout
   depends on and nobody has taken on Neptune** (§5.2 — the 5-domain figure in circulation is
   the *Intel* box's).
 - **Do the two TB ports share a USB controller?** If yes, the no-dock fallback in §5.3 is dead
-  and a TB dock becomes mandatory. Answer this before buying anything.
+  and a TB dock becomes mandatory. Answer this before buying anything (§7.6).
 - **Is the OWC TB3 dock available?** (§7.6) It's the 2 controllers this layout wants, already
   owned.
 - Install the **powered USB-3 hub** for the 3 RTLs; wire per §5.3.
-- **HackRF sustained-rate bench:** capture at 8 / 10 / 16 / 20 Msps for 60 s each on its own
-  controller and **record the drop counter at each.** This sets the disco sample rate with a
-  number instead of a guess (§5.2), and it is the cheapest it will ever be to measure.
 - Read the **exact SDRTrunk tuner-label strings** off `View → Tuners` (§3.5's in-repo
   formats disagree).
 - Fix the two stale docs found in this pass: `docs/scan-philadelphia.md` mount names
   (`neptune-digital.mp3` → `neptune-trunk.mp3`) and its "no RSPduo on Neptune" blocker;
   `etc/mac/launchd/neptune/README.md`'s `neptune.mp3`.
 
+**HackRF bring-up** — ✅ **the device is on hand (Will, 2026-07-16); no procurement gate.**
+This is hardware *integration*, and it sits at the bottom of Phase 0 because it's the one piece
+with no prior art on this box:
+
+- **Verify it enumerates:** `hackrf_info` round-trip on Neptune — board ID, firmware version,
+  part ID, and the **serial**. If `hackrf_info` can't see it, nothing downstream matters.
+  (`ioreg -p IOUSB` first if it's missing — same discipline as the RSPduo, §5.4: a device off
+  the bus makes every software remedy moot.)
+- **Pin the serial into the policy** — 32 hex chars, unlike the RTL/RSP short form. Never
+  address it as bare `driver=hackrf` (§5.1), even though a single HackRF would work that way.
+  That shortcut is how `project_ground_nfm_serial_collision` happened.
+- **Install SoapyHackRF.** Try `brew install soapyhackrf` first (a Homebrew formula exists;
+  `libhackrf` is definitely available) — **but Homebrew's SoapySDR and radioconda's are
+  different installs with different module paths**, and disco runs under radioconda. If the
+  brew route doesn't land the module where radioconda's SoapySDR looks, **build from source
+  against radioconda's SoapySDR** and install into its `modules0.8`. Same pattern as
+  SoapySDRPlay3 (`sb7-northstar-program.md`: *"SoapySDRPlay3 self-built against the universal
+  SDRplay 3.15 API"*).
+- **Confirm SoapySDR sees it through the right plugin path:**
+  `SOAPY_SDR_PLUGIN_PATH=/opt/scannerproject/radioconda/lib/SoapySDR/modules0.8 SoapySDRUtil --find="driver=hackrf"`.
+  ⚠️ **A HackRF that `hackrf_info` finds but SoapySDR doesn't is the failure mode to expect** —
+  it's the exact `SOAPY_SDR_PLUGIN_PATH` gotcha the chirp plists document ("radioconda's
+  SoapySDR has a compiled-in module path that doesn't survive relocation"). Catching it here
+  costs an hour; catching it at Phase 5 costs a day of misdiagnosis.
+- **First `hackrf_sweep` capture** — end-to-end I/Q proof. A short sweep across a band with
+  known occupancy (FM broadcast is the honest choice: unmissable, and if you *don't* see it the
+  problem is real). This closes the loop: device → libusb → capture → data on disk.
+- **Sustained-rate bench:** capture at **8 / 10 / 16 / 20 Msps** for 60 s each on its own
+  controller and **record the drop counter at each.** This sets disco's sample rate with a
+  number instead of a guess (§5.2's 320 Mbps-vs-~300 Mbps ceiling), and it will never be
+  cheaper to measure than right now, with nothing else competing for the bus.
+
 **✅ Invariant:** All **5** SDRs enumerate at 480 Mb/s and survive a reboot, with **HackRF and
 RSPduo on separate xHCI controllers** and neither sharing with the RTL hub — measured, not
-assumed. The HackRF's sustained clean rate is a recorded number. `neptune-angel.mp3` and
-`neptune-trunk.mp3` are both live and audible on the phone. `sdr_fleet_policy.json` rev 5.0
-matches `ioreg` + the measured topology, and no artifact in §7.5 still claims Neptune's RSPduo
-is `1809063632`. **Nothing regressed — this phase only adds hardware.**
+assumed. **The HackRF answers `hackrf_info`, is visible to radioconda's SoapySDR as
+`driver=hackrf,serial=<32-hex>`, and has produced one real `hackrf_sweep` capture**; its
+sustained clean rate is a recorded number. `neptune-angel.mp3` and `neptune-trunk.mp3` are both
+live and audible on the phone. `sdr_fleet_policy.json` rev 5.0 matches `ioreg` + the measured
+topology, and no artifact in §7.5 still claims Neptune's RSPduo is `1809063632`.
+**Nothing regressed — this phase only adds hardware.**
 
 ---
 
@@ -1524,8 +1668,18 @@ stays 200 throughout. `sb3-ctl kill` → both digital systems keep decoding and 
 
 ### Phase 4 — Ground + web UI
 
-- Answer §7.2 (**what is the Ground role?**) and ship `profiles/ground-*.json` on RTL
-  `56919602`.
+- **Ground is defined (§3.9)** — this is now profile authoring, not discovery. Ship
+  `profiles/ground-*.json` on RTL `56919602`, **fits-one-window sub-profiles first**: WX/NOAA
+  (150 kHz), FRS/GMRS-462 (175 kHz — already proven on Neptune as 15 NFMDemods), and tight
+  local public-safety clusters. All pure camp mode on Phase 2's machinery.
+- **Sub-profile switching** — one Ground profile active at a time, user-selected or by
+  priority. Budget the rebuild cost (~6 s for 15 channels at 0.4 s/channel) and **add the
+  keepalive channel FIRST, remove it LAST**, or the mount 404s mid-switch (§3.9).
+- **Profile loader computes camp-vs-hunt** by running `plan_clusters()` over the channel list,
+  and **rejects a profile whose declared mode contradicts the planner** (§3.9). Don't trust
+  the label.
+- **The wide Ground sub-profiles (ham 2m, 70cm, mil UHF AM) are what force Q4** — cross-window
+  hunt. Answer it here with measurements, or formally defer them.
 - Web UI on the `macos/scannerctl/` skeleton — Flask, mobile-first, `/api/status` unifying
   SDRangel REST + SDRTrunk log scrape. Steal the **route names** from
   `_canonical_scan_api_path()` (`handlers.py:2660`) — Will's own considered API design,
@@ -1602,7 +1756,11 @@ injected fault produced a structured diagnostic. **All prior invariants still ho
 
 ## 7. Risks + open questions
 
-### 7.1 Must be answered before Phase 1
+### 7.1 Must be answered before Phase 1 — ✅ ALL CLOSED
+
+> **Every question in this section is answered.** Nothing blocks Phase 1. What remains open in
+> this document is **§7.4 (deliberate non-goals)**, **§7.6 (two Phase 0 measurements)**, and
+> Q4 below — which is a *measurement*, not a decision, and which Phase 0 takes with a browser.
 
 **Q1 — Which RSPduo is physically on Neptune?** ✅ **ANSWERED 2026-07-16 — Will confirmed:
 Neptune = `180903EF32`, Venus = `1809063632`.**
@@ -1615,47 +1773,64 @@ teardown.** Will's call: SB3 owns the SB3 layer, and the broker is part of it. M
 recommendation (keep it up) was wrong — it protected nothing during a kill and cost a third
 state. Recorded in §4.2; reasoning trail in §4.5.
 
-**Q3 — What is the "Ground" role?** 🟡 **Blocking Phase 4, not Phase 1.** §7.2.
-**Still the only role-level unknown in the plan.**
+**Q3 — What is the "Ground" role?** ✅ **ANSWERED 2026-07-16 — "anything not Airband and not
+digital."** The catch-all analog role on RTL `56919602`. Full design in §3.9; the summary and
+what it changed in §7.2. **No role-level unknowns remain in the plan.**
 
-**Q4 — Is the FreqScanner REST gap still real?** 🟡
+**Q5 — Is the HackRF on hand?** ✅ **ANSWERED 2026-07-16 — yes.** No procurement gate. Phase 0
+does bring-up (`hackrf_info` → SoapyHackRF → first `hackrf_sweep` → rate bench), not
+acquisition.
+
+**Q4 — Is the FreqScanner REST gap still real?** 🟡 **The one open item — and it is a
+measurement, not a decision.**
 `docs/scan-philadelphia.md` says 7.25.1 can't set the freq list over REST. **Check the
 installed SDRangel version and its Swagger UI at `http://<host>:8091/api/`.** If it's been
-fixed upstream, hunt mode gets much easier. If not, §3.4's multiplex-only recommendation
-stands and cross-window hunt is a Phase 4 measurement problem. **This is the single biggest
-unknown in the plan** — it's the difference between "SB3 is a scanner" and "SB3 is a very good
-multi-channel receiver."
+fixed upstream, cross-window hunt gets much easier. If not, §3.4's multiplex-only
+recommendation stands.
 
-### 7.2 What does Will mean by "Ground"?
+**§3.9 sharpened what this actually costs**, and it's less than the last revision implied:
+**Air never needed hunt mode** (118.400–119.450 = 1.05 MHz, one window, pure camp). **Ground
+is the only role that needs it** — and even there, the fits-one-window sub-profiles (WX/NOAA,
+FRS/GMRS-462, tight local public-safety clusters) work on what Phase 2 already builds. So Q4
+doesn't gate Phase 1, 2, or 3; it gates *how far Ground reaches* in Phase 4. **Still the
+biggest unknown — it's the difference between "SB3 is a scanner" and "SB3 is a very good
+multi-channel receiver" — but it is now a well-fenced one.**
 
-**Flagged in the brief as TBD, and it genuinely is — the repo offers four different answers:**
+### 7.2 What does Will mean by "Ground"? — ✅ ANSWERED 2026-07-16
 
-| Candidate | Evidence | Band |
-|---|---|---|
-| **NFM ground/mil-air**, the chirp `ground` band | `chirp/config/ground.json`: center **138.05 MHz**, NFM, 64 channels | ~136–174 |
-| **FRS/GMRS road scanner** | Already built and working on Neptune RTL `83241970` — 15 NFMDemods @ 462.450 center. The brief says "replacing the current ad-hoc SDRangel + FRS/GMRS setup." | 462/467 |
-| **MURS / 2m / 70cm ham** | `analog_scanlists.json:ground_reference` — *"NOT currently deployed"*, MURS + FRS/GMRS + 2m simplex | mixed |
-| **SKYWARN 2m** | Neptune's *current* live SDRangel route: 147.360 Philly SKYWARN, 146.520, 147.030 | ~147 |
+> **Ground = "anything not Airband and not digital."** Public safety VHF/UHF, ham 2m/70cm,
+> marine VHF, business VHF/UHF, mil AM UHF ground crew, FRS/GMRS, MURS, WX/NOAA, and whatever
+> else turns up. RTL NESDR `56919602` owns it.
 
-**These need different centers and don't share a window.** 138 MHz vs 147 MHz vs 462 MHz is
-three separate profiles, not one role — and no single RTL covers them simultaneously.
+**Full design in §3.9.** It is the broadest of the four candidates this section previously
+guessed at — closest to option (d), "a switchable role covering all of them as profiles" —
+with two corrections to that guess:
 
-**My read of the brief:** "replacing the current ad-hoc SDRangel + FRS/GMRS setup" strongly
-suggests **FRS/GMRS is the thing being *replaced by* SB3**, i.e. it becomes a proper profile.
-And SKYWARN is what Neptune runs *today*. So Ground is plausibly **"FRS/GMRS + SKYWARN, as
-switchable profiles on `56919602`"** — which the profile system handles natively (one role,
-several profiles, one active).
+1. **It's defined by exclusion, so it's open-ended.** Not a fixed list of bands; anything
+   analog that isn't Air lands here. The profile system has to accommodate bands nobody has
+   named yet.
+2. **It isn't NFM-only.** Mil UHF ground crew (225–400 MHz) is **AM**. "The Ground demod type"
+   does not exist.
 
-**But this is inference and I'm not going to build on it.** ❓ **Will: does "Ground" mean
-(a) NFM ground/mil-air ~138 MHz like the old chirp band, (b) FRS/GMRS road scanner, (c)
-SKYWARN/ham 2m, or (d) "a switchable NFM role" that covers all of them as profiles?** If (d),
-Phase 4 is a profile-authoring exercise and the design is already done.
+**The consequence is a real design constraint, not a formality:** Ground's territory spans
+~144–470 MHz against a ~2 MHz window, so **Ground sub-profiles are switchable, not
+concurrent** — Air can be one big multiplex, Ground fundamentally cannot (§3.9). And Ground is
+where the FreqScanner/hunt-mode risk (§3.4, risk 1) actually bites, since Air never needed
+cross-window hunting and Ground has no upper bound on span.
+
+**No longer blocking.** Phase 4 is now a profile-authoring exercise plus one honest
+measurement, and §3.9 sequences it: ship the fits-one-window sub-profiles first (WX/NOAA,
+FRS/GMRS-462, tight local clusters — all pure camp mode on what Phase 2 already builds), let
+the wide ones force the cross-window question with data behind it.
 
 ### 7.3 Risk register
 
 | # | Risk | Sev | Mitigation |
 |---|---|---|---|
-| 1 | **FreqScanner not REST-settable** → real hunt mode is hard | 🔴 | Multiplex-within-window covers most roles (§3.4). Cross-window = Phase 4 measurement. Q4 first. |
+| 1 | **FreqScanner not REST-settable** → cross-window hunt is hard | 🟠 *(was 🔴)* | **Downgraded now that Ground is defined (§3.9):** Air fits one window and never needs it; tight Ground sub-profiles don't either. Only the WIDE Ground sub-profiles (ham 2m, 70cm, mil UHF AM) are exposed. Multiplex-within-window (§3.4) + ship-narrow-first sequencing. Q4 measures it in Phase 0. |
+| 1b | 🆕 **Ground can't multiplex** — ~144–470 MHz of role against a ~2 MHz window; sub-profiles are switchable, not concurrent (§3.9). A ~6 s rebuild per switch, during which the mount can 404. | 🟠 | Switchable sub-profiles, user-selected. Keepalive channel added FIRST / removed LAST in the rebuild. **Never switch on a timer** — that's rebuilding chirp's LO scheduler out of the slowest primitive available. |
+| 1c | 🆕 **"A Ground sub-profile is a band" is false** — most named bands don't fit one window (MURS 2.78 MHz, ham 2m 4 MHz, PS-UHF 20 MHz, mil UHF AM 175 MHz). Only actual channel *clusters* fit. | 🟡 | Sub-profiles are channel lists; the loader runs `plan_clusters()` and computes camp-vs-hunt rather than trusting the declared mode (§3.9). |
+| 1d | 🆕 **Ground is multi-modal** — mil UHF ground crew (225–400) is **AM**, everything else NFM. Any code assuming "Ground = NFM" is wrong. | 🟡 | Per-profile `demod` block (§3.3) already covers it. Don't add a role-level demod default. |
 | 2 | **SDRangel is crash-prone under REST** — bulk channel ops crash it; config lives in RAM; reverts to a stale plist | 🔴 | One-at-a-time + 0.4 s delays + idempotent reconcile. **Proven in `sdrangel-restore.py` — copy it, don't reinvent.** |
 | 3 | **RSPduo dirty-release → reboot** | 🔴 | `sb3-ctl` owns SDRTrunk lifecycle: SIGTERM only, 25 s wait, `ioreg` verify. Never SIGKILL. |
 | 4 | **CPU** — the Intel mini hit ~420% on SDRangel's channelizer and **killed SDRTrunk**. Neptune is M1/8 GB. | 🔴 | Phase 4 invariant = ≥30% headroom. Measure per-phase, not at the end. Sample rates are a budget. |
@@ -1789,6 +1964,9 @@ never answered it. **One `system_profiler SPUSBDataType` answers both.**
 | memory `reference_two_box_audio_harness` | Every copyToUDP/keepalive/orphan-ffmpeg landmine |
 | memory `project_neptune_philly_p25_validated` | The RSPduo reboot rule + the serial contradiction |
 | memory `project_airband_rf_collapse_recurring` | Why §3.3 stores native gain units |
+| `chirp/dsp/cluster_planner.py:128` `plan_clusters()` | Pure function, no GR imports — the camp-vs-hunt decision for Ground sub-profiles (§3.9) and the cross-window planner if Q4 forces it (§3.4) |
+| `macos/data/analog_scanlists.json:ground_reference` | MURS / FRS-GMRS / 2m channel lists, *"NOT currently deployed"* — seed content for the first Ground sub-profiles (§3.9) |
+| `assets/US FRS and GMRS Channels.csv`, `assets/basicnashvilleairband` | Untracked working files in the repo root — likely raw material for Ground/Air profiles. Worth folding into `profiles/` rather than leaving loose. |
 | memory `reference_micro_access_and_hpdb_migration` | The 5-controller USB topology — ⚠️ **the INTEL box, not Neptune** (§5.2). Also the source of "domain = controller, not hub" and the OWC dock (§7.6) |
 | memory `project_usb2_saturation_reboot_recovery` / `project_sb6_session_2026_06_18_evening` | What USB-2 starvation looks like from the software side, and the 2026-06-19 "USB-3 re-cable won't help" retraction |
 | memory `reference_rspduo_serial_assignment` | The confirmed serial map + the rev-4.1 reversal (§5.1, §7.5) |
