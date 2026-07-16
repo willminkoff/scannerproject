@@ -4,9 +4,13 @@
 **Date:** 2026-07-16
 **Status:** DESIGN / RESEARCH. Nothing built, nothing deployed. No box was touched to write this.
 **Branch:** `sb3-neptune-plan` (off `origin/main` @ `e2dbb48`)
-**Updated 2026-07-16:** Will confirmed the RSPduo serials — **Neptune = `180903EF32`, Venus =
-`1809063632`** (§5.1). `etc/mac/sdr_fleet_policy.json` rev 4.1 has them **reversed** and is
-wrong until fixed separately; cleanup survey in §7.5.
+**Updated 2026-07-16 (serials):** Will confirmed the RSPduo serials — **Neptune =
+`180903EF32`, Venus = `1809063632`** (§5.1). `etc/mac/sdr_fleet_policy.json` rev 4.1 has them
+**reversed** and is wrong until fixed separately; cleanup survey in §7.5.
+**Updated 2026-07-16 (decisions):** ① **`sb3-ctl kill` is a FULL teardown** — controller,
+broker, orchestration, all of it; only SDRangel + SDRTrunk survive (§4). ② **Disco moves to a
+HackRF One**, freeing RTL `61108285` for ACARS-only — 5 SDRs now, and the three-way dongle
+collision is gone (§3.6, §3.7, §5).
 
 **Method note.** This is a repo-only pass. No REST calls were made against SDRangel or
 SDRTrunk on Neptune, Venus, or BreakroomDe; no box state was read or changed. Every claim
@@ -18,8 +22,8 @@ guessing. Those flags are the Phase 0 worklist.
 
 ## 0. The thesis, in one page
 
-Will wants Neptune (M1 Mac mini, macOS) to become a full SB3 host: four SDRs, dual
-concurrent P25, airband, a ground role, disco/ACARS/survey, a web UI, icecast per-role
+Will wants Neptune (M1 Mac mini, macOS) to become a full SB3 host: **five SDRs**, dual
+concurrent P25, airband, a ground role, disco/survey/ACARS, a web UI, icecast per-role
 mounts, and profiles — with **SDRangel + SDRTrunk as the backend** rather than a Mac port of
 chirp/op25.
 
@@ -41,6 +45,13 @@ deserves to be stated before the details:
 > at Phase 5 — it is an architectural constraint that has to be true from Phase 1, because it
 > is the only thing that makes the whole plan safe to attempt on a box Will actually listens
 > to.
+
+Will's 2026-07-16 call sharpens that to its strongest form: **`sb3-ctl kill` tears down the
+entire SB3 layer — controller, broker, orchestration — and only SDRangel + SDRTrunk survive,
+holding their last-applied config** (§4). No half-alive layer, no policy daemon enforcing
+rules for an absent owner. **SB3 owns the SB3 layer; when SB3 leaves, it leaves.** That is the
+same "no third state" discipline the SB7 north star is named for, applied to the control plane
+itself.
 
 The good news: the repo is already most of the way there, and doesn't know it. The
 Neptune/Venus audio harness on `origin/main` (`macos/bin/`, §3.1) is *already* an
@@ -90,8 +101,8 @@ on `mac-mini-port` returns nothing but false positives from the HomePatrol datab
 | `ui/service_backend.py` | ~350 | ✅ **Ported** | `ServiceBackend` ABC; `LaunchdBackend` does `launchctl kickstart -k` / `bootout` / `print`. Dispatch on `SCANNER_SERVICE_BACKEND=launchd`. |
 | `ui/chirp_client.py`, `chirp_adapter.py` | ~600 | ⚠️ **Portable but pointless** | Stdlib-only UDP by design — but they talk to chirp, which retires. Dead on arrival. |
 | `chirp/` (GNU Radio analog engine) | ~8k | ❌ **RETIRING** (Will's call) | Runs on macOS via radioconda, but Will's decision is not to port it. §2.1. |
-| `disco/` (sweep → classify) | ~3k | ❌ **Linux-only today** | Two hard blockers: `/run/*` paths everywhere (`sweep.py:20-21`, `classifier.py:136`), and `disco/src/listen.py:124` `SYSTEMCTL_BIN = "/bin/systemctl"`. Env-overridable but nothing in `etc/mac/` sets them; no launchd plist exists. §3.6. |
-| ACARS / VDL2 | — | ❌ **Linux-only** | systemd units only (`systemd/acarsdec.service`, `dumpvdl2.service`). Write JSON to `/run/`, UI tails it. No launchd plist. §3.7. |
+| `disco/` (sweep → classify) | ~3k | ❌ **Linux-only today**, + retargeting to HackRF | Two hard blockers: `/run/*` paths everywhere (`sweep.py:20-21`, `classifier.py:136`), and `disco/src/listen.py:124` `SYSTEMCTL_BIN = "/bin/systemctl"`. Env-overridable but nothing in `etc/mac/` sets them; no launchd plist exists. **`classifier.py` is keep-as-is; `sweep.py` moves RTL→HackRF** (§3.6, §3.7). |
+| ACARS / VDL2 | — | ❌ **Linux-only** | systemd units only (`systemd/acarsdec.service`, `dumpvdl2.service`). Write JSON to `/run/`, UI tails it. No launchd plist. §3.6. |
 | `ui/` (airband-ui) | **10,175 lines in one handler class** | ❌ **Do not port** | §1.5. |
 | `ui/band_mute.py`, `audio_leveler.py`, `vlc.py` | ~1k | ❌ **Linux-only** | `wpctl`, `pactl`, `$XDG_RUNTIME_DIR/pipewire-0`. `ui/handlers.py:9744` hardcodes `alsa_output.pci-0000_00_1f.3.analog-stereo`. |
 | `ui/system_stats.py`, `reliability.py` | ~1k | ❌ **Linux-only** | `/sys/bus/usb/devices`, `/sys/class/{hwmon,thermal,net}`. `ui/actions.py:104` hardcodes `/dev/bus/usb/003/002`. |
@@ -355,34 +366,36 @@ The UDP in chirp is the **command bus**, not audio: `127.0.0.1:7400` (airband) /
 ### 3.0 The shape, in one diagram
 
 ```
-                      ┌──────────────────────────────────────────┐
-                      │  SB3 CONTROL PLANE  (optional, killable) │
-                      │                                          │
-   profiles/*.json ──▶│  profile loader → translator → reconciler│
-                      │  disco classifier · ACARS · web UI       │
-                      └───────┬──────────────────────┬───────────┘
-                              │ REST :8091           │ playlist XML + launchctl
-                              │ (live, idempotent)   │ (config + restart)
-                              ▼                      ▼
-                      ┌───────────────┐      ┌────────────────┐
-   ┌──────────────────│   SDRangel    │      │    SDRTrunk    │──────────────┐
-   │  RTL×3           │  (analog)     │      │  (digital P25) │  RSPduo      │
-   │                  └───────┬───────┘      └────────┬───────┘  dual-tuner  │
-   │                          │ copyToUDP             │ native icecast       │
-   │                          ▼                       │ broadcaster          │
-   │                    udp:9998 → ffmpeg             │                      │
-   │                          │                       │                      │
-   └──────────────────────────┴───────────┬───────────┴──────────────────────┘
-                                          ▼
-                              icecast :8000  (dynamic mounts)
-                       /neptune-angel.mp3   /neptune-trunk.mp3   /neptune-<role>.mp3
-                                          │
-                                          ▼   ◀── survives SB3 death. This is the invariant.
-                                        phone
+        ┌────────────────────────────────────────────────────────────────┐
+        │  SB3 LAYER  —  dies ENTIRELY on `sb3-ctl kill`  (§4)           │
+        │                                                                │
+ profiles/*.json ─▶│ loader → translator → reconciler │  sb3-ui         │
+        │          │ tuner-broker (leases · policy)   │                 │
+        │          │ disco classifier · ACARS · survey │                │
+        └──────┬─────────────────────┬─────────────────────┬────────────┘
+               │ REST :8091          │ playlist XML +      │ SoapyHackRF /
+               │ (live, idempotent)  │ launchctl (restart) │ hackrf_sweep
+               ▼                     ▼                     ▼
+     ┌───────────────┐      ┌────────────────┐    ┌──────────────┐
+  ┌──│   SDRangel    │      │    SDRTrunk    │──┐ │  HackRF One  │ disco +
+  │  │   (analog)    │      │  (digital P25) │  │ │ 1 MHz–6 GHz  │ survey
+  │  └───────┬───────┘      └────────┬───────┘  │ │  20 MHz IBW  │ (no audio)
+  │ RTL×3    │ copyToUDP             │ native   │ └──────────────┘
+  │ air      ▼                       │ icecast  │  RSPduo 180903EF32
+  │ ground  udp:9998 → ffmpeg        │ broadcast│  dual-tuner: P25 ×2
+  │ acars*   │                       │          │
+  └──────────┴───────────┬───────────┴──────────┘   * ACARS bypasses SDRangel:
+                         ▼                            acarsdec/dumpvdl2 direct
+             icecast :8000  (dynamic mounts)
+    /neptune-angel.mp3  /neptune-trunk.mp3  /neptune-<role>.mp3
+                         │
+                         ▼   ◀── survives SB3 death. THIS IS THE INVARIANT.
+                       phone
 ```
 
-**Read the dashed boundary as a contract:** everything below the REST/playlist line keeps
-running when everything above it is dead.
+**Read the boundary as a contract:** everything below the REST/playlist line keeps running when
+everything above it is dead — **including the broker.** SB3 owns the SB3 layer; when SB3
+leaves, it leaves entirely (§4.2, Will's call 2026-07-16).
 
 ### 3.1 What already exists (and is better than you'd expect)
 
@@ -668,38 +681,132 @@ memory already flags *"intermittent SYNC LOSS on some voice follows"* with the e
 *"if metadata-shows-but-audio-silent, some voice channels are Phase 2 → flip that channel to
 decodeConfigP25Phase2."* That symptom has probably already been observed.
 
-### 3.6 disco, ACARS, and the survey role
+### 3.6 disco, ACARS, and the survey role — the HackRF resolves the collision
 
-Both are **keep-the-logic, replace-the-plumbing**:
+**Both are keep-the-logic, replace-the-plumbing:**
 
 | | Keep | Replace |
 |---|---|---|
-| **disco** | `classifier.py` (heuristic v0 / ONNX, + ULS/CDBS/HPDB/bandplan enrichment), `training/` | `sweep.py`'s direct `SoapySDR.Device()` → SB3 leases the RTL via `broker/` and drives it; `/run/*` → `DISCO_STATE_DIR`; `/bin/systemctl` → `ServiceBackend` |
+| **disco** | `classifier.py` (heuristic v0 / ONNX, + ULS/CDBS/HPDB/bandplan enrichment), `training/` | `sweep.py`'s direct `SoapySDR.Device()` → **SoapyHackRF**, broker-leased (§3.7); `/run/*` → `DISCO_STATE_DIR`; `/bin/systemctl` → `ServiceBackend` |
 | **ACARS/VDL2** | `ui/wxdata.py` (1,872 lines of decode/enrichment) | systemd units → launchd plists, broker-leased; `/run/*.json` → configurable paths |
 
 **The classifier never touches an SDR** — it consumes `.iq.f32` slice files with a 6-field
-filename schema. That's a clean seam: SB3 owns capture, disco owns classification.
+filename schema. That's a clean seam: **SB3 owns capture, disco owns classification** — and it
+is what makes the RTL→HackRF swap a capture-layer change rather than an ML change.
 
-**The three-way collision on RTL `61108285` is real and unresolved.** Will's brief assigns it
-"Disco + ACARS + spectrum survey." Those are three consumers of one dongle:
+#### The collision is gone — and that's the real win of the HackRF decision
 
-- ACARS wants ~131 MHz continuously (`acarsdec -o 4 … 131.550 130.025 130.450 131.125`).
-- VDL2 wants ~136.8 MHz continuously.
-- disco wants to sweep everywhere.
-- Survey wants to sweep everywhere.
+The prior revision of this doc flagged a **three-way collision** on RTL `61108285`: disco,
+ACARS/VDL2, and survey all wanted one dongle, and they cannot coexist. ACARS/VDL2 are
+*continuous* by nature — a decoder listening 20% of the time misses 80% of the messages —
+while disco and survey want to sweep everywhere. The only answer available was time-slicing
+via a broker-enforced mode switch, i.e. **choosing which capability to lose at any moment.**
 
-**These cannot run simultaneously.** ACARS/VDL2 are *continuous* by nature — an ACARS
-decoder that only listens 20% of the time misses 80% of the messages. The old Linux answer
-was `scripts/tuner_broker.py` swapping systemd units on a mode flag, which is exactly the
-time-slicing this implies.
+**Adding the HackRF dissolves that**, and this is a bigger deal than "disco gets a better
+radio":
 
-**→ Recommendation:** make this an explicit, profile-selected, broker-arbitrated **mode**
-(`disco` | `acars` | `survey`), not a background time-share. One at a time, Will picks, SB3
-enforces via the lease. Note the fleet policy already concedes the shape:
-`"None of the sounding decoders are broker-integrated yet — wiring the claim-by-serial call
-in is a prerequisite before any of them go live."`
+| | Before (3 roles, 1 RTL) | After (HackRF added) |
+|---|---|---|
+| RTL `61108285` | disco **or** ACARS **or** survey — pick one | **ACARS/VDL2 only, continuous, 24/7** |
+| disco + survey | time-sliced against ACARS | **HackRF, always available** |
+| Mode switching | required, lossy | **none — no mode concept needed** |
+| `scripts/tuner_broker.py` lineage | would have been resurrected | **stays retired** |
 
-### 3.7 Concrete example: "SB3 Profile: Air-Airband-Nashville" → SDRangel
+**→ The `disco | acars | survey` mode switch is CANCELLED.** Nothing has to be chosen against
+anything. ACARS/VDL2 run continuously on `61108285` (~131 MHz and ~136.8 MHz — close enough
+that a single wideband capture could plausibly feed both decoders, worth testing in Phase 5);
+disco and survey share the HackRF, and *those* two genuinely are the same activity — a sweep
+that feeds the classifier is a survey, and a survey with the classifier attached is disco.
+**One consumer, two output modes** is a much smaller thing to build than a three-way arbiter.
+
+The broker still leases both devices one-consumer-per-serial — the fleet policy note stands:
+*"None of the sounding decoders are broker-integrated yet — wiring the claim-by-serial call in
+is a prerequisite before any of them go live."* That work is unchanged; there's just no longer
+a contention problem underneath it.
+
+### 3.7 disco on the HackRF — module design
+
+**Device:** Great Scott Gadgets **HackRF One**. 1 MHz – 6 GHz, up to 20 Msps, 8-bit ADC,
+half-duplex, USB 2.0 High Speed.
+
+#### Why this is the right radio for disco
+
+- **20 MHz instantaneous bandwidth** vs the RTL's ~2.4–3.2 MHz usable. disco's
+  `cluster_planner`-style problem — cover a band by hopping a narrow window — largely
+  evaporates: **6–8× fewer dwells for the same coverage.**
+- **6 GHz ceiling** vs the RSPduo's 2 GHz and the R820T2's ~1.766 GHz. This is spectrum disco
+  literally cannot see today: 2.4 GHz ISM, 5 GHz, most modern telemetry.
+- **`hackrf_sweep` is a first-class asset.** GSG ships a dedicated firmware sweep mode that
+  covers **1 MHz–6 GHz in about a second**. Nothing in the RTL world compares. For the survey
+  role this is not an incremental improvement; it is a different capability.
+
+#### ⚠️ Correcting the rationale: the 8-bit ADC is *not* the tradeoff vs the RTL
+
+The brief notes "8-bit ADC is the tradeoff — acceptable for wide-band classification vs
+sensitivity work." **The conclusion is right; the mechanism isn't.** The RTL2832U is *also*
+8-bit. Bit depth is a wash — **it is not a regression from the device the HackRF replaces.**
+(Against the RSPduo's 14-bit it *is* a real ~36 dB dynamic-range loss, but the RSPduo is
+digital-only and never in this path.)
+
+**The real HackRF tradeoffs, worth designing for:**
+
+1. **Noise figure / sensitivity.** This is the actual cost. The HackRF's front end is flat and
+   wideband with no LNA by default; the RTL-SDR Blog V4's R828D has a far better NF and a
+   built-in LNA. **Expect weaker weak-signal performance** — the brief's instinct ("acceptable
+   for wide-band classification vs sensitivity work") is exactly right, just for this reason
+   rather than bit depth. **→ Budget an external LNA + the HackRF's bias-tee (`-p 1`) if
+   weak-signal classification matters.**
+2. **No TCXO by default** (±20 ppm vs the Blog V4's 1 ppm). At 6 GHz that's ±120 kHz of drift.
+   Fine for "is there energy here and what shape is it," bad for anything narrowband or
+   frequency-precise. **→ Record measured centre, never assume commanded centre.** A GSG
+   TCXO board is a cheap fix if it bites.
+3. **8-bit + 20 MHz wide = no per-channel AGC.** One strong emitter in the window sets the
+   gain floor and desensitizes everything else in it — the classic wideband capture problem.
+
+#### 8-bit dynamic range → classification confidence
+
+This is the one that touches the ML, and it needs to be designed in rather than discovered:
+
+- 8 bits ≈ **48 dB** theoretical SFDR. In a 20 MHz window with a strong local emitter, weak
+  signals can land at or below the effective noise floor — **not because they're absent, but
+  because the strong one ate the range.**
+- The classifier was trained/tuned on **RTL-sourced slices at ~2.4 Msps**. HackRF slices at
+  20 Msps with a different front end are **a distribution shift**: different noise floor,
+  different NF, different decimation history. **Do not assume the ONNX model transfers.**
+- **→ Design requirement:** every slice carries its **measured SNR and the window's peak-to-
+  noise ratio** in its metadata, and `classifier.py` **gates confidence on them**. A
+  low-confidence classification from a range-starved capture must be reported as
+  low-confidence, not as a negative. This is the `icecast_sink` silence-lie (§4.4) wearing a
+  different hat: **an instrument that can't see must say so, not report "nothing there."**
+- The slice filename schema is already 6 fields (`{tuner}_{freq}_{bw}_{rate}_{ts}_{uid}`) and
+  carries `rate` — so RTL-era and HackRF-era slices are **distinguishable on disk.** Use that:
+  keep the heuristic v0 path as the HackRF default until the ONNX model is re-tuned on HackRF
+  slices (`disco/training/finetune_real.py` exists for exactly this).
+
+#### Capture path — SoapyHackRF, with `hackrf_sweep` as a second mode
+
+| Mode | Tool | Use |
+|---|---|---|
+| **disco** (classify) | **SoapyHackRF** via `SoapySDR.Device("driver=hackrf,serial=…")` | Matches `sweep.py`'s existing `SoapySDR.Device()` call site — **a driver-string change, not a rewrite.** Emits `.iq.f32` slices exactly as today. |
+| **survey** (spectrum) | **`hackrf_sweep`** subprocess | 1 MHz–6 GHz in ~1 s. Power-vs-frequency only, no IQ — feeds the spectrum view, not the classifier. |
+
+**Recommendation: SoapyHackRF for the disco path.** `disco/src/sweep.py:328` already does
+`SoapySDR.Device(soapy_args)` and builds the args string at `:492` — swapping
+`driver=rtlsdr,serial=…` for `driver=hackrf,serial=…` is the smallest possible change, and it
+keeps the slice contract with the classifier intact. `hackrf_transfer` would mean re-plumbing
+capture around a subprocess for no gain. **Note SoapyHackRF must be installed into radioconda's
+`modules0.8` path** — the same `SOAPY_SDR_PLUGIN_PATH` gotcha the chirp plists document.
+
+**Sweep pattern:** with 20 MHz windows, prefer **fewer, wider dwells** over the RTL's many
+narrow ones — but do not run 20 Msps continuously (§5.2: it is at the USB-2 ceiling). Start at
+**8–10 Msps sustained** for the classify path and reserve 20 Msps for `hackrf_sweep`'s bursty
+retuning survey. Measure before widening.
+
+**Retune settling matters more than it did.** The HackRF's synthesizer needs time after a
+retune, and `hackrf_sweep`'s speed comes from accepting dirty edges. For classify-path slices,
+**discard the first samples after each retune** or the classifier trains on transients.
+
+### 3.8 Concrete example: "SB3 Profile: Air-Airband-Nashville" → SDRangel
 
 Given the profile in §3.3, SB3's translator emits this sequence. **The ordering is not
 stylistic — every step encodes a landmine from §3.2.**
@@ -764,6 +871,8 @@ stylistic — every step encodes a landmine from §3.2.**
 ### 4.1 The principle
 
 > **Manual override has always won. Encode that, don't fight it.**
+>
+> **And SB3 owns the SB3 layer — when SB3 leaves, it leaves entirely.** (Will, 2026-07-16.)
 
 The brief asks to "match how manual override has always won in tonight's fights." The repo
 records exactly why that instruction exists:
@@ -788,53 +897,116 @@ part of SB3 — it's part of the backend.
 And the failure direction must invert: **a marker file that fails open is a bug; SB3 must
 fail closed.** If SB3 can't prove it should be reconciling, it doesn't reconcile.
 
-### 4.2 State ownership — the actual boundary
+### 4.2 State ownership — the boundary (DECIDED 2026-07-16)
 
-| State | Owner | Survives `sb3-ctl kill`? |
+> **Will's call: `sb3-ctl kill` is a FULL teardown of the SB3 layer — controller, broker,
+> orchestration, all of it. Only SDRangel + SDRTrunk stay up, holding their last-applied
+> config. SB3 owns the SB3 layer; SB3 leaves.**
+
+This supersedes the earlier recommendation to keep the broker up (§4.5). **Will's call is the
+better design, and it's worth saying why rather than just recording it:**
+
+- **The broker was protecting nothing during a kill.** SDRangel and SDRTrunk are GUI apps
+  launched by their own LaunchAgents — **they never held leases.** They open devices directly.
+  Every actual lease-holder (disco, ACARS, survey, VFO) is SB3-owned and goes down in the kill
+  anyway. A live broker with zero consumers and nothing to arbitrate is a daemon holding a
+  lock nobody is contending for.
+- **A half-alive SB3 layer is a third state**, and the whole program is named for not having
+  one (`sb3-northstar`: *"The daemon is either producing real audio from real samples, or it
+  has stopped cleanly with a structured diagnostic. There is no third state."*). "SB3 is
+  killed but its broker is still up refusing claims" is exactly that third state: a component
+  enforcing policy on behalf of a control plane that isn't there.
+- **The devices are protected by construction anyway.** While SB3 is gone, SDRangel and
+  SDRTrunk already hold their devices *open* — the OS refuses a second open. The broker's real
+  value was ordering and rate-limiting **restarts**, and while SB3 is killed there are no SB3
+  restarts to order.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  THE SB3 LAYER — everything here dies on `sb3-ctl kill`             │
+│                                                                     │
+│   sb3-ctl · sb3-reconciler · sb3-ui                                 │
+│   tuner-broker  (leases, policy, flocks)                            │
+│   profile registry + bindings          [on disk, inert while dead]  │
+│   disco · ACARS · survey  (lease consumers)                         │
+│   route-restoration half of copytoudp-watchdog                      │
+└─────────────────────────────────────────────────────────────────────┘
+                        ╳  kill severs here  ╳
+┌─────────────────────────────────────────────────────────────────────┐
+│  THE BACKEND — untouched, keeps producing audio                     │
+│                                                                     │
+│   SDRangel      devicesets · channels · gain · center · copyToUDP   │
+│                 (in RAM — last-applied config, still running)       │
+│   SDRTrunk      playlist · aliases · streams · live decode          │
+│   icecast       mounts (dynamic)                                    │
+│   ffmpeg bridge · tap-arming watchdog · LaunchAgents                │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| State | Owner | On `sb3-ctl kill` |
 |---|---|---|
-| Profile definitions (`profiles/*.json`) | **SB3** | ✅ on disk, inert |
-| Profile→device binding, active profile set | **SB3** | ✅ on disk, inert |
+| Profile definitions, bindings, active set | **SB3** | ✅ on disk, **inert** |
 | disco classifications, ACARS messages, hit log | **SB3** | ✅ on disk; **collection stops** |
-| Web UI | **SB3** | ❌ **goes away — by design** |
-| **Deviceset config, channels, gain, center** | **SDRangel (RAM)** | ✅ **untouched, keeps running** |
-| **copyToUDP tap** | **SDRangel (RAM)** | ✅ **untouched** |
-| **Playlist, aliases, streams** | **SDRTrunk (disk+RAM)** | ✅ **untouched** |
-| **ffmpeg bridge, icecast, mounts** | **launchd (independent agents)** | ✅ **untouched** |
-| Device leases | **broker** | ⚠️ **§4.5 — the hard question** |
+| Web UI | **SB3** | ❌ **gone — by design** |
+| Reconciler | **SB3** | ❌ **gone — by design** |
+| **Device leases, policy, flocks** | **SB3 (broker)** | ❌ **gone — by design (Will, 2026-07-16)** |
+| Deviceset config, channels, gain, center | **SDRangel (RAM)** | ✅ **untouched, still running** |
+| copyToUDP tap | **SDRangel (RAM)** | ✅ **untouched** |
+| Tap-arming watchdog | **backend plumbing** (§4.4) | ✅ **stays up** |
+| Playlist, aliases, streams, live decode | **SDRTrunk (disk+RAM)** | ✅ **untouched** |
+| ffmpeg bridge, icecast, mounts | **launchd (independent agents)** | ✅ **untouched** |
 
-**The line is clean because of an accident of the existing design:** SB3 never holds audio
-state. It only *asserts* state onto backends that then hold it themselves. Kill the asserter
-and the assertions stand. That is why this plan is safe to attempt, and it's worth
-protecting deliberately rather than relying on it by luck.
+**The line is clean because SB3 never holds audio state.** It only *asserts* state onto
+backends that then hold it themselves. Kill the asserter and the assertions stand. That is why
+this plan is safe to attempt — and it should be protected deliberately, not relied on by luck.
+
+**The one honest cost of the full teardown:** while SB3 is dead, nothing refuses a stray
+process that tries to open the RSPduo — and the SIGKILL→dirty-release→**reboot** hazard (§5.4)
+is real. In practice SDRTrunk already holds the device open, so a second open fails at the OS
+layer before it can do damage. **Accepted risk, and the right trade:** the alternative was a
+policy daemon enforcing rules for an absent owner.
 
 ### 4.3 Command surface
 
 ```
 sb3-ctl status              # what SB3 thinks; what the backends actually report; the diff
-sb3-ctl kill                # stop reconciling. Backends untouched. Audio continues.
-sb3-ctl resume              # adopt LIVE state, then reconcile forward
+sb3-ctl kill                # full SB3 teardown. Backends untouched. Audio continues.
+sb3-ctl resume              # bring SB3 back; adopt LIVE backend state
 sb3-ctl apply <profile>     # one-shot translate+verify, then exit (works while killed)
 sb3-ctl diff                # dry run: what would resume change? Prints, changes nothing.
 ```
 
-`kill` in detail — ordering matters:
+**`kill` — ordering matters, and lease consumers must go before the broker:**
 
 ```
-1. touch  $SB3_STATE/killed              (fail-CLOSED sentinel; §4.4)
-2. launchctl bootout gui/$UID/com.scannerproject.sb3-reconciler
-3. launchctl bootout gui/$UID/com.scannerproject.sb3-ui
-4. LEAVE RUNNING, always:
-     com.scannerproject.sdrangel
-     com.scannerproject.sdrtrunk
+1. touch $SB3_STATE/killed                          fail-CLOSED sentinel (§4.4)
+2. bootout  sb3-reconciler, sb3-ui                  stop asserting first
+3. bootout  disco, acars, survey                    LEASE CONSUMERS BEFORE THE BROKER.
+                                                    Each runs under `broker.client run`, so a
+                                                    clean stop closes the socket = clean
+                                                    release. Killing the broker first would
+                                                    yank the socket out from under a live
+                                                    child — undefined, and exactly the churn
+                                                    the broker exists to prevent.
+4. bootout  tuner-broker                            SB3's last process. Flocks release on
+                                                    process death; lock FILES persist by
+                                                    design (leases.py:489-503 — never
+                                                    unlinked, to avoid split-inode races).
+5. LEAVE RUNNING, always:
+     com.scannerproject.sdrangel            ← holds its devices open
+     com.scannerproject.sdrtrunk            ← holds the RSPduo, keeps decoding
      com.scannerproject.icecast
      com.scannerproject.neptune-audio-bridge
-     com.scannerproject.copytoudp-watchdog      ← see §4.4
-     com.scannerproject.tuner-broker            ← see §4.5
-5. verify all mounts still 200. Report. Exit non-zero if any dropped.
+     com.scannerproject.copytoudp-watchdog  ← tap-arming half only (§4.4)
+6. VERIFY every mount still 200. Report. Exit non-zero if any dropped.
 ```
 
-**Step 5 is the point.** A kill switch that doesn't verify the invariant it exists to protect
+**Step 6 is the point.** A kill switch that doesn't verify the invariant it exists to protect
 is a wish. `sb3-ctl kill` must *prove* audio survived before it reports success.
+
+**Step 3 is the one that will bite if skipped.** `broker/client.py` holds the lease socket for
+its child's entire lifetime; the broker dying underneath it is a case nobody has specified.
+Stop the children first and the question never arises.
 
 ### 4.4 Resume adopts live state — never a snapshot
 
@@ -846,20 +1018,52 @@ things by hand.** A resume that restores a pre-kill snapshot would clobber preci
 the kill existed to enable. That is the `sdrangel-restore.py` bug, reintroduced with extra
 steps.
 
+**Resume is the kill sequence in reverse: the broker comes back FIRST** (it is SB3's
+foundation — leases must exist before any consumer claims one), and observation happens before
+any assertion.
+
 ```
 sb3-ctl resume:
-  1. GET /sdrangel + GET /audio      → observe LIVE truth
-  2. read SDRTrunk playlist from disk → observe LIVE truth
-  3. for each bound profile:
+  1. bootstrap tuner-broker
+       - loads sdr_fleet_policy.json (rev 5.0 — hard-fails on a bad policy, exit 3)
+       - rebuilds its ledger FROM EMPTY. There is no lease state to recover:
+         the ledger was always derived, and `clear_locks_at_boot: true` already
+         encodes "a fresh broker trusts nothing it didn't grant itself."
+       - stale lock FILES from the last run are expected and harmless — the
+         flock, not the file, is the mutex (leases.py:454-503).
+
+  2. assert static reservations for backend-owned devices:
+       RSPduo 180903EF32 -> sdrtrunk     |  these two are held OPEN by apps the
+       RTL   83241970    -> sdrangel-air |  broker does not supervise. Reserving
+       RTL   56919602    -> sdrangel-ground   them stops disco/survey/ACARS from
+                                              ever claiming a device already in use.
+
+  3. OBSERVE, do not assert:
+       GET /sdrangel + GET /audio           → live SDRangel truth
+       read SDRTrunk playlist from disk     → live SDRTrunk truth
+
+  4. for each bound profile:
        route_healthy(profile, live)?
          ✅ → adopt. Log "adopted live state, no change."
          ❌ → the profile and reality have DIVERGED.
               Default: DO NOT CLOBBER. Mark the profile `diverged`,
-              surface the diff, and reconcile nothing.
+              surface the diff, reconcile nothing.
               Only `sb3-ctl apply <profile> --force` re-asserts.
-  4. rm $SB3_STATE/killed
-  5. bootstrap the reconciler
+
+  5. bootstrap lease consumers (disco / acars / survey) per the active profile set
+  6. rm $SB3_STATE/killed
+  7. bootstrap sb3-reconciler, sb3-ui
 ```
+
+**Steps 3–4 before 7 is the whole design.** The reconciler must not start until divergence has
+been observed and classified — otherwise it wakes up, sees a mismatch, and clobbers the human's
+work in the first 30-second tick. That is precisely the `sdrangel-restore.py` failure, and
+starting the reconciler one step too early reintroduces it perfectly.
+
+**Nothing about the full-teardown decision makes resume harder.** The broker's state was always
+derived, never authoritative — it is rebuilt from the policy file plus live claims, and it
+already clears locks at boot. That is why the teardown is cheap: **there is no broker state to
+lose, because the broker never had any that mattered.**
 
 **Divergence defaults to "the human is right."** SB3 reports the diff and waits. This is
 the opposite of today's every-10-minutes clobber, and it is the whole behavioural point of
@@ -886,29 +1090,30 @@ real hit within a window.** Mount-200 is necessary, not sufficient. This is `pro
 and `project_ground_icecast_publish_loop_wedge` in a new costume, and it will be missed
 unless it's designed for now.
 
-### 4.5 The broker question — the one genuinely hard call
+### 4.5 The broker question — DECIDED: full teardown (reasoning trail)
 
-If `sb3-ctl kill` stops the broker, leases evaporate and the invariant is safe but the
-protection is gone. If it leaves the broker running, the protection holds — but **SDRangel
-and SDRTrunk are GUI apps launched by their own LaunchAgents; they do not hold broker
-leases.** They open devices directly. Today the broker leases devices to *chirp*, which is
-retiring.
+✅ **ANSWERED 2026-07-16 — Will's call: the broker goes down with everything else.** Recorded
+in §4.2, which is now the authority. This subsection is kept as the reasoning trail.
 
-**So under the SDRangel/SDRTrunk backend, what does the broker actually arbitrate?**
+**The question was:** under an SDRangel/SDRTrunk backend, what does the broker still
+arbitrate — and is that worth keeping alive while SB3 is dead?
 
-Honest answer: **less than it did, but not nothing.** The remaining contenders for a lease
-are disco, ACARS/VDL2, survey, and VFO — the three-way collision in §3.6 is *precisely* a
-lease problem, and it's the strongest remaining case for keeping the broker.
+**What it still arbitrates (during normal operation):** less than it did, but not nothing.
+chirp — its original consumer — retires. SDRangel and SDRTrunk never held leases; they are GUI
+apps that open devices directly. That leaves **disco, ACARS, survey, and VFO** as the real
+lease consumers. With disco moving to its own HackRF (§3.6), the old three-way RTL collision
+mostly dissolves, but the broker still enforces one-consumer-per-serial across the fleet and
+rate-limits restarts. **It earns its keep while SB3 is running.**
 
-**→ Recommendation: keep the broker running through a kill, and treat SDRangel/SDRTrunk as
-holding *static reservations* rather than dynamic leases.** SB3 asserts on startup that the
-RSPduo serial is reserved for SDRTrunk and RTL `83241970` for SDRangel-air; the broker then
-refuses to grant those serials to disco/ACARS/survey. The reservation outlives SB3 because
-it's the broker's own state, and the broker is a 1.5k-line stdlib daemon that has never been
-the thing that broke.
+**What it arbitrates during a kill:** *nothing.* Every lease consumer is SB3-owned and already
+stopped. The devices that remain in use are held open by apps the broker doesn't supervise.
 
-**This needs Will's confirmation before Phase 1** (§7). It is the one design question where I
-can construct a defensible argument for either answer.
+**Why the earlier recommendation (keep it up) was wrong:** it treated the broker's static
+reservations as protection, but a reservation only binds processes that *ask* — and while SB3
+is dead, the only things touching radios are SDRangel and SDRTrunk, which never ask. It bought
+no safety and cost a third state. **Will's teardown is cleaner: the SB3 layer is either fully
+up or fully down.** Reservations are re-asserted on resume (§4.4 step 2), where they actually
+constrain someone.
 
 ---
 
@@ -946,16 +1151,38 @@ broker and by humans, and nothing was exercising it hard enough to catch the rev
 the policy to **rev 5.0** (§7.5), but as a *correction to a known-wrong file*, not an
 investigation.
 
-**The RTL role assignment is also changing.** Will's brief reassigns two of three:
+**The role map — 5 SDRs, updated 2026-07-16 (HackRF added):**
 
-| Serial | Hardware | Fleet policy 4.1 role | **Will's brief** | Δ |
-|---|---|---|---|---|
-| `83241970` | RTL-SDR Blog V4 | chirp-airband (was VFO) | **Air / airband** | same intent |
-| `56919602` | NESDR SMArt v5 | sounding (ACARS/VDL2/sonde) | **Ground — TBD** | ⚠️ **changed** |
-| `61108285` | NESDR | chirp-ground | **Disco + ACARS + survey** | ⚠️ **changed** |
+| # | Device | Serial | Role | Engine | Bandwidth |
+|---|---|---|---|---|---|
+| 1 | **RSPduo** | `180903EF32` | **Dual digital** — P25 sys 1 (T1) + sys 2 (T2) | SDRTrunk (native API) | ~128 Mbps |
+| 2 | **RTL-SDR Blog V4** | `83241970` | **Air** (airband AM) | SDRangel | ~33 Mbps |
+| 3 | **RTL NESDR** | `56919602` | **Ground** — ⚠️ still TBD (§7.2) | SDRangel | ~33 Mbps |
+| 4 | **RTL NESDR** | `61108285` | **ACARS/VDL2 only** — freed from disco | acarsdec + dumpvdl2 | ~33 Mbps |
+| 5 | **HackRF One** 🆕 | *(TBD — read at Phase 0)* | **Disco + spectrum survey** | SoapyHackRF / `hackrf_sweep` | **~160–320 Mbps** |
 
-**The RTL serials were never in doubt** — the reversal is RSPduo-only. `83241970` (Blog V4),
+**What changed from fleet policy 4.1:**
+
+| Serial | Policy 4.1 role | **Now** | Δ |
+|---|---|---|---|
+| `83241970` | chirp-airband (was VFO) | Air / airband | same intent |
+| `56919602` | sounding (ACARS/VDL2/sonde) | **Ground — TBD** | ⚠️ changed |
+| `61108285` | chirp-ground | **ACARS/VDL2 only** | ⚠️ changed (was "disco+ACARS+survey" — HackRF freed it, §3.6) |
+| *(new)* | — | **HackRF → disco + survey** | 🆕 **new device** |
+
+**The RTL serials were never in doubt** — the reversal was RSPduo-only. `83241970`,
 `56919602`, and `61108285` are consistent across the policy, the brief, and the live scripts.
+
+**VFO has no device in this map.** SB7 gave it `83241970` (the Blog V4), which is now Air. VFO
+is not in Will's 5-SDR brief, and the SB7 VFO work is `ecb276b`-blocked on an upstream
+SoapyRTLSDR segfault anyway. **Treating it as retired-with-chirp unless Will says otherwise**
+— noting SDRangel's own UI is a perfectly good manual VFO, which may be why it stopped mattering.
+
+**HackRF serials** are 32-hex-char strings (not the short RTL/RSP form). Read it at Phase 0 —
+`hackrf_info` or `SoapySDRUtil --find="driver=hackrf"` — and pin the policy to it, per the
+fleet-wide `"address_by": "serial"` invariant. A single HackRF works fine addressed as
+`driver=hackrf` alone, but **don't** — that's the habit that produced the serial-collision bug
+(`project_ground_nfm_serial_collision`).
 
 The Blog V4 keeps airband, which is right — it was chosen for airband historically
 *specifically* for its better front-end/SNR (R828D + TCXO), and it moved
@@ -979,70 +1206,144 @@ Multi-TT is still worth specifying (it correlates with better-engineered hubs an
 full-speed device shares the hub), but **it is not the mechanism that fixes bandwidth.** The
 two mechanisms that actually matter:
 
-1. **Bus/controller separation.** A USB 2.0 high-speed segment is a **shared 480 Mbps
-   domain**. Every USB-2 device behind one hub shares one. The fix for contention is *fewer
-   devices per domain*, not a fancier TT. **This — not TT count — was the Micro's problem**
+1. **Controller separation.** A USB 2.0 high-speed segment is a **shared 480 Mbps domain, and
+   the domain belongs to the host CONTROLLER.** The fix for contention is *fewer devices per
+   controller*. **This — not TT count — was the Micro's problem**
    (`project_sb6_session_2026_06_18_evening`: 10 SDRs, single xHCI, single 480M domain), and
    the 2026-06-19 retraction is explicit: *"the fix is a powered MULTI-TT USB-3 hub, NOT a
-   USB-3 re-cable — RSPduo is USB-2."* The value of a **USB-3** hub here is subtle and real:
-   it contains a *separate internal USB-2 hub*, so plugging it into a USB-3/TB port gives its
-   USB-2 devices **their own 480 Mbps domain**, distinct from anything on other ports.
-2. **Power.** `powered_hubs_required: true` is in the fleet policy for a reason. Three RTLs
-   at ~300 mA each plus an RSPduo exceeds what a bus-powered hub delivers, and RTL brownout
-   presents as intermittent USB errors — i.e. as a *software* bug, for hours.
+   USB-3 re-cable — RSPduo is USB-2."*
+2. **Power.** `powered_hubs_required: true` is in the fleet policy for a reason. Several RTLs
+   at ~300 mA each, plus a HackRF at up to ~500 mA, exceeds what a bus-powered hub delivers —
+   and brownout presents as intermittent USB errors, i.e. as a *software* bug, for hours.
 
-**Bandwidth math (why this is comfortable on Neptune):**
+#### ⚠️ Correction to this doc's previous revision
+
+The first revision of §5.2 said a USB-3 hub "contains a separate internal USB-2 hub, so
+plugging it into a USB-3/TB port gives its USB-2 devices their own 480 Mbps domain." **That is
+wrong and I'm retracting it.** A USB-3 hub *is* logically two hubs (a USB-3 hub and a USB-2
+hub on separate wires) — but the USB-2 half is still **a hub on the host controller's bus**,
+not a new bus. It does not manufacture bandwidth.
+
+> **Only a new host CONTROLLER creates a new 480 Mbps domain.** A hub never does.
+
+This is exactly what the Micro's topology proves: the fix there wasn't hubs, it was **five
+xHCI controllers** — onboard PCH, two Titan Ridge TB3, and two Fresco FL1100 in the OWC dock.
+On a Mac, extra controllers arrive over **Thunderbolt** (a TB dock tunnels PCIe and presents
+its own xHCI), never over a plain USB hub.
+
+#### ⚠️ The brief's "M1's 4 USB-2 domains (3 onboard + 2 OWC dock)" is a different machine
+
+The 5-controller topology in `reference_micro_access_and_hpdb_migration` is the **2018 Intel
+Mac mini** (host `ScannerBox`, Ubuntu) — the PCI addresses give it away: `00:14.0` Intel
+Cannon Lake PCH, `08:00.0`/`7e:00.0` Titan Ridge, `44:00.0`/`45:00.0` Fresco FL1100. **An M1
+Mac has no Cannon Lake PCH and no PCI bus enumerated that way.** That topology cannot be
+carried over to Neptune by assumption. (The figure is also internally inconsistent — 3 + 2 = 5,
+not 4.)
+
+**What Neptune actually has, per the repo** (`sb7-northstar-program.md:27`): *"Mac mini 2021 |
+Apple M1, 8 GB RAM, 2× TB/USB4 + 2× USB-A."* Realistically that is **one USB-2 domain shared
+by the two USB-A ports**, plus whatever each Thunderbolt port's attached device brings. **Not
+5 domains. Probably 1, expandable to 3.** ⚠️ **Unverified — Phase 0 measures it with
+`system_profiler SPUSBDataType`.**
+
+**The good news: Will already owns the fix.** The **OWC TB3 dock** (2× Fresco FL1100 = 2
+independent xHCI controllers) is the exact hardware that de-stacked the Micro. TB3 docks work
+on M1. If it's free now that ScannerBox is out of this arrangement, moving it to Neptune buys
+the two extra controllers this layout needs — **for zero dollars.** ❓ **Is the OWC dock
+available?** (§7.6)
+
+#### Bandwidth math — 5 SDRs
 
 ```
-RTL-SDR @ 2.048 Msps × 2 bytes (8-bit I + 8-bit Q)  =  4.10 MB/s  ≈  33 Mbps
-3 RTLs                                              = 12.3 MB/s   ≈  98 Mbps
-  … of a shared 480 Mbps domain (~280–320 Mbps practical)  →  ~30-35% utilized.  Fine.
-
-RSPduo dual-tuner @ 2 Msps × 2 tuners × 2 bytes (14-bit → 16)  ≈  16 MB/s  ≈ 128 Mbps
-  … on its OWN domain.  Fine.
+RTL-SDR @ 2.048 Msps × 2 bytes (8-bit I + 8-bit Q)  =  4.10 MB/s  ≈   33 Mbps  (each)
+3 RTLs (air + ground + ACARS)                       = 12.3  MB/s  ≈   98 Mbps
+RSPduo dual-tuner @ 2 Msps × 2 tuners × 2 bytes     = 16    MB/s  ≈  128 Mbps
+HackRF @ 20 Msps × 2 bytes (8-bit I + 8-bit Q)      = 40    MB/s  ≈  320 Mbps  ⚠️
+HackRF @ 10 Msps                                    = 20    MB/s  ≈  160 Mbps
+                                                      ────────────────────────
+practical USB-2 high-speed ceiling (bulk)             ~35-40 MB/s ≈ 280-320 Mbps
 ```
 
-**Four SDRs on an M1 is a fundamentally easier problem than ten on the Micro.** The Micro's
-starvation does not automatically recur here. Do not over-buy.
+> ### ⚠️ The HackRF at 20 Msps is AT the USB-2 ceiling, not comfortably under it
+>
+> 320 Mbps of a ~280–320 Mbps practical bulk ceiling is **100%+ utilization.** This is a
+> well-known HackRF characteristic: 20 Msps works on a clean, dedicated bus and drops samples
+> the moment anything else shares it — or sometimes anyway. **The brief's instinct that the
+> HackRF "needs its own bus" is exactly right, and stronger than it sounds: it needs its own
+> CONTROLLER, and even then 20 Msps has no headroom.**
+>
+> **→ Design for 8–10 Msps sustained** on the disco classify path (160–200 Mbps ≈ 60% — a real
+> margin), and reserve 20 Msps for `hackrf_sweep`, whose retune-heavy duty cycle never sustains
+> peak anyway. **Dropped samples are the silent-failure mode here** — they corrupt classifier
+> input without erroring, which is §3.7's confidence problem arriving through the USB stack.
+> Instrument the drop counter and surface it.
 
-### 5.3 Recommended topology
+**Five SDRs is still an easier problem than the Micro's ten** — but the HackRF alone is worth
+~3× a dual-tuner RSPduo in bus terms, so it is not "just one more radio."
 
-Neptune (M1 mini) has **2× Thunderbolt/USB4 + 2× USB-A**. The USB-A ports very likely share
-one controller — `sb7-northstar-program.md` flags this: *"if the two USB-A ports share one
-controller, consider a second hub to split the RTLs."*
+### 5.3 Recommended topology — 5 SDRs, 3 controllers
+
+**The requirement: 3 independent USB-2 domains.** The three high-bandwidth consumers cannot
+share:
+
+| Domain | Device(s) | Load | of ~300 Mbps |
+|---|---|---|---|
+| **A** | HackRF (disco/survey) — **alone, non-negotiable** | 160–320 Mbps | **55–100%** |
+| **B** | RSPduo `180903EF32` (dual digital) — alone | ~128 Mbps | ~43% |
+| **C** | 3 RTLs (air + ground + ACARS) on a powered hub | ~98 Mbps | ~33% |
+
+Neptune natively supplies roughly **one** (the shared USB-A pair). Thunderbolt supplies the
+rest — via a dock with its own xHCI, per §5.2.
+
+#### Preferred — using the OWC TB3 dock Will already owns (❓ §7.6)
 
 ```
-┌─ Thunderbolt / USB4 port 1 ─────────────────────────────────┐
-│   RSPduo  180903EF32  (CONFIRMED §5.1)  DIRECT, no hub      │
-│   dual-tuner, SDRTrunk, native SDRplay API                   │
-│   → own controller, own 480 Mbps domain, ~128 Mbps           │
-└──────────────────────────────────────────────────────────────┘
+┌─ Thunderbolt / USB4 port 1  →  OWC TB3 dock ────────────────────────┐
+│   (2× Fresco FL1100 = TWO independent xHCI controllers)             │
+│                                                                     │
+│   ├─ Fresco controller #1 ── HackRF One          → DISCO + SURVEY   │
+│   │                          ALONE on this domain. 160–320 Mbps.    │
+│   │                          Nothing else here. Ever.               │
+│   │                                                                 │
+│   └─ Fresco controller #2 ── RSPduo 180903EF32   → DUAL DIGITAL     │
+│                              ALONE. ~128 Mbps. Dirty-release =      │
+│                              reboot (§5.4) → shortest boring path.  │
+└─────────────────────────────────────────────────────────────────────┘
 
-┌─ Thunderbolt / USB4 port 2 ─────────────────────────────────┐
-│   Powered USB-3 hub, own PSU  (GL3523 / VL817)              │
-│   → its internal USB-2 hub = a SEPARATE 480 Mbps domain      │
-│                                                              │
-│     port 1 ── RTL 83241970  Blog V4   → AIR (airband)        │
-│     port 2 ── RTL 56919602  NESDR     → GROUND (TBD, §7.2)   │
-│     port 3 ── RTL 61108285  NESDR     → DISCO/ACARS/SURVEY   │
-│     port 4 ── (spare: 4th RTL = 3rd P25 or waterfall)        │
-│                                                              │
-│   3 RTLs ≈ 98 Mbps of ~300 Mbps practical. Comfortable.      │
-└──────────────────────────────────────────────────────────────┘
+┌─ USB-A  →  powered USB-3 hub, own PSU (GL3523 / VL817) ────────────┐
+│   (one host controller — the hub does NOT add a domain, §5.2)       │
+│                                                                     │
+│     port 1 ── RTL 83241970  Blog V4  → AIR      (~33 Mbps)          │
+│     port 2 ── RTL 56919602  NESDR    → GROUND   (~33 Mbps, §7.2)    │
+│     port 3 ── RTL 61108285  NESDR    → ACARS/VDL2 (~33 Mbps)        │
+│     port 4 ── spare (4th RTL → 3rd P25, or waterfall)               │
+│                                                                     │
+│   ≈98 Mbps of ~300. Comfortable — these three genuinely can share.  │
+└─────────────────────────────────────────────────────────────────────┘
 
-┌─ USB-A ×2 ──────────────────────────────────────────────────┐
-│   Keyboard / dummy-HDMI dongle / nothing SDR.                 │
-│   Deliberately unused for radio: keeps SDRs off a possibly-   │
-│   shared controller, and off the same domain as anything      │
-│   hot-plugged.                                                │
-└──────────────────────────────────────────────────────────────┘
+┌─ Thunderbolt port 2 ── free (headroom / 2nd dock / display) ───────┐
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Why the RSPduo gets its own port, not a hub port:** it's the highest-bandwidth device
-(~128 Mbps dual-tuner), it's the one whose dirty-release costs a **reboot**, and it's the one
-SDRTrunk holds for days. Give it the shortest, most boring path to the host.
+#### Fallback — no OWC dock
 
-**Chipsets, ranked:**
+```
+TB port 1 ── HackRF direct (USB-C→micro-B)   → own controller, if the TB ports
+TB port 2 ── RSPduo direct                     don't share one. ⚠️ VERIFY — this
+USB-A     ── powered hub → 3 RTLs              is the assumption to break first.
+```
+
+⚠️ **If the two TB ports turn out to share a USB controller, this fallback fails** — the
+HackRF and RSPduo would collide at ~450 Mbps on one domain. Then a TB dock (or a second) is a
+**hard requirement**, not a nice-to-have. `sb7-northstar-program.md:227` already flagged the
+sibling question for USB-A: *"if the two USB-A ports share one controller, consider a second
+hub."* **Phase 0 answers it.**
+
+**Why the HackRF is alone and never shares:** at 20 Msps it is ~100% of a domain by itself;
+even at 10 Msps it is ~55%. Adding an RTL to its domain is how you get dropped samples — and
+dropped samples don't error, they just quietly corrupt what the classifier sees (§3.7).
+
+**Chipsets, ranked** (for the RTL hub — the only place a hub belongs here):
 
 | Chip | Vendor | Notes |
 |---|---|---|
@@ -1051,15 +1352,21 @@ SDRTrunk holds for days. Give it the shortest, most boring path to the host.
 | **VL817** | VIA Labs | USB 3.1 Gen1 4-port, multi-TT. Solid; common in powered hubs. |
 | **VL822** | VIA Labs | USB 3.2 Gen2. More than needed; no downside. |
 
-**Buy criteria, in priority order:** (1) **a real external PSU** ≥3 A — this matters more
-than the chip; (2) per-port power switching if available (lets SB3 power-cycle a wedged
-NESDR without a human — and §5.4 says that's the recurring failure); (3) one of the chips
-above; (4) *not* a monitor/dock hub, which buries the SDRs behind another hop.
+**Buy criteria, in priority order:** (1) **a real external PSU** ≥3 A — matters more than the
+chip; (2) per-port power switching if available (lets SB3 power-cycle a wedged NESDR without a
+human — §5.4 says that's the recurring failure); (3) one of the chips above; (4) *not* a
+monitor/dock hub, which buries the SDRs behind another hop.
 
-**Verify on the box** (Phase 0, read-only): `system_profiler SPUSBDataType` — confirm each
-RTL enumerates at **480 Mb/s** (not 12 Mb/s — that would mean a cable/hub fault), confirm the
-hub's internal USB-2 hub is on a different controller than the RSPduo, and confirm all four
-serials appear.
+**Remember what a hub can and can't do (§5.2):** the hub gives you **ports and power**. It does
+**not** give you bandwidth. Only a Thunderbolt-attached controller does.
+
+**Verify on the box** (Phase 0, read-only): `system_profiler SPUSBDataType` —
+1. All **5** SDRs appear, each at **480 Mb/s** (12 Mb/s = cable/port fault — the
+   `VDL2A001` failure mode already recorded in `reference_micro_access_and_hpdb_migration`).
+2. **Count the controllers and map device→controller.** This is the measurement the whole
+   layout depends on, and the one nobody has taken on Neptune.
+3. Confirm HackRF and RSPduo are on **different** controllers, and that neither shares with
+   the RTL hub.
 
 ### 5.4 The known Neptune hardware failure modes (design against these)
 
@@ -1076,9 +1383,10 @@ Three, all validated, all cheap to design for and expensive to discover:
 3. **RSPduo apiService-wedged for SDRangel after SDRTrunk releases it.** Device report shows
    `deviceType:"Unknown"`, `state=error`, all channel power −120/−150 dB. Re-PUT and reseat
    don't fix it; a reboot does. **→ Structural mitigation: never let SDRangel and SDRTrunk
-   contend for the RSPduo.** Under this plan they don't — the RSPduo is SDRTrunk-only and all
-   three RTLs are SDRangel/disco. **That invariant is worth writing into the broker as a hard
-   refusal**, not just a convention.
+   contend for the RSPduo.** Under this plan they don't — the RSPduo is SDRTrunk-only, the
+   RTLs are SDRangel (air, ground) and acarsdec/dumpvdl2 (`61108285`), and disco is on the
+   HackRF. **No device has two possible owners.** That invariant is worth writing into the
+   broker as a hard refusal, not just a convention.
 
 ---
 
@@ -1106,18 +1414,42 @@ prior phases' invariants still hold.
 - One-line confirmation on the box while you're there (cheap, closes it for good):
   `SoapySDRUtil --find="driver=sdrplay"` on each mini, or SDRTrunk `View → Tuners`.
 - Root-cause and fix the **two wedged NESDRs**. Power? Enumeration? Tahoe/libusb?
-- Install the **powered USB-3 hub**; wire per §5.3.
-- `system_profiler SPUSBDataType`: all 4 SDRs, each at 480 Mb/s, controller grouping recorded.
+- **⚠️ PREREQUISITE: the HackRF One must be on hand.** Phase 0 cannot complete without it —
+  the whole USB layout (§5.3) is built around giving it a dedicated controller, and that can't
+  be validated against a device that isn't there. **Assume it is acquired before Phase 0
+  completes.** *(Not speccing a purchase — just naming the dependency. If it slips, Phases 1–4
+  are unaffected: disco is Phase 5. The layout is the only thing that waits.)*
+- **Read the HackRF serial** (`hackrf_info` or `SoapySDRUtil --find="driver=hackrf"`) and pin
+  the policy to it — 32-hex-char, unlike the RTL/RSP short form. Never address it as bare
+  `driver=hackrf` (§5.1).
+- **Install SoapyHackRF into radioconda's `modules0.8`** and confirm
+  `SoapySDRUtil --find="driver=hackrf"` sees it *through that plugin path* — the
+  `SOAPY_SDR_PLUGIN_PATH` gotcha the chirp plists document. A HackRF that `hackrf_info` finds
+  but SoapySDR doesn't is a Phase 5 blocker discovered three phases early. Cheap here.
+- **MEASURE THE CONTROLLER MAP** — `system_profiler SPUSBDataType`. All **5** SDRs at 480 Mb/s;
+  count xHCI controllers; record device→controller. **This is the measurement the layout
+  depends on and nobody has taken on Neptune** (§5.2 — the 5-domain figure in circulation is
+  the *Intel* box's).
+- **Do the two TB ports share a USB controller?** If yes, the no-dock fallback in §5.3 is dead
+  and a TB dock becomes mandatory. Answer this before buying anything.
+- **Is the OWC TB3 dock available?** (§7.6) It's the 2 controllers this layout wants, already
+  owned.
+- Install the **powered USB-3 hub** for the 3 RTLs; wire per §5.3.
+- **HackRF sustained-rate bench:** capture at 8 / 10 / 16 / 20 Msps for 60 s each on its own
+  controller and **record the drop counter at each.** This sets the disco sample rate with a
+  number instead of a guess (§5.2), and it is the cheapest it will ever be to measure.
 - Read the **exact SDRTrunk tuner-label strings** off `View → Tuners` (§3.5's in-repo
   formats disagree).
 - Fix the two stale docs found in this pass: `docs/scan-philadelphia.md` mount names
   (`neptune-digital.mp3` → `neptune-trunk.mp3`) and its "no RSPduo on Neptune" blocker;
   `etc/mac/launchd/neptune/README.md`'s `neptune.mp3`.
 
-**✅ Invariant:** All 4 SDRs enumerate at 480 Mb/s across two USB-2 domains and survive a
-reboot. `neptune-angel.mp3` and `neptune-trunk.mp3` are both live and audible on the phone.
-`sdr_fleet_policy.json` rev 5.0 matches `ioreg`, and no artifact in §7.5 still claims
-Neptune's RSPduo is `1809063632`. **Nothing regressed — this phase only adds hardware.**
+**✅ Invariant:** All **5** SDRs enumerate at 480 Mb/s and survive a reboot, with **HackRF and
+RSPduo on separate xHCI controllers** and neither sharing with the RTL hub — measured, not
+assumed. The HackRF's sustained clean rate is a recorded number. `neptune-angel.mp3` and
+`neptune-trunk.mp3` are both live and audible on the phone. `sdr_fleet_policy.json` rev 5.0
+matches `ioreg` + the measured topology, and no artifact in §7.5 still claims Neptune's RSPduo
+is `1809063632`. **Nothing regressed — this phase only adds hardware.**
 
 ---
 
@@ -1135,12 +1467,16 @@ Phase 4 that the boundary was never real.
 - Fail-**closed** sentinel: `$SB3_STATE/killed` missing ≠ permission to reconcile. Positive
   state required. (This inverts the `.sdrangel-restore-paused` bug.)
 - `sb3-ctl kill` **verifies mounts stayed 200** and exits non-zero if not.
-- Decide the **broker question** (§4.5) with Will and encode the answer.
+- **Full teardown, in the §4.3 order** — consumers → broker last. Even with no lease consumers
+  built yet, get the ordering right now; it is the part that's hard to retrofit.
+- **`resume` brings the broker back FIRST** and observes before asserting (§4.4).
 
-**✅ Invariant:** `sb3-ctl kill` runs on live Neptune → `neptune-angel.mp3` and
-`neptune-trunk.mp3` stay 200 continuously through the kill, with zero dropped frames; SDRangel
-channel config is unchanged; SDRTrunk keeps decoding. `sb3-ctl status` reports accurately
-while killed. **Phase 0 invariant still holds.**
+**✅ Invariant:** `sb3-ctl kill` runs on live Neptune → **the broker and every SB3 process are
+gone** (`launchctl print` confirms), while `neptune-angel.mp3` and `neptune-trunk.mp3` stay 200
+continuously through the kill, with zero dropped frames; SDRangel channel config is unchanged;
+SDRTrunk keeps decoding. `sb3-ctl status` reports accurately while killed. `sb3-ctl resume`
+rebuilds the broker ledger from the policy and adopts live state without clobbering.
+**Phase 0 invariant still holds.**
 
 ---
 
@@ -1150,7 +1486,7 @@ while killed. **Phase 0 invariant still holds.**
   `broker/policy.py`'s stance: *"A broker running on a guessed policy would be worse than no
   broker: it would look like arbitration while enforcing nothing."* Exit 3, no defaults, no
   guessing.
-- Translator: profile → SDRangel deviceset (§3.7's exact sequence). All ten landmines
+- Translator: profile → SDRangel deviceset (§3.8's exact sequence). All ten landmines
   encoded, including the keepalive injection and the 0→1 tap toggle.
 - `route_healthy()` idempotence — **plus `audioDeviceName`**, closing the latent bug.
 - Reconciler: 30 s loop, pid-change detection, gated on `killed`.
@@ -1200,27 +1536,48 @@ stays 200 throughout. `sb3-ctl kill` → both digital systems keep decoding and 
 - **Real health**: tap byte-rate AND mount-200 AND ≥1 real hit in the window (§4.4's trap).
 - **Decide on cross-window hunt mode with measurements** (§3.4) — or formally defer it.
 
-**✅ Invariant:** Three analog roles (air, ground, disco-idle) + two digital systems run
-concurrently; five mounts live; **CPU headroom ≥30%** (§3.2 landmine 10 — the Intel mini died
-at ~420% on the channelizer). UI reflects live backend state, never a cache. `sb3-ctl kill`
-→ UI goes away, **all five mounts stay 200.** **Phase 0–3 invariants still hold.**
+**✅ Invariant:** Two analog roles (air, ground) + two digital systems run concurrently; four
+mounts live; **CPU headroom ≥30%** (§3.2 landmine 10 — the Intel mini died at ~420% on the
+channelizer). UI reflects live backend state, never a cache. `sb3-ctl kill` → **UI and broker
+both go away, all four mounts stay 200.** **Phase 0–3 invariants still hold.**
 
 ---
 
-### Phase 5 — disco / ACARS / survey (the shared-dongle role)
+### Phase 5 — disco on the HackRF + ACARS on its own RTL
 
-- Port `disco`: keep `classifier.py`, replace `sweep.py`'s direct Soapy open with a
-  broker-leased SB3-driven capture; `/run/*` → `DISCO_STATE_DIR`; `/bin/systemctl` →
-  `ServiceBackend`.
-- ACARS/VDL2 → launchd, broker-leased, configurable output paths.
-- **Explicit modes** on RTL `61108285` — `disco` | `acars` | `survey`, one at a time,
-  broker-enforced (§3.6). **Not a background time-share.**
-- Spectrum survey as a disco mode.
+**No mode switch to build.** The HackRF dissolved the three-way collision (§3.6) — this phase
+is now two independent, concurrent things instead of one arbiter.
 
-**✅ Invariant:** Switching `61108285` between disco/acars/survey never disturbs air, ground,
-or digital. The broker denies a second claim by name. `sb3-ctl kill` mid-sweep → the sweep
-stops, the lease releases (socket closes), **and every other mount stays 200.**
-**Phase 0–4 invariants still hold.**
+**disco + survey → HackRF:**
+- Port `disco`: keep `classifier.py` untouched; swap `sweep.py:328`'s
+  `SoapySDR.Device("driver=rtlsdr,serial=…")` → `driver=hackrf,serial=…` (§3.7 — a driver
+  string, not a rewrite). `/run/*` → `DISCO_STATE_DIR`; `/bin/systemctl` → `ServiceBackend`.
+  Broker-leased.
+- Sample rate = **the number Phase 0 measured**, not 20 Msps by default (§5.2).
+- Discard post-retune transients before slicing (§3.7).
+- **Slice metadata carries measured SNR + window peak-to-noise**, and `classifier.py` gates
+  confidence on them (§3.7). **This is the phase's real design work** — everything else is
+  plumbing.
+- **Keep heuristic v0 as the HackRF default.** The ONNX model was tuned on RTL slices at
+  2.4 Msps; HackRF slices are a distribution shift. Re-tune via `disco/training/finetune_real.py`
+  on HackRF-sourced slices before trusting it. The 6-field filename schema already carries
+  `rate`, so the two eras are distinguishable on disk — use it.
+- `hackrf_sweep` as the **survey** mode: 1 MHz–6 GHz power-vs-frequency, feeds the spectrum
+  view, not the classifier.
+
+**ACARS/VDL2 → RTL `61108285`, continuous:**
+- systemd → launchd, broker-leased, configurable output paths.
+- **No time-slicing. No mode. Runs 24/7** — which is the only way ACARS is worth running.
+- Worth testing: ~131 MHz and ~136.8 MHz are close enough that one wideband capture might feed
+  both decoders. If it works, that's a spare RTL. If not, they time-share *within* the sounding
+  role — a much smaller problem than the old three-way.
+
+**✅ Invariant:** disco sweeps on the HackRF **while** ACARS decodes continuously on
+`61108285` **while** air, ground, and both digital systems run — **five SDRs, all concurrent,
+nothing time-sliced against anything.** No dropped-sample warnings from the HackRF at the
+configured rate. The broker denies a second claim by name. `sb3-ctl kill` mid-sweep → sweep
+stops, ACARS stops, **broker stops**, and **every mount stays 200**. **Phase 0–4 invariants
+still hold.**
 
 ---
 
@@ -1253,13 +1610,13 @@ This matched the validated Philly decode and the live `sdrangel-restore.py` rout
 `sdr_fleet_policy.json` rev 4.1 serial reversal is now a **known defect with a cleanup list**
 (§7.5), not an open question. Phase 3 builds against `180903EF32`.
 
-**Q2 — Does the broker stay up through `sb3-ctl kill`?** 🔴 **Blocking, Will's call.**
-§4.5. I recommend **yes** — reservations outlive the control plane, and the disco/ACARS/survey
-collision is a genuine lease problem. But the broker's remaining job shrinks a lot when
-SDRangel/SDRTrunk open devices themselves, and there's a defensible argument for retiring it
-to a static policy file. **This is a real fork, not a formality.**
+**Q2 — Does the broker stay up through `sb3-ctl kill`?** ✅ **ANSWERED 2026-07-16 — no. Full
+teardown.** Will's call: SB3 owns the SB3 layer, and the broker is part of it. My earlier
+recommendation (keep it up) was wrong — it protected nothing during a kill and cost a third
+state. Recorded in §4.2; reasoning trail in §4.5.
 
 **Q3 — What is the "Ground" role?** 🟡 **Blocking Phase 4, not Phase 1.** §7.2.
+**Still the only role-level unknown in the plan.**
 
 **Q4 — Is the FreqScanner REST gap still real?** 🟡
 `docs/scan-philadelphia.md` says 7.25.1 can't set the freq list over REST. **Check the
@@ -1305,11 +1662,15 @@ Phase 4 is a profile-authoring exercise and the design is already done.
 | 5 | **Mount-200 is a lie** — ffmpeg encodes silence at full bitrate; the keepalive channel *guarantees* non-silence | 🟠 | Verify tap bytes AND mount AND ≥1 real hit/window (§4.4). |
 | 6 | **Fleet policy has the RSPduo serials reversed**, and 7 artifacts copied the error (§5.1, §7.5) | 🟠 | Phase 0 rev 5.0 + the §7.5 cleanup list. Policy is code — `broker/policy.py` hard-fails on it, so a wrong serial there is a Phase 1 boot failure, not a silent drift. |
 | 7 | **Both NESDRs wedged after reboot** | 🟠 | Phase 0 root-cause. Per-port-switched hub as a lever. |
-| 8 | **Tahoe USB + RTL** — SDRTrunk's README wants the nightly + `libusb --HEAD` on recent macOS. SDRplay's native path is unaffected. | 🟠 | Phase 0 verifies all 3 RTLs at 480 Mb/s post-reboot. |
+| 8 | **Tahoe USB + RTL** — SDRTrunk's README wants the nightly + `libusb --HEAD` on recent macOS. SDRplay's native path is unaffected. | 🟠 | Phase 0 verifies all RTLs at 480 Mb/s post-reboot. **The HackRF is libusb-based too** — same exposure, verify it in the same pass. |
+| 8b | 🆕 **HackRF at 20 Msps = ~100% of a USB-2 domain.** Dropped samples don't error; they silently corrupt classifier input. | 🔴 | Own xHCI controller, never shared (§5.3). Design for **8–10 Msps sustained**; 20 Msps only for `hackrf_sweep`. Phase 0 benches the real number. Instrument the drop counter. |
+| 8c | 🆕 **Neptune's USB controller count is UNMEASURED.** The "5 domains" figure in circulation is the **Intel** box's (§5.2). If the two TB ports share a controller, the no-dock fallback dies. | 🟠 | Phase 0 `system_profiler SPUSBDataType` — device→controller map. The OWC TB3 dock (already owned?) is the fix (§7.6). |
+| 8d | 🆕 **The disco ONNX model was tuned on RTL slices @2.4 Msps.** HackRF slices = different rate, noise floor, and front end — a **distribution shift**, not a drop-in. | 🟠 | Heuristic v0 stays the HackRF default until re-tuned (`disco/training/finetune_real.py`). Slice filenames carry `rate`, so eras are separable on disk (§3.7). |
+| 8e | 🆕 **HackRF sensitivity** — flat wideband front end, no LNA, no TCXO (±20 ppm ⇒ ±120 kHz @ 6 GHz). Weaker than the Blog V4 on weak signals. **Not** a bit-depth issue (RTL is also 8-bit). | 🟡 | Accepted for wideband classification (Will's call). External LNA + bias-tee if it bites. Record **measured** centre, never commanded (§3.7). |
 | 9 | **Two P25 on one RSPduo is unproven here** — the clean dual-tuner result was on `180903EF32`, and the *simultaneous* two-system case has never run | 🟠 | Phase 3 = the proof. Site spans verified first. Fall back to one system + `preferred_tuner`. |
 | 10 | **Phase1-vs-Phase2 decode config** (§3.5) | 🟡 | Live decode. The "metadata-shows-but-audio-silent" symptom is already documented with its remedy. |
 | 11 | **Unaliased talkgroups silently don't stream** | 🟡 | Catch-all alias + CI check in the generator. |
-| 12 | **disco/ACARS/survey can't share one dongle** (§3.6) | 🟡 | Explicit broker-enforced modes. Not a time-share. |
+| 12 | ~~**disco/ACARS/survey can't share one dongle**~~ | ✅ | **RESOLVED by the HackRF decision (§3.6).** disco+survey → HackRF; ACARS/VDL2 → `61108285` continuously. No mode switch, no time-slicing, nothing chosen against anything. |
 | 13 | **Icecast on Mac lost fallback-mount + CORS** (§1.6) | 🟡 | Phase 4 restores both. |
 | 14 | **Two "tuner broker"s** — `broker/` vs `scripts/tuner_broker.py`, unrelated, different schemas | 🟡 | Delete the script in Phase 0. Name collisions cost hours. |
 | 15 | **`sdrangel_client.py` is unvalidated** — its own docstring says so; calls `GET /devicesets` where the working code reads the instance root | 🟡 | `sdrangel-restore.py` is the authority. Validate against live Swagger before trusting any field name. |
@@ -1384,6 +1745,30 @@ copied from it. This is the survey; the fix is its own change.
    directory. That contradiction was sitting in the repo, unflagged, and is exactly the
    class of thing §3.5's "read the tuner label off `View → Tuners`" step exists to catch.
 
+### 7.6 Surfaced while writing the HackRF revision — two hardware questions
+
+Both are Phase 0 items, not Phase 1 blockers. Neither changes the design; both change what
+gets bought.
+
+**Q5 — Is the OWC TB3 dock available for Neptune?** 🟡
+The layout in §5.3 wants **two extra xHCI controllers** (one for the HackRF, one for the
+RSPduo). The OWC TB3 dock from the Micro/ScannerBox era has exactly that — **2× Fresco
+FL1100** — and it is the hardware that de-stacked the Micro's dual-RSPduo starvation in the
+first place (`reference_micro_access_and_hpdb_migration`). TB3 docks work on M1. **If it's
+free, this costs nothing and is strictly the best option.** If it's committed elsewhere, the
+fallback (§5.3) depends on Q6.
+
+**Q6 — Do Neptune's two Thunderbolt ports share a USB controller?** 🟡
+If they do, the no-dock fallback in §5.3 collapses — HackRF (up to 320 Mbps) and RSPduo
+(~128 Mbps) would collide on one 480 Mbps domain at ~450 Mbps, which is the Micro's starvation
+bug rebuilt on new hardware. **A TB dock then becomes mandatory rather than preferred.**
+`sb7-northstar-program.md:227` already asked the sibling question about the USB-A pair and
+never answered it. **One `system_profiler SPUSBDataType` answers both.**
+
+> **Neither is a design fork** — the design is the same either way (3 domains, HackRF alone).
+> They only decide *what hardware delivers it*. Which is why they're Phase 0 measurements
+> rather than §7.1 blockers.
+
 ---
 
 ## 8. Cross-references
@@ -1404,3 +1789,8 @@ copied from it. This is the survey; the fix is its own change.
 | memory `reference_two_box_audio_harness` | Every copyToUDP/keepalive/orphan-ffmpeg landmine |
 | memory `project_neptune_philly_p25_validated` | The RSPduo reboot rule + the serial contradiction |
 | memory `project_airband_rf_collapse_recurring` | Why §3.3 stores native gain units |
+| memory `reference_micro_access_and_hpdb_migration` | The 5-controller USB topology — ⚠️ **the INTEL box, not Neptune** (§5.2). Also the source of "domain = controller, not hub" and the OWC dock (§7.6) |
+| memory `project_usb2_saturation_reboot_recovery` / `project_sb6_session_2026_06_18_evening` | What USB-2 starvation looks like from the software side, and the 2026-06-19 "USB-3 re-cable won't help" retraction |
+| memory `reference_rspduo_serial_assignment` | The confirmed serial map + the rev-4.1 reversal (§5.1, §7.5) |
+| `disco/src/sweep.py:328`, `:492` | The `SoapySDR.Device()` call site + args string — the one line that moves RTL→HackRF (§3.7) |
+| `disco/training/finetune_real.py` | Re-tuning the classifier on HackRF slices (§3.7, Phase 5) |
