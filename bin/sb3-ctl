@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# sb3-ctl — SB3 control plane CLI.
+#
+# Thin shim. All logic lives in the `sb3` package (python3 -m sb3), mirroring
+# the tuner-broker's `python3 -m broker` shape.
+#
+# ⚠️ This is NOT macos/killswitch/sdr-killswitch. That tool's `kill` means the
+# OPPOSITE: it tears the scanner down to hand the radios TO SDRangel. Here,
+# SDRangel and SDRTrunk SURVIVING the kill is the whole invariant (§4.2).
+set -euo pipefail
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_DIR"
+exec python3 -m sb3 "$@"
