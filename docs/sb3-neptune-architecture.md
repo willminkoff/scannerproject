@@ -1366,16 +1366,35 @@ carried over to Neptune by assumption. (The figure is also internally inconsiste
 not 4.)
 
 **What Neptune actually has, per the repo** (`sb7-northstar-program.md:27`): *"Mac mini 2021 |
-Apple M1, 8 GB RAM, 2× TB/USB4 + 2× USB-A."* Realistically that is **one USB-2 domain shared
-by the two USB-A ports**, plus whatever each Thunderbolt port's attached device brings. **Not
-5 domains. Probably 1, expandable to 3.** ⚠️ **Unverified — Phase 0 measures it with
-`system_profiler SPUSBDataType`.**
+Apple M1, 8 GB RAM, 2× TB/USB4 + 2× USB-A."* The guess in this doc's earlier revision was
+**one USB-2 domain shared by the two USB-A ports**, plus whatever each Thunderbolt port's
+attached device brings — *"Not 5 domains. Probably 1, expandable to 3."*
 
-**The good news: Will already owns the fix.** The **OWC TB3 dock** (2× Fresco FL1100 = 2
-independent xHCI controllers) is the exact hardware that de-stacked the Micro. TB3 docks work
-on M1. If it's free now that ScannerBox is out of this arrangement, moving it to Neptune buys
-the two extra controllers this layout needs — **for zero dollars.** ❓ **Is the OWC dock
-available?** (§7.6)
+> ### ✅ MEASURED 2026-07-16 — the guess was wrong, in our favour. Neptune has **3** already.
+>
+> `ioreg -p IOUSB` on the box (Phase 0, `3371d49`, `docs/phase-0-status.md` §1):
+>
+> | Controller | `locationID` | Physical | Devices |
+> |---|---|---|---|
+> | `AppleT8103USBXHCI@00000000` | `0x0` | USB4/TB port | VIA Labs hub → **all 3 RTLs** (+ card readers) |
+> | `AppleT8103USBXHCI@01000000` | `0x1000000` | USB4/TB port | **EMPTY** |
+> | `AppleEmbeddedUSBXHCIFL1100@02000000` | `0x2000000` | **USB-A pair** | **RSPduo `180903EF32`, alone** |
+>
+> **The M1 Mac mini drives its two USB-A ports with an embedded Fresco Logic FL1100** — the
+> same controller family that de-stacked the Micro, except here it is *already on the SoC*.
+> Each USB4/Thunderbolt port gets its **own** `AppleT8103USBXHCI`. The reasoning in this
+> section was right — a hub never makes a domain, only a controller does — it just
+> **under-counted the controllers Neptune ships with.**
+>
+> ⚠️ **`system_profiler SPUSBDataType` returns EMPTY over SSH on Tahoe** (0 lines — it needs a
+> GUI session). **Use `ioreg -p IOUSB`.** This is not a footnote: that silent emptiness is
+> exactly what let the rev-4.1 serial reversal through (§7.5), because `soak-c.py`'s hardware
+> probe returned nothing and it fell through to a log-grep.
+
+**The OWC TB3 dock is therefore NOT needed.** Both Thunderbolt buses report *"No device
+connected"* (`SPThunderboltDataType`), and the layout no longer depends on the dock — Neptune
+already has the three controllers §5.3 wants. **Keep the dock as spare capacity, not a
+dependency.** ✅ **§7.6 Q5 and Q6 are both closed** — see below.
 
 #### Bandwidth math — 5 SDRs
 
@@ -1417,52 +1436,59 @@ share:
 | **B** | RSPduo `180903EF32` (dual digital) — alone | ~128 Mbps | ~43% |
 | **C** | 3 RTLs (air + ground + ACARS) on a powered hub | ~98 Mbps | ~33% |
 
-Neptune natively supplies roughly **one** (the shared USB-A pair). Thunderbolt supplies the
-rest — via a dock with its own xHCI, per §5.2.
+✅ **Neptune natively supplies all three** — measured 2026-07-16 (§5.2). **No dock, no hub
+purchase, no money.** Two of the three domains are already wired correctly; the only action is
+to seat the HackRF in the free Thunderbolt port.
 
-#### Preferred — using the OWC TB3 dock Will already owns (❓ §7.6)
+#### The actual topology — MEASURED, and it already satisfies the requirement
 
 ```
-┌─ Thunderbolt / USB4 port 1  →  OWC TB3 dock ────────────────────────┐
-│   (2× Fresco FL1100 = TWO independent xHCI controllers)             │
+┌─ USB-A pair → AppleEmbeddedUSBXHCIFL1100@02000000 ─────────────────┐
+│   (embedded Fresco FL1100 — the M1 mini drives BOTH USB-A ports    │
+│    from this ONE controller)                                        │
 │                                                                     │
-│   ├─ Fresco controller #1 ── HackRF One          → DISCO + SURVEY   │
-│   │                          ALONE on this domain. 160–320 Mbps.    │
-│   │                          Nothing else here. Ever.               │
-│   │                                                                 │
-│   └─ Fresco controller #2 ── RSPduo 180903EF32   → DUAL DIGITAL     │
-│                              ALONE. ~128 Mbps. Dirty-release =      │
-│                              reboot (§5.4) → shortest boring path.  │
+│   └── RSPduo 180903EF32  → DUAL DIGITAL      ✅ ALREADY CORRECT     │
+│       ALONE on this controller. ~128 Mbps of ~300 (~43%).           │
+│       480 Mb/s confirmed. Dirty-release = reboot (§5.4).            │
+│                                                                     │
+│   ⚠️ Both USB-A ports share this controller — do NOT put another    │
+│      high-bandwidth device in the other USB-A port.                 │
 └─────────────────────────────────────────────────────────────────────┘
 
-┌─ USB-A  →  powered USB-3 hub, own PSU (GL3523 / VL817) ────────────┐
-│   (one host controller — the hub does NOT add a domain, §5.2)       │
+┌─ USB4/TB port → AppleT8103USBXHCI@00000000 ────────────────────────┐
+│   └── VIA Labs hub (the doc's own recommended chipset family)       │
+│       (the hub does NOT add a domain — it adds ports+power, §5.2)   │
 │                                                                     │
-│     port 1 ── RTL 83241970  Blog V4  → AIR      (~33 Mbps)          │
-│     port 2 ── RTL 56919602  NESDR    → GROUND   (~33 Mbps, §3.9)    │
-│     port 3 ── RTL 61108285  NESDR    → ACARS/VDL2 (~33 Mbps)        │
-│     port 4 ── spare (4th RTL → 3rd P25, or waterfall)               │
+│         ├── RTL 83241970  Blog V4  → AIR        ~33 Mbps  ✅ 480    │
+│         ├── RTL 61108285  NESDR    → ACARS/VDL2 ~33 Mbps  ✅ 480    │
+│         └── RTL 56919602  NESDR    → GROUND     ~33 Mbps  🔴 12!    │
 │                                                                     │
-│   ≈98 Mbps of ~300. Comfortable — these three genuinely can share.  │
+│   ≈98 Mbps of ~300 (~33%). Comfortable — these three genuinely      │
+│   can share.  🔴 56919602 negotiated FULL speed (12 Mb/s) and       │
+│   cannot carry 2.4 Msps — cable/port fault or hub brownout.         │
+│   ⚠️ Hub's external PSU is UNCONFIRMED. Check it first.             │
 └─────────────────────────────────────────────────────────────────────┘
 
-┌─ Thunderbolt port 2 ── free (headroom / 2nd dock / display) ───────┐
+┌─ USB4/TB port → AppleT8103USBXHCI@01000000 ────────────────────────┐
+│   EMPTY — RESERVED FOR THE HACKRF                                   │
+│                                                                     │
+│   └── HackRF One  → DISCO + SURVEY                                  │
+│       ALONE on its own controller. 160–320 Mbps (55–100%).          │
+│       Nothing else here. Ever.                                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-#### Fallback — no OWC dock
+**Both §5.3 non-negotiables are satisfied by the current cabling**: HackRF and RSPduo land on
+**different** xHCI controllers, and neither shares with the RTL hub. Phase 0's *"install the
+powered USB-3 hub"* item is effectively already done — pending only the PSU confirmation.
 
-```
-TB port 1 ── HackRF direct (USB-C→micro-B)   → own controller, if the TB ports
-TB port 2 ── RSPduo direct                     don't share one. ⚠️ VERIFY — this
-USB-A     ── powered hub → 3 RTLs              is the assumption to break first.
-```
-
-⚠️ **If the two TB ports turn out to share a USB controller, this fallback fails** — the
-HackRF and RSPduo would collide at ~450 Mbps on one domain. Then a TB dock (or a second) is a
-**hard requirement**, not a nice-to-have. `sb7-northstar-program.md:227` already flagged the
-sibling question for USB-A: *"if the two USB-A ports share one controller, consider a second
-hub."* **Phase 0 answers it.**
+> **The two §7.6 questions, answered by one `ioreg`:**
+> **Q6 — do the two TB ports share a controller? → NO.** Each has its own
+> `AppleT8103USBXHCI`, on two separate Thunderbolt buses (distinct Domain UUIDs). The
+> no-dock layout works. This also answers the sibling question
+> `sb7-northstar-program.md:227` left open: **yes, the two USB-A ports DO share one
+> controller** (the single FL1100) — currently harmless, because only the RSPduo is there.
+> **Q5 — is the OWC dock available? → Not attached, and no longer needed.**
 
 **Why the HackRF is alone and never shares:** at 20 Msps it is ~100% of a domain by itself;
 even at 10 Msps it is ~55%. Adding an RTL to its domain is how you get dropped samples — and
@@ -1921,6 +1947,23 @@ copied from it. This is the survey; the fix is its own change.
    class of thing §3.5's "read the tuner label off `View → Tuners`" step exists to catch.
 
 ### 7.6 Surfaced while writing the HackRF revision — two hardware questions
+
+> ## ✅ **BOTH CLOSED 2026-07-16 by one `ioreg -p IOUSB`** (Phase 0, `3371d49`).
+>
+> **Q6 — do Neptune's two Thunderbolt ports share a USB controller? → NO.** Each has its own
+> `AppleT8103USBXHCI` (`@00000000`, `@01000000`), on two separate Thunderbolt buses. The
+> no-dock layout works.
+>
+> **Q5 — is the OWC TB3 dock available? → Not attached, and NOT NEEDED.** Neptune has **three
+> independent xHCI controllers natively** — 2× `AppleT8103USBXHCI` (one per USB4 port) plus
+> an **embedded Fresco FL1100** driving the USB-A pair. That is exactly the 3-domain layout
+> §5.3 asks for, at zero cost. The RSPduo is *already* alone on the FL1100 and the 3 RTLs are
+> *already* on the VIA hub; the free TB port is reserved for the HackRF. **Keep the dock as
+> spare capacity, not a dependency.**
+>
+> **Nothing needs to be bought.** The original text is kept below as the reasoning trail.
+
+The original framing, retained for the record:
 
 Both are Phase 0 items, not Phase 1 blockers. Neither changes the design; both change what
 gets bought.
