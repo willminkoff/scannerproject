@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# ============================================================================
+# sdrplay-reset — bounce ONLY the vendor SDRplay apiService LaunchDaemon.
+#
+# Hardcoded single action (same pattern as scripts/disco-svc-ctl): the whole
+# point is that this can be granted NOPASSWD sudo WITHOUT opening up launchctl
+# wholesale. It does exactly one thing and nothing else.
+#
+# Why it needs root: com.sdrplay.service is a system LaunchDaemon (installed by
+# the SDRplay API package under /Library/LaunchDaemons), so restarting it is a
+# system-domain operation.
+#
+# Used by `sdr-killswitch --reset-sdrplay` when an RSP shows up MISSING/wedged
+# after a mode switch. Not needed for RTL-only handoffs.
+#
+# Install (optional):
+#   sudo cp sdrplay-reset /usr/local/sbin/sdrplay-reset
+#   sudo chown root:wheel /usr/local/sbin/sdrplay-reset
+#   sudo chmod 755 /usr/local/sbin/sdrplay-reset
+#   sudo cp sdrplay-reset.sudoers /etc/sudoers.d/sdrplay-reset   # then edit the username
+#   sudo visudo -c                                               # validate
+# ============================================================================
+set -euo pipefail
+
+SERVICE="com.sdrplay.service"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "sdrplay-reset: must run as root (via sudo)" >&2
+  exit 1
+fi
+
+echo "sdrplay-reset: kickstart -k system/$SERVICE"
+launchctl kickstart -k "system/$SERVICE"
+echo "sdrplay-reset: done — allow ~2s before opening an RSP"

@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+# ============================================================================
+# sdr-killswitch — hand the SDR hardware between the scanner and desktop apps.
+#
+# Exactly ONE owner of the radios at a time. The scannerproject daemons
+# (broker + chirp airband/ground + the managed SDRTrunk) claim the RSP/RTL
+# exclusively via the tuner-broker, so SDRangel / desktop SDRTrunk cannot open
+# them while the scanner is up. This tool flips cleanly between:
+#
+# Device ownership (fleet policy revision 4.1 / arrangement C):
+#   RSP  1809063632   -> DIGITAL, held by the managed SDRTrunk (native SDRplay API)
+#                        (the old digital RSP 180903EF32 was removed from the mini
+#                         2026-07-08 and taken to another host)
+#   RTL  83241970     -> AIRBAND, held by chirp-airband
+#   RTL  61108285     -> GROUND,  held by chirp-ground
+#   RTL  56919602     -> SOUNDING (not broker-integrated yet)
+#   So releasing frees the RSP (via SDRTrunk) AND the analog RTLs — exactly what
+#   SDRangel / desktop SDRTrunk need. The RSP goes through the shared sdrplay
+#   apiService, so the drain below matters most for it (and --reset-sdrplay is
+#   the escape hatch if it wedges).
+#
+#   scanner    normal scannerproject stack + sb5 UI (managed SDRTrunk = digital)
+#   sdrangel   scanner down, SDRangel launched for you to drive
+#   sdrtrunk   scanner down, desktop SDRTrunk launched for you to drive
+#   release    scanner down, nothing holding the radios (neutral hand-off)
+#   status     what's running, broker leases, whether targets are reachable
+#
+# MECHANISM (see macos/killswitch/README.md for the long version):
+#   Every scanner agent is a launchd user-agent with KeepAlive=true, and each
+#   SDR consumer runs UNDER `broker.client run ... -- <proc>`. The broker lease
+#   IS the open socket, so when the wrapped process exits the device is freed.
+#   Because of KeepAlive we STOP with `launchctl bootout` (a plain kill would
+#   respawn). After stopping a SoapySDR holder we wait DRAIN_SECONDS so the
+#   sdrplay apiService fully lets go before anything else opens the device.
+#
+# No sudo is needed for the core modes (user agents). --reset-sdrplay bounces
+# the vendor apiService LaunchDaemon and DOES need sudo (see that flag).
+# ============================================================================
+set -uo pipefail   # deliberately NOT -e: bootout of an unloaded agent is a
+                   # normal no-op we handle explicitly, not a fatal error.
+
+# ---------------------------------------------------------------------------
+# CONFIG — auto-detected at runtime; override here or via env if detection
+# can't find your install. `status` warns when a configured target is missing.
+# ---------------------------------------------------------------------------
+SDRANGEL_APP="${SDRANGEL_APP:-}"          # blank = auto-detect (/Applications, ~/Applications)
+SDRTRUNK_BIN="${SDRTRUNK_BIN:-}"          # blank = auto-detect ($HOME/SDRTrunk/bin/sdr-trunk)
+LAUNCH_AGENTS_DIR="${LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
+DRAIN_SECONDS="${DRAIN_SECONDS:-6}"       # SoapySDR/apiService settle beat (disco-svc-ctl rule)
+BROKER_SOCKET="${SCANNER_BROKER_SOCKET:-/opt/scannerproject/run/broker.sock}"
+BROKER_PY="${BROKER_PY:-/opt/scannerproject/venv/bin/python}"   # stdlib python that has broker/
+REPO_DIR="${SCANNERPROJECT_DIR:-/opt/scannerproject/app}"       # holds the broker package
+SDRPLAY_SERVICE="com.sdrplay.service"     # vendor apiService LaunchDaemon (stays UP; only reset on demand)
+
+GUI="gui/$(id -u)"
+
+# Scanner stack in START order (deps first: icecast sink -> broker -> claimers -> UI).
+SCANNER_AGENTS_START=(
+  com.scannerproject.icecast
+  com.scannerproject.tuner-broker
+  com.scannerproject.chirp-airband
+  com.scannerproject.chirp-ground
+  com.scannerproject.sdrtrunk
+  com.scannerproject.airband-ui
+  com.scannerproject.caffeinate
+)
+# Agents that actually hold a radio (stopped first, radios released fastest).
+DEVICE_HOLDERS=(
+  com.scannerproject.sdrtrunk
+  com.scannerproject.chirp-airband
+  com.scannerproject.chirp-ground
+  com.scannerproject.vfo          # retired under v3.0, but bootout defensively in case it's loaded
+)
+
+# ---------------------------------------------------------------------------
+# tiny logging
+# ---------------------------------------------------------------------------
+_bold() { printf '\033[1m%s\033[0m\n' "$*"; }
+log()   { printf '  %s\n' "$*"; }
+ok()    { printf '  \033[32m✓\033[0m %s\n' "$*"; }
+warn()  { printf '  \033[33m!\033[0m %s\n' "$*" >&2; }
+err()   { printf '  \033[31m✗\033[0m %s\n' "$*" >&2; }
+die()   { err "$*"; exit 1; }
+
+[ "$(uname -s)" = "Darwin" ] || die "this tool drives macOS launchd — run it on the Mac mini, not here."
+
+# ---------------------------------------------------------------------------
+# launchd helpers (idempotent — never fatal on already-in-target-state)
+# ---------------------------------------------------------------------------
+agent_loaded() { launchctl print "$GUI/$1" >/dev/null 2>&1; }
+
+bootout_agent() {
+  local label="$1"
+  if agent_loaded "$label"; then
+    launchctl bootout "$GUI/$label" >/dev/null 2>&1
+    # bootout returns before teardown finishes; give the SIGTERM a moment.
+    local n=0
+    while agent_loaded "$label" && [ "$n" -lt 10 ]; do sleep 0.3; n=$((n+1)); done
+    if agent_loaded "$label"; then warn "$label still loaded after bootout"; else ok "stopped $label"; fi
+  else
+    log "· $label not loaded"
+  fi
+}
+
+bootstrap_agent() {
+  local label="$1" plist="$LAUNCH_AGENTS_DIR/$1.plist"
+  if agent_loaded "$label"; then log "· $label already loaded"; return 0; fi
+  if [ ! -f "$plist" ]; then warn "no plist for $label at $plist — skipped (install it first)"; return 1; fi
+  if launchctl bootstrap "$GUI" "$plist" >/dev/null 2>&1; then ok "started $label"
+  else warn "bootstrap failed for $label (check $plist and its logs)"; fi
+}
+
+# ---------------------------------------------------------------------------
+# desktop-app detection + control
+# ---------------------------------------------------------------------------
+detect_sdrangel() {   # echoes a resolved .app path, or nothing
+  if [ -n "$SDRANGEL_APP" ]; then [ -d "$SDRANGEL_APP" ] && { echo "$SDRANGEL_APP"; return 0; } || return 1; fi
+  for p in "/Applications/SDRangel.app" "$HOME/Applications/SDRangel.app"; do
+    [ -d "$p" ] && { echo "$p"; return 0; }
+  done
+  return 1
+}
+detect_sdrtrunk() {   # echoes a resolved launcher path, or nothing
+  if [ -n "$SDRTRUNK_BIN" ]; then [ -x "$SDRTRUNK_BIN" ] && { echo "$SDRTRUNK_BIN"; return 0; } || return 1; fi
+  for p in "$HOME/SDRTrunk/bin/sdr-trunk" "/Applications/SDRTrunk/bin/sdr-trunk"; do
+    [ -x "$p" ] && { echo "$p"; return 0; }
+  done
+  return 1
+}
+
+sdrangel_running() { pgrep -x SDRangel >/dev/null 2>&1; }
+sdrtrunk_desktop_running() {
+  # the managed digital agent also runs sdr-trunk; "desktop" = sdr-trunk alive
+  # while the scanner agent that owns it is NOT loaded.
+  pgrep -f 'sdr-trunk|io.github.dsheirer' >/dev/null 2>&1
+}
+
+quit_sdrangel() {
+  sdrangel_running || { log "· SDRangel not running"; return 0; }
+  osascript -e 'quit app "SDRangel"' >/dev/null 2>&1 || true
+  local n=0; while sdrangel_running && [ "$n" -lt 10 ]; do sleep 0.5; n=$((n+1)); done
+  sdrangel_running && { pkill -x SDRangel >/dev/null 2>&1 || true; sleep 1; }
+  sdrangel_running && warn "SDRangel still running" || ok "quit SDRangel"
+}
+quit_sdrtrunk_desktop() {
+  sdrtrunk_desktop_running || { log "· desktop SDRTrunk not running"; return 0; }
+  pkill -f 'sdr-trunk|io.github.dsheirer' >/dev/null 2>&1 || true
+  local n=0; while sdrtrunk_desktop_running && [ "$n" -lt 10 ]; do sleep 0.5; n=$((n+1)); done
+  sdrtrunk_desktop_running && warn "desktop SDRTrunk still running" || ok "quit desktop SDRTrunk"
+}
+
+# ---------------------------------------------------------------------------
+# release verification
+# ---------------------------------------------------------------------------
+holders_alive() {   # prints any lingering scanner device-holder processes
+  pgrep -fl 'chirp\.daemon|broker\.client|sdr-trunk|io\.github\.dsheirer|scripts/vfo\.py|vfo\.py' 2>/dev/null || true
+}
+
+broker_up() { [ -S "$BROKER_SOCKET" ] && agent_loaded com.scannerproject.tuner-broker; }
+
+broker_leases_json() {   # echoes the broker's live lease list, or nothing
+  [ -x "$BROKER_PY" ] || return 1
+  ( cd "$REPO_DIR" 2>/dev/null && "$BROKER_PY" -m broker.client status --socket "$BROKER_SOCKET" ) 2>/dev/null || return 1
+}
+
+drain() { log "draining ${DRAIN_SECONDS}s for the apiService to release…"; sleep "$DRAIN_SECONDS"; }
+
+# ---------------------------------------------------------------------------
+# commands
+# ---------------------------------------------------------------------------
+cmd_release() {
+  _bold "release — taking the scanner down and freeing the radios"
+  # Stop radio holders first (fastest device release), then the rest of the stack.
+  for a in "${DEVICE_HOLDERS[@]}"; do bootout_agent "$a"; done
+  for a in "${SCANNER_AGENTS_START[@]}"; do
+    case " ${DEVICE_HOLDERS[*]} " in *" $a "*) : ;; *) bootout_agent "$a";; esac
+  done
+  drain
+  local lingering; lingering="$(holders_alive)"
+  if [ -n "$lingering" ]; then
+    err "radios may NOT be free — these still hold handles:"; printf '    %s\n' "$lingering"
+    warn "re-run 'release', or 'sdr-killswitch status' to inspect"; return 1
+  fi
+  ok "no scannerproject processes hold a radio — devices are free for a desktop app"
+  if launchctl print "system/$SDRPLAY_SERVICE" >/dev/null 2>&1; then
+    log "sdrplay apiService is up (SDRangel/SDRTrunk will share it)"
+  else
+    warn "sdrplay apiService not detected — an RSP app may need it (see --reset-sdrplay)"
+  fi
+}
+
+cmd_scanner() {
+  _bold "scanner — bringing the scannerproject stack + sb5 up"
+  quit_sdrangel
+  quit_sdrtrunk_desktop
+  drain   # let any desktop app fully release before the broker/claimers open
+  for a in "${SCANNER_AGENTS_START[@]}"; do
+    bootstrap_agent "$a"
+    # give the broker a beat to come up before the claimers hit it
+    [ "$a" = "com.scannerproject.tuner-broker" ] && sleep 2
+  done
+  log ""
+  log "sb5 UI: http://localhost:5050/sb5  (UI_PORT from scannerproject.env; or the box's Tailscale name)"
+  log "check decode: 'sdr-killswitch status'"
+}
+
+cmd_sdrangel() {
+  _bold "sdrangel — releasing the scanner, launching SDRangel"
+  local app; app="$(detect_sdrangel)" || die "SDRangel.app not found. Set SDRANGEL_APP at the top of this script (checked /Applications and ~/Applications)."
+  quit_sdrtrunk_desktop
+  cmd_release || warn "release reported lingering handles — SDRangel may fail to open the device"
+  log "launching $app"
+  open -a "$app" || die "open -a failed for $app"
+  ok "SDRangel launched — it now owns the radios. Run 'sdr-killswitch scanner' to switch back."
+}
+
+cmd_sdrtrunk() {
+  _bold "sdrtrunk — releasing the scanner, launching desktop SDRTrunk"
+  local bin; bin="$(detect_sdrtrunk)" || die "SDRTrunk launcher not found. Set SDRTRUNK_BIN at the top of this script (checked ~/SDRTrunk/bin/sdr-trunk)."
+  quit_sdrangel
+  cmd_release || warn "release reported lingering handles — SDRTrunk may fail to open the device"
+  log "launching $bin"
+  nohup "$bin" >/tmp/sdrtrunk-desktop.log 2>&1 &
+  disown 2>/dev/null || true
+  ok "desktop SDRTrunk launched (log: /tmp/sdrtrunk-desktop.log). Run 'sdr-killswitch scanner' to switch back."
+}
+
+current_mode() {
+  # scanner if the core agents are loaded; else whichever desktop app is up; else released.
+  if agent_loaded com.scannerproject.tuner-broker || agent_loaded com.scannerproject.chirp-airband; then
+    echo scanner; return
+  fi
+  sdrangel_running && { echo sdrangel; return; }
+  sdrtrunk_desktop_running && { echo sdrtrunk; return; }
+  echo released
+}
+
+cmd_status() {
+  _bold "sdr-killswitch status"
+  log "mode: $(current_mode)"
+  echo
+  _bold "scanner agents (launchd $GUI)"
+  for a in "${SCANNER_AGENTS_START[@]}"; do
+    if agent_loaded "$a"; then ok "$a"; else log "· $a (not loaded)"; fi
+  done
+  echo
+  _bold "desktop apps"
+  sdrangel_running && ok "SDRangel running" || log "· SDRangel not running"
+  sdrtrunk_desktop_running && ok "SDRTrunk (sdr-trunk) running" || log "· desktop SDRTrunk not running"
+  echo
+  _bold "launch targets (config)"
+  local app bin
+  # print to stdout (not warn/stderr) so the report stays in order
+  if app="$(detect_sdrangel)"; then ok "SDRangel: $app"; else printf '  \033[33m!\033[0m %s\n' "SDRangel not found — set SDRANGEL_APP"; fi
+  if bin="$(detect_sdrtrunk)"; then ok "SDRTrunk: $bin"; else printf '  \033[33m!\033[0m %s\n' "SDRTrunk launcher not found — set SDRTRUNK_BIN"; fi
+  echo
+  _bold "broker"
+  if broker_up; then
+    ok "tuner-broker up ($BROKER_SOCKET)"
+    local leases; if leases="$(broker_leases_json)"; then
+      # show just the active-lease serials/consumers if jq/python are handy
+      printf '%s\n' "$leases" | "$BROKER_PY" - <<'PY' 2>/dev/null || log "  (raw status printed above)"
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+leases = d.get("leases") or (d.get("status", {}) or {}).get("leases") or []
+if not leases:
+    print("  no active leases (radios idle within the broker)")
+for L in leases:
+    print(f"  lease {L.get('serial','?')} -> {L.get('consumer','?')} ({L.get('role','?')})")
+PY
+    else
+      log "  (broker up; lease query needs $BROKER_PY with the broker package on $REPO_DIR)"
+    fi
+  else
+    log "· tuner-broker not up (expected outside 'scanner' mode)"
+  fi
+  echo
+  _bold "lingering radio holders"
+  local lingering; lingering="$(holders_alive)"
+  if [ -n "$lingering" ]; then printf '  %s\n' "$lingering"; else ok "none — no scannerproject process holds a radio"; fi
+}
+
+cmd_reset_sdrplay() {
+  _bold "--reset-sdrplay — bouncing the vendor apiService ($SDRPLAY_SERVICE)"
+  local helper; helper="$(dirname "$0")/sdrplay-reset"
+  if [ -x "$helper" ]; then
+    sudo -n "$helper" 2>/dev/null || sudo "$helper" || die "sdrplay-reset failed"
+  else
+    warn "helper $helper not installed; calling launchctl directly (will prompt for sudo)"
+    sudo launchctl kickstart -k "system/$SDRPLAY_SERVICE" || die "kickstart failed"
+  fi
+  ok "apiService bounced — give it ~2s before opening an RSP"
+}
+
+usage() {
+  cat <<EOF
+$(_bold "sdr-killswitch — one owner of the SDR hardware at a time")
+
+Usage: sdr-killswitch <command> [--reset-sdrplay]
+
+Commands:
+  status     Show current mode, agents, broker leases, launch-target health.
+  release    Take the scanner down and free the radios (neutral hand-off).
+  scanner    Bring the scannerproject stack + sb5 UI up (quits desktop apps).
+  sdrangel   Release the scanner, then launch SDRangel for you to drive.
+  sdrtrunk   Release the scanner, then launch desktop SDRTrunk for you to drive.
+
+Options:
+  --reset-sdrplay   Also bounce the vendor sdrplay apiService (needs sudo).
+                    Use when an RSP shows MISSING/wedged after switching.
+
+Config lives at the top of this script (SDRANGEL_APP, SDRTRUNK_BIN, …).
+See macos/killswitch/README.md.
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# arg parse
+# ---------------------------------------------------------------------------
+CMD="${1:-}"; shift || true
+RESET_SDRPLAY=0
+for arg in "$@"; do
+  case "$arg" in
+    --reset-sdrplay) RESET_SDRPLAY=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "unknown option: $arg (see --help)";;
+  esac
+done
+
+case "$CMD" in
+  status)   cmd_status ;;
+  release)  cmd_release; [ "$RESET_SDRPLAY" = 1 ] && cmd_reset_sdrplay || true ;;
+  scanner)  cmd_scanner ;;
+  sdrangel) cmd_sdrangel; [ "$RESET_SDRPLAY" = 1 ] && cmd_reset_sdrplay || true ;;
+  sdrtrunk) cmd_sdrtrunk; [ "$RESET_SDRPLAY" = 1 ] && cmd_reset_sdrplay || true ;;
+  ""|-h|--help) usage; [ -z "$CMD" ] && exit 2 || exit 0 ;;
+  *) die "unknown command: $CMD (see --help)";;
+esac

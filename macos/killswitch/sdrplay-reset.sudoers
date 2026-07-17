@@ -1,0 +1,9 @@
+# /etc/sudoers.d/sdrplay-reset
+# Let the scanner user bounce ONLY the SDRplay apiService, no password, with no
+# wider launchctl access. Install with:
+#   sudo cp sdrplay-reset.sudoers /etc/sudoers.d/sdrplay-reset
+#   sudo chmod 440 /etc/sudoers.d/sdrplay-reset
+#   sudo visudo -c        # must report "parsed OK"
+#
+# Replace WILL_USERNAME with the output of `whoami` on the Mac mini.
+WILL_USERNAME ALL=(root) NOPASSWD: /usr/local/sbin/sdrplay-reset
