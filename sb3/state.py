@@ -58,3 +58,27 @@ class State:
     def describe_clear(self) -> str:
         """The command `resume` would run to clear it. Pure."""
         return f"rm -f {self.killed_path}"
+
+    # -- mutation (Phase 1.1) ---------------------------------------------
+
+    def arm(self) -> None:
+        """Positively mark SB3 as killed.
+
+        Armed FIRST, before anything is stopped (§4.3 step 1). If the teardown
+        dies halfway, the sentinel is already there and the reconciler stays
+        out — the half-torn-down state reads as "killed", not as "healthy".
+        Arming last would invert that.
+        """
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.killed_path.touch()
+
+    def clear(self) -> None:
+        """Clear the sentinel. Only `resume` does this, and only at the END.
+
+        Cleared LAST, after the agents are back, so a resume that fails partway
+        leaves SB3 still marked killed rather than half-alive and unmarked.
+        """
+        try:
+            self.killed_path.unlink()
+        except FileNotFoundError:
+            pass

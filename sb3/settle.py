@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import subprocess
 import time
+from pathlib import Path
 from typing import Callable, List, Optional
 
 #: Settle beat after stopping a SoapySDR/apiService holder, in seconds.
@@ -96,3 +97,36 @@ def drain(*, execute: bool, seconds: float = DRAIN_SECONDS,
     if emit:
         emit(f"draining {seconds:g}s for the apiService to release…")
     time.sleep(seconds)
+
+
+def bootstrap(label: str, plist: "Path", uid: int, *, execute: bool,
+              emit: Optional[Callable[[str], None]] = None,
+              settle_sec: float = 2.0) -> bool:
+    """Load one agent. With execute=False this ONLY prints what it would run.
+
+    Returns True if the agent is loaded afterwards.  `bootstrap` returning 0 is
+    NOT proof the job is up — launchd accepts the job and starts it
+    asynchronously, so we wait a beat and then confirm with `launchctl print`.
+    Trusting the return code here would be a check that doesn't check (§4.6).
+    """
+    cmd = ["launchctl", "bootstrap", gui_domain(uid), str(plist)]
+    if not execute:
+        if emit:
+            emit(f"would: {' '.join(cmd)}")
+        return True
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15.0)
+    except (OSError, subprocess.SubprocessError) as exc:
+        if emit:
+            emit(f"ERROR: bootstrap {label} raised {exc!r}")
+        return False
+    time.sleep(settle_sec)
+    up = is_loaded(label, uid)
+    if emit:
+        if up:
+            emit(f"started {label}")
+        else:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            emit(f"ERROR: {label} not loaded after bootstrap"
+                 f"{f' — {detail}' if detail else ''}")
+    return up

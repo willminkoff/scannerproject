@@ -122,13 +122,7 @@ def cmd_kill(*, execute: bool = False, emit: Emit = _emit_default,
     uid = uid if uid is not None else os.getuid()
 
     if execute:
-        emit("REFUSED: --execute is not enabled in this build.")
-        emit("")
-        emit("  Phase 1 ships the kill ORDERING and the invariant CHECK, dry-run")
-        emit("  only, so both can be reviewed before anything can stop a process.")
-        emit("  Phase 1.1 enables execution after Will's review (§6).")
-        emit("  Re-run without --execute to see the full plan.")
-        return EXIT_REFUSED
+        return _kill_execute(emit=emit, state=state, uid=uid)
 
     emit("sb3-ctl kill  [DRY RUN — nothing will be stopped]")
     emit("")
@@ -195,6 +189,160 @@ def cmd_kill(*, execute: bool = False, emit: Emit = _emit_default,
     return rc
 
 
+def _kill_execute(*, emit: Emit, state: State, uid: int) -> int:
+    """Phase 1.1: the real teardown, in §4.3 order, with the invariant proven.
+
+    Touches ONLY SB3_LAYER labels. There is no code path here that can reach a
+    BACKEND label — `kill_sequence()` is built from KILL_ORDER, and a test
+    asserts KILL_ORDER and BACKEND are disjoint.
+    """
+    emit("sb3-ctl kill --execute")
+    emit("")
+
+    # 1. Sample the invariant BEFORE touching anything. Without a before-state
+    #    there is nothing to compare against, and "verified" would be a guess.
+    before = {m: backends.mount_state(m) for m in ownership.GUARDED_MOUNTS}
+    emit("  Guarded mounts BEFORE:")
+    for m in before.values():
+        emit(f"    {m.mount:<22} {m.http_status}")
+    emit("")
+
+    loaded = backends.launchctl_loaded()
+    buckets = ownership.classify_all(loaded)
+
+    if buckets["unclassified"]:
+        emit("  ✗ REFUSING: unclassified com.scannerproject.* agents are loaded.")
+        emit("    `kill` has no opinion about these, and guessing is how the")
+        emit("    boundary stops being real. Classify them in sb3/ownership.py:")
+        for label in buckets["unclassified"]:
+            emit(f"      ? {label}")
+        return EXIT_REFUSED
+
+    # 2. Arm the sentinel FIRST (§4.3 step 1). If teardown dies halfway, the
+    #    half-torn-down state must read as "killed", not as "healthy".
+    state.arm()
+    emit(f"  ✓ armed sentinel: {state.killed_path}")
+    emit("")
+
+    # 3. Teardown, consumers -> brokers.
+    seq = ownership.kill_sequence(loaded)
+    if seq:
+        emit("  Teardown (§4.3 order — lease consumers BEFORE the brokers):")
+        for label in seq:
+            settle.bootout(label, uid, execute=True,
+                           emit=lambda m: emit(f"    {m}"))
+    else:
+        emit("  (no SB3 agents loaded — nothing to stop)")
+    emit("")
+
+    # 4. Settle beat.
+    settle.drain(execute=True, emit=lambda m: emit(f"  {m}"))
+    emit("")
+
+    # 5. Confirm the SB3 layer is actually gone. bootout returning is not proof.
+    still = [l for l in seq if settle.is_loaded(l, uid)]
+    if still:
+        emit(f"  ✗ still loaded after bootout: {', '.join(still)}")
+        return EXIT_INVARIANT_VIOLATED
+    emit("  ✓ SB3 layer is gone — every targeted agent is unloaded")
+    emit("")
+
+    # 6. Confirm the backend is untouched. This is the invariant `kill` exists
+    #    to protect, and it is proven, not assumed.
+    emit("  Backend (must be untouched):")
+    now_loaded = set(backends.launchctl_loaded())
+    backend_before = set(buckets["backend"])
+    lost = sorted(backend_before - now_loaded)
+    for label in sorted(backend_before):
+        emit(f"    {'✓' if label in now_loaded else '✗ LOST'} {label}")
+    if lost:
+        emit(f"  ✗ BACKEND AGENTS DISAPPEARED: {', '.join(lost)}")
+        return EXIT_INVARIANT_VIOLATED
+    emit("")
+
+    rc = verify_mounts(before, emit=emit, label="Invariant check (§4.3 step 6)")
+    emit("")
+    if rc == EXIT_OK:
+        emit("  kill complete, invariant held.")
+    else:
+        emit("  kill completed but THE INVARIANT FAILED — see above.")
+    return rc
+
+
+def cmd_resume_execute(*, emit: Emit, state: State, uid: int) -> int:
+    """Phase 1.1: bring the SB3 layer back.
+
+    §4.4: resume brings the BROKER back FIRST and observes before asserting —
+    the reverse of the kill order. It adopts live backend state and never
+    replays a snapshot; on divergence the live backend wins.
+
+    Phase 1's agents are stubs with nothing to reconcile, so "observe before
+    asserting" is currently just "observe". The ordering is what is being
+    established.
+    """
+    emit("sb3-ctl resume --execute")
+    emit("")
+
+    before = {m: backends.mount_state(m) for m in ownership.GUARDED_MOUNTS}
+    emit("  Guarded mounts BEFORE:")
+    for m in before.values():
+        emit(f"    {m.mount:<22} {m.http_status}")
+    emit("")
+
+    # Brokers first — the reverse of the teardown order (§4.4).
+    order = [l for l in reversed(ownership.KILL_ORDER)
+             if l in install_mod_managed()]
+    emit("  Bringing SB3 back (brokers FIRST — reverse of kill order, §4.4):")
+    for label in order:
+        plist = install_mod_target(label)
+        if not plist.exists():
+            emit(f"    ✗ {label}: plist not installed ({plist}) — run `install --execute`")
+            return EXIT_INVARIANT_VIOLATED
+        if settle.is_loaded(label, uid):
+            emit(f"    · {label} already loaded")
+            continue
+        rc = settle.bootstrap(label, plist, uid, execute=True,
+                              emit=lambda m: emit(f"    {m}"))
+        if not rc:
+            return EXIT_INVARIANT_VIOLATED
+    emit("")
+
+    emit("  Observing live backend state (adopt, never clobber — §4.4):")
+    ds_list = backends.sdrangel_devicesets()
+    if ds_list:
+        for ds in ds_list:
+            flag = "  ← PHANTOM" if ds.is_phantom else ""
+            emit(f"    DS{ds.index}  hw={ds.hw_type}  serial={ds.serial}  "
+                 f"state={ds.state}{flag}")
+    else:
+        emit("    (SDRangel unreachable — observed, not corrected)")
+    emit("    No assertions made. On divergence the LIVE backend wins; a human")
+    emit("    may have retuned by hand while SB3 was gone, and that is intent.")
+    emit("")
+
+    # Sentinel cleared LAST — a resume that fails partway must leave SB3 still
+    # marked killed rather than half-alive and unmarked.
+    state.clear()
+    emit(f"  ✓ cleared sentinel: {state.killed_path}")
+    emit("")
+
+    rc = verify_mounts(before, emit=emit, label="Invariant check")
+    emit("")
+    emit("  resume complete, invariant held." if rc == EXIT_OK
+         else "  resume completed but THE INVARIANT FAILED — see above.")
+    return rc
+
+
+def install_mod_managed():
+    from . import ownership as _o
+    return _o.MANAGED_AGENTS
+
+
+def install_mod_target(label: str):
+    from .install import LAUNCH_AGENTS_DIR
+    return LAUNCH_AGENTS_DIR / f"{label}.plist"
+
+
 def verify_mounts(before: Dict[str, backends.MountState], *, emit: Emit,
                   label: str = "Invariant check") -> int:
     """Re-sample the guarded mounts and compare. Non-zero if one regressed.
@@ -229,7 +377,7 @@ def verify_mounts(before: Dict[str, backends.MountState], *, emit: Emit,
 # ---------------------------------------------------------------------------
 
 def cmd_resume(*, execute: bool = False, emit: Emit = _emit_default,
-               state: Optional[State] = None) -> int:
+               state: Optional[State] = None, uid: Optional[int] = None) -> int:
     """Phase 1: observe and report. Never assert.
 
     §4.4's invariant: resume must read what the backends are ACTUALLY doing right
@@ -242,9 +390,14 @@ def cmd_resume(*, execute: bool = False, emit: Emit = _emit_default,
     config every 10 minutes and would clobber exactly that. There is no
     reconciler yet, so all this can honestly do is show the divergence.
     """
+    state = state or State()
+    uid = uid if uid is not None else os.getuid()
+
+    if execute:
+        return cmd_resume_execute(emit=emit, state=state, uid=uid)
+
     emit("sb3-ctl resume  [Phase 1: adopt-only, no reconciler yet]")
     emit("")
-    state = state or State()
 
     if not state.is_killed():
         emit("  sentinel absent — SB3 is not marked killed.")

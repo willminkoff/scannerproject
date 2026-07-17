@@ -155,10 +155,79 @@ class TestDryRunTouchesNothing(unittest.TestCase):
             self.assertFalse(state.killed_path.exists(),
                              "dry run must not arm the sentinel")
 
-    def test_execute_is_refused(self):
-        rc = killswitch.cmd_kill(execute=True, emit=self._emit)
+    def test_execute_refuses_when_unclassified_agents_are_loaded(self):
+        # Phase 1.1 enables --execute, so the blanket refusal is gone. What must
+        # NOT go is the refusal to act while the boundary is ambiguous: an agent
+        # kill has no opinion about is a hard stop, not a shrug.
+        with mock.patch.object(backends, "launchctl_loaded",
+                               return_value=["com.scannerproject.mystery"]), \
+             mock.patch.object(backends, "mount_state",
+                               side_effect=lambda m, **kw: backends.MountState(m, 200, True)), \
+             mock.patch("subprocess.run") as run, \
+             mock.patch("time.sleep"):
+            rc = killswitch.cmd_kill(execute=True, emit=self._emit,
+                                     state=State(Path("/nonexistent")), uid=501)
         self.assertEqual(rc, killswitch.EXIT_REFUSED)
-        self.assertIn("REFUSED", "\n".join(self.lines))
+        run.assert_not_called()
+        self.assertIn("REFUSING", "\n".join(self.lines))
+
+    def test_execute_never_boots_out_a_backend_label(self):
+        # The load-bearing safety claim now that --execute is live: every
+        # bootout argv must name an SB3 label. Nothing can reach a backend.
+        import tempfile
+        booted = []
+
+        def fake_run(cmd, **kw):
+            booted.append(cmd)
+            return mock.Mock(returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(backends, "launchctl_loaded",
+                               return_value=["com.scannerproject.sb3-broker",
+                                             "com.scannerproject.sb3-controller",
+                                             "com.scannerproject.sdrangel",
+                                             "com.scannerproject.sdrtrunk",
+                                             "com.scannerproject.icecast"]), \
+             mock.patch.object(backends, "mount_state",
+                               side_effect=lambda m, **kw: backends.MountState(m, 200, True)), \
+             mock.patch.object(settle, "is_loaded", return_value=False), \
+             mock.patch("subprocess.run", side_effect=fake_run), \
+             mock.patch("time.sleep"):
+            killswitch.cmd_kill(execute=True, emit=self._emit,
+                                state=State(Path(td) / "s"), uid=501)
+
+        self.assertTrue(booted, "expected real bootout calls")
+        for cmd in booted:
+            target = cmd[-1]
+            for backend_label in ownership.BACKEND:
+                self.assertNotIn(backend_label, target,
+                                 f"kill --execute tried to touch backend {backend_label}")
+
+    def test_execute_arms_the_sentinel_before_stopping_anything(self):
+        import tempfile
+        order = []
+        with tempfile.TemporaryDirectory() as td:
+            state = State(Path(td) / "s")
+            real_arm = state.arm
+
+            def tracking_arm():
+                order.append("arm")
+                real_arm()
+
+            with mock.patch.object(state, "arm", side_effect=tracking_arm), \
+                 mock.patch.object(backends, "launchctl_loaded",
+                                   return_value=["com.scannerproject.sb3-broker"]), \
+                 mock.patch.object(backends, "mount_state",
+                                   side_effect=lambda m, **kw: backends.MountState(m, 200, True)), \
+                 mock.patch.object(settle, "is_loaded", return_value=False), \
+                 mock.patch("subprocess.run",
+                            side_effect=lambda c, **k: (order.append("bootout"),
+                                                        mock.Mock(returncode=0, stdout="", stderr=""))[1]), \
+                 mock.patch("time.sleep"):
+                killswitch.cmd_kill(execute=True, emit=self._emit, state=state, uid=501)
+        self.assertEqual(order[0], "arm",
+                         "sentinel must be armed BEFORE teardown — a half-torn-down "
+                         "state must read as killed, not healthy")
 
     def test_bootout_dry_run_does_not_call_subprocess(self):
         with mock.patch("subprocess.run") as run:
@@ -298,14 +367,65 @@ class TestInstallDryRun(unittest.TestCase):
         run.assert_not_called()
         self.assertIn("NOT loaded by install", "\n".join(self.lines))
 
-    def test_install_execute_is_refused(self):
-        rc = install.cmd_install(execute=True, emit=self._emit)
-        self.assertEqual(rc, killswitch.EXIT_REFUSED)
-        self.assertIn("REFUSED", "\n".join(self.lines))
+    def test_install_execute_writes_valid_plists_into_the_given_dir(self):
+        # NOTE: always pass agents_dir. A test that omits it writes to the
+        # REAL ~/Library/LaunchAgents — which this suite did exactly once,
+        # before this comment existed.
+        import plistlib
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            agents = Path(td) / "LaunchAgents"
+            rc = install.cmd_install(execute=True, emit=self._emit, agents_dir=agents)
+            self.assertEqual(rc, killswitch.EXIT_OK)
+            written = sorted(p.name for p in agents.iterdir())
+            self.assertEqual(written, [f"{l}.plist"
+                                       for l in sorted(ownership.MANAGED_AGENTS)])
+            for f in agents.iterdir():
+                parsed = plistlib.loads(f.read_bytes())
+                self.assertIn(parsed["Label"], ownership.MANAGED_AGENTS)
+                self.assertEqual(parsed["KeepAlive"], {"SuccessfulExit": False})
+                self.assertNotIn("{{", f.read_text())
+                self.assertEqual(f.stat().st_mode & 0o777, 0o644)
 
-    def test_uninstall_execute_is_refused(self):
-        rc = install.cmd_uninstall(execute=True, emit=self._emit)
-        self.assertEqual(rc, killswitch.EXIT_REFUSED)
+    def test_install_execute_still_does_not_load(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch("subprocess.run") as run:
+            install.cmd_install(execute=True, emit=self._emit,
+                                agents_dir=Path(td) / "LaunchAgents")
+        run.assert_not_called()
+        self.assertIn("Installed, NOT loaded", "\n".join(self.lines))
+
+    def test_install_execute_refuses_an_unparseable_template(self):
+        # §4.6: never ship a file we have not parsed. plutil is lenient about
+        # `--` in XML comments; plistlib is not, and so is launchd.
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            agents = Path(td) / "LaunchAgents"
+            with mock.patch.object(Path, "read_text", return_value="<not a plist"):
+                rc = install.cmd_install(execute=True, emit=self._emit, agents_dir=agents)
+            self.assertEqual(rc, killswitch.EXIT_INVARIANT_VIOLATED)
+            self.assertIn("does not parse", "\n".join(self.lines))
+            self.assertFalse(any(agents.iterdir()) if agents.exists() else False,
+                             "must not write a plist it could not parse")
+
+    def test_uninstall_execute_removes_only_sb3_plists(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            agents = Path(td) / "LaunchAgents"
+            agents.mkdir()
+            for label in ownership.MANAGED_AGENTS:
+                (agents / f"{label}.plist").write_text("<plist/>")
+            bystander = agents / "com.scannerproject.sdrangel.plist"
+            bystander.write_text("<plist/>")
+            with mock.patch.object(settle, "is_loaded", return_value=False):
+                rc = install.cmd_uninstall(execute=True, emit=self._emit,
+                                           agents_dir=agents)
+            self.assertEqual(rc, killswitch.EXIT_OK)
+            for label in ownership.MANAGED_AGENTS:
+                self.assertFalse((agents / f"{label}.plist").exists())
+            self.assertTrue(bystander.exists(),
+                            "uninstall must never remove a backend plist")
 
     def test_uninstall_dry_run_removes_nothing(self):
         import tempfile

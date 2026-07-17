@@ -19,6 +19,7 @@ than discovering a bad plist by watching an agent flap.  ``install`` never loads
 from __future__ import annotations
 
 import os
+import plistlib
 import sys
 from pathlib import Path
 from typing import Callable, List, NamedTuple, Optional
@@ -72,16 +73,10 @@ def plan(agents_dir: Optional[Path] = None) -> List[PlistPlan]:
 
 def cmd_install(*, execute: bool = False, emit: Emit = print,
                 agents_dir: Optional[Path] = None) -> int:
-    from .killswitch import EXIT_OK, EXIT_REFUSED
+    from .killswitch import EXIT_INVARIANT_VIOLATED, EXIT_OK
 
     if execute:
-        emit("REFUSED: `install --execute` is not enabled in this build.")
-        emit("")
-        emit("  Phase 1 ships the install MECHANISM and its plan output, dry-run")
-        emit("  only, so both can be reviewed before anything is written to")
-        emit("  ~/Library/LaunchAgents/. Phase 1.1 = install + enable --execute,")
-        emit("  and that is Will's explicit greenlight, not a default (§6).")
-        return EXIT_REFUSED
+        return _install_execute(emit=emit, agents_dir=agents_dir)
 
     plans = plan(agents_dir)
     python = sys.executable or "/usr/bin/python3"
@@ -117,14 +112,68 @@ def cmd_install(*, execute: bool = False, emit: Emit = print,
     return EXIT_OK
 
 
+def _install_execute(*, emit: Emit, agents_dir: Optional[Path] = None) -> int:
+    """Phase 1.1: actually write the plists. Still never LOADS them."""
+    from .killswitch import EXIT_INVARIANT_VIOLATED, EXIT_OK
+
+    plans = plan(agents_dir)
+    python = sys.executable or "/usr/bin/python3"
+    repo = str(repo_dir())
+    home = os.path.expanduser("~")
+
+    emit("sb3-ctl install --execute")
+    emit("")
+    emit(f"  python : {python}")
+    emit(f"  repo   : {repo}")
+    emit("")
+
+    target_dir = agents_dir or LAUNCH_AGENTS_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for p in plans:
+        if not p.template_exists:
+            emit(f"  ✗ {p.label}: template MISSING at {p.template} — refusing")
+            return EXIT_INVARIANT_VIOLATED
+
+        rendered = render(p.template.read_text(),
+                          python=python, repo=repo, home=home)
+
+        # Validate BEFORE writing. A plist that launchd cannot parse fails
+        # silently at load — §4.6's pattern in a different costume. plutil is
+        # lenient (it accepts `--` inside XML comments); plistlib is not. Parse
+        # with the stricter one, and never ship a file we have not parsed.
+        if "{{" in rendered:
+            emit(f"  ✗ {p.label}: unsubstituted placeholder remains — refusing")
+            return EXIT_INVARIANT_VIOLATED
+        try:
+            parsed = plistlib.loads(rendered.encode())
+        except Exception as exc:
+            emit(f"  ✗ {p.label}: rendered plist does not parse ({exc!r}) — refusing")
+            return EXIT_INVARIANT_VIOLATED
+        if parsed.get("Label") != p.label:
+            emit(f"  ✗ {p.label}: Label mismatch ({parsed.get('Label')!r}) — refusing")
+            return EXIT_INVARIANT_VIOLATED
+
+        p.target.write_text(rendered)
+        p.target.chmod(0o644)
+        emit(f"  ✓ wrote {p.target}")
+        emit(f"      Label={parsed['Label']}  KeepAlive={parsed['KeepAlive']}")
+        emit(f"      {' '.join(parsed['ProgramArguments'])}")
+
+    emit("")
+    emit("  Installed, NOT loaded. `install` writes; `launchctl bootstrap` loads.")
+    emit("  To load:")
+    for p in plans:
+        emit(f"    launchctl bootstrap gui/$(id -u) {p.target}")
+    return EXIT_OK
+
+
 def cmd_uninstall(*, execute: bool = False, emit: Emit = print,
                   agents_dir: Optional[Path] = None) -> int:
-    from .killswitch import EXIT_OK, EXIT_REFUSED
+    from .killswitch import EXIT_OK
 
     if execute:
-        emit("REFUSED: `uninstall --execute` is not enabled in this build.")
-        emit("  Phase 1.1 enables it after review (§6).")
-        return EXIT_REFUSED
+        return _uninstall_execute(emit=emit, agents_dir=agents_dir)
 
     plans = plan(agents_dir)
     emit("sb3-ctl uninstall  [DRY RUN — nothing will be removed]")
@@ -145,4 +194,35 @@ def cmd_uninstall(*, execute: bool = False, emit: Emit = print,
     emit("  SB3's to remove (§4.2).")
     emit("")
     emit("  DRY RUN complete. Nothing was removed.")
+    return EXIT_OK
+
+
+def _uninstall_execute(*, emit: Emit, agents_dir: Optional[Path] = None) -> int:
+    """Phase 1.1: bootout then remove. Only ever touches SB3's own plists."""
+    import os as _os
+
+    from . import settle
+    from .killswitch import EXIT_OK
+
+    plans = plan(agents_dir)
+    uid = _os.getuid()
+
+    emit("sb3-ctl uninstall --execute")
+    emit("")
+    emit("  Stopping before removing — a plist deleted out from under a loaded")
+    emit("  agent leaves launchd holding a job whose definition is gone.")
+    emit("")
+    for p in plans:
+        if settle.is_loaded(p.label, uid):
+            settle.bootout(p.label, uid, execute=True, emit=lambda m: emit(f"    {m}"))
+        else:
+            emit(f"    · {p.label} not loaded")
+        if p.target.exists():
+            p.target.unlink()
+            emit(f"    removed {p.target}")
+        else:
+            emit(f"    · {p.target.name} not present")
+    emit("")
+    emit("  Touched ONLY the SB3 plists above. Backend agents are not SB3's to")
+    emit("  remove (§4.2).")
     return EXIT_OK
