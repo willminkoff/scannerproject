@@ -5,6 +5,30 @@
 **Scope:** read-only measurement against `docs/sb3-neptune-architecture.md` @ `98f7356` (§5, §6 Phase 0, §7.6).
 **Nothing on the box was modified, restarted, or reconfigured.**
 
+> ## 🟡 **PHASE 0: COMPLETE, WITH HARDWARE CAVEATS** — updated 2026-07-16 evening
+>
+> **Every measurement Phase 0 existed to take has been taken, and the topology question is
+> fully answered — better than the plan assumed** (§1). What remains is **three items that
+> need Will's hands** and cannot be closed remotely (§6). None of them block repo-side work,
+> and **Phase 1 has proceeded**: the scaffold is delivered on **`sb3-phase1-scaffold`
+> (`95caf4b`)**, dry-run only, `--execute` refused.
+>
+> | | Status |
+> |---|---|
+> | USB controller map | ✅ **measured** — 3 native controllers, no dock needed |
+> | §7.6 Q5 + Q6 | ✅ **both closed** |
+> | "Both NESDRs off-bus" premise | ✅ **disproven** — both enumerate |
+> | Fleet policy rev 5.0 | ✅ **landed** — `62fddc5` |
+> | SoapyHackRF install | ✅ **already present** in radioconda |
+> | `SOAPY_SDR_PLUGIN_PATH` gotcha | ✅ **confirmed + path corrected** |
+> | **HackRF on the bus** | 🔴 **NOT ENUMERATING** — needs a cable swap (§3) |
+> | **RTL `56919602` at 12 Mb/s** | 🔴 **needs hands** — cable/hub-port/PSU |
+> | **VIA hub external PSU** | 🟡 **unconfirmed** — check before condemning the dongle |
+>
+> **The HackRF bring-up sequence is written and queued for tomorrow** — enumeration + serial +
+> firmware, controller placement, SoapySDR probe, first sweep, and the 8/10/16/20 Msps
+> sustained-rate bench with drop counters. It runs the moment the device appears on the bus.
+
 ---
 
 ## 0. Headline — read this first
@@ -131,6 +155,28 @@ The doc's Phase 0 item *"Root-cause and fix the two wedged NESDRs. Power? Enumer
 Tahoe/libusb?"* now has a measured answer: **`56919602` = link/power; `61108285` = enumeration.
 Not Tahoe/libusb, and not a reboot.**
 
+### 🔍 UPDATE 2026-07-16 evening — `61108285` re-enumerated between reads
+
+Re-measuring during the HackRF attempt caught the RTL tree changing underneath us:
+
+| | First read | Second read |
+|---|---|---|
+| `61108285` IOKit ID | `0x100004b05` | **`0x100004fea`** |
+| `61108285` busy timer | 17 ms | **reset to 15 ms** |
+| tree position | listed before `56919602` | **listed after** |
+
+**A new IOKit ID plus a reset busy timer means the device re-enumerated** — someone was
+physically working the hub, which matches Will being at the box. Useful as corroboration that
+the ioreg reads are live rather than cached, and worth noting for the boot-race theory below:
+`61108285` re-enumerating *after* SDRangel started is exactly the mechanism that would leave
+it out of SDRangel's device list.
+
+**Two things did NOT change, and both still need hands:**
+
+- 🔴 **`56919602` is still `Device Speed = 1`** — still 12 Mb/s. Whatever was touched, this
+  wasn't fixed. Still needs a cable/port swap, and the hub PSU checked first (§6).
+- 🔴 **The HackRF still never appeared** (§3).
+
 ### SDRangel sees only ONE of three RTLs
 
 `GET /sdrangel/devices?direction=0` returns exactly one real RTL and one real SDRplay:
@@ -159,6 +205,58 @@ Phase 0 actually asked for. `rtl_test -t` from the brief was **not run** for thi
 ---
 
 ## 3. HackRF bring-up — device ABSENT, software ALREADY READY
+
+> ### 🔴 **UPDATE 2026-07-16 evening — physical insertion ATTEMPTED. LEDs lit. Host still sees nothing.**
+>
+> Will plugged the HackRF in and reports its **LEDs are lit**. The Mac still does not see it,
+> and re-measurement confirms the device is **not on the bus**:
+>
+> ```
+> hackrf_info                    → No HackRF boards found.   (libhackrf 2026.01.3 / 0.9.2)
+> Total USB devices              → 12   (UNCHANGED from before the insertion)
+> idVendor set                   → 1507, 3034, 7671, 8457
+>                                  ← no 7504 (0x1d50 Great Scott Gadgets). No 0x6089, no 0x604b.
+> AppleT8103USBXHCI@01000000     → still ZERO child devices
+> USB port events in system log, last 10 min → NONE
+> ```
+>
+> #### Lit LEDs and this finding AGREE — that agreement is the diagnosis
+>
+> **LEDs prove VBUS. They do not prove data.** The HackRF's power rails come up from bus
+> voltage alone, so the board boots and lights whether or not D+/D− are connected.
+>
+> **The decisive measurement is the log, not the LED.** If the host had seen *any* electrical
+> attach — a device that enumerated and dropped, a failed negotiation, an overcurrent trip, a
+> port reset — macOS would have logged a port event. **There are none.** From the Mac's point
+> of view, nothing was ever plugged in. Board powered + host blind + zero log events = a
+> **data-path** failure, not a device failure.
+>
+> This also rules out the entire software layer: `ioreg` is the kernel's own registry, below
+> any driver, permission, or libusb concern. **If `ioreg` doesn't see it, no software fix
+> exists** — the same discipline §5.4 applies to the RSPduo: a zero bus count makes every
+> software remedy moot.
+>
+> #### Ranked causes — cable first
+>
+> 1. **🔴 Charge-only micro-USB cable.** The classic HackRF One failure, and it produces
+>    *exactly* this signature. A large share of micro-USB cables in circulation carry power
+>    only. **Swap for a known-data cable — try this first.** Cheap proof: the same cable plus
+>    any micro-USB device that should mount. If that doesn't appear either, it's the cable.
+> 2. **🟡 Not landing on the Mac.** Confirm it's seated in the Mac's free Thunderbolt port and
+>    not a charger, a monitor passthrough, or an unconnected hub leg.
+> 3. **🟡 Hub power, if it went into the VIA hub.** A HackRF draws up to ~500 mA, the hub's PSU
+>    is **unconfirmed**, and RTL `56919602` is *already* negotiating 12 Mb/s on that hub — a
+>    marginal-power signature. It belongs in the free TB port regardless (§5.3).
+>
+> **Everything downstream is queued, not blocked-by-software.** The free controller
+> (`AppleT8103USBXHCI@01000000`) is still empty and reserved, and the software is already in
+> place. The moment it enumerates: serial + firmware, controller placement, SoapySDR probe,
+> first sweep, and the 8/10/16/20 Msps drop-counter bench.
+>
+> ⚠️ **Neptune has neither `timeout` nor `gtimeout`**, so the wall-clock-bounded bench commands
+> in the brief will not run as written. Use `hackrf_transfer -n <num_samples>` instead — a
+> fixed sample count is the better instrument anyway, since it makes drop counts directly
+> comparable across the four rates rather than varying with process lifetime.
 
 **Present on the bus: NO.** `ioreg -p IOUSB` grep for `hackrf|great scott|0x1d50` → **0 matches**.
 `hackrf_info` (version `2026.01.3`, libhackrf `2026.01.3 (0.9.2)`) → **`No HackRF boards found.`**
@@ -389,11 +487,30 @@ Ordered by value.
 
 ---
 
-## 7. ⚠️ Open decision for Will — restoring `neptune-angel.mp3`
+## 7. ~~Open decision~~ ✅ **ANSWERED — the pause is intentional; analog stays quiet**
+
+> ## **Will, 2026-07-16: "Pause is intentional. DO NOT restore `neptune-angel.mp3`. Leave the
+> marker in place. Don't touch the phantom deviceset. Neptune's analog is deliberately quiet."**
+>
+> **Nothing below was done.** `.sdrangel-restore-paused` remains untouched (Jul 12 20:47), DS0
+> remains the `AaroniaRTSA` phantom, and `neptune-angel.mp3` remains 404 **by design**.
+>
+> **Consequences now baked into the tooling:**
+> - `neptune-angel.mp3` is **excluded from the Phase 0 invariant** — it is not a failure.
+> - `sb3-ctl kill`'s invariant check reports it as *"was already down; not ours"* and does not
+>   fail on it. `kill` is accountable for what it breaks, not what it inherited
+>   (`sb3/killswitch.py`, `95caf4b`).
+> - The §4.6 lesson still stands and is independent of this decision: a *deliberate* pause and
+>   an *forgotten* pause are indistinguishable to every check on the box. That is exactly why
+>   §4.4's sentinel must fail **closed** — the fix is not "don't pause", it's "make absence
+>   mean refuse-to-act rather than resume-clobbering."
+
+The original analysis is retained below as the reasoning trail.
 
 **Not done, deliberately.** The brief said measurement-only, and the `.sdrangel-restore-paused`
 sentinel is **deliberate-looking human state from Jul 12** — clearing something Will put there on
-purpose is not a call to make unilaterally while he's driving.
+purpose is not a call to make unilaterally while he's driving. *(That instinct was right: Will
+confirmed the pause is intentional.)*
 
 The likely recovery is small and reversible, and does **not** require physical access:
 
@@ -433,17 +550,41 @@ arguably the real bug behind this outage, and it is Phase 1 territory (§4.4 spl
 | Root-cause the two "wedged" NESDRs | ✅ **DONE** — and the "off-bus" premise is **wrong**, §2 |
 | SoapyHackRF installed | ✅ **Already present** in radioconda — no work needed |
 | `SOAPY_SDR_PLUGIN_PATH` gotcha | ✅ **Confirmed + path correction found**, §3 |
-| HackRF enumerates / serial / sweep / rate bench | 🔴 **BLOCKED — device not plugged in** |
-| `sdr_fleet_policy.json` rev 5.0 | ⬜ not started — **not blocked**, gates Phase 1 |
-| §7.5 serial-reversal cleanup (7 artifacts) | ⬜ not started — **not blocked** |
+| HackRF enumerates / serial / sweep / rate bench | 🔴 **BLOCKED — insertion attempted, LEDs lit, host sees nothing (§3). Cable swap pending; sequence queued for tomorrow** |
+| `sdr_fleet_policy.json` rev 5.0 | ✅ **DONE — `62fddc5`** on `sb3-serial-reversal-fix` |
+| §7.5 serial-reversal cleanup (7 artifacts → 8) | ✅ **DONE — `62fddc5`.** An 8th artifact found (`macos/killswitch/`, likely the *source*); 2 List B entries were Intel-box history and were annotated, not rewritten |
 | Stale docs (`scan-philadelphia.md`, neptune README) | ⬜ not started — **not blocked** |
 | SDRTrunk tuner-label strings | 🔴 blocked — needs GUI |
-| `neptune-angel.mp3` + `neptune-trunk.mp3` both live | 🔴 **trunk 200; angel 404 (pre-existing)** |
+| `neptune-angel.mp3` + `neptune-trunk.mp3` both live | 🔴 **trunk 200; angel 404 — DELIBERATE** (Will: pause is intentional, marker stays) |
 
-**Phase 0 invariant: NOT met.** Two hard blockers need Will's hands (HackRF insertion, `56919602`
-cable), one needs his decision (§7). **The topology question Phase 0 existed to answer is fully
-answered, and the answer is better than the plan assumed** — Neptune already has the three
-independent controllers §5.3 wants, so the layout costs nothing.
+### Verdict: 🟡 **Phase 0 COMPLETE, with hardware caveats**
+
+**The measurement Phase 0 existed to take is taken, and the answer is better than the plan
+assumed** — Neptune already has the three independent controllers §5.3 wants, so the layout
+costs nothing and no dock is needed. Both §7.6 questions are closed, the "NESDRs off-bus"
+premise is disproven, rev 5.0 has landed, and the HackRF's software is already in place.
+
+**The strict Phase 0 invariant is NOT met** — it requires all 5 SDRs at 480 Mb/s and one real
+`hackrf_sweep`, and three items need Will physically at the box (§6): the HackRF cable,
+`56919602`'s 12 Mb/s link, and the hub PSU. `neptune-angel.mp3` stays 404 by Will's explicit
+decision, so it is excluded from the invariant rather than failing it.
+
+**None of that blocked Phase 1, and Phase 1 has proceeded.** The `sb3-ctl` scaffolding is
+delivered on **`sb3-phase1-scaffold` (`95caf4b`)** — `status` real, `kill` dry-run only,
+`--execute` refused until review. It was verified dry-run against this box's live state and
+modified nothing; its `status` output independently reproduces §4's findings (angel 404 ABSENT,
+DS0 PHANTOM, watchdog unloaded) from a single command.
+
+### 📌 What this pass contributed beyond the measurements
+
+Phase 0 turned up a bug **class**, not just bugs. `soak-c.py`'s empty `system_profiler` →
+silent log-grep fallback (§4-adjacent, and the likely author of the rev-4.1 reversal) and the
+`.sdrangel-restore-paused` sentinel (§4) are the same shape: **a check that reports success
+without having checked.** A third instance then appeared *inside the Phase 1 scaffold's own
+invariant check* (a HEAD mount probe; icecast answers HEAD with 400). All three are now
+codified as **§4.6 of the architecture plan** — *"any verification must be provable-to-execute,
+or it must fail CLOSED"* — with rules bound to concrete sites. That is arguably this pass's
+most durable output.
 
 ---
 
