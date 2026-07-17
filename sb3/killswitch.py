@@ -148,18 +148,25 @@ def cmd_kill(*, execute: bool = False, emit: Emit = _emit_default,
     emit(f"     would: {state.describe_arm()}")
     emit("")
 
-    emit("  2-4. teardown, in §4.3 order — lease consumers BEFORE the broker:")
-    if seq:
-        for label in seq:
-            emit(f"     would: {' '.join(settle.bootout_command(label, uid))}")
-            if label == "com.scannerproject.tuner-broker":
-                emit("            ^ LAST. Killing the broker before its children "
-                     "would yank the")
-                emit("              lease socket out from under a live child.")
-    else:
-        emit("     (no SB3 agents loaded — nothing to stop)")
-        emit("     NOTE: the ordering above is still committed and reviewable;")
-        emit("           it is the part §6 warns is hard to retrofit.")
+    emit("  2-4. teardown, in §4.3 order — lease consumers BEFORE the broker.")
+    emit("       The FULL canonical order is shown; only loaded agents are acted on.")
+    emit("")
+    brokers = ("com.scannerproject.tuner-broker", "com.scannerproject.sb3-broker")
+    for label in ownership.KILL_ORDER:
+        is_loaded = label in loaded
+        managed = " [stub]" if label in ownership.MANAGED_AGENTS else ""
+        if is_loaded:
+            emit(f"     would: {' '.join(settle.bootout_command(label, uid))}{managed}")
+        else:
+            emit(f"     ·      {label}{managed}  (not loaded — skipped)")
+    emit("")
+    emit("            ^ the two broker labels are LAST, deliberately. Killing a")
+    emit("              broker before its children would yank the lease socket")
+    emit("              out from under a live child (§4.3 step 3).")
+    if not seq:
+        emit("")
+        emit("     (nothing loaded to stop — but the ordering above IS committed")
+        emit("      and reviewable; §6 warns it is the part hard to retrofit.)")
     emit("")
     emit(f"     would: sleep {settle.DRAIN_SECONDS:g}  # apiService settle beat")
     emit("")

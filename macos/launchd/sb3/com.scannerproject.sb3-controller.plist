@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.scannerproject.sb3-controller — SB3 controller/reconciler (Phase 1 STUB).
+
+  TEMPLATE. Not installed by this commit. `sb3-ctl install` writes it to
+  ~/Library/LaunchAgents/ after substituting {{REPO_DIR}} and {{PYTHON}} — and
+  install is DRY-RUN ONLY until Phase 1.1 (§6).
+
+  Phase 1 runs sb3.agents.controller_stub: an idle loop that logs a heartbeat
+  and exits cleanly on SIGTERM. No SDR work, no leases, no REST calls. It exists
+  so `sb3-ctl kill` has a real process to stop.
+
+  Phase 2+ replaces it with the reconciler that translates profiles onto
+  SDRangel/SDRTrunk. Two constraints it inherits:
+    * It is the FIRST thing kill stops (§4.3 step 2) — stop asserting before
+      anything else moves.
+    * On resume it ADOPTS live backend state and never replays a snapshot; on
+      divergence the LIVE backend wins (§4.4). A human may have retuned SDRangel
+      by hand while SB3 was gone — that is intent, not drift. Deliberately the
+      inverse of sdrangel-restore.py's 10-minute re-assert.
+
+  KeepAlive={SuccessfulExit:false} — respawn on a CRASH, not on a clean exit.
+  This is what makes `launchctl bootout` a real stop rather than a fight with
+  launchd (see the sb3-broker plist for the full note).
+
+  LimitLoadToSessionType=Aqua — must share the user session with the GUI backends.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.sb3-controller</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON}}</string>
+        <string>-m</string>
+        <string>sb3.agents.controller_stub</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{REPO_DIR}}</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>{{REPO_DIR}}</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/controller.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/controller.err.log</string>
+</dict>
+</plist>

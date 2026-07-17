@@ -35,6 +35,8 @@ from typing import Dict, FrozenSet, List, NamedTuple
 
 #: Everything SB3 owns.  ``sb3-ctl kill`` stops all of these, and only these.
 SB3_LAYER: FrozenSet[str] = frozenset({
+    "com.scannerproject.sb3-broker",       # Phase 1 stub -> Phase 2 `python3 -m broker`
+    "com.scannerproject.sb3-controller",   # Phase 1 stub -> Phase 2 reconciler
     "com.scannerproject.tuner-broker",
     "com.scannerproject.sb3-reconciler",
     "com.scannerproject.sb3-ui",
@@ -42,6 +44,25 @@ SB3_LAYER: FrozenSet[str] = frozenset({
     "com.scannerproject.acars",
     "com.scannerproject.survey",
 })
+
+#: Labels whose plist templates live in ``macos/launchd/sb3/`` and that
+#: ``sb3-ctl install`` would write to ``~/Library/LaunchAgents/``.
+#:
+#: These are the Phase 1 lifecycle placeholders (``sb3/agents/``): idle loops
+#: that log a heartbeat and exit cleanly on SIGTERM.  They do no SDR work and
+#: hold no leases.  They exist so ``kill``'s teardown ordering has a real process
+#: to stop — enabling ``--execute`` against an empty SB3 layer would prove
+#: nothing, and a kill switch first exercised against load-bearing processes is
+#: one tested in production.
+#:
+#: NOT INSTALLED.  ``install`` is dry-run only until Phase 1.1 (§6).
+MANAGED_AGENTS: Dict[str, str] = {
+    "com.scannerproject.sb3-broker": "sb3.agents.broker_stub",
+    "com.scannerproject.sb3-controller": "sb3.agents.controller_stub",
+}
+
+#: Where the plist templates live in-repo.
+PLIST_TEMPLATE_DIR = "macos/launchd/sb3"
 
 #: The backend.  ``sb3-ctl kill`` must NEVER touch these — they are what keeps
 #: producing audio while SB3 is gone.  This set is the whole point of the
@@ -65,12 +86,14 @@ BACKEND: FrozenSet[str] = frozenset({
 #: is the part §6 warns "is hard to retrofit", so it is committed now even
 #: though most of these agents do not exist yet.
 KILL_ORDER: tuple = (
-    "com.scannerproject.sb3-reconciler",   # stop asserting first
+    "com.scannerproject.sb3-controller",   # stop asserting first
+    "com.scannerproject.sb3-reconciler",
     "com.scannerproject.sb3-ui",
     "com.scannerproject.disco",            # ── lease consumers ──
     "com.scannerproject.acars",
     "com.scannerproject.survey",
-    "com.scannerproject.tuner-broker",     # SB3's last process
+    "com.scannerproject.tuner-broker",     # ── brokers LAST ──
+    "com.scannerproject.sb3-broker",
 )
 
 #: Mounts whose continuity is the invariant `kill` exists to protect (§4.3

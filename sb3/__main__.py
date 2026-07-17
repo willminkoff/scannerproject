@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from . import install as install_mod
 from . import killswitch
 
 
@@ -44,6 +45,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("diff", help="what would resume change? (not implemented)")
     ap = sub.add_parser("apply", help="apply a profile (not implemented)")
     ap.add_argument("profile")
+    sub.add_parser("install",
+                   help="write the SB3 launchd plists (dry-run; refuses --execute)")
+    sub.add_parser("uninstall",
+                   help="remove the SB3 launchd plists (dry-run; refuses --execute)")
     return p
 
 
@@ -56,6 +61,10 @@ def main(argv=None) -> int:
         return killswitch.cmd_kill(execute=args.execute)
     if args.cmd == "resume":
         return killswitch.cmd_resume(execute=args.execute)
+    if args.cmd == "install":
+        return install_mod.cmd_install(execute=args.execute)
+    if args.cmd == "uninstall":
+        return install_mod.cmd_uninstall(execute=args.execute)
     if args.cmd in ("diff", "apply"):
         print(f"sb3-ctl {args.cmd}: not implemented at Phase 1 (§6).")
         return killswitch.EXIT_NOT_IMPLEMENTED

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.scannerproject.sb3-broker — SB3 tuner-broker (Phase 1 STUB).
+
+  TEMPLATE. Not installed by this commit. `sb3-ctl install` writes it to
+  ~/Library/LaunchAgents/ after substituting {{REPO_DIR}} and {{PYTHON}} — and
+  install is DRY-RUN ONLY until Phase 1.1 (§6).
+
+  Phase 1 runs sb3.agents.broker_stub: an idle loop that logs a heartbeat and
+  exits cleanly on SIGTERM. It does no SDR work and holds no leases. It exists
+  so `sb3-ctl kill`'s teardown ordering has a real process to stop — enabling
+  execution against an empty SB3 layer would prove nothing, and first exercising
+  a kill switch against load-bearing processes is testing in production.
+  Phase 2+ swaps ProgramArguments to `python3 -m broker` (which already exists,
+  unchanged by this plan) and drops the stub.
+
+  ORDERING (§4.3): the broker is the LAST thing kill stops. Lease consumers go
+  first — each runs under `broker.client run … (proc)` and the lease IS the
+  open socket, so killing the broker first yanks that socket out from under a
+  live child.
+
+  KeepAlive={SuccessfulExit:false} — respawn on a CRASH, but NOT on a clean
+  exit. This is the setting that makes `launchctl bootout` a real stop: bootout
+  SIGTERMs, the stub exits 0, and launchd leaves it down. Plain KeepAlive=true
+  would fight the kill switch, which is exactly the trap
+  macos/killswitch/sdr-killswitch documents ("a plain kill would respawn").
+
+  LimitLoadToSessionType=Aqua — SB3 sits alongside SDRangel/SDRTrunk, which are
+  GUI apps needing the user's Aqua session. A Background agent could not see them.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.sb3-broker</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON}}</string>
+        <string>-m</string>
+        <string>sb3.agents.broker_stub</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{REPO_DIR}}</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>{{REPO_DIR}}</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/broker.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/broker.err.log</string>
+</dict>
+</plist>
