@@ -6,19 +6,25 @@
   SDRTrunk is a Java GUI app — needs the user session + Java 21 on PATH.
   Depends on the SDRplay apiService (com.sdrplay.service LaunchDaemon, vendor-installed).
 
-  Revision 4.1 (2026-07-08): digital tuner = the RSP serial 1809063632 (the
-  former RSP-B) via SDRTrunk's NATIVE SDRplay API — the project's proven-clean
-  RSP path — run DUAL-TUNER for up to 2 P25 systems in one process (MTRTRS on
-  tuner 1; a 2nd system on tuner 2). SERIAL CHANGED: the old digital RSP
-  180903EF32 was physically removed from the mini and taken to another host on
-  2026-07-08, so digital now runs on the one remaining RSP, 1809063632. SDRTrunk
-  must claim serial 1809063632 through the tuner-broker (consumer "sdrtrunk") so
-  nothing else opens the RSP; because it owns both tuners in one process there is
-  no 0x6bed / MA-SL exposure. Select the SDRplay RSPduo in SDRTrunk (View ->
-  Tuners), enable both tuners, and pin each P25 system to its Preferred Tuner.
-  NOTE: digital-on-RSP was proven on 180903EF32 — reconfirm it's clean on
-  1809063632 (pending-soak). See etc/mac/sdr_fleet_policy.json (RSP-B /
-  1809063632) and scripts/mac-start-sdrtrunk.sh.
+  Revision 5.0 (2026-07-16): digital tuner = the RSP serial 180903EF32 (RSP-A)
+  via SDRTrunk's NATIVE SDRplay API — the project's proven-clean RSP path — run
+  DUAL-TUNER for up to 2 P25 systems in one process (MTRTRS on tuner 1; a 2nd
+  system on tuner 2). SDRTrunk must claim serial 180903EF32 through the
+  tuner-broker (consumer "sdrtrunk") so nothing else opens the RSP; because it
+  owns both tuners in one process there is no 0x6bed / MA-SL exposure. Select
+  the SDRplay RSPduo in SDRTrunk (View -> Tuners), enable both tuners, and pin
+  each P25 system to its Preferred Tuner.
+
+  SERIAL CORRECTION: revision 4.1 claimed 180903EF32 had been removed to another
+  host and that digital ran on 1809063632. Both halves were BACKWARDS.
+  180903EF32 is Neptune's and never left; 1809063632 is Venus's. Confirmed by
+  Will 2026-07-16 and measured via `ioreg -p IOUSB`. Digital-on-RSP was proven
+  on 180903EF32 — the attached device — so 4.1's "pending-soak" caveat is
+  withdrawn. See etc/mac/sdr_fleet_policy.json (RSP-A / 180903EF32),
+  scripts/mac-start-sdrtrunk.sh, and docs/sb3-neptune-architecture.md §7.5.
+
+  LIFECYCLE RULE: never SIGKILL SDRTrunk. An ungraceful release makes the RSPduo
+  drop off the USB bus, and only a reboot recovers it. Always SIGTERM and wait.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

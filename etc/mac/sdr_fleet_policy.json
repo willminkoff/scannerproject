@@ -1,11 +1,11 @@
 {
-  "_comment": "SDR fleet policy revision 4.1 (SB7, 2026-07-08) — SINGLE-HOST on the M1 Mac mini (host confirmed by Will; Intel mini = cold spare). Source of truth for device->role allocation, RSPduo modes, USB grouping, and tuner-broker invariants. The broker, config generators, and wiring card all read THIS file. Address devices by serial ONLY; USB position is never trusted. NOTE: top-level `version` is the POLICY SCHEMA version the broker enforces (broker/policy.py SUPPORTED_POLICY_VERSIONS = (2,)) — it stays 2. The human arrangement label lives in `revision`. HARDWARE CHANGE 2026-07-08: Will physically REMOVED the RSPduo serial 180903EF32 (the former RSP-A / digital device) to use on a DIFFERENT computer — it is gone from the mini (see retired_devices, status relocated). The ONE RSP remaining on the mini is serial 1809063632 (the former RSP-B, previously retired), which now carries DIGITAL. Arrangement is otherwise unchanged (option C): the one RSP runs digital via SDRTrunk native API (dual-tuner, up to 2 P25 systems); both analog bands run on RTLs; airband/ground/sounding unchanged. See docs/sb7-northstar-program.md §4.",
+  "_comment": "SDR fleet policy revision 5.0 (SB3, 2026-07-16) — Neptune (M1 Mac mini). Source of truth for device->role allocation, RSPduo modes, USB grouping, and tuner-broker invariants. The broker, config generators, and wiring card all read THIS file. Address devices by serial ONLY; USB position is never trusted. NOTE: top-level `version` is the POLICY SCHEMA version the broker enforces (broker/policy.py SUPPORTED_POLICY_VERSIONS = (2,)) — it stays 2. The human arrangement label lives in `revision`. CORRECTION 5.0: revision 4.1 had the two RSPduo serials REVERSED and this file was the root of that error. Neptune's RSPduo is 180903EF32; Venus's is 1809063632. Confirmed by Will 2026-07-16 and independently MEASURED on the box via `ioreg -p IOUSB` (Phase 0, docs/phase-0-status.md): 180903EF32 is physically present on Neptune, on the FL1100 controller, held by SDRTrunk, decoding P25 to neptune-trunk.mp3. See docs/sb3-neptune-architecture.md §5.1 and §7.5.",
   "version": 2,
-  "revision": "4.1-2026-07-08",
-  "_hardware_change_4_1": "RSP-A (180903EF32) was physically unplugged and taken to another host. Digital therefore moves to the only RSP still attached: serial 1809063632 (ex-RSP-B). CONFIRM ON THE BOX which RSP is present (see _detection below) before trusting this — the policy EXPECTS 1809063632 but the physical truth must be verified. The proven-clean digital-on-RSP result was measured on 180903EF32 specifically; digital on 1809063632 is therefore marked status=pending-soak until it is confirmed clean on this serial.",
-  "_detection": "On the mini, enumerate connected SDRplay devices and read the serial: `SoapySDRUtil --find=\"driver=sdrplay\"` (lists each RSP with its serial), or the project's own check `bash macos/install/post-install-checks.sh` (verifies apiService + RSPduo-on-USB), or in SDRTrunk: View -> Tuners. Expected serial: 1809063632. If a DIFFERENT serial shows up, update this policy to match the physical device.",
-  "_rationale_single_rsp": "Running TWO SDRplay RSPs on one host is toxic: both funnel through the single sdrplay_apiService, and concurrent opens across two physical RSPs produce the 0x6bed segfault + corrupt IQ. With 180903EF32 removed, exactly ONE RSP (1809063632) remains — which is the safe state by construction. It is opened by exactly ONE process (SDRTrunk, native API), so there is no cross-process master/slave path and 0x6bed stays unreachable even at dual-tuner.",
-  "_rationale_arrangement_C": "Digital on the RSP (native SDRplay API) is the only dual-tuner path this project has proven clean, and gives 2 P25 systems from one device. Analog on RTLs uses proven-clean configs: ground NFM on RTL 61108285 (the 2026-06-18 fix) and airband AM on the Blog V4 (what rtl_airband ran for years). Two pieces are pending-soak: airband AM on an RTL (new under the current chirp engine) and — new in revision 4.1 — digital on RSP serial 1809063632 (the proven result was on 180903EF32; reconfirm on this serial).",
+  "revision": "5.0-2026-07-16",
+  "_correction_5_0": "Revision 4.1 (2026-07-08) asserted that 180903EF32 was physically unplugged and taken to a different computer, and that the RSP remaining on this host was 1809063632. BOTH HALVES WERE BACKWARDS. The truth is the reverse: 180903EF32 never left Neptune, and 1809063632 is Venus's device. Evidence for this correction, strongest first: (1) `ioreg -p IOUSB -w0 -l` on Neptune 2026-07-16 shows serial 180903EF32 attached to AppleEmbeddedUSBXHCIFL1100@02000000 at 480 Mb/s, and no 1809063632 anywhere; (2) Will confirmed the assignment directly 2026-07-16; (3) macos/bin/sdrangel-restore.py has always routed AIRBAND to 1809063632 in its VENUS branch and comments that Neptune's 180903EF32 belongs to SDRTrunk — live code that runs every 10 minutes and would have failed loudly if wrong; (4) the 2026-07-10 Philadelphia P25 decode was validated on 180903EF32 on this host. HOW 4.1 WENT WRONG: macos/killswitch/soak-c.py (imported as prior art in commit 7bf15f3) determined the serial by grepping SDRTrunk's cumulative historical logs after its real hardware probe returned empty, took the recency-unweighted majority, saw the contradicting serial, warned about it, and passed anyway. Its verdict line — 'OK: RSP 1809063632 confirmed via SDRTrunk logs' — is the likely proximate source of this file's 4.1 narrative.",
+  "_detection": "On Neptune, enumerate the attached SDRplay device and read its serial. USE `ioreg -p IOUSB -w0 -l | grep -A2 -B8 'USB Serial Number'` — NOT `system_profiler SPUSBDataType`, which returns EMPTY over SSH on macOS Tahoe and whose silent emptiness is precisely what let revision 4.1's bad serial through (see _correction_5_0). Alternatives: `SOAPY_SDR_PLUGIN_PATH=$HOME/radioconda/lib/SoapySDR/modules0.8 SoapySDRUtil --find=\"driver=sdrplay\"`, or SDRTrunk View -> Tuners. Expected serial on Neptune: 180903EF32. Expected on Venus: 1809063632. If a DIFFERENT serial shows up, update this policy to match the physical device — and do NOT accept a log-grep as evidence of what is attached.",
+  "_rationale_single_rsp": "Running TWO SDRplay RSPs on one host is toxic: both funnel through the single sdrplay_apiService, and concurrent opens across two physical RSPs produce the 0x6bed segfault + corrupt IQ. Exactly ONE RSP (180903EF32) is attached to Neptune — the safe state by construction. It is opened by exactly ONE process (SDRTrunk, native API), so there is no cross-process master/slave path and 0x6bed stays unreachable even at dual-tuner. The fleet's other RSPduo (1809063632) lives on Venus, a different host, which is why it is not a hazard here.",
+  "_rationale_arrangement_C": "Digital on the RSP (native SDRplay API) is the only dual-tuner path this project has proven clean, and gives 2 P25 systems from one device. Analog on RTLs uses proven-clean configs: ground NFM on RTL 61108285 (the 2026-06-18 fix) and airband AM on the Blog V4 (what rtl_airband ran for years). Airband AM on an RTL remains pending-soak (new under the current chirp engine). Digital is NOT pending-soak: the proven-clean result was measured on 180903EF32, which is the device actually attached — revision 4.1 invented that gap by reversing the serials.",
   "host": {
     "role": "single-box",
     "hardware": "Mac mini M1 2021 (8 GB)",
@@ -14,15 +14,15 @@
   },
   "digital_capacity": {
     "primary_systems": 2,
-    "_primary": "RSP (serial 1809063632) in SDRTrunk native Dual Tuner mode = 2 P25 systems at once, one per ~2 MHz tuner. MTRTRS ships first on tuner 1; the 2nd system slots onto tuner 2 (Will to name it) with no hardware change (SDRTrunk restart to add). Each monitored SITE must fit ~2 MHz — verify spans in SDRangel before committing.",
-    "_pending_soak": "The 2-P25 native-dual-tuner capability was proven on the now-removed 180903EF32. Reconfirm it holds on 1809063632 before treating digital as validated (RSPduo units are the same model, so this is expected to pass — but it is a different physical device, so soak it).",
+    "_primary": "RSP (serial 180903EF32) in SDRTrunk native Dual Tuner mode = 2 P25 systems at once, one per ~2 MHz tuner. MTRTRS ships first on tuner 1; the 2nd system slots onto tuner 2 (Will to name it) with no hardware change (SDRTrunk restart to add). Each monitored SITE must fit ~2 MHz — verify spans in SDRangel before committing.",
+    "_proven": "The 2-P25 native-dual-tuner capability was proven on 180903EF32 — the device attached to this host. Revision 4.1's 'pending-soak / reconfirm on a different serial' caveat was an artifact of the serial reversal and is withdrawn. Live corroboration: Philadelphia P25 control-channel decode validated 2026-07-10 on this serial, and neptune-trunk.mp3 has been serving continuously since.",
     "growth_to_3": "A 3rd P25 system = add a 4TH RTL (not currently attached — only 3 RTLs on the M1) to the SAME SDRTrunk instance. All 3 attached RTLs are committed to analog + sounding, so a 3rd P25 system needs new hardware."
   },
   "invariants": {
     "max_rsp_devices_on_host": 1,
-    "_why_one_rsp": "Two RSPs sharing the one sdrplay_apiService is the root cause of the 0x6bed segfault + IQ corruption. Exactly one RSP is permitted. With 180903EF32 removed, the one remaining RSP is 1809063632. The broker REFUSES any claim on a second RSP serial.",
+    "_why_one_rsp": "Two RSPs sharing the one sdrplay_apiService is the root cause of the 0x6bed segfault + IQ corruption. Exactly one RSP is permitted per host. Neptune's is 180903EF32. The broker REFUSES any claim on a second RSP serial.",
     "max_concurrent_dual_tuner_rspduo": 1,
-    "_why": "The single permitted RSP (1809063632) runs dual-tuner via SDRTrunk's native API in ONE process. There is no second dual-tuner device, so 0x6bed stays unreachable. chirp never opens the RSP (analog is RTL-only), so the Soapy cross-process master/slave corruption path is also out of the picture.",
+    "_why": "The single permitted RSP (180903EF32) runs dual-tuner via SDRTrunk's native API in ONE process. There is no second dual-tuner device, so 0x6bed stays unreachable. chirp never opens the RSP (analog is RTL-only), so the Soapy cross-process master/slave corruption path is also out of the picture.",
     "rspduo_open_gap_sec": 2.0,
     "_why_gap": "The apiService does not safely serialize concurrent sdrplay_api_Open calls; grants on kind=rspduo are spaced by this gap.",
     "master_before_slave": true,
@@ -34,15 +34,15 @@
   "rspduo_daemon": {
     "launchd_label": "com.sdrplay.service",
     "api_version": "3.15.x",
-    "_note": "One apiService for the ONE RSP (serial 1809063632), opened ONLY by SDRTrunk via the native SDRplay API for digital P25. chirp does NOT open the RSP (analog is RTL-only). SDRTrunk launches once and stays up (KeepAlive). It claims serial 1809063632 through the tuner-broker so nothing else can open the device.",
+    "_note": "One apiService for the ONE RSP (serial 180903EF32), opened ONLY by SDRTrunk via the native SDRplay API for digital P25. chirp does NOT open the RSP (analog is RTL-only). SDRTrunk launches once and stays up (KeepAlive). It claims serial 180903EF32 through the tuner-broker so nothing else can open the device.",
     "clear_locks_at_boot": true
   },
   "devices": [
     {
-      "id": "RSP-B", "kind": "rspduo", "serial": "1809063632", "label": "RSP-DIGITAL",
+      "id": "RSP-A", "kind": "rspduo", "serial": "180903EF32", "label": "RSP-DIGITAL",
       "role": "sdrtrunk-p25", "consumer": "sdrtrunk", "api": "sdrplay-native",
       "mode": "DUAL", "dual_tuner": true, "sample_rate_hz": 2000000,
-      "status": "pending-soak",
+      "status": "validated",
       "usb_group": "G2", "shared_with": [],
       "tuners": [
         { "tuner": 1, "system": "MTRTRS", "status": "ships-first",
@@ -50,35 +50,36 @@
         { "tuner": 2, "system": "TBD-2nd-P25", "status": "awaiting-Will",
           "_note": "2nd P25 system — Will names it. Slots on here with no hardware change; SDRTrunk restart to add. Verify its site span fits ~2 MHz." }
       ],
-      "_note": "The ONE RSP now on the host: serial 1809063632, the former RSP-B (was chirp-airband ST under v2.1, then retired, now DIGITAL after 180903EF32 was removed 2026-07-08). DIGITAL ONLY, SDRTrunk native Dual Tuner (NOT osmosdr/Soapy). No device_args; SDRTrunk manages both tuners internally from its playlist. The broker leases the ONE serial 1809063632 to SDRTrunk (dual_tuner=true consumes the single allowed dual slot). STATUS pending-soak: the proven-clean digital-on-RSP result was on 180903EF32 (now gone) — reconfirm on 1809063632 (same RSPduo model, expected to pass). CONFIRM this is the serial physically present (see _detection)."
+      "_note": "Neptune's RSPduo: serial 180903EF32. DIGITAL ONLY, SDRTrunk native Dual Tuner (NOT osmosdr/Soapy). No device_args; SDRTrunk manages both tuners internally from its playlist. The broker leases serial 180903EF32 to SDRTrunk (dual_tuner=true consumes the single allowed dual slot). STATUS validated: Philadelphia P25 CC decode confirmed 2026-07-10 on this serial, and the device is measured present on the bus (ioreg, 2026-07-16, FL1100 controller, 480 Mb/s). Revision 4.1 wrongly listed this serial as retired/relocated and put 1809063632 here instead — see _correction_5_0. IMPORTANT lifecycle rule (docs/sb3-neptune-architecture.md §5.4): SIGKILL or an ungraceful release makes this device DROP OFF THE USB BUS, and only a reboot recovers it. Always SIGTERM and wait."
     },
-    { "id": "RTL-AIRBAND", "kind": "rtlsdr", "serial": "83241970", "serial_status": "PRESENT-on-M1 2026-07-06 (RTL-SDR Blog V4)",
+    { "id": "RTL-AIRBAND", "kind": "rtlsdr", "serial": "83241970", "serial_status": "PRESENT-on-M1 2026-07-16 (RTL-SDR Blog V4; ioreg-confirmed, 480 Mb/s, on the VIA hub)",
       "label": "AIRBAND", "role": "chirp-airband", "consumer": "gr-demod@airband", "api": "rtlsdr-native",
       "reliability": "best-RF-quality (R828D tuner + TCXO); historically flaky USB re-enumeration on micro (error -71) — watch during soak on the M1's own ports/cables",
       "sample_rate_hz": 2400000, "gain_db": 32.8, "usb_group": "G3", "shared_with": [],
       "status": "pending-soak",
-      "_note": "AIRBAND AM via chirp on the Blog V4 RTL (gr-osmosdr 'rtl=' backend, exactly like ground). The RSP is digital-only, so chirp never touches it. STATUS pending-soak: airband-AM-on-RTL is proven by lineage (rtl_airband ran Nashville airband AM on RTLs for years) and by composition (chirp-on-RTL proven on ground; chirp AM demod proven), but not yet soaked as a unit under the current chirp engine. Unchanged by the 2026-07-08 RSP removal. No bandwidth_hz needed for RTL (0 = driver default). LO scheduler hops the airband list within the RTL's ~2.4 MHz window." },
-    { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "61108285", "serial_status": "PRESENT-on-M1 2026-07-05 (was micro's WX dongle; micro-confirmed stable)",
+      "_note": "AIRBAND AM via chirp on the Blog V4 RTL (gr-osmosdr 'rtl=' backend, exactly like ground). The RSP is digital-only, so chirp never touches it. STATUS pending-soak: airband-AM-on-RTL is proven by lineage (rtl_airband ran Nashville airband AM on RTLs for years) and by composition (chirp-on-RTL proven on ground; chirp AM demod proven), but not yet soaked as a unit under the current chirp engine. No bandwidth_hz needed for RTL (0 = driver default). LO scheduler hops the airband list within the RTL's ~2.4 MHz window." },
+    { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "61108285", "serial_status": "PRESENT-on-M1 2026-07-16 (ioreg-confirmed, 480 Mb/s, on the VIA hub)",
       "label": "GROUND", "role": "chirp-ground", "consumer": "gr-demod@ground",
       "reliability": "stable", "sample_rate_hz": 2400000, "gain_db": 32, "usb_group": "G3", "shared_with": [],
       "status": "validated",
-      "_note": "FIXED, 24/7 core analog. Ground NFM on this RTL is the proven 2026-06-18 fix. Gain 30-35 (40 clips the front end). Unchanged across revisions. gr-osmosdr addresses it by the native 'rtl=61108285' source type. Unaffected by the RSP removal." },
-    { "id": "RTL-SOUNDING", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-05 (NESDR SMArt v5; new to the fleet, reliability TBD in soak)",
+      "_note": "FIXED, 24/7 core analog. Ground NFM on this RTL is the proven 2026-06-18 fix. Gain 30-35 (40 clips the front end). gr-osmosdr addresses it by the native 'rtl=61108285' source type. NOTE: docs/sb3-neptune-architecture.md §5.1 reassigns this device to ACARS/VDL2 and moves Ground to 56919602; that reassignment is NOT reflected here and lands with the SB3 profile work, not with this serial correction." },
+    { "id": "RTL-SOUNDING", "kind": "rtlsdr", "serial": "56919602", "serial_status": "PRESENT-on-M1 2026-07-16 but LINK-DEGRADED — ioreg reports Device Speed 1 (full speed, 12 Mb/s) instead of 2 (high speed, 480 Mb/s). Cannot carry 2.4 Msps at 12 Mb/s. Cable/hub-port fault or hub brownout; needs physical attention (docs/phase-0-status.md §6).",
       "label": "SOUNDING", "role": "sounding", "consumer": "broker-arbitrated",
-      "reliability": "unknown", "sample_rate_hz": 2400000, "usb_group": "G3",
+      "reliability": "degraded", "sample_rate_hz": 2400000, "usb_group": "G3",
       "shared_with": [],
-      "status": "pending-soak",
-      "_note": "\"Sounding\" = the atmospheric-sounding decoder family: ACARS + VDL2 (~130-137 MHz) and radiosonde (~400-406 MHz, time-shared). Dedicated, unshared. Unchanged across revisions. None of the sounding decoders are broker-integrated yet. Waterfall (/sb5 Live IQ) remains DEFERRED. Unaffected by the RSP removal." }
+      "status": "blocked-hardware",
+      "_note": "\"Sounding\" = the atmospheric-sounding decoder family: ACARS + VDL2 (~130-137 MHz) and radiosonde (~400-406 MHz, time-shared). Dedicated, unshared. None of the sounding decoders are broker-integrated yet. Waterfall (/sb5 Live IQ) remains DEFERRED. STATUS blocked-hardware: this dongle is on the bus but negotiated FULL speed (12 Mb/s), which is ~1/3 of what a single 2.4 Msps stream needs — it will open and then starve. Not a wedge and NOT fixable by reboot; it needs a cable/port swap. Note the earlier claim that 'both NESDRs are off-bus after reboot' is FALSE as measured — both enumerate; this one just negotiates the wrong speed." }
   ],
   "retired_devices": [
-    { "id": "RSP-A", "kind": "rspduo", "serial": "180903EF32", "former_role": "sdrtrunk-p25 (digital, dual-tuner)",
-      "retired": "2026-07-08", "status": "relocated",
-      "_note": "REMOVED / RELOCATED 2026-07-08 — Will physically UNPLUGGED this RSPduo and took it to a DIFFERENT computer. It is no longer attached to the mini. Digital moved to the remaining RSP (1809063632, the former RSP-B, now active in devices[]). This is a physical relocation, not a fleet retirement for cause: the device is fine, it's just elsewhere now. If it ever returns to the mini, remember the one-RSP invariant — you cannot run it alongside 1809063632 (two RSPs on one host is toxic); it would have to REPLACE the other, not join it." }
+    { "id": "RSP-B", "kind": "rspduo", "serial": "1809063632", "former_role": "chirp-airband ST (under policy v2.1, on the Micro)",
+      "retired": "2026-07-08", "status": "on-other-host",
+      "_note": "NOT on Neptune. This RSPduo is VENUS's device — it carries AIRBAND there via SDRangel (see macos/bin/sdrangel-restore.py, VENUS branch, which routes AIRBAND to SDRplayV3 serial 1809063632). Revision 4.1 wrongly claimed this device was the one attached to this host carrying digital; it was never here in this arrangement. Listed under retired_devices only in the sense of 'not part of THIS host's fleet' — it is alive and in service elsewhere. If it ever comes to Neptune, remember the one-RSP invariant: it cannot run alongside 180903EF32 (two RSPs on one host is toxic); it would have to REPLACE it, not join it." }
   ],
   "usb_groups": {
-    "G2": { "host_port": "Thunderbolt/USB4 port 2", "hub": null, "_note": "RSP (1809063632, digital, dual-tuner) direct-cabled, own controller, no hub. (Was RSP-B's port; RSP-A's G1 port is now empty after the relocation.)" },
-    "G3": { "host_port": "USB-A", "hub": "H1 (powered, own PSU)", "members": ["RTL-AIRBAND", "RTL-GROUND", "RTL-SOUNDING"],
-            "_note": "3 RTLs on a powered hub: AIRBAND (Blog V4), GROUND, SOUNDING. VERIFY controller grouping on the box with `system_profiler SPUSBDataType`; consider a 2nd powered hub if throughput/overflow shows up in soak (three 2.4 Msps RTL streams)." }
+    "G2": { "host_port": "USB-A (AppleEmbeddedUSBXHCIFL1100@02000000)", "hub": null, "_note": "RSP 180903EF32 (digital, dual-tuner) direct-cabled to a USB-A port, ALONE on the M1's embedded Fresco FL1100 controller — its own 480 Mb/s domain, which is exactly what a dual-tuner RSPduo (~128 Mbps) wants. MEASURED 2026-07-16 via ioreg (docs/phase-0-status.md §1); revision 4.1's claim of 'Thunderbolt/USB4 port 2' was never verified and is wrong. Note the M1's two USB-A ports SHARE this one controller, so do not put another high-bandwidth device on the other USB-A port." },
+    "G3": { "host_port": "Thunderbolt/USB4 port (AppleT8103USBXHCI@00000000)", "hub": "H1 (VIA Labs USB-3 hub; EXTERNAL PSU UNCONFIRMED — verify, see below)", "members": ["RTL-AIRBAND", "RTL-GROUND", "RTL-SOUNDING"],
+            "_note": "3 RTLs behind a VIA Labs hub on a Thunderbolt/USB4 port's own xHCI controller. MEASURED 2026-07-16 via ioreg: ~98 Mbps of a ~300 Mbps domain — comfortable, these three genuinely can share. Remember a hub adds PORTS and POWER, never BANDWIDTH; only a host controller creates a 480 Mb/s domain. WARNING: whether H1 has its external PSU connected is UNVERIFIED, and RTL 56919602 is currently negotiating 12 Mb/s on this hub — a classic marginal-power signature. Confirm the PSU before replacing that dongle." },
+    "_free": { "host_port": "Thunderbolt/USB4 port (AppleT8103USBXHCI@01000000)", "hub": null, "_note": "EMPTY and RESERVED. Neptune has THREE independent xHCI controllers natively (2x AppleT8103USBXHCI on the USB4 ports + 1x embedded FL1100 on the USB-A pair) — measured 2026-07-16. This free controller is where the HackRF goes: it must be ALONE on a controller (up to ~320 Mbps at 20 Msps ~= 100% of a domain by itself). No Thunderbolt dock is required to reach the 3-domain layout docs/sb3-neptune-architecture.md §5.3 asks for; Neptune already has it." }
   },
   "broker": {
     "launchd_label": "com.scannerproject.tuner-broker",
@@ -86,7 +87,7 @@
     "lock_dir": "/opt/scannerproject/run/locks",
     "state_file": "/opt/scannerproject/run/broker_state.json",
     "lock_key": "physical-serial",
-    "_lock_key_note": "One consumer per physical serial. The RSP (1809063632) has exactly one consumer (SDRTrunk, which owns both its tuners internally via the native API), and each of the three RTLs has exactly one consumer. No tuner-granular arbitration needed.",
+    "_lock_key_note": "One consumer per physical serial. The RSP (180903EF32) has exactly one consumer (SDRTrunk, which owns both its tuners internally via the native API), and each of the three RTLs has exactly one consumer. No tuner-granular arbitration needed.",
     "liveness_sweep_sec": 2,
     "stale_lock_grace_sec": 5,
     "usb_release_grace_sec": 0.5,

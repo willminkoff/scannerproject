@@ -49,6 +49,15 @@
 | Claude drives chirp cmd-bus | Claude drives SDRangel REST :8091 + SDRTrunk hooks |
 
 ## Device/role mapping (from `etc/mac/sdr_fleet_policy.json`)
+
+> ⚠️ **Historical (2026-06-26), describing the 2018 Intel `ScannerBox` when BOTH
+> RSPduos were on that one host.** Left as-written on purpose — this is the
+> record of what was decided then, and the mapping below was accurate for that
+> box. **Do not apply it to Neptune.** Today the two RSPduos live on separate
+> hosts: `180903EF32` on **Neptune** (digital/SDRTrunk), `1809063632` on
+> **Venus** (airband/SDRangel). See fleet policy rev 5.0 and
+> `docs/sb3-neptune-architecture.md` §5.1.
+
 - **RSP-A `180903EF32`** (digital) → **SDRTrunk** → MTRTRS + TACN (P25 Phase II).
 - **RSP-B `1809063632`** (airband+ground) → **SDRangel** → AM airband + NFM ground.
 - Both via the shared SDRplay apiService (`com.sdrplay.service` LaunchDaemon). Invariant: **max 1 dual-tuner RSPduo** (concurrent dual-tuner segfaults the daemon).

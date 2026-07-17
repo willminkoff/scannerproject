@@ -25,7 +25,7 @@ program that gets there — designed around the hardware actually on hand:
 |---|---|
 | Mac mini 2018 | Intel i5-8500B 6-core 3.0 GHz, 16 GB RAM, 4× TB3 (2 buses) + 2× USB-A |
 | Mac mini 2021 | Apple M1, 8 GB RAM, 2× TB/USB4 + 2× USB-A |
-| 1× SDRplay RSPduo (on the mini) | serial 1809063632 — DIGITAL. The other RSPduo, 180903EF32, was removed 2026-07-08 and relocated to another host. |
+| 1× SDRplay RSPduo (on the mini) | serial 180903EF32 — DIGITAL. The fleet's other RSPduo, 1809063632, lives on Venus (airband via SDRangel there). |
 | 3× RTL-SDR (attached) | 83241970 (Blog V4, airband), 61108285 (ground), 56919602 (NESDR, sounding) — verified on the M1, 2026-07-06. A 4th is not currently attached; waterfall is deferred until it is. |
 
 ---
@@ -135,14 +135,19 @@ Will 2026-07-08):** the ONE RSP runs **digital** (SDRTrunk native API, dual-tune
 for up to 2 P25 systems); **both analog bands run on RTLs**. This is essentially
 the proven v2.1 shape with one RSP.
 
-**⚠ Hardware change 2026-07-08 (revision 4.1):** Will physically **removed RSP
-`180903EF32`** (the former digital RSP) and took it to another computer. The one
-RSP still on the mini is **`1809063632`** (the former RSP-B), so **digital now
-runs on `1809063632`**. The proven digital-on-RSP result was measured on
-`180903EF32`, so digital on the new serial is **pending soak** (same RSPduo
-model — expected to hold — but a different physical device). **Confirm the
-attached serial on the box** with `SoapySDRUtil --find="driver=sdrplay"` (or
-`bash macos/install/post-install-checks.sh`, or SDRTrunk → View → Tuners) before
+**✅ Serial correction 2026-07-16 (revision 5.0):** the RSP on this host is
+**`180903EF32`**, and it has been all along. Revision 4.1 claimed the opposite —
+that `180903EF32` had been removed to another computer and digital had moved to
+`1809063632` — and **both halves were backwards.** `1809063632` is **Venus's**
+RSPduo. Confirmed by Will 2026-07-16 and independently **measured** on the box:
+`ioreg -p IOUSB` shows `180903EF32` attached at 480 Mb/s on the FL1100
+controller, with no `1809063632` anywhere. Because the proven digital-on-RSP
+result was measured on `180903EF32` — the device actually attached — revision
+4.1's "pending soak / reconfirm on a different serial" caveat was an artifact of
+the reversal and is **withdrawn**. **Confirm the attached serial on the box** with
+`ioreg -p IOUSB -w0 -l | grep -B8 'USB Serial Number'` — **not**
+`system_profiler SPUSBDataType`, which returns empty over SSH on Tahoe and whose
+silent emptiness is what let 4.1's bad serial through in the first place — before
 trusting this. (Note: the policy's machine `version` is the schema version and
 stays **2** — the broker enforces `(2,)`; the human label "4.1" lives in
 `revision`.)
@@ -159,8 +164,8 @@ ran for years). Net: one RSP (digital), three RTLs (airband + ground + sounding)
 
 | Device (serial) | Mode | Role | Status |
 |---|---|---|---|
-| **RSP** 1809063632 (ex-RSP-B) | **Dual-tuner (native SDRplay API)** | **SDRTrunk P25 digital** — T1 = MTRTRS, T2 = 2nd system → `/DIGITAL.mp3` | **pending soak** (proven on 180903EF32; reconfirm on this serial) |
-| ~~**RSP** 180903EF32~~ | — | **REMOVED / RELOCATED** 2026-07-08 — physically taken to another computer | gone from the mini |
+| **RSP** 180903EF32 (RSP-A) | **Dual-tuner (native SDRplay API)** | **SDRTrunk P25 digital** — T1 = MTRTRS, T2 = 2nd system → `/DIGITAL.mp3` | **VALIDATED** (Philly P25 CC decode 2026-07-10 on this serial) |
+| **RSP** 1809063632 (RSP-B) | — | **On Venus** — airband via SDRangel there. Not part of this host's fleet. | n/a here |
 | **RTL** 83241970 (Blog V4, best RF) | — | chirp **airband** AM (`rtl=`) → `/ANALOG.mp3` | **pending soak** |
 | **RTL** 61108285 (stable) | — | chirp **ground** NFM (`rtl=`) → `/ANALOG_GROUND.mp3` | **VALIDATED** (2026-06-18 fix) |
 | **RTL** 56919602 (reliability TBD) | — | **sounding** (ACARS/VDL2/radiosonde), dedicated, unshared | pending soak |
@@ -171,13 +176,14 @@ daemons contending for one RSPduo via Soapy = the corrupting master/slave path)
 is gone under C: chirp never touches the RSP (analog is RTL-only), and each
 device has exactly **one** broker consumer. The RSP's single consumer (SDRTrunk)
 owns both tuners internally via the native API. The broker's
-`lock_key=physical-serial` fits with no tuner-granular arbitration. Removing
-`180903EF32` only reinforces the one-RSP invariant — there is now physically only
-one RSP on the host. **Two pieces are pending a soak:** chirp **airband on an
-RTL** (proven by lineage + composition, not yet soaked as a unit under the
-current engine) and, new in revision 4.1, **digital on RSP `1809063632`** (the
-proven result was on the now-removed `180903EF32` — same RSPduo model, expected
-to hold, but reconfirm on this device). Everything else is validated.
+`lock_key=physical-serial` fits with no tuner-granular arbitration. Exactly one
+RSP (`180903EF32`) is physically on the host, which satisfies the one-RSP
+invariant by construction — the fleet's other RSPduo is on Venus. **One piece is
+pending a soak:** chirp **airband on an RTL** (proven by lineage + composition,
+not yet soaked as a unit under the current engine). Revision 4.1 listed a second
+pending item — digital on a different RSP serial — but that only existed because
+4.1 had the serials reversed; digital was proven on `180903EF32`, which is the
+attached device, so it is **validated**. Everything else is validated.
 
 **Digital capacity:** RSP-A dual-tuner = **2 P25 systems simultaneously** (one per
 ~2 MHz tuner, native SDRplay API — the most reliable digital path on macOS). MTRTRS
@@ -251,11 +257,11 @@ Soapy/gr-osmosdr chain and has no cross-process master/slave (0x6bed)
 exposure. (Revision 3.0 briefly put digital on an RTL and gave up the 2-system
 capability; C moves it back to the RSP and frees the Blog V4 RTL for airband.)
 
-The plan (revision 4.1 — the one RSP, serial 1809063632, dual-tuner, up to 2 P25
+The plan (revision 5.0 — the one RSP, serial 180903EF32, dual-tuner, up to 2 P25
 systems in one process):
 - **Ship first (SB7.5):** SDRTrunk, native Dual Tuner, **MTRTRS on tuner
-  1**. SDRTrunk claims serial **1809063632** through the broker so nothing else
-  opens the RSP. (Was 180903EF32 before that RSP was removed 2026-07-08.)
+  1**. SDRTrunk claims serial **180903EF32** through the broker so nothing else
+  opens the RSP.
 - **Grow to 2:** the 2nd system slots onto **tuner 2** with no hardware change
   (SDRTrunk restart to add) — Will names it. No extra dongle needed.
 - **Grow to 3:** would need a **4th physical RTL** added to the same SDRTrunk

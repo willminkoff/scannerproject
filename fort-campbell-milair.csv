@@ -1,0 +1,29 @@
+Frequency_MHz,Mode,Name,Band,Category,Notes
+280.900,AM,Sabre Heliport,UHF,HELO PRIME,Sabre Army Heliport ops - heaviest helicopter traffic
+267.300,AM,Sabre Heliport Ground,UHF,HELO PRIME,Sabre heliport ground control
+241.000,AM,Campbell Tower (UHF),UHF,HELO PRIME,Primary UHF tower - all mil aircraft incl helos
+275.800,AM,Campbell Ground (UHF),UHF,HELO PRIME,UHF ground control - taxi/startup
+246.600,AM,Campbell Approach/Departure,UHF,HELO PRIME,Primary UHF approach+departure
+236.600,AM,Campbell Arrival,UHF,APPROACH,Arrival control
+255.600,AM,Campbell Departure,UHF,APPROACH,Departure control
+242.400,AM,Eagle Control,UHF,TACTICAL,101st division air control (KY)
+367.300,AM,Eagle Range Radio,UHF,RANGE,Range control - training areas
+302.200,AM,Campbell Range Radio,UHF,RANGE,Airfield range radio service
+368.300,AM,Campbell Clearance Delivery,UHF,GROUND,IFR clearances
+372.200,AM,Campbell Pilot-to-Dispatcher (AMC),UHF,SUPPORT,AMC pilot to dispatcher
+344.600,AM,Campbell Weather (G2A),UHF,WEATHER,Ground-to-air weather
+239.400,AM,Weather Voice Data,UHF,WEATHER,Ground-to-air weather broadcast
+239.800,AM,Weather Voice Data 2,UHF,WEATHER,Ground-to-air weather broadcast
+303.000,AM,Air National Guard Secondary,UHF,TACTICAL,ANG secondary
+120.900,AM,Campbell Tower (VHF),VHF,TOWER,Current FAA VHF tower (24h)
+121.800,AM,Campbell Ground (VHF),VHF,GROUND,VHF ground control (24h)
+118.100,AM,Campbell Approach (VHF),VHF,APPROACH,VHF approach
+126.200,AM,Campbell Approach (VHF) 2,VHF,APPROACH,VHF approach
+134.350,AM,Campbell Approach/Departure (VHF),VHF,APPROACH,VHF approach+departure
+125.175,AM,Campbell ATIS,VHF,INFO,Automated terminal info (current)
+141.050,AM,Campbell Terminal Info (mil VHF),VHF,INFO,Mil VHF terminal information
+138.800,AM,Campbell Clearance (VHF),VHF,GROUND,VHF clearance delivery
+139.300,AM,Flight Coordination Center,VHF,SUPPORT,Airfield flight coordination
+139.900,AM,Campbell Approach/Departure (VHF) 3,VHF,APPROACH,VHF approach+departure
+143.300,AM,Sabre Heliport (VHF),VHF,HELO,Sabre heliport VHF
+149.850,AM,Sabre Heliport Ground (VHF),VHF,HELO,Sabre heliport ground VHF

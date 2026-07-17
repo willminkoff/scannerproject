@@ -43,9 +43,10 @@ class RealRepoPolicyTest(unittest.TestCase):
         # `version` is the SCHEMA version the broker enforces (stays 2); the
         # human arrangement label lives in the policy's `revision` string.
         self.assertEqual(pol.version, 2)
-        # Revision 4.0 (arrangement C, 2026-07-08): 1 RSPduo (RSP-A = digital)
-        # + 3 RTLs (airband/ground/sounding). RSP-B removed to retired_devices.
-        self.assertEqual(len(pol.devices), 4)  # 1 RSPduo + 3 RTL (M1 actual)
+        # Revision 5.0 (arrangement C, 2026-07-16): 1 RSPduo (RSP-A 180903EF32
+        # = digital) + 3 RTLs (airband/ground/sounding). RSP-B (1809063632) is
+        # Venus's device and is not in this host's fleet.
+        self.assertEqual(len(pol.devices), 4)  # 1 RSPduo + 3 RTL (Neptune actual)
         self.assertEqual(pol.invariants.max_concurrent_dual_tuner_rspduo, 1)
         self.assertEqual(pol.invariants.rspduo_open_gap_sec, 2.0)
         self.assertEqual(pol.invariants.min_restart_interval_sec, 30.0)
@@ -54,21 +55,28 @@ class RealRepoPolicyTest(unittest.TestCase):
 
     def test_repo_policy_device_lookups(self):
         pol = load_policy(REAL_POLICY)
-        # Revision 4.1 (2026-07-08): the ONE RSP is serial 1809063632 (ex-RSP-B)
-        # and it runs DIGITAL — dual-tuner from launch so SDRTrunk decodes 2 P25
+        # Revision 5.0 (2026-07-16): Neptune's ONE RSP is serial 180903EF32 and
+        # it runs DIGITAL — dual-tuner from launch so SDRTrunk decodes 2 P25
         # systems at once via the native SDRplay API (the project's proven-clean
         # RSP path). It is the sole dual-tuner device (0x6bed invariant).
-        rsp = pol.device_by_serial("1809063632")
+        #
+        # Revision 4.1 had the two RSPduo serials REVERSED, and this test
+        # asserted the reversal — so it PASSED against a wrong policy, which is
+        # the only reason the error survived as long as it did. Ground truth is
+        # now measured, not inferred: `ioreg -p IOUSB` on Neptune 2026-07-16
+        # shows 180903EF32 on the FL1100 controller at 480 Mb/s, and no
+        # 1809063632 anywhere. See docs/sb3-neptune-architecture.md §7.5.
+        rsp = pol.device_by_serial("180903EF32")
         self.assertIsNotNone(rsp)
         self.assertEqual(rsp.role, "sdrtrunk-p25")
         self.assertEqual(rsp.kind, "rspduo")
         self.assertTrue(rsp.dual_tuner)
         self.assertEqual(
-            [d.serial for d in pol.devices if d.dual_tuner], ["1809063632"]
+            [d.serial for d in pol.devices if d.dual_tuner], ["180903EF32"]
         )
-        # The former digital RSP 180903EF32 was physically removed 2026-07-08
-        # (relocated to another host) — it must NOT be in the active device list.
-        self.assertIsNone(pol.device_by_serial("180903EF32"))
+        # 1809063632 is VENUS's RSPduo (airband via SDRangel there). It is not
+        # part of Neptune's fleet and must NOT be in the active device list.
+        self.assertIsNone(pol.device_by_serial("1809063632"))
         # RTL roles reconciled to the ACTUAL dongles on the M1 (3 RTLs, no 4th):
         # airband AM on the Blog V4 (83241970), ground NFM on 61108285 (the
         # proven 2026-06-18 fix), sounding on 56919602. Both analog bands are

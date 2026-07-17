@@ -25,9 +25,17 @@ custom web UI** (`scannerctl`), with **two mobile-control paths**: the thin UI a
 | `scannerctl/` | Thin Flask web UI (mobile-first) over the clients |
 
 ## Device/role mapping (from `etc/mac/sdr_fleet_policy.json`)
-- **RSP `180903EF32`** → SDRTrunk → MTRTRS + TACN (P25 Phase II)
-- **RSP `1809063632`** → SDRangel → AM airband + NFM ground
+- **RSP `180903EF32`** → SDRTrunk → MTRTRS + TACN (P25 Phase II). ✅ This is
+  **Neptune's** RSPduo, measured on the bus 2026-07-16.
+- **RSP `1809063632`** → SDRangel → AM airband + NFM ground. ⚠️ This line
+  describes **Venus**, a different host — not this box. The two RSPduos have
+  never shared a host in the current arrangement, and they must not (two RSPs
+  through one `sdrplay_apiService` is the 0x6bed hazard).
 - Shared SDRplay apiService (`com.sdrplay.service`); **max 1 dual-tuner RSPduo**.
+
+> **Note:** the serial→role intent above was always right; only fleet policy
+> rev 4.1 got the host assignment backwards. See rev 5.0 and
+> `docs/sb3-neptune-architecture.md` §7.5.
 
 ## Data carried over from SB6 (Linux)
 `homepatrol.db` (52 MB) + `hp_state.json` were backed up off the Mini before the

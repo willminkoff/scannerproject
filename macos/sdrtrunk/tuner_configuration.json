@@ -70,7 +70,7 @@
     "minimumFrequency" : 0,
     "maximumFrequency" : 0,
     "frequency" : 101100000,
-    "uniqueID" : "RSPduo Tuner 1 SER#1809063632",
+    "uniqueID" : "RSPduo Tuner 1 SER#180903EF32",
     "autoPPMCorrectionEnabled" : true
   }, {
     "type" : "rspDuoTuner2Configuration",
@@ -86,7 +86,7 @@
     "minimumFrequency" : 0,
     "maximumFrequency" : 0,
     "frequency" : 101100000,
-    "uniqueID" : "RSPduo Tuner 2 SER#1809063632",
+    "uniqueID" : "RSPduo Tuner 2 SER#180903EF32",
     "autoPPMCorrectionEnabled" : true
   } ],
   "disabledTuners" : [ ]

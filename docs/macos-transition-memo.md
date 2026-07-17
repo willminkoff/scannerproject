@@ -9,6 +9,17 @@ This is bring-up state, not production. Two decode proofs landed; nothing is "in
 (no bands are being scanned for the user yet). Plenty of warts below — they're called out
 on purpose.
 
+> ⚠️ **Historical, and about a DIFFERENT BOX than the current fleet.** This memo
+> describes the **2018 Intel Mac mini** (`macmini.lan`, macOS 15.7.7, T2) during
+> the era when **both RSPduos were attached to that one host**. Its serial→role
+> claims are accurate for that box and are **left as-written on purpose** — do
+> not "correct" them, and do not apply them to Neptune. Today the RSPduos are on
+> separate hosts: `180903EF32` on **Neptune** (digital/SDRTrunk), `1809063632`
+> on **Venus** (airband/SDRangel). Note §66/§110's
+> `RSPduo Tuner 1 SER#180903EF32` — that has been right all along, and it is
+> corroborating evidence for the rev-5.0 serial correction. See fleet policy
+> rev 5.0 and `docs/sb3-neptune-architecture.md` §7.5.
+
 ---
 
 ## A. Current state (as of handoff)

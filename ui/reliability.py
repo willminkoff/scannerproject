@@ -48,9 +48,14 @@ TRACKED_SERVICES = {
 # Expected RTL-SDR + RSPduo serials.  Drift here = a dongle dropped off
 # the bus.  Edit when the hardware allocation changes.
 EXPECTED_DONGLE_SERIALS = {
-    # RSPduos (analog + digital)
-    "1809063632": "RSPduo Analog (airband+ground)",
-    "180903EF32": "RSPduo Digital (op25)",
+    # RSPduos.  NOTE: these two entries are documentation only — the drift check
+    # below filters serials starting with "180" out of the RTL comparison, so
+    # neither is actually asserted at runtime.  Kept for the serial->role record.
+    #
+    # The two RSPduos live on DIFFERENT hosts and must never share one (two RSPs
+    # through a single sdrplay_apiService is the 0x6bed hazard):
+    "180903EF32": "RSPduo Digital (SDRTrunk P25) — Neptune",
+    "1809063632": "RSPduo Analog (airband) — VENUS, not this host",
     # RTL-SDRs by role
     "45469635": "NESDR — disco sweep",
     "70613472": "NESDR — waterfall A",

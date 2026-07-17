@@ -4,17 +4,21 @@
 # with the RSPduo available.
 #
 # ============================================================================
-# Revision 4.1 (2026-07-08): DIGITAL IS ON THE RSP serial 1809063632 (the former
-#   RSP-B) via SDRTrunk's native SDRplay API, DUAL-TUNER for up to 2 P25 systems.
-#   So the SDRplay apiService health dance below DOES apply. SERIAL CHANGED: the
-#   old digital RSP 180903EF32 was physically removed from the mini (taken to
-#   another host) on 2026-07-08, so digital moved to the one remaining RSP,
-#   1809063632. SDRTrunk must claim serial 1809063632 through the tuner-broker
-#   (consumer "sdrtrunk") so nothing else opens the RSP; it owns both tuners in
-#   one process (no 0x6bed / MA-SL exposure). In SDRTrunk (View -> Tuners), add
-#   the SDRplay RSPduo, enable both tuners, and pin each P25 system to its
-#   Preferred Tuner. (digital-on-RSP was proven on 180903EF32 — reconfirm clean
-#   on 1809063632; pending-soak.)
+# Revision 5.0 (2026-07-16): DIGITAL IS ON THE RSP serial 180903EF32 (RSP-A) via
+#   SDRTrunk's native SDRplay API, DUAL-TUNER for up to 2 P25 systems. So the
+#   SDRplay apiService health dance below DOES apply. SDRTrunk must claim serial
+#   180903EF32 through the tuner-broker (consumer "sdrtrunk") so nothing else
+#   opens the RSP; it owns both tuners in one process (no 0x6bed / MA-SL
+#   exposure). In SDRTrunk (View -> Tuners), add the SDRplay RSPduo, enable both
+#   tuners, and pin each P25 system to its Preferred Tuner.
+#
+#   SERIAL CORRECTION: revision 4.1 claimed digital had moved to 1809063632
+#   because 180903EF32 had supposedly been taken to another host. That was
+#   BACKWARDS — 180903EF32 never left, and 1809063632 is Venus's device.
+#   Confirmed by Will 2026-07-16 and measured on the box (`ioreg -p IOUSB`).
+#   Digital-on-RSP was proven on 180903EF32, which IS the attached device, so
+#   the "pending-soak / reconfirm" caveat 4.1 introduced is withdrawn.
+#   See docs/sb3-neptune-architecture.md §7.5.
 # ============================================================================
 #
 # WHY THIS EXISTS

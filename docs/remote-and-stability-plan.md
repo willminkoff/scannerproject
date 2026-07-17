@@ -29,8 +29,10 @@ abuse** (semaphore wedges, dual-tuner segfaults, rapid cycling), **one process d
 many jobs** (SB3 monolith; chirp daemon owning demod+bus+state), or **no supervision**
 (a crash at 18:42 and the box stays silent). Hence three rules:
 
-1. **One owner per radio, forever.** RSP-A `180903EF32` → SDRTrunk (P25). RSP-B
-   `1809063632` → SDRangel (70cm/ground). RTL dongles → SDRangel airband / spares.
+1. **One owner per radio, forever.** RSP-A `180903EF32` → SDRTrunk (P25) — this
+   is Neptune's device. RSP-B `1809063632` → SDRangel (70cm/ground) — that one
+   is **Venus's**, a different host; the two RSPduos do not share a box. RTL
+   dongles → SDRangel airband / spares.
    `sdrctl` is the only thing that starts/stops RSP consumers (30 s throttle, apiService
    kickstart). Analog-on-RTL + digital-on-RSP coexist; two RSP consumers never run at once.
 2. **Remote access taps audio; it never becomes a second SDR consumer.** No
