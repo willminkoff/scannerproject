@@ -1084,6 +1084,45 @@ better design, and it's worth saying why rather than just recording it:**
 **The line is clean because SB3 never holds audio state.** It only *asserts* state onto
 backends that then hold it themselves. Kill the asserter and the assertions stand. That is why
 this plan is safe to attempt — and it should be protected deliberately, not relied on by luck.
+It now is: `sb3/ownership.py` (`95caf4b`) encodes this table as data, and `classify()` **hard-
+fails** on any `com.scannerproject.*` label in neither set — an unclassified agent is one
+`kill` has no opinion about, which is how you find out at Phase 4 that the boundary was never
+real.
+
+#### ⚠️ Prior art with the OPPOSITE polarity — `macos/killswitch/sdr-killswitch`
+
+**Found 2026-07-16, untracked in Neptune's working tree; imported verbatim as prior art in
+`7bf15f3`.** It is called a killswitch, it is well-built, and **its `kill` means the reverse
+of this one.**
+
+| | `sdr-killswitch` (prior art, Jul 8) | `sb3-ctl` (this plan) |
+|---|---|---|
+| Model | Scanner ⟷ desktop apps, **mutually exclusive** | SB3 **orchestrates** the backends |
+| SDRangel is… | a **destination** you hand radios *to* | a **backend that must never stop** |
+| What "release" does | tears the scanner down **and quits SDRangel** | — |
+| What `kill` does | — | removes SB3; **SDRangel keeps producing audio** |
+
+Both its `release` and `scanner` paths call `quit_sdrangel()`. **Under §4.2 that is the one
+forbidden action.** The §4 ownership diagram does not map onto that code; it maps onto its
+inverse.
+
+**SB3 rejects the mutual-exclusion model.** It is not wrong — it is the correct design for
+"one human drives one radio at a time," which is what it was built for. It is simply a
+different program. **Do not merge the two vocabularies: "kill" belongs to SB3**, and the prior
+art should be renamed (`macos/sdr-handoff/`) when its mechanisms are harvested.
+
+**What SB3 does take from it — mechanism, not architecture** (reimplemented in `sb3/settle.py`,
+never copy-pasted): `launchctl bootout` and never `kill`, because every agent is
+`KeepAlive=true` and a plain kill just respawns — §4.3 depends on this and doesn't say it;
+the `DRAIN_SECONDS=6` settle beat; **holders-before-broker teardown**, which is §4.3 step 3
+already implemented, reasoning included; and `release`'s refusal to lie — it verifies no
+holder survived and returns non-zero rather than claiming success, which is §4.3 step 6's
+instinct arrived at independently.
+
+> ⚠️ **It is also a loaded gun.** Its agent labels match Neptune's live labels, so
+> `sdr-killswitch release` would `bootout com.scannerproject.sdrtrunk` — killing
+> `neptune-trunk.mp3`, currently the box's only live mount — and then `pkill sdr-trunk`, which
+> is the §5.4 #1 dirty-release hazard whose only fix is a reboot. **Do not run it on Neptune.**
 
 **The one honest cost of the full teardown:** while SB3 is dead, nothing refuses a stray
 process that tries to open the RSPduo — and the SIGKILL→dirty-release→**reboot** hazard (§5.4)
@@ -1239,6 +1278,116 @@ is dead, the only things touching radios are SDRangel and SDRTrunk, which never 
 no safety and cost a third state. **Will's teardown is cleaner: the SB3 layer is either fully
 up or fully down.** Reservations are re-asserted on resume (§4.4 step 2), where they actually
 constrain someone.
+
+### 4.6 The check-that-doesn't-check pattern — a program invariant
+
+> ## **Any verification must be provable-to-execute, or it must fail CLOSED.**
+>
+> **Reading a value counts as verification only if we can distinguish *"the check ran and
+> found no signal"* from *"the check silently produced no data."* If we can't, fail closed.**
+
+This is the most expensive recurring bug class in this project, and it deserves its own
+section because **it has never once looked like a bug.** It looks like a passing check.
+`sb7-northstar-program.md` names the shape — the *"useful liar"* — and §4.3 step 6 already
+gestures at it (*"a kill switch that doesn't verify the invariant it exists to protect is a
+wish"*). What follows is the general form, extracted from **three instances found in 48 hours,
+2026-07-14→16**. Each was written by someone competent, each shipped, and each reported
+success while the thing it existed to catch was actively happening.
+
+#### The three instances
+
+**1. `soak-c.py`'s serial confirmation → authored the rev-4.1 serial reversal (§7.5).**
+
+```
+[usb]        system_profiler: sdrplay_present=False serials=(none exposed)   ← probe returned NOTHING
+[sdrtrunk]   discovered SER# in logs: ['1809063632' ×779, '180903EF32' ×25]  ← fell through to a log grep
+  WARNING: a SECOND SDRplay serial appeared ['180903EF32'] — two RSPs on one host is toxic.
+  OK: RSP 1809063632 confirmed via SDRTrunk logs.                            ← passed anyway. Backwards.
+```
+
+Four compounding failures, each individually forgivable: the real hardware probe returned
+**empty and said so quietly** (`system_profiler SPUSBDataType` returns nothing over SSH on
+Tahoe); the code **silently fell through** to a weaker proxy; the proxy was a
+**recency-unweighted majority over cumulative history**, which answers "what has this box
+ever seen" rather than "what is attached now"; and it **warned about the contradicting
+evidence and passed regardless**. The tail of its own serial list is dominated by
+`180903EF32` — *the log contained the right answer and the tool read it backwards.* Cost:
+a wrong "source of truth" that eight artifacts copied, live for eight days.
+
+**2. The `.sdrangel-restore-paused` sentinel → 27 hours of dead analog (`docs/phase-0-status.md` §4).**
+
+Created Jul 12 20:47, presumably for a few minutes of debugging. It **survived a reboot**.
+`launchctl list` showed five green agents the whole time; every process was "healthy";
+`sdrangel-restore.py` simply never ran, and nothing anywhere said so. No alarm, no non-zero
+exit, no log line. The check here is the *absence* of a file — and absence is
+indistinguishable from "nobody ever created one." Cost: `neptune-angel.mp3` dead for ~27
+hours with every indicator green.
+
+**3. The Phase 1 scaffold's own HEAD mount probe → caught at bring-up (`95caf4b`).**
+
+The first version of `sb3/backends.py` probed mounts with `HEAD`. **Icecast answers HEAD on a
+mount with `400 Bad Request`** (verified on 2.4.4: `HEAD`→400, `GET`→200 live / 404 absent).
+So *every* mount read 400, `present` was uniformly `False`, and `verify_mounts()` would then
+compare `False→False` on a genuinely dropped mount and file it as *"was already down; not
+ours."* **The invariant check would have passed while the exact thing it exists to catch
+happened.** This one is the most instructive of the three: it was written *by* someone who had
+just spent two days documenting the other two, in the function whose entire purpose is to
+refuse to lie. Cost: nothing — it was caught because the scaffold was dry-run against a live
+box instead of only against mocks.
+
+#### The general form
+
+```
+1. A probe returns EMPTY / NULL / an error, and says so quietly (or not at all).
+2. The code cannot tell "no signal" from "no data", so it treats empty as a benign reading.
+3. It falls through to a weaker proxy — history, a heuristic, a default, an absence.
+4. It reports SUCCESS.
+   → The check now asserts the OPPOSITE of its purpose, with full confidence, forever.
+```
+
+Note what is **not** the problem. In all three cases the probe was reasonable, the fallback
+was reasonable, and the author was competent. The defect is structural: **there is no
+distinction in the type between "checked, fine" and "couldn't check."** A boolean cannot carry
+that, and every one of these bugs is a boolean that should have been three-valued.
+
+#### The rules this imposes
+
+1. **A probe must prove it executed.** Not "returned something falsy" — *executed*. If a
+   probe can return empty for both "nothing there" and "I didn't run", it is not a probe, it
+   is a coin flip with good manners.
+2. **No silent fallback to a weaker source.** Falling back is sometimes right; falling back
+   *quietly* never is. If `system_profiler` is empty and you use `ioreg` instead, **say so in
+   the output**, and mark the result's provenance.
+3. **Never accept history as evidence of current state.** Logs answer "what did this box ever
+   see." Hardware questions need `ioreg`. This is the specific rule rev 5.0's `_detection`
+   key now encodes, in words, so the next person cannot repeat it.
+4. **Contradicting evidence is a STOP, not a warning.** `soak-c.py` printed the fact that
+   killed its own conclusion and continued. If a check finds evidence against its verdict, the
+   verdict is *unknown* — which is a refusal, not a pass.
+5. **Absence is never permission.** The fail-CLOSED sentinel (§4.4) is this rule as code:
+   `$SB3_STATE/killed` missing ≠ permission to reconcile; positive state is required to act.
+   Getting this backwards is instance 2.
+6. **Three states, not two.** `ok` / `violated` / **`could-not-determine`** — and
+   `could-not-determine` must be *loud* and must not be spelled the same as `ok`.
+   `broker/policy.py` already does this right (`PolicyError`, exit 3, no partial parses): *"a
+   broker running on a guessed policy would be worse than no broker: it would look like
+   arbitration while enforcing nothing."* **Generalize that, don't admire it.**
+
+#### Where this binds, concretely
+
+| Site | The rule it must obey |
+|---|---|
+| `sb3/killswitch.py` `verify_mounts()` (§4.3 step 6) | An unreachable mount is **not** a pass. `None` status ≠ "fine". Probe with GET, never HEAD. |
+| `sb3/state.py` `is_killed()` (§4.4) | Any read error returns **True** — refuse to act. Absence ≠ permission. |
+| `sb3/ownership.py` `classify()` | An unclassified label **raises**. An agent `kill` has no opinion about is a hard failure, not a shrug. |
+| `etc/mac/sdr_fleet_policy.json` `_detection` (rev 5.0) | Mandates `ioreg`, names the `system_profiler`-empty trap, and **explicitly rejects log-greps as evidence**. |
+| Phase 0 / §6 measurement steps | `system_profiler SPUSBDataType` returns empty over SSH on Tahoe. Use `ioreg`. An empty result is a **failed measurement**, not a finding. |
+| §3.7 disco confidence | Dropped USB samples don't error — they quietly corrupt classifier input. Same shape, arriving through the USB stack. Instrument the drop counter and surface it. |
+
+> **The uncomfortable lesson from instance 3:** §5.1 says *"trust the code that runs, not the
+> doc-shaped artifacts."* That is too generous. `soak-c.py` **was** code that ran — it was a
+> doc-shaped artifact wearing a lab coat. The honest rule is narrower: **trust a probe you can
+> prove executed.** Everything else is a rumour with a timestamp.
 
 ---
 
@@ -1782,6 +1931,44 @@ injected fault produced a structured diagnostic. **All prior invariants still ho
 
 ## 7. Risks + open questions
 
+### 7.0 Status board — what has actually landed (2026-07-16)
+
+This plan is no longer only a plan. Four branches exist; none are merged.
+
+| Branch | Commit | What it is | State |
+|---|---|---|---|
+| `sb3-neptune-plan` | *this doc* | The architecture plan | living |
+| `sb3-neptune-phase0` | **`3371d49`** | `docs/phase-0-status.md` — the measurement pass | ✅ **complete, with hardware caveats** |
+| `sb3-killswitch-priorart` | **`7bf15f3`** | `macos/killswitch/` imported **verbatim** | ✅ **captured** |
+| `sb3-serial-reversal-fix` | **`62fddc5`** | **Fleet policy rev 5.0** + the §7.5 cleanup | ✅ **landed on the branch** |
+| `sb3-phase1-scaffold` | **`95caf4b`** | `bin/sb3-ctl` + `sb3/` — Phase 1 scaffolding | ✅ **dry-run only** |
+
+**Fleet policy rev 5.0 (`62fddc5`)** — the §7.5 reversal is **fixed**: Neptune = `180903EF32`,
+Venus = `1809063632`, now backed by `ioreg` rather than inference. 12 files across List A and
+List B; List C verified untouched. `tests/test_tuner_broker_policy.py` updated **in the same
+commit** (it asserted the reversal, so it passed against the wrong policy — splitting it would
+have left a broken intermediate). Zero regressions against the clean baseline. Rev 5.0 also
+withdraws 4.1's "digital pending-soak" caveat, which existed *only* because of the reversal,
+and its `_detection` key now mandates `ioreg` and rejects log-greps (§4.6 rule 3).
+
+**Prior art (`7bf15f3`)** — `macos/killswitch/` captured byte-for-byte (sha256-verified,
+`__pycache__` excluded, `soak-logs/` **kept as the forensic evidence**). Two reasons it exists:
+it is the **origin trail** for the rev-4.1 reversal (§4.6 instance 1), and it is the **salvage
+source** for `bootout`/drain/holders-first mechanics (§4.2). It was untracked and one
+`git clean -fd` from gone. **Not renamed on purpose** — verbatim keeps it diffable as evidence;
+the rename to `macos/sdr-handoff/` belongs in a follow-up. ⚠️ **Do not run it on Neptune** (§4.2).
+
+**Phase 1 scaffold (`95caf4b`)** — `status` is **real** and fully implemented; `kill` is
+**dry-run only** and `--execute` is **refused** (exit 3) until Will's review greenlights Phase
+1.1. A test patches `subprocess.run` and `time.sleep` and asserts neither is reachable from
+`kill` without `--execute`. Verified dry-run against live Neptune; nothing modified, both
+mounts unchanged. It caught §4.6 instance 3 in its own invariant check during bring-up.
+
+**What is still open:** the HackRF is **not on the bus** (§7.6 / Phase 0 — LEDs lit, host never
+saw an electrical attach; cable swap pending), RTL `56919602` negotiates **12 Mb/s** and needs
+hands, and the VIA hub's PSU is unconfirmed. All three need Will physically at the box. Nothing
+blocks repo-side work.
+
 ### 7.1 Must be answered before Phase 1 — ✅ ALL CLOSED
 
 > **Every question in this section is answered.** Nothing blocks Phase 1. What remains open in
@@ -1895,13 +2082,37 @@ the wide ones force the cross-window question with data behind it.
 
 ---
 
-### 7.5 Serial-reversal cleanup needed
+### 7.5 Serial-reversal cleanup — ✅ **DONE (`62fddc5`, branch `sb3-serial-reversal-fix`)**
 
-**Follow-up task. NOT in scope for this branch — nothing below was modified.**
+> **The survey below is complete and the fix has landed.** Kept as the reasoning trail and as
+> the map of what was touched. Everything in **List A** and **List B** is corrected; **List C
+> was verified untouched**, programmatically, file by file.
+>
+> **Two deviations from the survey, both deliberate:**
+>
+> 1. **An EIGHTH artifact was found** after this survey was written:
+>    `macos/killswitch/sdr-killswitch` + `soak-c.py` (`7bf15f3`). It is not a copy of rev 4.1
+>    — **it is probably rev 4.1's source.** `soak-c.py`'s verdict line, *"OK: RSP 1809063632
+>    confirmed via SDRTrunk logs"*, is the only artifact anywhere that claimed a *runtime
+>    observation* backing the reversal, which is why it looked authoritative. It is a
+>    check-that-doesn't-check (§4.6 instance 1).
+> 2. **`docs/macos-transition-memo.md` and `docs/macos-backend-migration-scope.md` were NOT
+>    rewritten**, despite being listed in List B. Both are explicitly dated documents about the
+>    **2018 Intel ScannerBox** (`macmini.lan`, macOS 15.7.7, T2) from the era when both
+>    RSPduos genuinely were on one host. **Neither claims anything about Neptune**, and their
+>    serial→role mappings are accurate for the box they describe — `transition-memo:66/110`
+>    even say `RSPduo Tuner 1 SER#180903EF32`, which was right all along and **corroborates**
+>    the correction. Rewriting them would corrupt the record — the exact sin List C warns
+>    about. Each got a dated pointer note instead. **They are List C material, misfiled here.**
+>
+> **Bonus fix:** `macos/sdrtrunk/tuner_configuration.json` now agrees with
+> `macos/sdrtrunk/README.md:17`, resolving the in-directory contradiction flagged as lesson 2
+> below — the one that was sitting in the repo unflagged and was itself evidence of the reversal.
 
-Will confirmed 2026-07-16: **Neptune = `180903EF32`, Venus = `1809063632`** (§5.1).
-`etc/mac/sdr_fleet_policy.json` rev 4.1 (2026-07-08) has them reversed, and seven artifacts
-copied from it. This is the survey; the fix is its own change.
+**Will confirmed 2026-07-16: Neptune = `180903EF32`, Venus = `1809063632`** (§5.1) — and
+`ioreg -p IOUSB` on the box independently confirms it (`3371d49`), so this is now **measured,
+not inferred**. `etc/mac/sdr_fleet_policy.json` rev 4.1 (2026-07-08) had them reversed, and
+seven artifacts copied from it. The survey follows.
 
 #### A. Wrong — asserts Neptune's digital RSPduo is `1809063632`
 
