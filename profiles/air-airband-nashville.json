@@ -22,5 +22,5 @@
   ],
   "audio_device": {"strategy": "dynamic_idx0"},
   "copy_to_udp": {"address": "127.0.0.1", "port": 9998},
-  "mount": "neptune-angel.mp3"
+  "mount": "neptune-air.mp3"
 }

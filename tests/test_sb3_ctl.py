@@ -268,11 +268,11 @@ class TestInvariantVerification(unittest.TestCase):
         self.assertEqual(rc, killswitch.EXIT_OK)
 
     def test_already_down_mount_is_not_our_fault(self):
-        # neptune-angel.mp3 is deliberately paused. `kill` is accountable for
+        # neptune-ground.mp3 (Ground role, not yet deployed) is down. `kill` is accountable for
         # what it breaks, not for what it inherited.
-        before = {"neptune-angel.mp3": backends.MountState("neptune-angel.mp3", 404, False)}
+        before = {"neptune-angel.mp3": backends.MountState("neptune-ground.mp3", 404, False)}
         with mock.patch.object(backends, "mount_state",
-                               return_value=backends.MountState("neptune-angel.mp3", 404, False)):
+                               return_value=backends.MountState("neptune-ground.mp3", 404, False)):
             rc = killswitch.verify_mounts(before, emit=self._emit)
         self.assertEqual(rc, killswitch.EXIT_OK)
         self.assertIn("not ours", "\n".join(self.lines))
