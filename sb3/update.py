@@ -143,10 +143,22 @@ def cmd_update(*, execute: bool = False, emit: Emit = print,
     pids_before = _backend_pids()
     emit(f"  backend PIDs before: {pids_before}")
 
-    emit(f"  git checkout {tgt} …")
-    rc, out, err = gitdeploy._git(root, "checkout", tgt)
+    # Move to the target while keeping HEAD ATTACHED to the local branch.
+    # `git checkout origin/<branch>` would detach HEAD — after which `status`
+    # can no longer compute divergence (no branch to ls-remote) and the NEXT
+    # `update` refuses with "detached HEAD". So fast-forward the branch instead.
+    # --ff-only is the right constraint for a deploy mirror: it advances to the
+    # remote tip and REFUSES if history diverged (a force-push), rather than
+    # silently reconciling. (Caught dogfooding on Neptune 2026-07-19.)
+    if branch:
+        emit(f"  git merge --ff-only {target_sha[:7]}  (on {branch}) …")
+        rc, out, err = gitdeploy._git(root, "merge", "--ff-only", target_sha)
+    else:
+        emit(f"  git checkout {tgt} …  (detached — no local branch)")
+        rc, out, err = gitdeploy._git(root, "checkout", tgt)
     if rc != 0:
-        emit(f"  ✗ checkout failed: {err or out}")
+        emit(f"  ✗ advance failed: {err or out}")
+        emit("    (--ff-only refuses a diverged history; inspect by hand)")
         return EXIT_INVARIANT_VIOLATED
     # Confirm HEAD actually moved — checkout returning 0 is not proof (§4.6).
     now = gitdeploy.observe(root, check_remote=False)

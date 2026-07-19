@@ -136,7 +136,7 @@ class TestUpdateExecuteGuards(unittest.TestCase):
                 return 0, head, ""
             if args[0] == "rev-parse":
                 return 0, target, ""
-            if args[0] == "checkout":
+            if args[0] in ("checkout", "merge"):
                 return 0, "", ""
             if args[0] == "status":
                 return 0, "", ""
@@ -202,6 +202,35 @@ class TestUpdateExecuteGuards(unittest.TestCase):
             rc = update.cmd_update(execute=True, emit=self._emit)
         self.assertEqual(rc, update.EXIT_INVARIANT_VIOLATED)
         self.assertIn("expected", "\n".join(self.lines))
+
+    def test_advance_uses_ff_only_merge_not_a_detaching_checkout(self):
+        # HEAD must stay attached to the branch, so `git merge --ff-only` is
+        # used, NOT `git checkout origin/<branch>` (which detaches).
+        seen = []
+
+        def g(root, *args, **kw):
+            seen.append(args)
+            if args[0] == "fetch":
+                return 0, "", ""
+            if args[:2] == ("rev-parse", "HEAD"):
+                return 0, "a"*40, ""
+            if args[0] == "rev-parse":
+                return 0, "b"*40, ""
+            return 0, "", ""
+
+        with mock.patch.object(gitdeploy, "is_git_checkout", return_value=True), \
+             mock.patch.object(gitdeploy, "_git", side_effect=g), \
+             mock.patch.object(gitdeploy, "observe",
+                               side_effect=[_state(), _state(),
+                                            _state(sha="b"*40, short_sha="bbbbbbb")]), \
+             mock.patch.object(update, "_backend_pids", return_value={}), \
+             mock.patch("sb3.killswitch.cmd_kill", return_value=0), \
+             mock.patch("sb3.killswitch.cmd_resume", return_value=0):
+            update.cmd_update(execute=True, emit=self._emit)
+        self.assertTrue(any(c[0] == "merge" and "--ff-only" in c for c in seen),
+                        "advance must fast-forward the branch")
+        self.assertFalse(any(c[0] == "checkout" for c in seen),
+                         "advance must NOT detach HEAD via checkout origin/<branch>")
 
     def test_does_not_resume_if_kill_invariant_failed(self):
         with mock.patch.object(gitdeploy, "is_git_checkout", return_value=True), \
