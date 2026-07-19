@@ -88,7 +88,13 @@ class TestUpdateDryRun(unittest.TestCase):
             rc = update.cmd_update(execute=False, emit=self._emit)
 
         self.assertEqual(rc, update.EXIT_OK)
-        self.assertIn(("fetch", "--tags", "--prune", "origin"), calls)
+        fetches = [c for c in calls if c[0] == "fetch"]
+        self.assertTrue(fetches, "dry-run must fetch")
+        # fetch must name the branch's tracking refspec explicitly (a --depth 1
+        # clone is single-branch, so origin/<branch> is otherwise absent).
+        self.assertTrue(any("refs/remotes/origin/sb3-phase1-scaffold" in " ".join(c)
+                            for c in fetches),
+                        "fetch must explicitly update the branch tracking ref")
         self.assertFalse(any(c[0] == "checkout" for c in calls),
                          "dry-run must not checkout")
         k.assert_not_called()
@@ -158,7 +164,7 @@ class TestUpdateExecuteGuards(unittest.TestCase):
         with mock.patch.object(gitdeploy, "is_git_checkout", return_value=True), \
              mock.patch.object(gitdeploy, "_git", side_effect=self._fake_git()), \
              mock.patch.object(gitdeploy, "observe",
-                               side_effect=[_state(),                      # initial
+                               side_effect=[_state(), _state(),            # pre + st
                                             _state(sha="b"*40, short_sha="bbbbbbb")]), \
              mock.patch.object(update, "_backend_pids", side_effect=pid_seq), \
              mock.patch("sb3.killswitch.cmd_kill", return_value=0), \
@@ -173,7 +179,7 @@ class TestUpdateExecuteGuards(unittest.TestCase):
         with mock.patch.object(gitdeploy, "is_git_checkout", return_value=True), \
              mock.patch.object(gitdeploy, "_git", side_effect=self._fake_git()), \
              mock.patch.object(gitdeploy, "observe",
-                               side_effect=[_state(),
+                               side_effect=[_state(), _state(),
                                             _state(sha="b"*40, short_sha="bbbbbbb")]), \
              mock.patch.object(update, "_backend_pids", return_value=pids), \
              mock.patch("sb3.killswitch.cmd_kill", return_value=0), \
@@ -188,7 +194,7 @@ class TestUpdateExecuteGuards(unittest.TestCase):
         with mock.patch.object(gitdeploy, "is_git_checkout", return_value=True), \
              mock.patch.object(gitdeploy, "_git", side_effect=self._fake_git()), \
              mock.patch.object(gitdeploy, "observe",
-                               side_effect=[_state(),
+                               side_effect=[_state(), _state(),
                                             _state(sha="a"*40, short_sha="aaaaaaa")]), \
              mock.patch.object(update, "_backend_pids", return_value={}), \
              mock.patch("sb3.killswitch.cmd_kill", return_value=0), \
@@ -201,7 +207,7 @@ class TestUpdateExecuteGuards(unittest.TestCase):
         with mock.patch.object(gitdeploy, "is_git_checkout", return_value=True), \
              mock.patch.object(gitdeploy, "_git", side_effect=self._fake_git()), \
              mock.patch.object(gitdeploy, "observe",
-                               side_effect=[_state(),
+                               side_effect=[_state(), _state(),
                                             _state(sha="b"*40, short_sha="bbbbbbb")]), \
              mock.patch.object(update, "_backend_pids", return_value={}), \
              mock.patch("sb3.killswitch.cmd_kill", return_value=1), \

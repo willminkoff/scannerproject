@@ -70,10 +70,25 @@ def cmd_update(*, execute: bool = False, emit: Emit = print,
         emit("    deploy — migrate to a checkout first (Phase B).")
         return EXIT_REFUSED
 
+    # Determine the branch BEFORE fetching, so the fetch can name it. A
+    # `--depth 1` clone implies --single-branch, so the deploy checkout's fetch
+    # refspec may only track origin/main — `origin/<our-branch>` then never gets
+    # a local ref and `rev-parse origin/<branch>` fails. So fetch the branch's
+    # tracking ref EXPLICITLY rather than assuming it exists. (Caught dogfooding
+    # this on Neptune 2026-07-19.)
+    pre = gitdeploy.observe(root, check_remote=False)
+    branch = pre.branch
+
     # fetch is a READ. Safe in dry-run: it updates remote-tracking refs and the
     # object store, never the working tree or HEAD.
-    emit("  git fetch --tags --prune origin …")
-    rc, out, err = gitdeploy._git(root, "fetch", "--tags", "--prune", "origin")
+    if branch:
+        refspec = f"+refs/heads/{branch}:refs/remotes/origin/{branch}"
+        emit(f"  git fetch --tags --prune origin {refspec} …")
+        rc, out, err = gitdeploy._git(root, "fetch", "--tags", "--prune",
+                                      "origin", refspec)
+    else:
+        emit("  git fetch --tags --prune origin …")
+        rc, out, err = gitdeploy._git(root, "fetch", "--tags", "--prune", "origin")
     if rc != 0:
         emit(f"  ✗ fetch failed: {err or out}")
         return EXIT_INVARIANT_VIOLATED
@@ -81,7 +96,6 @@ def cmd_update(*, execute: bool = False, emit: Emit = print,
     emit("")
 
     st = gitdeploy.observe(root, check_remote=True)
-    branch = st.branch
     tgt = target or (f"origin/{branch}" if branch else None)
     if tgt is None:
         emit("  ✗ detached HEAD and no explicit target — refusing to guess.")
