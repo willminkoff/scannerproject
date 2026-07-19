@@ -223,16 +223,39 @@ class TestTranslatorApply(unittest.TestCase):
                               "no loaded-profile record on failure")
             self.assertIn("unwinding", "\n".join(self.lines))
 
-    def test_apply_refuses_when_mount_already_live(self):
+    def test_apply_refuses_when_a_different_profile_is_loaded_and_live(self):
         import tempfile
         with tempfile.TemporaryDirectory() as td:
             st = State(Path(td))
+            st.write_loaded_profile({"name": "ground.something.else",
+                                     "mount": "neptune-air.mp3"})
             with mock.patch.object(backends, "mount_state",
                                    return_value=backends.MountState("neptune-air.mp3", 200, True)):
                 c = _RecordingClient(self._emit, bound_serial="83241970")
                 rc = translator.apply(self._prof(), execute=True, emit=self._emit,
                                       state=st, client=c)
             self.assertEqual(rc, translator.REFUSED)
+            self.assertIn("different profile", "\n".join(self.lines))
+
+    def test_apply_takes_over_leftover_live_mount_when_no_profile_loaded(self):
+        # Air mount live from a disposable NFM scanner on ds0, no profile on
+        # record → apply proceeds and reconfigures ds0 (the real Neptune case
+        # after the mount rename).
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            st = State(Path(td))
+            seq = [backends.MountState("neptune-air.mp3", 200, True)]   # live at baseline
+            seq += [backends.MountState("neptune-air.mp3", 200, True)] * 6
+            with mock.patch.object(backends, "mount_state", side_effect=seq), \
+                 mock.patch.object(backends, "resolve_idx0_audio_name",
+                                   return_value="Mac mini Speakers"), \
+                 mock.patch.object(backends, "icecast_mounts",
+                                   return_value=["neptune-air.mp3"]):
+                c = _RecordingClient(self._emit, bound_serial="56919602", channels_after=4)
+                rc = translator.apply(self._prof(), execute=True, emit=self._emit,
+                                      state=st, client=c)
+            self.assertEqual(rc, translator.OK)
+            self.assertIn("take it over", "\n".join(self.lines))
 
 
 class TestTranslatorUnload(unittest.TestCase):

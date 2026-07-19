@@ -104,15 +104,28 @@ def apply(prof: Profile, *, execute: bool, emit: Emit,
          f"({prof.hardware_id} {prof.serial})")
     emit("")
 
-    # 1. Pause-marker baseline (§ pause-marker interaction).
+    # 1. Baseline + ownership guard (§ pause-marker interaction).
+    #
+    # Only ds{idx}'s copyToUDP drives this mount's UDP tap, and apply owns ds{idx},
+    # so a live mount does NOT mean "something else is fighting us" — it means our
+    # own deviceset is currently producing (possibly leftover/un-owned content
+    # that this apply will replace). The real thing to refuse is stomping a
+    # DIFFERENT profile that is already loaded and live: unload it first.
     marker = state.marker_present()
     mount_now = backends.mount_state(prof.mount)
+    record = state.read_loaded_profile()
     emit(f"  baseline: mount {prof.mount} = {mount_now.http_status}, "
-         f"pause marker {'present' if marker else 'ABSENT'}")
-    if execute and mount_now.present:
-        emit("  ✗ REFUSING: mount is already live. Something is already driving")
-        emit("    this mount — apply would fight it. Inspect first.")
+         f"pause marker {'present' if marker else 'ABSENT'}, "
+         f"loaded profile = {record.get('name') if record else 'none'}")
+    if execute and record and record.get("name") != prof.name and mount_now.present:
+        emit(f"  ✗ REFUSING: a different profile ({record.get('name')}) is loaded "
+             f"and live on {record.get('mount')}.")
+        emit("    Unload it first (`sb3-ctl profile unload …`) — apply will not")
+        emit("    silently stomp another active profile.")
         return REFUSED
+    if execute and mount_now.present:
+        emit(f"  note: {prof.mount} is already live (leftover/un-owned content on "
+             f"ds{idx}); this apply will reconfigure ds{idx} and take it over.")
     emit("")
 
     # 2. Device: rebind only if the bound serial differs (§ preserve binding).
