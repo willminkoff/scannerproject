@@ -140,11 +140,16 @@ def apply(prof: Profile, *, execute: bool, emit: Emit,
     emit("")
 
     # 4. Channels: clear leftovers, then apply keepalive-FIRST.
-    audio_name = backends.resolve_idx0_audio_name() if execute else "<idx0 name>"
-    if execute and not audio_name:
-        emit("  ✗ could not resolve idx0 audio device — aborting")
-        _unwind(prof, c, state, emit)
-        return INVARIANT_VIOLATED
+    # Resolve idx0 even in dry-run — it is a harmless read, and it makes the
+    # dry-run trace show the REAL device name (e.g. "Mac mini Speakers") rather
+    # than a placeholder, which is what a reviewer needs to see before execute.
+    audio_name = backends.resolve_idx0_audio_name()
+    if audio_name is None:
+        if execute:
+            emit("  ✗ could not resolve idx0 audio device — aborting")
+            _unwind(prof, c, state, emit)
+            return INVARIANT_VIOLATED
+        audio_name = "<idx0 unresolved — SDRangel not reachable from here>"
     emit(f"  audio idx0 resolved: {audio_name!r}  (dynamic_idx0)")
 
     c.clear_channels(idx)
