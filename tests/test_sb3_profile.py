@@ -100,16 +100,24 @@ class _RecordingClient(SDRangelClient):
     def __init__(self, emit, *, bound_serial="OLD", channels_after=0):
         super().__init__(execute=True, emit=emit, sleep=lambda s: None)
         self._bound = bound_serial
+        self._hw = "RTLSDR"
         self._chan_after = channels_after
 
     def _req(self, method, path, body=None, timeout=8.0):
         self.calls.append((method, path, body))
         if method == "GET" and path == "":
             return 200, {}
+        # A rebind (PUT device) makes the deviceset report the NEW device as
+        # enumerated — mirrors real SDRangel, and lets wait_device_ready pass.
+        if method == "PUT" and path.endswith("/device") and body:
+            self._bound = body.get("serial", self._bound)
+            self._hw = body.get("hwType", self._hw)
+            return 200, {}
         if method == "GET" and path.endswith("/device/settings"):
             return 200, {"rtlSdrSettings": {"centerFrequency": 118925000}}
         if method == "GET" and path.startswith("/deviceset/"):
-            return 200, {"samplingDevice": {"serial": self._bound},
+            return 200, {"samplingDevice": {"serial": self._bound,
+                                            "hwType": self._hw, "state": "idle"},
                          "channels": [{}] * self._chan_after}
         return 200, {}
 
@@ -363,3 +371,82 @@ class TestProfileCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestClientHardening(unittest.TestCase):
+    """wait_device_ready + REST backoff (the 2026-07-19 wedge fix)."""
+
+    def setUp(self):
+        self.lines = []
+
+    def _emit(self, m):
+        self.lines.append(m)
+
+    def _client(self, responses):
+        """responses: dict path-substring → list of (status, body) to return in order."""
+        from sb3.sdrangel import SDRangelClient
+        c = SDRangelClient(execute=True, emit=self._emit, sleep=lambda s: None)
+        state = {k: list(v) for k, v in responses.items()}
+
+        def fake_req(method, path, body=None, timeout=8.0):
+            c.calls.append((method, path, body))
+            for key, seq in state.items():
+                if key in path or (key == "ROOT" and path == ""):
+                    return seq.pop(0) if len(seq) > 1 else seq[0]
+            return 200, {}
+        c._req = fake_req
+        return c
+
+    def test_wait_device_ready_returns_true_when_device_enumerates(self):
+        # first poll: still phantom; second: ready
+        c = self._client({
+            "ROOT": [(200, {})],
+            "/deviceset/0": [
+                (200, {"samplingDevice": {"hwType": "Unknown", "serial": None, "state": "idle"}}),
+                (200, {"samplingDevice": {"hwType": "RTLSDR", "serial": "83241970", "state": "idle"}}),
+            ],
+        })
+        self.assertTrue(c.wait_device_ready(0, "RTLSDR", "83241970", timeout=5))
+
+    def test_wait_device_ready_times_out_on_error_state(self):
+        c = self._client({
+            "ROOT": [(200, {})],
+            "/deviceset/0": [(200, {"samplingDevice": {"hwType": "RTLSDR",
+                                                       "serial": "83241970",
+                                                       "state": "error"}})],
+        })
+        self.assertFalse(c.wait_device_ready(0, "RTLSDR", "83241970", timeout=2))
+        self.assertIn("NOT ready", "\n".join(self.lines))
+
+    def test_wait_device_ready_wrong_serial_times_out(self):
+        c = self._client({
+            "ROOT": [(200, {})],
+            "/deviceset/0": [(200, {"samplingDevice": {"hwType": "RTLSDR",
+                                                       "serial": "56919602",
+                                                       "state": "idle"}})],
+        })
+        self.assertFalse(c.wait_device_ready(0, "RTLSDR", "83241970", timeout=2))
+
+    def test_wait_rest_healthy_recovers_after_backoff(self):
+        c = self._client({"ROOT": [(None, {}), (None, {}), (200, {})]})
+        self.assertTrue(c.wait_rest_healthy(timeout=30))
+        self.assertIn("REST recovered", "\n".join(self.lines))
+
+    def test_wait_rest_healthy_gives_up_cleanly(self):
+        c = self._client({"ROOT": [(None, {})]})   # never recovers
+        self.assertFalse(c.wait_rest_healthy(timeout=2))
+        self.assertIn("did not recover", "\n".join(self.lines))
+
+    def test_rebind_waits_for_device_ready(self):
+        c = self._client({
+            "ROOT": [(200, {})],
+            "/device/run": [(200, {})],
+            "/deviceset/0": [(200, {"samplingDevice": {"hwType": "RTLSDR",
+                                                       "serial": "83241970",
+                                                       "state": "idle"}})],
+        })
+        # PUT returns 200; the sequence for the deviceset GET reports ready.
+        ok = c.rebind_device(0, "RTLSDR", "83241970")
+        self.assertTrue(ok)
+        self.assertTrue(any(m == "PUT" and p == "/deviceset/0/device" for m, p, _ in c.calls))
+        self.assertIn("device ready", "\n".join(self.lines))

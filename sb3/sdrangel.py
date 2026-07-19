@@ -37,6 +37,11 @@ DEVICE_SETTLE = 2.0     # after a device settings PATCH, before reading back
 RUN_SETTLE = 3.0        # after a run/rebind, before touching settings
 CENTER_TOL_HZ = 5000    # RTL center readback tolerance
 
+DEVICE_READY_TIMEOUT = 10.0   # max wait for a rebound device to enumerate
+DEVICE_READY_POLL = 1.0       # between device-readiness polls
+REST_BACKOFF_CAP = 30.0       # total seconds to wait for a wedged REST
+REST_BACKOFF_START = 0.5      # first backoff interval (doubles each try)
+
 
 class SDRangelClient:
     def __init__(self, *, execute: bool, emit: Callable[[str], None],
@@ -80,6 +85,66 @@ class SDRangelClient:
         s, _ = self._req("GET", "", timeout=10)
         return s == 200
 
+    def wait_rest_healthy(self, timeout: float = REST_BACKOFF_CAP) -> bool:
+        """Poll GET /sdrangel with exponential backoff until 200, or give up.
+
+        The rapid device path can wedge SDRangel's REST server (HTTP 000 / 5xx)
+        while the process stays alive — this is what wedged it 2026-07-19. Rather
+        than fire more requests at a struggling server (which makes it worse),
+        back off and only proceed once it answers 200. Fails fast+clean if it
+        never recovers, so the caller can abort instead of piling on.
+        """
+        if not self.execute:
+            return True
+        if self.alive():
+            return True
+        waited, interval = 0.0, REST_BACKOFF_START
+        while waited < timeout:
+            self.emit(f"REST unhealthy — backing off {interval:g}s "
+                      f"({waited:.0f}/{timeout:.0f}s)")
+            self._sleep(interval)
+            waited += interval
+            if self.alive():
+                self.emit("REST recovered")
+                return True
+            interval = min(interval * 2, timeout - waited if timeout > waited else interval)
+        self.emit("REST did not recover within budget — aborting")
+        return False
+
+    def sampling_device(self, idx: int) -> dict:
+        ds = self.deviceset(idx)
+        return ds.get("samplingDevice", {}) or {}
+
+    def wait_device_ready(self, idx: int, expected_hw: str, expected_serial: str,
+                          timeout: float = DEVICE_READY_TIMEOUT) -> bool:
+        """Poll until a rebound device has actually enumerated on the deviceset.
+
+        Readiness = the samplingDevice reports the expected hwType AND serial AND
+        a non-error state. Configuring a device that has not finished enumerating
+        (hwType still "Unknown"/phantom, or state "error") is the likely trigger
+        of the 2026-07-19 REST wedge — the restore script's find_or_assign waits
+        for the device first, and this restores that discipline.
+        """
+        if not self.execute:
+            self.emit(f"would: wait for {expected_hw} {expected_serial} ready on ds{idx}")
+            return True
+        waited = 0.0
+        while waited <= timeout:
+            if not self.alive():
+                if not self.wait_rest_healthy():
+                    return False
+            sd = self.sampling_device(idx)
+            hw, serial, state = sd.get("hwType"), sd.get("serial"), sd.get("state")
+            if hw == expected_hw and serial == expected_serial and state != "error":
+                self.emit(f"device ready: {hw} {serial} (state={state})")
+                return True
+            self._sleep(DEVICE_READY_POLL)
+            waited += DEVICE_READY_POLL
+        self.emit(f"device NOT ready after {timeout:g}s "
+                  f"(hw={sd.get('hwType')}, serial={sd.get('serial')}, "
+                  f"state={sd.get('state')})")
+        return False
+
     def devicesets(self) -> List[dict]:
         _, d = self._req("GET", "")
         return (d.get("devicesetlist", {}) or {}).get("deviceSets", [])
@@ -102,14 +167,21 @@ class SDRangelClient:
     # -- writes -----------------------------------------------------------
 
     def rebind_device(self, idx: int, hw: str, serial: str) -> bool:
-        """PUT a device onto a deviceset. Stop it first, settle after."""
+        """PUT a device onto a deviceset, then WAIT for it to enumerate.
+
+        The wait is the fix for the 2026-07-19 wedge: PUT returns before the
+        device is actually ready, and configuring it too early wedges REST.
+        """
         self.emit(f"rebind ds{idx} → {hw} {serial}")
         self._req("DELETE", f"/deviceset/{idx}/device/run")
         self._wait(1.0)
         s, _ = self._req("PUT", f"/deviceset/{idx}/device",
                          {"hwType": hw, "serial": serial, "direction": 0})
         self._wait(RUN_SETTLE)
-        return s in (200, 202) or not self.execute
+        if s not in (200, 202) and self.execute:
+            self.emit(f"PUT device failed (HTTP {s})")
+            return False
+        return self.wait_device_ready(idx, hw, serial)
 
     def run(self, idx: int) -> None:
         self._req("POST", f"/deviceset/{idx}/device/run")
@@ -128,15 +200,20 @@ class SDRangelClient:
         """
         body = {"deviceHwType": hw, "direction": 0, settings_key: settings}
         for attempt in range(3):
-            if not self.alive():
+            # Only PATCH a healthy REST — back off if it is struggling rather
+            # than adding load, and abort cleanly if it never recovers.
+            if not self.wait_rest_healthy():
                 return False
             self._req("PATCH", f"/deviceset/{idx}/device/settings", body)
             self._wait(DEVICE_SETTLE)
             if not self.execute:
                 return True
+            if not self.wait_rest_healthy():
+                return False
             c = self.device_center(idx)
             if c is not None and abs(c - center_hz) < CENTER_TOL_HZ:
                 return True
+            self.emit(f"center readback {c} != {center_hz} (attempt {attempt+1}/3)")
         return False
 
     def clear_channels(self, idx: int) -> bool:
