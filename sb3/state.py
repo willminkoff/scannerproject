@@ -21,13 +21,24 @@ about.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
+from typing import Optional
 
 DEFAULT_STATE_DIR = Path(os.environ.get(
     "SB3_STATE", os.path.expanduser("~/.local/state/sb3")))
 
 KILLED_SENTINEL = "killed"
+LOADED_PROFILE = "loaded_profile.json"
+
+# The analog pause marker (§ pause-marker interaction). Its presence keeps the
+# analog path deliberately quiet; `profile load` treats a 404 mount + present
+# marker as the intended baseline and removes the marker as its final step.
+# Configurable because sb3 runs from ~/sb3 but the marker lives elsewhere.
+DEFAULT_PAUSE_MARKER = Path(os.environ.get(
+    "SB3_PAUSE_MARKER",
+    os.path.expanduser("~/scannerproject/.sdrangel-restore-paused")))
 
 
 class State:
@@ -58,6 +69,47 @@ class State:
     def describe_clear(self) -> str:
         """The command `resume` would run to clear it. Pure."""
         return f"rm -f {self.killed_path}"
+
+    # -- loaded-profile runtime record ------------------------------------
+
+    @property
+    def loaded_profile_path(self) -> Path:
+        return self.state_dir / LOADED_PROFILE
+
+    def read_loaded_profile(self) -> Optional[dict]:
+        """The profile SB3 last applied, or None. Read-only, never raises."""
+        try:
+            return json.loads(self.loaded_profile_path.read_text())
+        except (OSError, ValueError):
+            return None
+
+    def write_loaded_profile(self, record: dict) -> None:
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.loaded_profile_path.write_text(json.dumps(record, indent=2))
+
+    def clear_loaded_profile(self) -> None:
+        try:
+            self.loaded_profile_path.unlink()
+        except FileNotFoundError:
+            pass
+
+    # -- pause marker ------------------------------------------------------
+
+    @property
+    def pause_marker(self) -> Path:
+        return DEFAULT_PAUSE_MARKER
+
+    def marker_present(self) -> bool:
+        try:
+            return self.pause_marker.is_file()
+        except OSError:
+            return True
+
+    def remove_marker(self) -> None:
+        try:
+            self.pause_marker.unlink()
+        except FileNotFoundError:
+            pass
 
     # -- mutation (Phase 1.1) ---------------------------------------------
 

@@ -334,6 +334,19 @@ def cmd_resume_execute(*, emit: Emit, state: State, uid: int) -> int:
                  f"state={ds.state}{flag}")
     else:
         emit("    (SDRangel unreachable — observed, not corrected)")
+
+    # If a profile was loaded before the kill, classify live state against it —
+    # but do NOT re-apply. The backend was untouched by kill, so this should
+    # read "matches"; if it drifted, a human changed it and the human is right.
+    record = (state or State()).read_loaded_profile()
+    if record:
+        emit("")
+        emit(f"    loaded profile on record: {record.get('name')} "
+             f"(→ {record.get('mount')})")
+        from . import translator
+        cls = translator.observe(None, emit=lambda m: emit(f"    {m}"),
+                                 state=state or State())
+        emit(f"    profile classification: {cls} — NOT re-applied (§4.4)")
     emit("    No assertions made. On divergence the LIVE backend wins; a human")
     emit("    may have retuned by hand while SB3 was gone, and that is intent.")
     emit("")

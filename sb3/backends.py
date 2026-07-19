@@ -153,6 +153,45 @@ def sdrangel_devicesets(timeout: float = DEFAULT_TIMEOUT_SEC) -> List[DevicesetS
     return out
 
 
+def sdrangel_deviceset_detail(index: int, timeout: float = DEFAULT_TIMEOUT_SEC) -> Optional[Dict]:
+    """Full deviceset record (channels included). None if unreachable."""
+    return _get_json(f"{SDRANGEL_REST}/deviceset/{index}", timeout)
+
+
+def sdrangel_channels(index: int, timeout: float = DEFAULT_TIMEOUT_SEC) -> List[Dict]:
+    """Channel list for a deviceset — [{index, id, title, ...}, …]. Read-only."""
+    ds = sdrangel_deviceset_detail(index, timeout)
+    if not ds:
+        return []
+    return ds.get("channels", []) or []
+
+
+def sdrangel_audio_outputs(timeout: float = DEFAULT_TIMEOUT_SEC) -> List[Dict]:
+    """SDRangel output audio devices (from GET /sdrangel/audio). Read-only.
+
+    The endpoint is `/sdrangel/audio`, NOT `/sdrangel/audio/devices` (which 404s
+    — verified on the box 2026-07-19).
+    """
+    data = _get_json(f"{SDRANGEL_REST}/audio", timeout)
+    if not data:
+        return []
+    return data.get("outputDevices", []) or []
+
+
+def resolve_idx0_audio_name(timeout: float = DEFAULT_TIMEOUT_SEC) -> Optional[str]:
+    """Name of the SDRangel output device at index 0 — the copyToUDP tap.
+
+    This is the `dynamic_idx0` strategy: the literal string "System default
+    device" (index -1) does NOT drive the tap; the real device name (e.g.
+    "Mac mini Speakers", index 0) does. `fix-venus-angel.sh` learned this the
+    hard way, so it is resolved live rather than hard-coded.
+    """
+    for dev in sdrangel_audio_outputs(timeout):
+        if dev.get("index") == 0:
+            return dev.get("name")
+    return None
+
+
 def snapshot(mounts) -> Dict:
     """One bounded read of everything status needs."""
     return {

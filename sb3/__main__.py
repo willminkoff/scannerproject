@@ -63,6 +63,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="bring SB3 back, adopting live backend state")
     sub.add_parser("update", parents=[common],
                    help="git-pull the deploy checkout and bounce agents onto it")
+    pp = sub.add_parser("profile", parents=[common],
+                        help="load / status / unload an SB3 profile")
+    pp.add_argument("action", choices=["load", "status", "unload"])
+    pp.add_argument("name", help="profile name (e.g. air.airband.nashville) or path")
     sub.add_parser("diff", parents=[common],
                    help="what would resume change? (not implemented)")
     ap = sub.add_parser("apply", parents=[common],
@@ -87,6 +91,9 @@ def main(argv=None) -> int:
         return killswitch.cmd_resume(execute=execute)
     if args.cmd == "update":
         return update_mod.cmd_update(execute=execute)
+    if args.cmd == "profile":
+        from . import profilecmd
+        return profilecmd.run(args.action, args.name, execute=execute)
     if args.cmd == "install":
         return install_mod.cmd_install(execute=execute)
     if args.cmd == "uninstall":
