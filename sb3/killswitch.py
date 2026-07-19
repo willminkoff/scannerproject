@@ -30,7 +30,7 @@ from __future__ import annotations
 import os
 from typing import Callable, Dict, List, Optional
 
-from . import backends, ownership, settle
+from . import backends, gitdeploy, ownership, settle
 from .state import State
 
 Emit = Callable[[str], None]
@@ -58,6 +58,24 @@ def cmd_status(*, emit: Emit = _emit_default, state: Optional[State] = None) -> 
     emit("")
     emit(f"  sentinel : {'KILLED' if state.is_killed() else 'live'}"
          f"  ({state.killed_path})")
+    emit("")
+
+    dep = gitdeploy.observe(check_remote=True)
+    emit("  Deploy")
+    if not dep.is_git:
+        emit(f"    ⚠ not a git checkout ({dep.root}) — `update` unavailable")
+    else:
+        emit(f"    deployed_sha    : {dep.short_sha}")
+        emit(f"    deployed_branch : {dep.branch or 'DETACHED'}"
+             f"{'  (dirty)' if dep.dirty else ''}")
+        if dep.remote_sha is not None:
+            emit(f"    latest_remote_sha: {dep.remote_sha[:7]}")
+            emit(f"    divergent       : {dep.divergent}"
+                 f"{'  → run `sb3-ctl update`' if dep.divergent else ''}")
+        else:
+            # §4.6: could-not-determine must be loud and not spelled like ok.
+            emit("    latest_remote_sha: UNKNOWN (remote not reached)")
+            emit("    divergent       : UNKNOWN")
     emit("")
 
     emit("  SB3 layer (dies on `kill`)")
