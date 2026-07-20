@@ -26,7 +26,7 @@ class TestSchemaValid(unittest.TestCase):
         self.assertEqual(p.name, "air.airband.nashville")
         self.assertEqual(p.role, "air")
         self.assertEqual(p.mode, "camp")
-        self.assertEqual(p.serial, "83241970")
+        self.assertEqual(p.serial, "95339533")
         self.assertEqual(len(p.channels), 4)
 
     def test_baseband_fits_all_channels(self):
@@ -171,7 +171,7 @@ class TestTranslatorApply(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             st = State(Path(td))
             with self._patched()[0], self._patched()[1], self._patched()[2]:
-                c = _RecordingClient(self._emit, bound_serial="83241970", channels_after=4)
+                c = _RecordingClient(self._emit, bound_serial="95339533", channels_after=4)
                 rc = translator.apply(self._prof(), execute=True, emit=self._emit,
                                       state=st, client=c)
             self.assertEqual(rc, translator.OK)
@@ -183,7 +183,7 @@ class TestTranslatorApply(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             st = State(Path(td))
             with self._patched()[0], self._patched()[1], self._patched()[2]:
-                c = _RecordingClient(self._emit, bound_serial="83241970", channels_after=4)
+                c = _RecordingClient(self._emit, bound_serial="95339533", channels_after=4)
                 translator.apply(self._prof(), execute=True, emit=self._emit,
                                  state=st, client=c)
             # first channel PATCH must carry the keepalive channel's title
@@ -196,7 +196,7 @@ class TestTranslatorApply(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             st = State(Path(td))
             with self._patched()[0], self._patched()[1], self._patched()[2]:
-                c = _RecordingClient(self._emit, bound_serial="83241970", channels_after=4)
+                c = _RecordingClient(self._emit, bound_serial="95339533", channels_after=4)
                 translator.apply(self._prof(), execute=True, emit=self._emit,
                                  state=st, client=c)
             udp = [b for m, p, b in c.calls if p == "/audio/output/parameters"]
@@ -212,7 +212,7 @@ class TestTranslatorApply(unittest.TestCase):
             with mock.patch.object(State, "pause_marker",
                                    new=property(lambda self: marker)):
                 with self._patched()[0], self._patched()[1], self._patched()[2]:
-                    c = _RecordingClient(self._emit, bound_serial="83241970", channels_after=4)
+                    c = _RecordingClient(self._emit, bound_serial="95339533", channels_after=4)
                     rc = translator.apply(self._prof(), execute=True, emit=self._emit,
                                           state=st, client=c)
                 self.assertEqual(rc, translator.OK)
@@ -230,7 +230,7 @@ class TestTranslatorApply(unittest.TestCase):
                                    new=property(lambda self: marker)):
                 pats = self._patched(mount_present_after=False)
                 with pats[0], pats[1], pats[2]:
-                    c = _RecordingClient(self._emit, bound_serial="83241970", channels_after=4)
+                    c = _RecordingClient(self._emit, bound_serial="95339533", channels_after=4)
                     rc = translator.apply(self._prof(), execute=True, emit=self._emit,
                                           state=st, client=c)
                 self.assertEqual(rc, translator.INVARIANT_VIOLATED)
@@ -248,7 +248,7 @@ class TestTranslatorApply(unittest.TestCase):
                                      "mount": "neptune-air.mp3"})
             with mock.patch.object(backends, "mount_state",
                                    return_value=backends.MountState("neptune-air.mp3", 200, True)):
-                c = _RecordingClient(self._emit, bound_serial="83241970")
+                c = _RecordingClient(self._emit, bound_serial="95339533")
                 rc = translator.apply(self._prof(), execute=True, emit=self._emit,
                                       state=st, client=c)
             self.assertEqual(rc, translator.REFUSED)
@@ -293,7 +293,7 @@ class TestTranslatorUnload(unittest.TestCase):
             marker.write_text("")
             with mock.patch.object(State, "pause_marker",
                                    new=property(lambda self: marker)):
-                c = _RecordingClient(self._emit, bound_serial="83241970", channels_after=4)
+                c = _RecordingClient(self._emit, bound_serial="95339533", channels_after=4)
                 rc = translator.unload(load_profile(PROFILE_PATH), execute=True,
                                        emit=self._emit, state=st, client=c)
             self.assertEqual(rc, translator.OK)
@@ -311,7 +311,7 @@ class TestObserve(unittest.TestCase):
         self.lines.append(m)
 
     def _ds(self, **kw):
-        base = dict(index=0, hw_type="RTLSDR", serial="83241970", state="running",
+        base = dict(index=0, hw_type="RTLSDR", serial="95339533", state="running",
                     center_hz=118925000, channels=[])
         base.update(kw)
         return backends.DevicesetState(**base)
@@ -321,7 +321,7 @@ class TestObserve(unittest.TestCase):
             self.assertEqual(translator.observe(None, emit=self._emit), "no-profile")
 
     def test_matches(self):
-        rec = {"deviceset_index": 0, "serial": "83241970",
+        rec = {"deviceset_index": 0, "serial": "95339533",
                "channel_freqs": [1, 2, 3, 4]}
         with mock.patch.object(State, "read_loaded_profile", return_value=rec), \
              mock.patch.object(backends, "sdrangel_devicesets", return_value=[self._ds()]), \
@@ -329,7 +329,7 @@ class TestObserve(unittest.TestCase):
             self.assertEqual(translator.observe(None, emit=self._emit), "matches")
 
     def test_drifted_on_wrong_serial(self):
-        rec = {"deviceset_index": 0, "serial": "83241970", "channel_freqs": [1, 2, 3, 4]}
+        rec = {"deviceset_index": 0, "serial": "95339533", "channel_freqs": [1, 2, 3, 4]}
         with mock.patch.object(State, "read_loaded_profile", return_value=rec), \
              mock.patch.object(backends, "sdrangel_devicesets",
                                return_value=[self._ds(serial="56919602")]), \
@@ -337,7 +337,7 @@ class TestObserve(unittest.TestCase):
             self.assertEqual(translator.observe(None, emit=self._emit), "drifted")
 
     def test_phantom(self):
-        rec = {"deviceset_index": 0, "serial": "83241970", "channel_freqs": []}
+        rec = {"deviceset_index": 0, "serial": "95339533", "channel_freqs": []}
         with mock.patch.object(State, "read_loaded_profile", return_value=rec), \
              mock.patch.object(backends, "sdrangel_devicesets",
                                return_value=[self._ds(hw_type="AaroniaRTSA", serial=None)]):
@@ -412,19 +412,19 @@ class TestClientHardening(unittest.TestCase):
             "ROOT": [(200, {})],
             "/deviceset/0": [
                 (200, {"samplingDevice": {"hwType": "Unknown", "serial": None, "state": "idle"}}),
-                (200, {"samplingDevice": {"hwType": "RTLSDR", "serial": "83241970", "state": "idle"}}),
+                (200, {"samplingDevice": {"hwType": "RTLSDR", "serial": "95339533", "state": "idle"}}),
             ],
         })
-        self.assertTrue(c.wait_device_ready(0, "RTLSDR", "83241970", timeout=5))
+        self.assertTrue(c.wait_device_ready(0, "RTLSDR", "95339533", timeout=5))
 
     def test_wait_device_ready_times_out_on_error_state(self):
         c = self._client({
             "ROOT": [(200, {})],
             "/deviceset/0": [(200, {"samplingDevice": {"hwType": "RTLSDR",
-                                                       "serial": "83241970",
+                                                       "serial": "95339533",
                                                        "state": "error"}})],
         })
-        self.assertFalse(c.wait_device_ready(0, "RTLSDR", "83241970", timeout=2))
+        self.assertFalse(c.wait_device_ready(0, "RTLSDR", "95339533", timeout=2))
         self.assertIn("NOT ready", "\n".join(self.lines))
 
     def test_wait_device_ready_wrong_serial_times_out(self):
@@ -434,7 +434,7 @@ class TestClientHardening(unittest.TestCase):
                                                        "serial": "56919602",
                                                        "state": "idle"}})],
         })
-        self.assertFalse(c.wait_device_ready(0, "RTLSDR", "83241970", timeout=2))
+        self.assertFalse(c.wait_device_ready(0, "RTLSDR", "95339533", timeout=2))
 
     def test_wait_rest_healthy_recovers_after_backoff(self):
         c = self._client({"ROOT": [(None, {}), (None, {}), (200, {})]})
@@ -451,11 +451,11 @@ class TestClientHardening(unittest.TestCase):
             "ROOT": [(200, {})],
             "/device/run": [(200, {})],
             "/deviceset/0": [(200, {"samplingDevice": {"hwType": "RTLSDR",
-                                                       "serial": "83241970",
+                                                       "serial": "95339533",
                                                        "state": "idle"}})],
         })
         # PUT returns 200; the sequence for the deviceset GET reports ready.
-        ok = c.rebind_device(0, "RTLSDR", "83241970")
+        ok = c.rebind_device(0, "RTLSDR", "95339533")
         self.assertTrue(ok)
         self.assertTrue(any(m == "PUT" and p == "/deviceset/0/device" for m, p, _ in c.calls))
         self.assertIn("device ready", "\n".join(self.lines))
@@ -486,7 +486,7 @@ class TestSoftRecycle(unittest.TestCase):
             if method == "GET" and path.startswith("/deviceset/"):
                 st = seq.pop(0) if len(seq) > 1 else seq[0]
                 return 200, {"samplingDevice": {"state": st, "hwType": "RTLSDR",
-                                                "serial": "83241970"}}
+                                                "serial": "95339533"}}
             return 200, {}
         c._req = fake_req
         return c
@@ -494,7 +494,7 @@ class TestSoftRecycle(unittest.TestCase):
     def test_soft_retry_recovers_without_rebind(self):
         # error on first check, running after the soft stop→run.
         c = self._client(["error", "running"])
-        ok = c.ensure_running(0, "RTLSDR", "83241970")
+        ok = c.ensure_running(0, "RTLSDR", "95339533")
         self.assertTrue(ok)
         self.assertFalse(any(m == "PUT" for m, p, _ in c.calls),
                          "soft recovery must NOT rebind")
@@ -503,7 +503,7 @@ class TestSoftRecycle(unittest.TestCase):
     def test_rebind_is_last_resort_after_soft_fails(self):
         # never reaches running via soft; must fall through to ONE rebind.
         c = self._client(["error"])   # always error
-        c.ensure_running(0, "RTLSDR", "83241970", budget_sec=1000)
+        c.ensure_running(0, "RTLSDR", "95339533", budget_sec=1000)
         puts = [1 for m, p, _ in c.calls if m == "PUT"]
         self.assertEqual(len(puts), 1, "rebind must happen at most ONCE")
         self.assertIn("last resort", "\n".join(self.lines))
@@ -511,7 +511,7 @@ class TestSoftRecycle(unittest.TestCase):
     def test_budget_stops_the_hammering(self):
         c = self._client(["error"])
         # tiny budget → give up in the soft loop, no rebind
-        c.ensure_running(0, "RTLSDR", "83241970", budget_sec=1.0)
+        c.ensure_running(0, "RTLSDR", "95339533", budget_sec=1.0)
         self.assertFalse(any(m == "PUT" for m, p, _ in c.calls),
                          "must not rebind once the budget is blown")
         self.assertIn("budget", "\n".join(self.lines))

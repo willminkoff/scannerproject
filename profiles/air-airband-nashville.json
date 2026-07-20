@@ -1,12 +1,12 @@
 {
-  "_comment": "SB3 profile: Air role, camp mode, Nashville airband on the RTL-SDR Blog V4 (83241970) -> neptune-angel.mp3. NOTE on log2_decim: the Phase 2 brief's example carried log2_decim=4, which delivers a 2048000/2^4 = 128 kHz baseband window. The four channels span 118.400-119.450 MHz = 1.05 MHz around center 118.925, i.e. +/-525 kHz, which does NOT fit in a 128 kHz window. log2_decim is 0 here so the full 2.048 MHz (half-window +/-1.024 MHz) holds all four channels, matching the proven macos/bin/sdrangel-restore.py RTL recipe. The validator (sb3/profile.py, profile-channel-outside-baseband) rejects the log2_decim=4 form for exactly this reason.",
+  "_comment": "SB3 profile: Air role, camp mode, Nashville airband on RTL NESDR SMArTee v5 serial 95339533 (reprogrammed from factory 00000001 on 2026-07-19; replaced the flaky Blog V4 83241970) -> neptune-air.mp3. NOTE on log2_decim: the Phase 2 brief's example carried log2_decim=4, which delivers a 2048000/2^4 = 128 kHz baseband window. The four channels span 118.400-119.450 MHz = 1.05 MHz around center 118.925, i.e. +/-525 kHz, which does NOT fit in a 128 kHz window. log2_decim is 0 here so the full 2.048 MHz (half-window +/-1.024 MHz) holds all four channels, matching the proven macos/bin/sdrangel-restore.py RTL recipe. The validator (sb3/profile.py, profile-channel-outside-baseband) rejects the log2_decim=4 form for exactly this reason.",
   "name": "air.airband.nashville",
   "role": "air",
   "mode": "camp",
   "deviceset_index": 0,
   "device": {
     "hardware_id": "RTLSDR",
-    "serial": "83241970",
+    "serial": "95339533",
     "center_freq_hz": 118925000,
     "sample_rate_hz": 2048000,
     "log2_decim": 0,
