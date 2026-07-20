@@ -311,19 +311,33 @@ def cmd_resume_execute(*, emit: Emit, state: State, uid: int) -> int:
     order = [l for l in reversed(ownership.KILL_ORDER)
              if l in install_mod_managed()]
     emit("  Bringing SB3 back (brokers FIRST — reverse of kill order, §4.4):")
+    # Bring back EVERY installed agent, then report failures at the end. Do NOT
+    # abort mid-loop on one bad agent — that leaves a partial layer (e.g. broker
+    # up, controller down), which is worse than either extreme. A not-installed
+    # plist is skipped with a warning (it is a deploy-ordering issue: a newly
+    # added managed agent whose `install --execute` has not run yet), not a
+    # hard stop for the agents that CAN come back. Observed 2026-07-20 adding
+    # sb3-ui: resume ran before install, aborted, and left the controller down.
+    not_installed, failed = [], []
     for label in order:
         plist = install_mod_target(label)
         if not plist.exists():
-            emit(f"    ✗ {label}: plist not installed ({plist}) — run `install --execute`")
-            return EXIT_INVARIANT_VIOLATED
+            emit(f"    ⚠ {label}: plist not installed — skipped (run `install --execute`)")
+            not_installed.append(label)
+            continue
         if settle.is_loaded(label, uid):
             emit(f"    · {label} already loaded")
             continue
-        rc = settle.bootstrap(label, plist, uid, execute=True,
-                              emit=lambda m: emit(f"    {m}"))
-        if not rc:
-            return EXIT_INVARIANT_VIOLATED
+        if not settle.bootstrap(label, plist, uid, execute=True,
+                                emit=lambda m: emit(f"    {m}")):
+            failed.append(label)
     emit("")
+    if failed:
+        emit(f"  ✗ agents that would not start: {', '.join(failed)}")
+        return EXIT_INVARIANT_VIOLATED
+    if not_installed:
+        emit(f"  ⚠ resumed the installed agents; {len(not_installed)} not "
+             f"installed yet: {', '.join(not_installed)}")
 
     emit("  Observing live backend state (adopt, never clobber — §4.4):")
     ds_list = backends.sdrangel_devicesets()

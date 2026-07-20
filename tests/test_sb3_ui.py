@@ -187,3 +187,39 @@ class TestServerBoots(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestResumeToleratesMissingPlist(unittest.TestCase):
+    """resume must bring back installed agents even if one plist is missing.
+
+    Regression guard for the 2026-07-20 deploy: adding sb3-ui to MANAGED_AGENTS
+    then resuming before `install --execute` aborted resume mid-loop and left
+    the controller down.
+    """
+
+    def test_missing_plist_is_skipped_not_fatal(self):
+        from pathlib import Path
+        from sb3 import killswitch, settle
+        lines = []
+        # broker plist "exists", ui plist "missing"
+        def fake_target(label):
+            return Path("/exists.plist") if "broker" in label else Path("/nope.plist")
+        with mock.patch("sb3.killswitch.install_mod_target", side_effect=fake_target), \
+             mock.patch("sb3.killswitch.install_mod_managed",
+                        return_value={"com.scannerproject.sb3-broker": "x",
+                                      "com.scannerproject.sb3-ui": "y"}), \
+             mock.patch.object(Path, "exists", lambda self: "exists" in str(self)), \
+             mock.patch.object(settle, "is_loaded", return_value=False), \
+             mock.patch.object(settle, "bootstrap", return_value=True) as boot, \
+             mock.patch.object(backends, "sdrangel_devicesets", return_value=[]), \
+             mock.patch.object(backends, "mount_state",
+                               side_effect=lambda m, **kw: _mount(m, 200, True)), \
+             mock.patch.object(State, "read_loaded_profile", return_value=None), \
+             mock.patch.object(State, "clear"), mock.patch.object(State, "is_killed", return_value=True):
+            rc = killswitch.cmd_resume_execute(emit=lines.append,
+                                               state=State(Path("/x")), uid=501)
+        out = "\n".join(lines)
+        # broker (installed) got bootstrapped; ui (missing plist) skipped, not fatal
+        self.assertTrue(boot.called, "installed agent must still be brought up")
+        self.assertIn("skipped", out)
+        self.assertEqual(rc, killswitch.EXIT_OK)
