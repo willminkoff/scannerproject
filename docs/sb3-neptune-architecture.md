@@ -1425,24 +1425,39 @@ broker and by humans, and nothing was exercising it hard enough to catch the rev
 the policy to **rev 5.0** (§7.5), but as a *correction to a known-wrong file*, not an
 investigation.
 
-**The role map — 5 SDRs, updated 2026-07-16 (HackRF added):**
+**The role map — updated 2026-07-19 (Phase 2 hardware swap).**
 
-| # | Device | Serial | Role | Engine | Bandwidth |
-|---|---|---|---|---|---|
-| 1 | **RSPduo** | `180903EF32` | **Dual digital** — P25 sys 1 (T1) + sys 2 (T2) | SDRTrunk (native API) | ~128 Mbps |
-| 2 | **RTL-SDR Blog V4** | `83241970` | **Air** (airband AM) | SDRangel | ~33 Mbps |
-| 3 | **RTL NESDR** | `56919602` | **Ground** — *anything not Air, not digital* (§3.9). Switchable sub-profiles, one at a time | SDRangel | ~33 Mbps |
-| 4 | **RTL NESDR** | `61108285` | **ACARS/VDL2 only** — freed from disco | acarsdec + dumpvdl2 | ~33 Mbps |
-| 5 | **HackRF One** 🆕 | *(32-hex — read at Phase 0)* | **Disco + spectrum survey**. ✅ on hand | SoapyHackRF / `hackrf_sweep` | **~160–320 Mbps** |
+> ## ⚠️ **The fleet is now 2 RTLs, not 3.** Will removed BOTH flaky dongles
+> (`83241970` Blog V4 AND `56919602` the 12-Mbps NESDR) during Phase 2 and added
+> **one** replacement. So there are **4 SDRs attached**, not 5, and the five
+> intended roles no longer have a dedicated RTL each — see the note below.
 
-**What changed from fleet policy 4.1:**
+| # | Device | Serial | Role | Engine | Bandwidth | Status |
+|---|---|---|---|---|---|---|
+| 1 | **RSPduo** | `180903EF32` | **Dual digital** — P25 sys 1 (T1) + sys 2 (T2) | SDRTrunk (native API) | ~128 Mbps | ✅ live (`neptune-trunk.mp3`) |
+| 2 | **RTL NESDR SMArTee v5** 🆕 | `95339533` | **Air** (airband AM) | SDRangel | ~33 Mbps | ✅ **live** (Phase 2, `neptune-air.mp3`) |
+| 3 | **RTL NESDR** | `61108285` | **TBD — Ground *or* ACARS/VDL2** (decision pending; only one RTL for two roles) | SDRangel / acarsdec | ~33 Mbps | 🟡 idle, role undecided |
+| 4 | **HackRF One** (in a PortaPack) | `c66c63dc35742683` | **Disco + spectrum survey** | SoapyHackRF / `hackrf_sweep` | ~160–320 Mbps | ✅ **enumerated** (fw v2.0.1), ready for Phase 5 |
 
-| Serial | Policy 4.1 role | **Now** | Δ |
+> ### 🔻 The role-vs-device shortfall (new, must be resolved before Phase 4/5)
+> The plan's five roles are **Air, Ground, Digital, Disco, ACARS/VDL2**. With
+> only **2 RTLs**, and one committed to Air (`95339533`), exactly **one RTL
+> (`61108285`) remains** for BOTH Ground and ACARS. Options, for Will:
+> 1. **`61108285` time-shares** Ground and ACARS (one at a time) — no new hardware, but not concurrent.
+> 2. **Add a 3rd RTL** so Ground and ACARS run concurrently (the plan's original intent).
+> 3. **Ground rides the HackRF** in a survey sub-mode and `61108285` is pure ACARS.
+> Nothing blocks Phase 3 (digital) or the Air role that's already live; this only
+> gates the Ground+ACARS split.
+
+**Hardware swap, Phase 2 (2026-07-19):**
+
+| Serial | Before | Now | Δ |
 |---|---|---|---|
-| `83241970` | chirp-airband (was VFO) | Air / airband | same intent |
-| `56919602` | sounding (ACARS/VDL2/sonde) | **Ground** (catch-all analog, §3.9) | ⚠️ changed |
-| `61108285` | chirp-ground | **ACARS/VDL2 only** | ⚠️ changed (was "disco+ACARS+survey" — HackRF freed it, §3.6) |
-| *(new)* | — | **HackRF → disco + survey** | 🆕 **new device** |
+| `83241970` (Blog V4) | Air / airband | **REMOVED** — chronic USB error-71 flakiness; wedged SDRangel repeatedly | ❌ gone |
+| `56919602` (NESDR) | Ground (was sounding) | **REMOVED** — the 12-Mbps link-fault dongle | ❌ gone |
+| `95339533` (NESDR SMArTee) | — | **Air** (replaces the Blog V4) | 🆕 new; serial reprogrammed from factory `00000001` |
+| `61108285` (NESDR) | ACARS/VDL2 | **TBD Ground *or* ACARS** | ⚠️ undecided (§ shortfall above) |
+| `c66c63dc35742683` (HackRF) | *(unread)* | **Disco + survey** — serial confirmed | ✅ enumerated, on the OWC dock's own controller |
 
 **The RTL serials were never in doubt** — the reversal was RSPduo-only. `83241970`,
 `56919602`, and `61108285` are consistent across the policy, the brief, and the live scripts.
@@ -1799,7 +1814,42 @@ rebuilds the broker ledger from the policy and adopts live state without clobber
 
 ---
 
-### Phase 2 — One profile end-to-end (Air, camp mode)
+### Phase 2 — One profile end-to-end (Air, camp mode) — ✅ **COMPLETE 2026-07-19**
+
+> **DONE and live on Neptune** (branch `sb3-phase2-profiles`, `eb7b2c4`). What
+> actually shipped vs. the plan below, and the deltas worth recording:
+>
+> - **Schema + validator** — shipped, hard-fail (exit 3). The validator earned
+>   its keep on day one: it rejects the brief's own `log2_decim=4`
+>   (`profile-channel-outside-baseband`) — 128 kHz window can't hold ±525 kHz of
+>   airband. The profile ships `log2_decim=0`.
+> - **Translator** — shipped, with the full proven SDRangel recipe (PATCH a
+>   running device, one channel at a time, keepalive-first, 0→1 tap toggle) plus
+>   fixes the plan didn't foresee: **audio tap = "System default device"/idx-1,
+>   not idx-0** (measured — idx-0 gave a steady 404, idx-1 a stable 200); **one
+>   UDP sender** (two senders on :9998 flapped the mount); **REST-wedge backoff**
+>   and **wait-device-ready** (rapid rebind wedged SDRangel's REST); a **softened
+>   recycle** (soft stop→run before any rebind — the aggressive rebind is what
+>   crashed SDRangel); and a **bridge orphan-ffmpeg trap** (kickstart orphaned
+>   ffmpeg, blocking the tap).
+> - **The device it drives is `95339533`, not `83241970`** — the Blog V4 was
+>   removed (chronic error-71 flakiness that repeatedly crashed SDRangel);
+>   replaced by a NESDR SMArTee reprogrammed to a random serial.
+> - **Mount is `neptune-air.mp3`, not `neptune-angel.mp3`** ("mount = role").
+> - **Reconciler: NOT built** — deliberately deferred to Phase 3+. `resume` is
+>   adopt-only: it observes live state, classifies matches/drifted/phantom, and
+>   **never re-applies** (the human is right, §4.4). The plan's "30 s reconcile
+>   loop" belongs with the multi-profile work, not here.
+> - **`sdrangel-restore.py` NOT retired** — left as-is; no restore agent is
+>   loaded on Neptune anyway, and SB3 now owns the Neptune analog route.
+>
+> **✅ Invariant DEMONSTRATED live:** airband on `95339533` → `neptune-air.mp3`
+> 200 stable; `sb3-ctl kill` → air held **200 for 10/10 samples over 30 s** with
+> SB3 gone and backend PIDs unmoved; `sb3-ctl resume` → classified **"matches —
+> NOT re-applied."** `neptune-trunk.mp3` 200 throughout. Phase 0–1 invariants
+> intact.
+
+*Original plan for this phase, retained for reference:*
 
 - Profile schema v1 (§3.3) + loader + validator. **Hard-fail on bad config** — inherit
   `broker/policy.py`'s stance: *"A broker running on a guessed policy would be worse than no
@@ -1931,17 +1981,40 @@ injected fault produced a structured diagnostic. **All prior invariants still ho
 
 ## 7. Risks + open questions
 
-### 7.0 Status board — what has actually landed (2026-07-16)
+### 7.0 Status board — what has actually landed (updated 2026-07-19)
 
-This plan is no longer only a plan. Four branches exist; none are merged.
+This plan is no longer only a plan. Six branches exist; none are merged.
 
 | Branch | Commit | What it is | State |
 |---|---|---|---|
 | `sb3-neptune-plan` | *this doc* | The architecture plan | living |
-| `sb3-neptune-phase0` | **`3371d49`** | `docs/phase-0-status.md` — the measurement pass | ✅ **complete, with hardware caveats** |
+| `sb3-neptune-phase0` | **`3371d49`** | `docs/phase-0-status.md` — the measurement pass | ✅ **complete** |
 | `sb3-killswitch-priorart` | **`7bf15f3`** | `macos/killswitch/` imported **verbatim** | ✅ **captured** |
-| `sb3-serial-reversal-fix` | **`62fddc5`** | **Fleet policy rev 5.0** + the §7.5 cleanup | ✅ **landed on the branch** |
-| `sb3-phase1-scaffold` | **`95caf4b`** | `bin/sb3-ctl` + `sb3/` — Phase 1 scaffolding | ✅ **dry-run only** |
+| `sb3-serial-reversal-fix` | **`62fddc5`** | **Fleet policy rev 5.0** + the §7.5 cleanup | ✅ **landed** |
+| `sb3-phase1-scaffold` | **`372c9e6` → `e0c8e19`** | `sb3-ctl` — Phase 1 kill/resume/status + **`--execute` live**, `install`/`update` self-deploy | ✅ **INSTALLED + running on Neptune** |
+| `sb3-phase2-profiles` | **`eb7b2c4`** | Profile system: schema+validator, translator, `profile load/status/unload`, mount rename | ✅ **Phase 2 COMPLETE — live** |
+
+> ## ✅ **Phase 1 and Phase 2 are DONE and running on Neptune (2026-07-19).**
+>
+> **Phase 1** — `sb3-ctl` is installed as two launchd agents (deployed via a git
+> sparse-checkout at `~/sb3`, self-updating through `sb3-ctl update`). `kill`,
+> `resume`, `status` all execute for real; the governing invariant (`kill` →
+> backends keep producing audio, every mount stays 200) is demonstrated across
+> repeated cycles with backend PIDs never moving.
+>
+> **Phase 2** — the Air role is **live end-to-end**: `sb3-ctl profile load
+> air.airband.nashville --execute` drives SDRangel (RTL `95339533`, 4 airband
+> channels, keepalive-first) → **`neptune-air.mp3` 200, stable**. The
+> kill-switch-with-profile test passed: `kill` → air held **200 for 10/10
+> samples over 30 s** with the control plane gone; `resume` observed live state,
+> classified **"matches — NOT re-applied"** (§4.4 human-is-right), backends
+> unmoved throughout. The hard-won lessons are all in the code: audio tap =
+> "System default device"/idx-1 (NOT the brief's `dynamic_idx0` — measured), one
+> UDP sender, softened recycle, REST backoff, and a bridge orphan-ffmpeg trap.
+>
+> **The mount rename landed too:** `neptune-angel.mp3` → **`neptune-air.mp3`**
+> ("mount = role"). `neptune-trunk.mp3` → `neptune-digital.mp3` is deferred
+> (needs an SDRTrunk restart).
 
 **Fleet policy rev 5.0 (`62fddc5`)** — the §7.5 reversal is **fixed**: Neptune = `180903EF32`,
 Venus = `1809063632`, now backed by `ioreg` rather than inference. 12 files across List A and
