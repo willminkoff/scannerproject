@@ -59,6 +59,7 @@ SB3_LAYER: FrozenSet[str] = frozenset({
 MANAGED_AGENTS: Dict[str, str] = {
     "com.scannerproject.sb3-broker": "sb3.agents.broker_stub",
     "com.scannerproject.sb3-controller": "sb3.agents.controller_stub",
+    "com.scannerproject.sb3-ui": "sb3.ui",
 }
 
 #: Where the plist templates live in-repo.

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.scannerproject.sb3-ui — the SB3 web UI (Phase 3.1).
+
+  TEMPLATE. `sb3-ctl install` writes it to ~/Library/LaunchAgents/ after
+  substituting {{PYTHON}} / {{REPO_DIR}} / {{HOME}}.
+
+  Runs `python3 -m sb3.ui`: a stdlib http.server (NO Flask — the sb3 package is
+  stdlib-only and deploys via a git sparse-checkout with no pip) that serves the
+  frozen ui/sb3.html and the /api/* shim, mapping each endpoint onto the SB3
+  backend observers. It holds no state of its own, so a kill→resume restart
+  reflects live reality with nothing to rebuild.
+
+  SB3-OWNED (sb3/ownership.py): dies on `sb3-ctl kill`, returns on `resume`.
+  It is a lease-free consumer, so it stops EARLY in the kill order (with the
+  reconciler) — before the brokers.
+
+  KeepAlive={SuccessfulExit:false} — respawn on a crash, not on a clean exit, so
+  `launchctl bootout` is a real stop. LimitLoadToSessionType=Aqua — it sits
+  alongside the GUI backends.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.sb3-ui</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON}}</string>
+        <string>-m</string>
+        <string>sb3.ui</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{REPO_DIR}}</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>{{REPO_DIR}}</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>SB3_UI_PORT</key>
+        <string>5050</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/sb3-ui.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/sb3-ui.err.log</string>
+</dict>
+</plist>
