@@ -77,6 +77,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.build_profiles(self._state))
         if p == "/api/hits":
             return self._json(routes.hits(self._state))
+        if p == "/api/digital/scheduler":
+            return self._json(routes.digital_scheduler(self._state))
+        if p == "/api/digital/preflight":
+            return self._json(routes.digital_preflight(self._state))
+        if p == "/api/digital/profiles":
+            return self._json(routes.digital_profiles(self._state))
         if p == "/healthz":
             return self._json({"ok": True, "service": "sb3-ui"})
         # Unknown GET /api/* → empty-but-ok so the defensive UI degrades quietly.

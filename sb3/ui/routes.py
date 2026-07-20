@@ -16,7 +16,7 @@ from __future__ import annotations
 import datetime
 from typing import Dict
 
-from .. import backends, ownership
+from .. import backends, ownership, sdrtrunk_client
 from ..state import State
 
 GUARDED = ownership.GUARDED_MOUNTS  # ("neptune-trunk.mp3", "neptune-air.mp3")
@@ -66,9 +66,9 @@ def build_status(state: State) -> Dict:
         # loaded profile (Phase 2 record)
         "profile_airband": profile.get("name", "") if profile.get("role") == "air" else "",
         "profile_ground": "",
-        # digital (SDRTrunk) — coarse for now
+        # digital (SDRTrunk) — from the log-tail observer (Phase 3.3)
         "digital_present": sdrtrunk_up,
-        "digital_active": trunk.present,
+        **sdrtrunk_client.observe(running=sdrtrunk_up),
         # SB3 self
         "sb3": {
             "killed": state.is_killed(),
@@ -388,3 +388,20 @@ def volume(form: Dict, state: State) -> Dict:
 def hits(state: State) -> Dict:
     """/api/hits — recent activity. SB3 has no hit log yet; empty feed (valid shape)."""
     return {"ok": True, "items": []}
+
+
+# ---- digital fallback endpoints (Phase 3.3) --------------------------------
+# The status loop hits these only when the /api/status snapshot lacks a
+# scheduler/preflight block. Minimal valid shapes so the Digital tab degrades
+# quietly; SB3 does not (yet) drive SDRTrunk scheduling.
+
+def digital_scheduler(state: State) -> Dict:
+    return {"ok": True, "enabled": False, "entries": []}
+
+
+def digital_preflight(state: State) -> Dict:
+    return {"ok": True, "checks": [], "ready": True}
+
+
+def digital_profiles(state: State) -> Dict:
+    return {"ok": True, "profiles": [], "active_digital_id": ""}
