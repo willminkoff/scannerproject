@@ -75,9 +75,33 @@ def build_status(state: State) -> Dict:
             "loaded_profile": profile.get("name"),
             "agents_up": sorted(l for l in loaded if l in ownership.SB3_LAYER),
         },
+        # per-channel state for the Airband channel list (Phase 3.2)
+        "channels": _channel_states(profile.get("deviceset_index", 0)),
         # mount detail for a debug panel / SITREP
         "mounts": {m.mount: m.http_status for m in (air, trunk)},
     }
+
+
+def _channel_states(idx: int) -> list:
+    """Per-channel index/title/demod/freq for the UI channel list. Read-only.
+
+    Uses only the fields present in the deviceset channel list (index, title,
+    id, deltaFrequency) so the status poll stays a single GET — squelch/volume
+    live at /channel/N/settings and are not fetched here (write-only in 3.2).
+    """
+    out = []
+    center = next((ds.center_hz for ds in backends.sdrangel_devicesets()
+                   if ds.index == idx), None)
+    for ch in backends.sdrangel_channels(idx):
+        off = ch.get("deltaFrequency")
+        freq_hz = (center + off) if (center is not None and off is not None) else None
+        out.append({
+            "index": ch.get("index"),
+            "title": ch.get("title", ch.get("id", "?")),
+            "demod": ch.get("id"),
+            "freq_hz": freq_hz,
+        })
+    return out
 
 
 def build_heartbeat(state: State) -> Dict:
@@ -152,8 +176,215 @@ def build_profiles(state: State) -> Dict:
     }
 
 
-# ---- write endpoints (seeded from scannerctl; wired for real in Phase 3.2) ---
+# ===========================================================================
+# Phase 3.2 — Airband tab write path
+# ===========================================================================
+#
+# The main-app controls POST application/x-www-form-urlencoded via postAPI():
+#   /api/apply        target,gain,squelch_mode=dbfs,squelch_dbfs
+#   /api/apply-batch  target,gain,squelch_mode,squelch_dbfs,cutoff_hz
+#   /api/filter       target,cutoff_hz
+#   /api/tune         target,freq   (freq in MHz)
+#   /api/volume       action=set&level=<0-100>  |  action=get
+#   /api/hits         GET → {items:[...]}
+#
+# "Human is right" (§4.2): these edit LIVE SDRangel but NEVER rewrite the
+# profile JSON. A UI squelch tweak makes the loaded profile 'drifted' in value;
+# SB3 does not fight it.
 
-def not_wired(name: str) -> Dict:
-    return {"ok": False, "error": "not-wired-in-3.1",
-            "note": f"{name} lands in Phase 3.2 (analog write path)"}
+from ..profile import DEMOD_CHANNEL, HW_SETTINGS_KEY  # noqa: E402
+from ..profilecmd import resolve_profile_path  # noqa: E402
+from ..profile import load_profile, ProfileError  # noqa: E402
+from ..sdrangel import SDRangelClient  # noqa: E402
+
+# bounds
+AIRBAND_MIN_HZ, AIRBAND_MAX_HZ = 108_000_000, 137_000_000
+SQUELCH_MIN, SQUELCH_MAX = -100.0, 0.0
+CUTOFF_MIN, CUTOFF_MAX = 1_000, 25_000
+VOLUME_MIN, VOLUME_MAX = 0.0, 5.0
+GAIN_MIN, GAIN_MAX = 0.0, 50.0     # RTL dB range
+
+
+class WriteError(Exception):
+    """A bad request (400) or unhealthy backend (503) — carries an HTTP code."""
+
+    def __init__(self, code: int, msg: str):
+        self.code = code
+        self.msg = msg
+        super().__init__(msg)
+
+
+def _client() -> SDRangelClient:
+    return SDRangelClient(execute=True, emit=lambda m: None)
+
+
+def _require(form: Dict, key: str) -> str:
+    if key not in form:
+        raise WriteError(400, f"missing field: {key}")
+    return form[key]
+
+
+def _num(form: Dict, key: str, lo: float, hi: float) -> float:
+    raw = _require(form, key)
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        raise WriteError(400, f"{key} not a number: {raw!r}")
+    if not (lo <= v <= hi):
+        raise WriteError(400, f"{key}={v} out of range [{lo}, {hi}]")
+    return v
+
+
+def _keepalive_offset(state: State, center_hz: int) -> "int | None":
+    """The keepalive channel's inputFrequencyOffset, so writes can spare it.
+
+    Raising the keepalive channel's squelch would let the mount drop when every
+    real channel gates closed — the whole reason it exists. So squelch/volume
+    writes skip it. Determined from the loaded profile file (the runtime record
+    doesn't carry the keepalive flag).
+    """
+    rec = state.read_loaded_profile()
+    if not rec:
+        return None
+    path = resolve_profile_path(rec.get("name", ""))
+    if not path:
+        return None
+    try:
+        prof = load_profile(path)
+    except ProfileError:
+        return None
+    ka = prof.keepalive_channels
+    return ka[0].offset_from(center_hz) if ka else None
+
+
+def _airband_deviceset(client: SDRangelClient, state: State):
+    """Return (idx, hw, channels, center_hz) for the airband deviceset, or raise."""
+    rec = state.read_loaded_profile() or {}
+    idx = rec.get("deviceset_index", 0)
+    sd = client.sampling_device(idx)
+    if not sd:
+        raise WriteError(503, "SDRangel unreachable")
+    hw = sd.get("hwType")
+    if hw not in HW_SETTINGS_KEY:
+        raise WriteError(503, f"ds{idx} has no real device (hw={hw})")
+    center = sd.get("centerFrequency") or (rec.get("center_freq_hz") or 0)
+    return idx, hw, client.list_channels(idx), int(center)
+
+
+def _only_airband(target: str):
+    if target != "airband":
+        raise WriteError(400, f"target {target!r} not supported yet "
+                              f"(only 'airband' is deployed)")
+
+
+def apply_controls(form: Dict, state: State, *, with_filter: bool = False) -> Dict:
+    """/api/apply and /api/apply-batch — device gain + per-channel squelch (+cutoff).
+
+    Gain is device-level. Squelch is applied to every REAL channel (the keepalive
+    channel is spared, to keep the mount up). cutoff_hz → rfBandwidth on the same
+    real channels.
+    """
+    _only_airband(form.get("target", "airband"))
+    gain = _num(form, "gain", GAIN_MIN, GAIN_MAX)
+    squelch = _num(form, "squelch_dbfs", SQUELCH_MIN, SQUELCH_MAX)
+    cutoff = _num(form, "cutoff_hz", CUTOFF_MIN, CUTOFF_MAX) if with_filter else None
+
+    c = _client()
+    idx, hw, channels, center = _airband_deviceset(c, state)
+    ka_off = _keepalive_offset(state, center)
+
+    # device gain (RTL gain field is tenths of dB)
+    if not c.patch_device(idx, hw, HW_SETTINGS_KEY[hw], {"gain": int(round(gain * 10))}):
+        raise WriteError(503, "gain PATCH failed (SDRangel unhealthy)")
+
+    touched, skipped_ka = 0, 0
+    for ch in channels:
+        ch_idx = ch.get("index")
+        ctype = ch.get("id", "AMDemod")
+        skey = ctype + "Settings"
+        # skip the keepalive channel for squelch (never raise its squelch)
+        _, chset = c._req("GET", f"/deviceset/{idx}/channel/{ch_idx}/settings")
+        off = (chset.get(skey, {}) or {}).get("inputFrequencyOffset")
+        patch = {}
+        if ka_off is not None and off == ka_off:
+            skipped_ka += 1
+        else:
+            patch["squelch"] = squelch
+        if cutoff is not None:
+            patch["rfBandwidth"] = int(cutoff)
+        if patch and c.patch_channel(idx, ch_idx, ctype, skey, patch):
+            touched += 1
+
+    return {"ok": True, "applied_gain": gain, "applied_squelch_dbfs": squelch,
+            "cutoff_hz": cutoff, "channels_touched": touched,
+            "keepalive_spared": skipped_ka, "restart_ok": True}
+
+
+def apply_filter(form: Dict, state: State) -> Dict:
+    """/api/filter — rfBandwidth on every real channel."""
+    _only_airband(form.get("target", "airband"))
+    cutoff = _num(form, "cutoff_hz", CUTOFF_MIN, CUTOFF_MAX)
+    c = _client()
+    idx, hw, channels, _ = _airband_deviceset(c, state)
+    touched = 0
+    for ch in channels:
+        ctype = ch.get("id", "AMDemod")
+        if c.patch_channel(idx, ch.get("index"), ctype, ctype + "Settings",
+                           {"rfBandwidth": int(cutoff)}):
+            touched += 1
+    return {"ok": True, "cutoff_hz": cutoff, "channels_touched": touched}
+
+
+def tune(form: Dict, state: State) -> Dict:
+    """/api/tune — retune the device CENTER (freq in MHz) for camp mode.
+
+    Camp mode has fixed channels around one center; 'tune' moves that center.
+    Bounds-checked to the airband.
+    """
+    _only_airband(form.get("target", "airband"))
+    freq_mhz = _num(form, "freq", AIRBAND_MIN_HZ / 1e6, AIRBAND_MAX_HZ / 1e6)
+    center_hz = int(round(freq_mhz * 1e6))
+    c = _client()
+    idx, hw, _, _ = _airband_deviceset(c, state)
+    if not c.patch_device(idx, hw, HW_SETTINGS_KEY[hw], {"centerFrequency": center_hz}):
+        raise WriteError(503, "tune PATCH failed (SDRangel unhealthy)")
+    return {"ok": True, "center_hz": center_hz, "freq_mhz": freq_mhz}
+
+
+def volume(form: Dict, state: State) -> Dict:
+    """/api/volume — action=set&level=<0-100> maps to per-channel volume; get reads it."""
+    action = form.get("action", "get")
+    c = _client()
+    idx, hw, channels, center = _airband_deviceset(c, state)
+    ka_off = _keepalive_offset(state, center)
+    if action == "get":
+        vols = []
+        for ch in channels:
+            ctype = ch.get("id", "AMDemod")
+            _, chset = c._req("GET", f"/deviceset/{idx}/channel/{ch.get('index')}/settings")
+            v = (chset.get(ctype + "Settings", {}) or {}).get("volume")
+            if v is not None:
+                vols.append(float(v))
+        avg = sum(vols) / len(vols) if vols else 0.0
+        return {"ok": True, "level": int(round(avg / VOLUME_MAX * 100))}
+    # set
+    level = _num(form, "level", 0, 100)
+    vol = round(level / 100.0 * VOLUME_MAX, 2)      # 0-100 → 0.0-5.0
+    touched = 0
+    for ch in channels:
+        ch_idx = ch.get("index")
+        ctype = ch.get("id", "AMDemod")
+        skey = ctype + "Settings"
+        _, chset = c._req("GET", f"/deviceset/{idx}/channel/{ch_idx}/settings")
+        off = (chset.get(skey, {}) or {}).get("inputFrequencyOffset")
+        # keep the keepalive channel quiet (its low volume is intentional)
+        if ka_off is not None and off == ka_off:
+            continue
+        if c.patch_channel(idx, ch_idx, ctype, skey, {"volume": vol}):
+            touched += 1
+    return {"ok": True, "level": int(level), "volume": vol, "channels_touched": touched}
+
+
+def hits(state: State) -> Dict:
+    """/api/hits — recent activity. SB3 has no hit log yet; empty feed (valid shape)."""
+    return {"ok": True, "items": []}

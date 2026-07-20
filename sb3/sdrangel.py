@@ -278,6 +278,29 @@ class SDRangelClient:
         _, d = self._req("GET", "/audio")
         return (d or {}).get("outputDevices", []) or []
 
+    # -- granular live setters (Phase 3.2 UI write path) ------------------
+    # These PATCH a single field onto a RUNNING device/channel — light-touch
+    # edits for the UI, distinct from apply_device_settings()'s full rewrite.
+    # SDRangel merges the provided subkeys, so a partial patch leaves the rest.
+
+    def list_channels(self, idx: int) -> list:
+        return self.deviceset(idx).get("channels", []) or []
+
+    def patch_device(self, idx: int, hw: str, settings_key: str, patch: dict) -> bool:
+        if not self.wait_rest_healthy():
+            return False
+        s, _ = self._req("PATCH", f"/deviceset/{idx}/device/settings",
+                         {"deviceHwType": hw, "direction": 0, settings_key: patch})
+        return s in (200, 202) or not self.execute
+
+    def patch_channel(self, idx: int, ch: int, ctype: str,
+                      settings_key: str, patch: dict) -> bool:
+        if not self.wait_rest_healthy():
+            return False
+        s, _ = self._req("PATCH", f"/deviceset/{idx}/channel/{ch}/settings",
+                         {"channelType": ctype, "direction": 0, settings_key: patch})
+        return s in (200, 202) or not self.execute
+
     def device_state(self, idx: int) -> Optional[str]:
         return self.sampling_device(idx).get("state")
 

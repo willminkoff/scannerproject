@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import os
-import re
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -27,7 +27,6 @@ DEFAULT_PORT = int(os.environ.get("SB3_UI_PORT", "5050"))
 # copied or duplicated (single source of truth).
 SB3_HTML = deploy_root() / "ui" / "sb3.html"
 
-_SCAN_RE = re.compile(r"^/api/scan/(start|stop)$")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -76,6 +75,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.build_heartbeat(self._state))
         if p == "/api/profiles":
             return self._json(routes.build_profiles(self._state))
+        if p == "/api/hits":
+            return self._json(routes.hits(self._state))
         if p == "/healthz":
             return self._json({"ok": True, "service": "sb3-ui"})
         # Unknown GET /api/* → empty-but-ok so the defensive UI degrades quietly.
@@ -84,17 +85,44 @@ class Handler(BaseHTTPRequestHandler):
                                "path": p})
         self._json({"error": "not found", "path": p}, 404)
 
+    def _form(self) -> dict:
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        raw = self.rfile.read(length).decode() if length else ""
+        # postAPI sends application/x-www-form-urlencoded; take the last value.
+        return {k: v[-1] for k, v in urllib.parse.parse_qs(raw, keep_blank_values=True).items()}
+
     def do_POST(self):
         p = self.path.split("?", 1)[0]
-        # Seed routes from scannerctl — wired for real in Phase 3.2.
-        if _SCAN_RE.match(p):
-            return self._json(routes.not_wired("scan"), 501)
-        if p == "/api/squelch":
-            return self._json(routes.not_wired("squelch"), 501)
-        if p == "/api/digital/restart":
-            return self._json(routes.not_wired("digital/restart"), 501)
+        state = self._state
+
+        # Fail fast if a kill is in progress — never write to a backend the
+        # control plane is tearing away from (kill switch invariant).
+        if state.is_killed():
+            return self._json({"ok": False, "error": "sb3-killed",
+                               "note": "SB3 is killed; writes refused"}, 409)
+
+        try:
+            form = self._form()
+        except Exception as exc:
+            return self._json({"ok": False, "error": f"bad body: {exc}"}, 400)
+
+        try:
+            if p in ("/api/apply", "/api/apply-batch"):
+                return self._json(routes.apply_controls(
+                    form, state, with_filter=(p == "/api/apply-batch")))
+            if p == "/api/filter":
+                return self._json(routes.apply_filter(form, state))
+            if p == "/api/tune":
+                return self._json(routes.tune(form, state))
+            if p == "/api/volume":
+                return self._json(routes.volume(form, state))
+        except routes.WriteError as we:
+            return self._json({"ok": False, "error": we.msg}, we.code)
+        except Exception as exc:   # never hang the UI on an unexpected fault
+            return self._json({"ok": False, "error": f"internal: {exc}"}, 500)
+
         if p.startswith("/api/"):
-            return self._json({"ok": False, "error": "not-implemented-in-3.1",
+            return self._json({"ok": False, "error": "not-implemented",
                                "path": p}, 501)
         self._json({"error": "not found", "path": p}, 404)
 
