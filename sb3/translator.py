@@ -153,17 +153,17 @@ def apply(prof: Profile, *, execute: bool, emit: Emit,
     emit("")
 
     # 4. Channels: clear leftovers, then apply keepalive-FIRST.
-    # Resolve idx0 even in dry-run — it is a harmless read, and it makes the
-    # dry-run trace show the REAL device name (e.g. "Mac mini Speakers") rather
-    # than a placeholder, which is what a reviewer needs to see before execute.
-    audio_name = backends.resolve_idx0_audio_name()
+    # Resolve the audio tap even in dry-run — it is a harmless read, and it makes
+    # the dry-run trace show the REAL device name a reviewer needs to see.
+    audio_name, audio_index = backends.resolve_audio_tap(prof.audio_strategy)
     if audio_name is None:
         if execute:
-            emit("  ✗ could not resolve idx0 audio device — aborting")
+            emit("  ✗ could not resolve audio tap device — aborting")
             _unwind(prof, c, state, emit)
             return INVARIANT_VIOLATED
-        audio_name = "<idx0 unresolved — SDRangel not reachable from here>"
-    emit(f"  audio idx0 resolved: {audio_name!r}  (dynamic_idx0)")
+        audio_name, audio_index = "<audio tap unresolved>", 0
+    emit(f"  audio tap resolved: {audio_name!r} (index {audio_index}, "
+         f"strategy {prof.audio_strategy})")
 
     c.clear_channels(idx)
     order = prof.channels_apply_order()
@@ -179,10 +179,15 @@ def apply(prof: Profile, *, execute: bool, emit: Emit,
             return INVARIANT_VIOLATED
     emit("")
 
-    # 5. copyToUDP toggle + ensure running.
-    emit(f"  copyToUDP → {prof.udp_address}:{prof.udp_port} (toggle 0→1)")
-    c.set_copy_to_udp(address=prof.udp_address, port=prof.udp_port)
-    c.run(idx)
+    # 5. copyToUDP on the resolved tap (single sender) + ensure RUNNING.
+    emit(f"  copyToUDP → {prof.udp_address}:{prof.udp_port} on audio index "
+         f"{audio_index} (toggle 0→1, others disabled)")
+    c.set_copy_to_udp(address=prof.udp_address, port=prof.udp_port,
+                      audio_index=audio_index)
+    if not c.ensure_running(idx, prof.hardware_id, prof.serial):
+        emit("  ✗ device would not stay running — unwinding")
+        _unwind(prof, c, state, emit)
+        return INVARIANT_VIOLATED
     emit("")
 
     # 6. Verify the mount before removing the marker or recording state.

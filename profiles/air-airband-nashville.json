@@ -20,7 +20,7 @@
     {"freq_hz": 119350000, "title": "KBNA App/Dep West",  "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55,  "volume": 3.0},
     {"freq_hz": 119450000, "title": "KJWN Tower",         "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55,  "volume": 3.0}
   ],
-  "audio_device": {"strategy": "dynamic_idx0"},
+  "audio_device": {"strategy": "system_default"},
   "copy_to_udp": {"address": "127.0.0.1", "port": 9998},
   "mount": "neptune-air.mp3"
 }

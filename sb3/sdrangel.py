@@ -249,11 +249,22 @@ class SDRangelClient:
 
     def set_copy_to_udp(self, *, address: str, port: int,
                         audio_index: int = 0) -> None:
-        """Toggle copyToUDP 0→1 on the idx0 output device to (re)start the sender.
+        """Toggle copyToUDP 0→1 on ONE output device; disable it on all others.
 
-        Plain arming does NOT start the sender thread — the toggle does. This is
-        the REST-armed-but-not-emitting bug fix-neptune-angel.sh exists for.
+        Two lessons, both measured on Neptune 2026-07-19:
+          * Plain arming does NOT start the sender thread — the 0→1 toggle does
+            (the REST-armed-but-not-emitting bug fix-neptune-angel.sh exists for).
+          * If MORE THAN ONE output device has copyToUDP on the same UDP port,
+            two senders write to one socket and the bridge gets a corrupt,
+            flapping stream (200→404→200). So disable copyToUDP on every OTHER
+            output device first — exactly one sender.
         """
+        for dev in self.audio_outputs():
+            idx = dev.get("index")
+            if idx is not None and idx != audio_index and dev.get("copyToUDP"):
+                self._req("PATCH", "/audio/output/parameters",
+                          {"index": idx, "copyToUDP": 0})
+                self._wait(0.3)
         self._req("PATCH", "/audio/output/parameters",
                   {"index": audio_index, "copyToUDP": 0})
         self._wait(1.0)
@@ -262,3 +273,32 @@ class SDRangelClient:
                    "udpAddress": address, "udpPort": port,
                    "udpChannelMode": 2, "sampleRate": 48000})
         self._wait(1.0)
+
+    def audio_outputs(self) -> list:
+        _, d = self._req("GET", "/audio")
+        return (d or {}).get("outputDevices", []) or []
+
+    def device_state(self, idx: int) -> Optional[str]:
+        return self.sampling_device(idx).get("state")
+
+    def ensure_running(self, idx: int, hw: str, serial: str) -> bool:
+        """Guarantee the device is in 'running' state, recycling on error.
+
+        A run POST can return 200 yet leave the RTL in 'error'/'idle' (the
+        83241970 flakiness). If a plain run does not reach 'running', do a full
+        device DELETE→PUT→run recycle — proven on the box to clear the error
+        state — and check again.
+        """
+        self.run(idx)
+        if not self.execute or self.device_state(idx) == "running":
+            return True
+        self.emit(f"device not running (state={self.device_state(idx)}) — recycling")
+        if not self.rebind_device(idx, hw, serial):
+            return False
+        self.run(idx)
+        st = self.device_state(idx)
+        if st == "running":
+            self.emit("device running after recycle")
+            return True
+        self.emit(f"device STILL not running after recycle (state={st})")
+        return False

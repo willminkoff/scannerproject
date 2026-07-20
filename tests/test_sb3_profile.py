@@ -101,23 +101,32 @@ class _RecordingClient(SDRangelClient):
         super().__init__(execute=True, emit=emit, sleep=lambda s: None)
         self._bound = bound_serial
         self._hw = "RTLSDR"
+        self._state = "idle"
         self._chan_after = channels_after
 
     def _req(self, method, path, body=None, timeout=8.0):
         self.calls.append((method, path, body))
         if method == "GET" and path == "":
             return 200, {}
+        if method == "GET" and path == "/audio":
+            return 200, {"outputDevices": [
+                {"index": -1, "name": "System default device", "copyToUDP": 1},
+                {"index": 0, "name": "Mac mini Speakers", "copyToUDP": 0}]}
         # A rebind (PUT device) makes the deviceset report the NEW device as
         # enumerated — mirrors real SDRangel, and lets wait_device_ready pass.
         if method == "PUT" and path.endswith("/device") and body:
             self._bound = body.get("serial", self._bound)
             self._hw = body.get("hwType", self._hw)
+            self._state = "idle"
+            return 200, {}
+        if method == "POST" and path.endswith("/device/run"):
+            self._state = "running"
             return 200, {}
         if method == "GET" and path.endswith("/device/settings"):
             return 200, {"rtlSdrSettings": {"centerFrequency": 118925000}}
         if method == "GET" and path.startswith("/deviceset/"):
             return 200, {"samplingDevice": {"serial": self._bound,
-                                            "hwType": self._hw, "state": "idle"},
+                                            "hwType": self._hw, "state": self._state},
                          "channels": [{}] * self._chan_after}
         return 200, {}
 
@@ -141,7 +150,7 @@ class TestTranslatorApply(unittest.TestCase):
                                     mount_present_after)] * 6
         return (
             mock.patch.object(backends, "mount_state", side_effect=seq),
-            mock.patch.object(backends, "resolve_idx0_audio_name", return_value=idx0),
+            mock.patch.object(backends, "resolve_audio_tap", return_value=(idx0, -1)),
             mock.patch.object(backends, "icecast_mounts", return_value=["neptune-air.mp3"]),
         )
 
@@ -255,8 +264,8 @@ class TestTranslatorApply(unittest.TestCase):
             seq = [backends.MountState("neptune-air.mp3", 200, True)]   # live at baseline
             seq += [backends.MountState("neptune-air.mp3", 200, True)] * 6
             with mock.patch.object(backends, "mount_state", side_effect=seq), \
-                 mock.patch.object(backends, "resolve_idx0_audio_name",
-                                   return_value="Mac mini Speakers"), \
+                 mock.patch.object(backends, "resolve_audio_tap",
+                                   return_value=("System default device", -1)), \
                  mock.patch.object(backends, "icecast_mounts",
                                    return_value=["neptune-air.mp3"]):
                 c = _RecordingClient(self._emit, bound_serial="56919602", channels_after=4)

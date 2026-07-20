@@ -178,18 +178,42 @@ def sdrangel_audio_outputs(timeout: float = DEFAULT_TIMEOUT_SEC) -> List[Dict]:
     return data.get("outputDevices", []) or []
 
 
-def resolve_idx0_audio_name(timeout: float = DEFAULT_TIMEOUT_SEC) -> Optional[str]:
-    """Name of the SDRangel output device at index 0 — the copyToUDP tap.
+def resolve_audio_tap(strategy: str = "system_default",
+                      timeout: float = DEFAULT_TIMEOUT_SEC):
+    """Resolve the (name, index) of the output device to carry the copyToUDP tap.
 
-    This is the `dynamic_idx0` strategy: the literal string "System default
-    device" (index -1) does NOT drive the tap; the real device name (e.g.
-    "Mac mini Speakers", index 0) does. `fix-venus-angel.sh` learned this the
-    hard way, so it is resolved live rather than hard-coded.
+    Returns (None, None) if unreachable.
+
+    ⚠️  MEASURED ON NEPTUNE 2026-07-19, and it overturns the brief's assumption.
+    The brief specified `dynamic_idx0` — route channel audio to the index-0
+    device ("Mac mini Speakers"). Tested live, that path yields a STEADY 404:
+    routing demod audio to a real hardware output and tapping it does not
+    reliably reach the UDP bridge. Routing to the VIRTUAL "System default
+    device" (index -1) and tapping THAT gives a stable 200 for 30 s straight.
+    This matches macos/bin/sdrangel-restore.py (which uses "System default
+    device" and runs every 10 min on this box), so it is the trustworthy recipe.
+
+      * strategy "system_default" → the "System default device" (index -1)
+      * strategy "dynamic_idx0"   → the index-0 device (kept for other hosts,
+                                     e.g. Venus, where the exact hardware name is
+                                     what works)
     """
-    for dev in sdrangel_audio_outputs(timeout):
+    outs = sdrangel_audio_outputs(timeout)
+    if not outs:
+        return None, None
+    if strategy == "system_default":
+        for dev in outs:
+            if dev.get("name") == "System default device":
+                return dev.get("name"), dev.get("index")
+    for dev in outs:
         if dev.get("index") == 0:
-            return dev.get("name")
-    return None
+            return dev.get("name"), dev.get("index")
+    return None, None
+
+
+def resolve_idx0_audio_name(timeout: float = DEFAULT_TIMEOUT_SEC) -> Optional[str]:
+    """Back-compat shim → name from resolve_audio_tap('dynamic_idx0')."""
+    return resolve_audio_tap("dynamic_idx0", timeout)[0]
 
 
 def snapshot(mounts) -> Dict:
