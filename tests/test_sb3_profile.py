@@ -459,3 +459,59 @@ class TestClientHardening(unittest.TestCase):
         self.assertTrue(ok)
         self.assertTrue(any(m == "PUT" and p == "/deviceset/0/device" for m, p, _ in c.calls))
         self.assertIn("device ready", "\n".join(self.lines))
+
+
+class TestSoftRecycle(unittest.TestCase):
+    """ensure_running must recover GENTLY — soft stop→run before any rebind."""
+
+    def setUp(self):
+        self.lines = []
+
+    def _emit(self, m):
+        self.lines.append(m)
+
+    def _client(self, state_seq):
+        """A client whose device_state walks through state_seq on each GET."""
+        from sb3.sdrangel import SDRangelClient
+        c = SDRangelClient(execute=True, emit=self._emit, sleep=lambda s: None)
+        seq = list(state_seq)
+        t = {"now": 0.0}
+        c._now = lambda: t["now"]
+
+        def fake_req(method, path, body=None, timeout=8.0):
+            c.calls.append((method, path, body))
+            t["now"] += 1.0   # each op advances the clock 1s
+            if path == "" or path == "/audio":
+                return 200, {}
+            if method == "GET" and path.startswith("/deviceset/"):
+                st = seq.pop(0) if len(seq) > 1 else seq[0]
+                return 200, {"samplingDevice": {"state": st, "hwType": "RTLSDR",
+                                                "serial": "83241970"}}
+            return 200, {}
+        c._req = fake_req
+        return c
+
+    def test_soft_retry_recovers_without_rebind(self):
+        # error on first check, running after the soft stop→run.
+        c = self._client(["error", "running"])
+        ok = c.ensure_running(0, "RTLSDR", "83241970")
+        self.assertTrue(ok)
+        self.assertFalse(any(m == "PUT" for m, p, _ in c.calls),
+                         "soft recovery must NOT rebind")
+        self.assertIn("soft retry", "\n".join(self.lines))
+
+    def test_rebind_is_last_resort_after_soft_fails(self):
+        # never reaches running via soft; must fall through to ONE rebind.
+        c = self._client(["error"])   # always error
+        c.ensure_running(0, "RTLSDR", "83241970", budget_sec=1000)
+        puts = [1 for m, p, _ in c.calls if m == "PUT"]
+        self.assertEqual(len(puts), 1, "rebind must happen at most ONCE")
+        self.assertIn("last resort", "\n".join(self.lines))
+
+    def test_budget_stops_the_hammering(self):
+        c = self._client(["error"])
+        # tiny budget → give up in the soft loop, no rebind
+        c.ensure_running(0, "RTLSDR", "83241970", budget_sec=1.0)
+        self.assertFalse(any(m == "PUT" for m, p, _ in c.calls),
+                         "must not rebind once the budget is blown")
+        self.assertIn("budget", "\n".join(self.lines))

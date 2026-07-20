@@ -281,24 +281,75 @@ class SDRangelClient:
     def device_state(self, idx: int) -> Optional[str]:
         return self.sampling_device(idx).get("state")
 
-    def ensure_running(self, idx: int, hw: str, serial: str) -> bool:
-        """Guarantee the device is in 'running' state, recycling on error.
+    def ensure_running(self, idx: int, hw: str, serial: str,
+                       budget_sec: float = 30.0) -> bool:
+        """Guarantee the device is in 'running' state — GENTLY.
 
         A run POST can return 200 yet leave the RTL in 'error'/'idle' (the
-        83241970 flakiness). If a plain run does not reach 'running', do a full
-        device DELETE→PUT→run recycle — proven on the box to clear the error
-        state — and check again.
+        83241970 flakiness). Recovery order, softest first, because the AGGRESSIVE
+        path (rapid rebind) is what crashed SDRangel 2026-07-19 — the cure was
+        worse than the disease:
+
+          1. run, check.
+          2. up to 2× : stop → wait 3s → run → check.   (soft: no rebind)
+          3. ONCE, only if soft failed: full rebind → run → check.
+
+        A REST-health gate precedes every op, and a wall-clock budget (~30s)
+        caps the whole thing so it unwinds instead of hammering a struggling
+        backend. One shot at recovery, not a cascade.
         """
-        self.run(idx)
-        if not self.execute or self.device_state(idx) == "running":
+        if not self.execute:
+            self.run(idx)
             return True
-        self.emit(f"device not running (state={self.device_state(idx)}) — recycling")
+        start = self._now()
+
+        def budget_left() -> bool:
+            return (self._now() - start) < budget_sec
+
+        if not self.wait_rest_healthy():
+            return False
+        self.run(idx)
+        if self.device_state(idx) == "running":
+            return True
+
+        # 2. soft recovery: stop + settle + run, up to twice. No rebind.
+        for attempt in range(2):
+            if not budget_left():
+                self.emit("ensure_running: budget exhausted — giving up (soft)")
+                return False
+            st = self.device_state(idx)
+            self.emit(f"device not running (state={st}) — soft retry "
+                      f"{attempt+1}/2 (stop→wait→run)")
+            if not self.wait_rest_healthy():
+                return False
+            self.stop(idx)
+            self._wait(3.0)
+            if not self.wait_rest_healthy():
+                return False
+            self.run(idx)
+            if self.device_state(idx) == "running":
+                self.emit("device running after soft retry")
+                return True
+
+        # 3. last resort: ONE rebind. This is the op that can crash SDRangel, so
+        #    it is reached only after the soft path failed, and only once.
+        if not budget_left():
+            self.emit("ensure_running: budget exhausted — not rebinding")
+            return False
+        self.emit("soft retries failed — ONE rebind as last resort")
+        if not self.wait_rest_healthy():
+            return False
         if not self.rebind_device(idx, hw, serial):
             return False
         self.run(idx)
         st = self.device_state(idx)
         if st == "running":
-            self.emit("device running after recycle")
+            self.emit("device running after rebind")
             return True
-        self.emit(f"device STILL not running after recycle (state={st})")
+        self.emit(f"device STILL not running (state={st}) — giving up")
         return False
+
+    def _now(self) -> float:
+        # Wall clock for the budget. Overridable in tests (monotonic in prod).
+        import time as _t
+        return _t.monotonic()
