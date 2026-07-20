@@ -194,3 +194,31 @@ class TestStatusChannels(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestKillGuard(unittest.TestCase):
+    """do_POST must refuse writes with 409 while SB3 is killed (kill invariant)."""
+
+    def test_post_refused_when_killed(self):
+        import threading, urllib.request, urllib.error
+        from sb3.ui import server
+        srv = server.make_server(port=0)
+        port = srv.server_address[1]
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            with mock.patch.object(State, "is_killed", return_value=True):
+                req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/api/tune",
+                    data=b"target=airband&freq=118.925",
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    method="POST")
+                try:
+                    urllib.request.urlopen(req, timeout=5)
+                    self.fail("expected 409")
+                except urllib.error.HTTPError as e:
+                    self.assertEqual(e.code, 409)
+                    body = json.loads(e.read())
+                    self.assertEqual(body["error"], "sb3-killed")
+        finally:
+            srv.shutdown(); srv.server_close()
