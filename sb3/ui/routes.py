@@ -15,9 +15,12 @@ POST /api/* → 501 — so the page degrades rather than breaking.
 from __future__ import annotations
 
 import datetime
+import os
+import platform
+import socket
 from typing import Dict
 
-from .. import backends, ownership, sdrtrunk_client
+from .. import backends, gitdeploy, ownership, sdrtrunk_client
 from ..state import State
 
 GUARDED = ownership.GUARDED_MOUNTS  # ("neptune-trunk.mp3", "neptune-air.mp3")
@@ -54,6 +57,20 @@ def build_status(state: State) -> Dict:
     sdrangel_up = "com.scannerproject.sdrangel" in loaded
     sdrtrunk_up = "com.scannerproject.sdrtrunk" in loaded
 
+    # Per-role one-word status the UI surfaces (e.g. the Ground offline banner).
+    # Derived only from data already fetched above — no extra SDRangel call, so
+    # the status poll never probes USB out from under a running device.
+    def _role_status(loaded_profile: bool, running: bool, mount_present: bool) -> str:
+        if not loaded_profile:
+            return "not loaded"
+        if running and mount_present:
+            return "live"
+        if running and not mount_present:
+            return "running — no audio"
+        return "loaded — device offline"
+    air_status = _role_status(bool(profile), air_running, air.present)
+    ground_status = _role_status(bool(ground_profile), ground_running, ground.present)
+
     return {
         "ok": True,
         "server_time": _now_iso(),
@@ -63,6 +80,11 @@ def build_status(state: State) -> Dict:
         "ground_present": bool(ground_profile),
         "ground_active": ground_running,
         "rtl_active": air_running or ground_running,
+        # per-role status strings (additive; Ground offline banner reads these)
+        "air_status": air_status,
+        "ground_status": ground_status,
+        "air_device_online": air_running,
+        "ground_device_online": ground_running,
         # icecast + mounts
         "icecast_active": trunk.present or air.present,
         "icecast_mounts": icecast_mounts,
@@ -399,6 +421,71 @@ def volume(form: Dict, state: State) -> Dict:
         if c.patch_channel(idx, ch_idx, ctype, skey, {"volume": vol}):
             touched += 1
     return {"ok": True, "level": int(level), "volume": vol, "channels_touched": touched}
+
+
+def build_system(state: State) -> Dict:
+    """/api/system — host, load, deploy, agent roster. Read-only; enriches the
+    system card. Every field is cheap and local (no network, no USB probe).
+
+    Fetched by the UI with `.catch(() => null)`, so a partial payload is safe.
+    """
+    loaded = set(backends.launchctl_loaded())
+    sb3_up = sorted(l for l in loaded if l in ownership.SB3_LAYER)
+    backend_up = sorted(l for l in loaded if l in ownership.BACKEND)
+    try:
+        load1, load5, load15 = os.getloadavg()
+    except (OSError, AttributeError):
+        load1 = load5 = load15 = None
+    dep = gitdeploy.observe(check_remote=False)
+    return {
+        "ok": True,
+        "server_time": _now_iso(),
+        "host": socket.gethostname(),
+        "platform": f"{platform.system()} {platform.release()}",
+        "python": platform.python_version(),
+        "load_avg": None if load1 is None else [round(load1, 2), round(load5, 2), round(load15, 2)],
+        "cpu_count": os.cpu_count(),
+        "deploy": {
+            "sha": dep.short_sha,
+            "branch": dep.branch,
+            "dirty": dep.dirty,
+            "killed": state.is_killed(),
+        },
+        "agents": {
+            "sb3_up": sb3_up,
+            "sb3_total": len(ownership.SB3_LAYER),
+            "backend_up": backend_up,
+            "backend_total": len(ownership.BACKEND),
+        },
+    }
+
+
+def hp_state(state: State) -> Dict:
+    """/api/hp/state — Travel Mode state. SB3 has no HomePatrol location backend,
+    so this returns a sane 'off' default (200) that renderTravelMode() reads:
+    ZIP '--', button OFF, no last-push line. The location-push write path stays
+    unimplemented (POST → 501), so the button reports cleanly when tapped.
+    """
+    return {
+        "ok": True,
+        "enabled": False,
+        "home": "Nashville",
+        "state": {"zip": ""},
+        "travel_mode_enabled": False,
+        "travel_mode_last_push": None,
+    }
+
+
+def ask_claude_stub(form: Dict, state: State) -> Dict:
+    """/api/ask-claude — not wired into SB3. Return a graceful 200 the chat panel
+    renders as a message turn (data.ok=false → data.error shown), rather than a
+    501 the client surfaces as a raw HTTP error.
+    """
+    return {
+        "ok": False,
+        "error": "Ask Claude isn't wired into SB3 yet.",
+        "session_id": (form or {}).get("session_id", ""),
+    }
 
 
 def hits(state: State) -> Dict:

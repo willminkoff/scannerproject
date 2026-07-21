@@ -75,6 +75,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.build_heartbeat(self._state))
         if p == "/api/profiles":
             return self._json(routes.build_profiles(self._state))
+        if p == "/api/system":
+            return self._json(routes.build_system(self._state))
+        if p == "/api/hp/state":
+            return self._json(routes.hp_state(self._state))
         if p == "/api/hits":
             return self._json(routes.hits(self._state))
         if p == "/api/digital/scheduler":
@@ -122,6 +126,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(routes.tune(form, state))
             if p == "/api/volume":
                 return self._json(routes.volume(form, state))
+            # Ask Claude is not wired into SB3 — answer 200 with a graceful
+            # marker the chat panel renders as a message (not a raw HTTP error).
+            if p == "/api/ask-claude":
+                return self._json(routes.ask_claude_stub(form, state))
+            if p == "/api/ask-claude/reset":
+                return self._json({"ok": True})
         except routes.WriteError as we:
             return self._json({"ok": False, "error": we.msg}, we.code)
         except Exception as exc:   # never hang the UI on an unexpected fault

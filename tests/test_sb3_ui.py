@@ -159,6 +159,79 @@ class TestOwnership(unittest.TestCase):
         self.assertTrue(p.template_exists, f"missing plist for sb3-ui at {p.template}")
 
 
+class TestGroundStatusField(unittest.TestCase):
+    """build_status.ground_status drives the Ground offline banner (Phase 3.4/3.5)."""
+
+    def _status(self, *, ground_profile, ground_mount, devicesets):
+        st = State(Path("/nonexistent"))
+        profs = {}
+        if ground_profile:
+            profs["ground"] = ground_profile
+        st.read_loaded_profiles = lambda: profs
+        st.read_loaded_profile = lambda role=None: profs.get(role) if role else profs.get("air")
+        mounts = {
+            "neptune-air.mp3": _mount("neptune-air.mp3", None, False),
+            "neptune-trunk.mp3": _mount("neptune-trunk.mp3", 200, True),
+            "neptune-ground.mp3": ground_mount,
+        }
+        with mock.patch.object(backends, "launchctl_loaded", return_value=[]), \
+             mock.patch.object(backends, "icecast_mounts", return_value=[]), \
+             mock.patch.object(backends, "sdrangel_devicesets", return_value=devicesets), \
+             mock.patch.object(backends, "mount_state", side_effect=lambda m, **kw: mounts[m]):
+            return routes.build_status(st)
+
+    def test_no_ground_profile_reports_not_loaded(self):
+        s = self._status(ground_profile=None,
+                         ground_mount=_mount("neptune-ground.mp3", 404, False),
+                         devicesets=[_ds()])
+        self.assertEqual(s["ground_status"], "not loaded")
+        self.assertFalse(s["ground_device_online"])
+
+    def test_ground_loaded_but_device_offline(self):
+        prof = {"name": "ground.x", "role": "ground", "deviceset_index": 1}
+        s = self._status(ground_profile=prof,
+                         ground_mount=_mount("neptune-ground.mp3", 404, False),
+                         devicesets=[_ds()])   # only DS0 present; no DS1 → not running
+        self.assertEqual(s["ground_status"], "loaded — device offline")
+        self.assertFalse(s["ground_device_online"])
+
+    def test_ground_live(self):
+        prof = {"name": "ground.x", "role": "ground", "deviceset_index": 1}
+        s = self._status(ground_profile=prof,
+                         ground_mount=_mount("neptune-ground.mp3", 200, True),
+                         devicesets=[_ds(), _ds(index=1, serial="61108285")])
+        self.assertEqual(s["ground_status"], "live")
+        self.assertTrue(s["ground_device_online"])
+
+
+class TestSystemAndStubs(unittest.TestCase):
+    def test_build_system_shape(self):
+        st = State(Path("/nonexistent"))
+        with mock.patch.object(backends, "launchctl_loaded",
+                               return_value=["com.scannerproject.sb3-ui",
+                                             "com.scannerproject.sdrangel"]):
+            sysd = routes.build_system(st)
+        self.assertTrue(sysd["ok"])
+        for k in ("host", "platform", "python", "load_avg", "deploy", "agents"):
+            self.assertIn(k, sysd)
+        self.assertIn("com.scannerproject.sb3-ui", sysd["agents"]["sb3_up"])
+        self.assertIn("com.scannerproject.sdrangel", sysd["agents"]["backend_up"])
+        json.dumps(sysd)   # serialisable
+
+    def test_hp_state_is_sane_off_default(self):
+        d = routes.hp_state(State(Path("/nonexistent")))
+        self.assertTrue(d["ok"])
+        self.assertFalse(d["travel_mode_enabled"])
+        self.assertEqual(d["state"]["zip"], "")
+        self.assertIsNone(d["travel_mode_last_push"])
+
+    def test_ask_claude_stub_is_graceful_200(self):
+        d = routes.ask_claude_stub({"session_id": "sid-1"}, State(Path("/nonexistent")))
+        self.assertFalse(d["ok"])
+        self.assertIn("wired", d["error"])
+        self.assertEqual(d["session_id"], "sid-1")
+
+
 class TestServerBoots(unittest.TestCase):
     def test_server_boots_and_serves(self):
         srv = server.make_server(port=0)   # ephemeral port
