@@ -105,3 +105,19 @@ class TestCopyToUdpSamePortOnly(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAudioByNameStrategy(unittest.TestCase):
+    def test_name_strategy_resolves_and_does_not_fall_back(self):
+        from unittest import mock
+        from sb3 import backends
+        outs = [{"index": -1, "name": "System default device"},
+                {"index": 3, "name": "BlackHole 2ch"}]
+        with mock.patch.object(backends, "sdrangel_audio_outputs", return_value=outs):
+            self.assertEqual(backends.resolve_audio_tap("name:BlackHole 2ch"), ("BlackHole 2ch", 3))
+            # a missing named device returns (None,None) — NOT a silent idx0 fallback
+            self.assertEqual(backends.resolve_audio_tap("name:Nope"), (None, None))
+
+    def test_ground_profile_targets_blackhole(self):
+        p = load_profile(GROUND)
+        self.assertEqual(p.audio_strategy, "name:BlackHole 2ch")

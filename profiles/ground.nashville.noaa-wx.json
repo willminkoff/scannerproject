@@ -1,5 +1,5 @@
 {
-  "_comment": "SB3 profile: Ground role / NOAA Weather Radio, camp mode, on the NESDR SMArt v5 61108285 (DS1) -> neptune-ground.mp3. The 7 channels are the FCC-allocated NOAA Weather Radio frequencies (162.400-162.550, federally fixed — no RadioReference lookup needed). Nashville's live transmitter is WXK64 on 162.550, marked as the primary (normal squelch/volume); the other 6 are tighter-squelched (they may carry from nearby markets or be silent). The keepalive is an OUT-OF-BAND channel at 162.375 (inside the FCC WX guard region, no real transmitter) so it reliably emits noise to hold the mount up without depending on any WX broadcast. NFM demod (WX is wideband voice ~12.5 kHz), unlike Air's AM. Audio egress uses output device index 0 (Mac mini Speakers) -> copyToUDP :9999, DISTINCT from Air's System-default-device -> :9998, so the two mounts are independent. NOTE: only the System-default device (idx -1) was PROVEN to carry copyToUDP audio in Phase 2; idx 0 is unproven and the live load is the test.",
+  "_comment": "SB3 profile: Ground role / NOAA Weather Radio, camp mode, on the NESDR SMArt v5 61108285 (DS1) -> neptune-ground.mp3. The 7 channels are the FCC-allocated NOAA Weather Radio frequencies (162.400-162.550, federally fixed — no RadioReference lookup needed). Nashville's live transmitter is WXK64 on 162.550, marked as the primary (normal squelch/volume); the other 6 are tighter-squelched (they may carry from nearby markets or be silent). The keepalive is an OUT-OF-BAND channel at 162.375 (inside the FCC WX guard region, no real transmitter) so it reliably emits noise to hold the mount up without depending on any WX broadcast. NFM demod (WX is wideband voice ~12.5 kHz), unlike Air's AM. Audio egress routes to the BlackHole 2ch VIRTUAL sink -> copyToUDP :9999, DISTINCT from Air's System-default-device -> :9998, so the two mounts are independent AND both sustain. This resolves the 2026-07-20 finding that only a VIRTUAL sink sustains copyToUDP audio (the physical Mac mini Speakers idx0 only bursts, flapping the mount); BlackHole adds a second virtual sink so Ground gets sustained audio like Air. Requires BlackHole 2ch installed (brew install --cask blackhole-2ch + reboot).",
   "name": "ground.nashville.noaa-wx",
   "role": "ground",
   "sub_role": "noaa-wx",
@@ -25,7 +25,7 @@
     {"freq_hz": 162525000, "title": "NOAA WX 162.525", "demod": "NFM", "rf_bw_hz": 12500, "squelch_db": -50, "volume": 3.0},
     {"freq_hz": 162550000, "title": "WXK64 Nashville (162.550)", "demod": "NFM", "rf_bw_hz": 12500, "squelch_db": -55, "volume": 3.0}
   ],
-  "audio_device": {"strategy": "index:0"},
+  "audio_device": {"strategy": "name:BlackHole 2ch"},
   "copy_to_udp": {"address": "127.0.0.1", "port": 9999},
   "mount": "neptune-ground.mp3"
 }

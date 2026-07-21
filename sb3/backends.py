@@ -205,6 +205,16 @@ def resolve_audio_tap(strategy: str = "system_default",
         for dev in outs:
             if dev.get("name") == "System default device":
                 return dev.get("name"), dev.get("index")
+    # "name:X" — pick a specific output device by NAME (Phase 3.3: Ground routes
+    # to "BlackHole 2ch", a virtual sink that sustains copyToUDP like the System
+    # default device does — the physical idx0 only bursts). By-name is robust to
+    # the index BlackHole lands at after install/reboot.
+    if strategy.startswith("name:"):
+        want = strategy.split(":", 1)[1]
+        for dev in outs:
+            if dev.get("name") == want:
+                return dev.get("name"), dev.get("index")
+        return None, None   # named device not present — do not silently fall back
     # "index:N" — pick a specific output device by index (Phase 3.3: a second
     # role needs a DIFFERENT output device than Air's, for an independent
     # copyToUDP port). Falls back to idx 0.
