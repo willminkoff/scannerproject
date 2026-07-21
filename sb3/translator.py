@@ -134,7 +134,11 @@ def apply(prof: Profile, *, execute: bool, emit: Emit,
              f"ds{idx}); this apply will reconfigure ds{idx} and take it over.")
     emit("")
 
-    # 2. Device: rebind only if the bound serial differs (§ preserve binding).
+    # 2. Ensure the target deviceset exists (DS1 for a second role), then rebind
+    #    only if the bound serial differs (§ preserve binding).
+    if not c.ensure_deviceset(idx):
+        emit(f"  ✗ could not create deviceset {idx} — aborting")
+        return INVARIANT_VIOLATED
     cur_serial = c.ds_serial(idx) if execute else "<dry-run>"
     if execute and cur_serial == prof.serial:
         emit(f"  device already bound: {prof.serial} on ds{idx} — no rebind")

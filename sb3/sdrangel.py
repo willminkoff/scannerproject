@@ -166,6 +166,30 @@ class SDRangelClient:
 
     # -- writes -----------------------------------------------------------
 
+    def ensure_deviceset(self, idx: int) -> bool:
+        """Guarantee deviceset `idx` exists, adding Rx devicesets as needed.
+
+        A fresh SDRangel has one deviceset (DS0). Loading a second role onto DS1
+        requires the deviceset to exist first — `PUT /deviceset/1/device` 404s
+        otherwise. `POST /deviceset?direction=0` appends an Rx deviceset (verified
+        202 on the box, non-wedging). Idempotent: a no-op when idx already exists.
+        """
+        if not self.execute:
+            self.emit(f"would: ensure deviceset {idx} exists "
+                      f"(POST /deviceset?direction=0 if missing)")
+            return True
+        sets = self.devicesets()
+        tries = 0
+        while len(sets) <= idx and tries < idx + 3:
+            if not self.wait_rest_healthy():
+                return False
+            self.emit(f"adding deviceset (have {len(sets)}, need index {idx})")
+            self._req("POST", "/deviceset?direction=0")
+            self._wait(2.0)
+            sets = self.devicesets()
+            tries += 1
+        return len(sets) > idx
+
     def rebind_device(self, idx: int, hw: str, serial: str) -> bool:
         """PUT a device onto a deviceset, then WAIT for it to enumerate.
 
