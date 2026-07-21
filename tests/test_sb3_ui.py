@@ -158,6 +158,31 @@ class TestOwnership(unittest.TestCase):
         p = next(p for p in install.plan() if p.label == "com.scannerproject.sb3-ui")
         self.assertTrue(p.template_exists, f"missing plist for sb3-ui at {p.template}")
 
+    def test_neptune_ground_bridge_is_classified_backend(self):
+        # Regression: the Ground bridge shipped as a plist + GUARDED_MOUNTS entry
+        # but was missing from BACKEND, so classify() fail-closed and blocked
+        # every kill/resume once RunAtLoad loaded it on Neptune (2026-07-21).
+        self.assertEqual(ownership.classify("com.scannerproject.neptune-ground-bridge"),
+                         "backend")
+
+    def test_every_shipped_plist_label_is_classifiable(self):
+        # Any launchd label we ship a plist for MUST be in SB3_LAYER or BACKEND,
+        # or classify() hard-fails at runtime and jams kill/resume/update. This
+        # guards the whole class of "added a plist, forgot to classify it" bugs.
+        import re
+        root = Path(__file__).resolve().parent.parent / "macos" / "launchd"
+        plists = list(root.glob("*.plist")) + list(root.glob("sb3/*.plist"))
+        self.assertTrue(plists, "expected shipped launchd plists")
+        for plist in plists:
+            text = plist.read_text()
+            m = re.search(r"<key>Label</key>\s*<string>([^<]+)</string>", text)
+            self.assertIsNotNone(m, f"{plist.name} has no Label")
+            label = m.group(1).strip()
+            try:
+                ownership.classify(label)   # must not raise
+            except ownership.UnclassifiedLabel:
+                self.fail(f"{plist.name} label {label!r} is not in SB3_LAYER or BACKEND")
+
 
 class TestGroundStatusField(unittest.TestCase):
     """build_status.ground_status drives the Ground offline banner (Phase 3.4/3.5)."""

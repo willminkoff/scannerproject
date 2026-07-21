@@ -73,6 +73,14 @@ BACKEND: FrozenSet[str] = frozenset({
     "com.scannerproject.sdrtrunk",
     "com.scannerproject.icecast",
     "com.scannerproject.neptune-audio-bridge",
+    "com.scannerproject.neptune-ground-bridge",   # Ground role's ffmpeg bridge
+                                                  # (Phase 3.3). Sibling of the Air
+                                                  # bridge; plumbing that survives
+                                                  # kill. Was added as a plist +
+                                                  # GUARDED_MOUNTS entry but missed
+                                                  # here, so classify() fail-closed
+                                                  # and blocked every kill/resume
+                                                  # once RunAtLoad loaded it.
     "com.scannerproject.venus-audio-bridge",
     "com.scannerproject.copytoudp-watchdog",
     "com.scannerproject.caffeinate",
