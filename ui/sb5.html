@@ -3401,7 +3401,7 @@
     </div>
   </section>
 
-  <!-- ============ DIGITAL pane (rev 4.1 — SDRTrunk P25 on the RSP 1809063632 native, dual-tuner / up to 2 systems; ex-RSP 180903EF32 removed 2026-07-08) ============ -->
+  <!-- ============ DIGITAL pane (rev 5.0 — SDRTrunk P25 on the RSP 180903EF32 native, dual-tuner / up to 2 systems. Rev 4.1 had this serial reversed; 1809063632 is Venus's RSPduo, not this host's) ============ -->
   <section class="pane pane-digital" id="pane-digital">
     <div class="pane-hd">
       <span class="title">Digital Trunked</span>
@@ -3643,7 +3643,7 @@
             <button type="button" class="ac-preset" data-preset="rf"
                     data-prompt="Read /api/waterfall and /api/disco state. Are the SDR receivers actively producing FFT data? What's the current noise floor and peak signal level on the Live IQ band? Is the Discovery sweep producing classified detections? If anything is silent, identify why.">Check RF</button>
             <button type="button" class="ac-preset" data-preset="audio"
-                    data-prompt="Check the icecast mounts (/ANALOG.mp3, /ANALOG_GROUND.mp3, /DIGITAL.mp3) by hitting http://localhost:8000/status-json.xsl. Are all 3 mounts publishing live audio? If any are silent, identify the broken link in the chain (chirp airband on the RTL Blog V4, chirp ground on RTL 61108285, SDRTrunk P25 on the RSP (1809063632) native apiService, vlc bridge, pipewire sink).">Check audio stream</button>
+                    data-prompt="Check the icecast mounts (/ANALOG.mp3, /ANALOG_GROUND.mp3, /DIGITAL.mp3) by hitting http://localhost:8000/status-json.xsl. Are all 3 mounts publishing live audio? If any are silent, identify the broken link in the chain (chirp airband on the RTL Blog V4, chirp ground on RTL 61108285, SDRTrunk P25 on the RSP (180903EF32) native apiService, vlc bridge, pipewire sink).">Check audio stream</button>
             <button type="button" class="ac-preset" data-preset="disco"
                     data-prompt="Read /api/disco. Is the sweep range active? How many classified detections in the last 30 minutes? What's the average confidence? Which frequencies have been most active? Recommend whether the sweep range or thresholds should be tuned.">Check Discovery</button>
           </div>
