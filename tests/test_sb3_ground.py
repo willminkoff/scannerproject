@@ -24,7 +24,7 @@ class TestGroundProfile(unittest.TestCase):
         self.assertEqual(p.serial, "61108285")
         self.assertEqual(p.udp_port, 9999)          # distinct from Air's 9998
         self.assertEqual(p.mount, "neptune-ground.mp3")
-        self.assertEqual(p.audio_strategy, "index:0")
+        self.assertEqual(p.audio_strategy, "name:BlackHole 2ch")
         self.assertEqual(p.channels[0].demod, "NFM")
         for c in p.channels:                        # camp-mode fit
             self.assertLessEqual(abs(c.offset_from(p.center_freq_hz)) + c.rf_bw_hz / 2,
