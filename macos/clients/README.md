@@ -1,6 +1,6 @@
 # macos/clients
 
-Python wrappers the thin UI (`scannerctl`) and Claude use to drive the backends.
+Python wrappers the SB3 UI (`sb3-ui`) and Claude use to drive the backends.
 
 ## `sdrangel_client.py` — full control (REST :8091)
 SDRangel has a rich Swagger/OpenAPI surface. The wrapper covers: instance +

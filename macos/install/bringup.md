@@ -9,7 +9,7 @@ working SDRangel + SDRTrunk scanner with Claude/Dispatch access. Do them in orde
 ## 1. macOS base settings
 - [ ] Sign in / skip Apple ID as preferred; set hostname (`scutil --set HostName mac-mini`; also ComputerName + LocalHostName).
 - [ ] **System Settings → General → Sharing:** enable **Remote Login (SSH)** and **Screen Sharing**.
-- [ ] **Firewall:** allow incoming for sshd, SDRangel, SDRTrunk, the scannerctl port. (Or leave firewall off on a trusted LAN.)
+- [ ] **Firewall:** allow incoming for sshd, SDRangel, SDRTrunk, and the sb3-ui port (:5050). (Or leave firewall off on a trusted LAN.)
 - [ ] Disable App Nap / "put hard disks to sleep" so background scanners don't get throttled (Energy settings).
 - [ ] Create/confirm the run user (e.g. `willminkoff`).
 
@@ -34,7 +34,7 @@ working SDRangel + SDRTrunk scanner with Claude/Dispatch access. Do them in orde
 ## 6. SDRangel (analog)
 - [ ] Run `scripts/mac-install-sdrangel.sh` (installs to /Applications/SDRangel.app).
 - [ ] **Plug SDRs in BEFORE launching** (it enumerates at startup — see `docs/sdrangel-scan-38380.md`).
-- [ ] Enable the **REST API** (Preferences → enable Web/REST on **:8091**) — needed by `scannerctl` + Claude.
+- [ ] Enable the **REST API** (Preferences → enable Web/REST on **:8091**) — needed by `sb3-ui` + Claude.
 - [ ] Smoke test: add `SDRPlayV3[0]`, AM demod (R0:0), NFM demod (R0:1), Frequency Scanner (R0:2), import a CSV from `data/`.
 
 ## 7. SDRTrunk (digital P25)
@@ -49,7 +49,7 @@ working SDRangel + SDRTrunk scanner with Claude/Dispatch access. Do them in orde
 - [ ] Set it as the audio output for SDRangel/SDRTrunk (CoreAudio). **Never script BOOM volume changes** (standing rule).
 
 ## 9. Auto-start (launchd)
-- [ ] Adjust + load the `macos/launchd/*.plist` templates (`launchctl bootstrap gui/$(id -u) <plist>`): SDRangel, SDRTrunk, scannerctl.
+- [ ] Adjust + load the `macos/launchd/*.plist` templates (`launchctl bootstrap gui/$(id -u) <plist>`): SDRangel, SDRTrunk, icecast, audio bridges.
 
 ## 10. Thermal proof (the whole point)
 - [ ] Under full scanning load, confirm the **fan ramps** and CPU stays well under 100°C (`sudo powermetrics --samplers smc -i1 -n1` or iStat). This is what Linux couldn't do.

@@ -2,13 +2,14 @@
 
 Every builder here is READ-ONLY and defensive: sb3.html null-checks every field
 with a fallback, so a partial payload degrades gracefully rather than breaking
-the page. Phase 3.1 populates the fields the heartbeat card and the analog
-status renderers actually consume; the rest are added as the tabs come live in
-3.2/3.3.
+the page. The status/heartbeat/profiles builders populate the fields the
+heartbeat card and the analog/ground/digital status renderers consume.
 
-The write endpoints (scan/squelch/digital-restart) are seeded from
-macos/scannerctl/app.py but return a "not wired yet" marker in 3.1 — they get
-their real bodies (onto sb3.sdrangel + sb3.translator) in Phase 3.2.
+The write endpoints (apply/filter/tune/volume) have their real bodies wired onto
+sb3.sdrangel + sb3.translator (Phase 3.2/3.3). Endpoints the inherited UI still
+calls but SB3 does not yet implement return a graceful marker — see
+sb3.ui.server: unknown GET /api/* → 200 {ok:false, not-implemented}, unknown
+POST /api/* → 501 — so the page degrades rather than breaking.
 """
 
 from __future__ import annotations

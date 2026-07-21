@@ -3,9 +3,10 @@
 Scaffolding for the **macOS migration** of ScannerBox — see the decision/scope in
 [`docs/macos-backend-migration-scope.md`](../docs/macos-backend-migration-scope.md).
 
-Backend on macOS = **SDRangel (analog)** + **SDRTrunk (digital P25)** + a **thin
-custom web UI** (`scannerctl`), with **two mobile-control paths**: the thin UI and
-**conversational control via Claude** (SSH-drives-the-box, same as Linux today).
+Backend on macOS = **SDRangel (analog)** + **SDRTrunk (digital P25)** + the
+**SB3 web UI** (`sb3/ui/`, served by the `sb3-ui` agent), with **two
+mobile-control paths**: the web UI and **conversational control via Claude**
+(SSH-drives-the-box, same as Linux today).
 
 > **Status: SCAFFOLDING.** Skeletons + working stubs, written before macOS was up.
 > Real implementation iterates against running SDRangel + SDRTrunk after Phase 1
@@ -17,12 +18,14 @@ custom web UI** (`scannerctl`), with **two mobile-control paths**: the thin UI a
 | `install/bringup.md` | Ordered checklist to bring a fresh macOS install to a working scanner |
 | `install/jmbe-build.sh` | Compile the JMBE voice library SDRTrunk needs |
 | `install/post-install-checks.sh` | Verify SDRplay API, RSPduo, JMBE, REST :8091 |
-| `launchd/*.plist` | Auto-start templates (SDRangel, SDRTrunk, scannerctl) |
+| `launchd/*.plist` | Auto-start templates (SDRangel, SDRTrunk, icecast, audio bridges) |
 | `clients/sdrangel_client.py` | SDRangel REST (:8091) wrapper — library + CLI |
 | `clients/sdrtrunk_client.py` | SDRTrunk integration scaffolding (limited control surface — see notes) |
 | `data/hpdb_to_sdrangel.py` | HPDB SQLite → SDRangel channel CSV |
 | `data/hpdb_to_sdrtrunk.py` | HPDB SQLite → SDRTrunk playlist XML |
-| `scannerctl/` | Thin Flask web UI (mobile-first) over the clients |
+
+> The mobile-first web UI now lives in `sb3/ui/` (the `sb3-ui` agent), which
+> superseded the earlier `scannerctl/` Flask skeleton (retired, never installed).
 
 ## Device/role mapping (from `etc/mac/sdr_fleet_policy.json`)
 - **RSP `180903EF32`** → SDRTrunk → MTRTRS + TACN (P25 Phase II)

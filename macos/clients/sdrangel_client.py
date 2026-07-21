@@ -2,7 +2,7 @@
 """sdrangel_client.py — thin wrapper around the SDRangel REST API (default :8091).
 
 SDRangel exposes a full Swagger/OpenAPI surface under /sdrangel. This wraps the
-endpoints scannerctl + Claude need: instance/deviceset enumeration, device tuning,
+endpoints sb3-ui + Claude need: instance/deviceset enumeration, device tuning,
 channel (demod) settings, and Frequency-Scanner control.
 
 STATUS: written from the documented API shape BEFORE testing against a live

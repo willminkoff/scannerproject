@@ -80,5 +80,4 @@ data/hp_state.json.history/
 etc/mac/icecast-credentials.env
 etc/mac/icecast.xml
 logs/
-macos/scannerctl/.venv/
 **/__pycache__/

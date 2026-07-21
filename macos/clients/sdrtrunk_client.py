@@ -16,7 +16,7 @@ for set/get of channels, squelch, tuning, etc. What we actually have to work wit
          metadata) — the audio path for remote listening.
   3. AUDIO: CoreAudio out (local → BOOM) + the Icecast broadcaster (remote).
 
-So the integration model for scannerctl/Claude is:
+So the integration model for sb3-ui/Claude is:
   - READ live decode state  → tail/scrape SDRTrunk logs (or its rdioscanner feed).
   - CHANGE what's monitored → rewrite the playlist XML + restart via launchctl.
   - There is NO "set squelch on channel X at runtime over HTTP" like SDRangel.
