@@ -73,6 +73,7 @@ class Channel:
 class Profile:
     name: str
     role: str
+    sub_role: str
     mode: str
     deviceset_index: int
     # device
@@ -194,7 +195,8 @@ def parse_profile(data: Any, path: str = "<data>") -> Profile:
     udp = data.get("copy_to_udp", {})
 
     prof = Profile(
-        name=str(name), role=role, mode=mode,
+        name=str(name), role=role, sub_role=str(data.get("sub_role", "")),
+        mode=mode,
         deviceset_index=int(data.get("deviceset_index", 0)),
         hardware_id=hw,
         serial=str(_req(dev, "serial", f"{path}.device")),

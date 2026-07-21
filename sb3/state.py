@@ -76,22 +76,51 @@ class State:
     def loaded_profile_path(self) -> Path:
         return self.state_dir / LOADED_PROFILE
 
-    def read_loaded_profile(self) -> Optional[dict]:
-        """The profile SB3 last applied, or None. Read-only, never raises."""
+    def _read_profiles_raw(self) -> dict:
+        """The on-disk loaded-profiles map {role: record}. Migration-tolerant.
+
+        Phase 2 wrote a single FLAT record (one Air profile). Phase 3.3 stores a
+        dict keyed by role so Air + Ground coexist. A flat record on disk is read
+        as {'air': record} so an existing deploy keeps working across the upgrade.
+        """
         try:
-            return json.loads(self.loaded_profile_path.read_text())
+            data = json.loads(self.loaded_profile_path.read_text())
         except (OSError, ValueError):
-            return None
+            return {}
+        if isinstance(data, dict) and "name" in data:      # old flat record
+            return {data.get("role", "air"): data}
+        return data if isinstance(data, dict) else {}
+
+    def read_loaded_profiles(self) -> dict:
+        """All loaded profiles keyed by role — {role: record}. Read-only."""
+        return self._read_profiles_raw()
+
+    def read_loaded_profile(self, role: Optional[str] = None) -> Optional[dict]:
+        """One loaded profile. role=None → the Air/DS0 record (back-compat)."""
+        profs = self._read_profiles_raw()
+        if role is not None:
+            return profs.get(role)
+        return profs.get("air") or (next(iter(profs.values()), None))
 
     def write_loaded_profile(self, record: dict) -> None:
+        """Record a loaded profile keyed by its role, preserving other roles."""
+        profs = self._read_profiles_raw()
+        profs[record.get("role", "air")] = record
         self.state_dir.mkdir(parents=True, exist_ok=True)
-        self.loaded_profile_path.write_text(json.dumps(record, indent=2))
+        self.loaded_profile_path.write_text(json.dumps(profs, indent=2))
 
-    def clear_loaded_profile(self) -> None:
-        try:
-            self.loaded_profile_path.unlink()
-        except FileNotFoundError:
-            pass
+    def clear_loaded_profile(self, role: Optional[str] = None) -> None:
+        """Clear one role (role given) or all (role=None)."""
+        if role is None:
+            try:
+                self.loaded_profile_path.unlink()
+            except FileNotFoundError:
+                pass
+            return
+        profs = self._read_profiles_raw()
+        if role in profs:
+            del profs[role]
+            self.loaded_profile_path.write_text(json.dumps(profs, indent=2))
 
     # -- pause marker ------------------------------------------------------
 

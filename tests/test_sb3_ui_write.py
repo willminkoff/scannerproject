@@ -50,15 +50,17 @@ class _FakeClient:
         return self._healthy
 
 
-def _state_with_profile():
+def _state_with_profile(role="air"):
+    rec = {"name": "air.airband.nashville", "role": role,
+           "deviceset_index": 0 if role == "air" else 1, "center_freq_hz": 118925000}
     st = State(Path("/nonexistent"))
-    st.read_loaded_profile = lambda: {"name": "air.airband.nashville",
-                                      "deviceset_index": 0, "center_freq_hz": 118925000}
+    st.read_loaded_profile = lambda r=None: (rec if r in (None, role) else None)
+    st.read_loaded_profiles = lambda: {role: rec}
     return st
 
 
 def _patch_keepalive(offset=-525000):
-    # mock _keepalive_offset to report channel 0 (offset -525000) as keepalive
+    # mock _keepalive_offset (state, role, center) → channel 0 (offset -525000)
     return mock.patch.object(routes, "_keepalive_offset", return_value=offset)
 
 
@@ -103,9 +105,9 @@ class TestApplyControls(unittest.TestCase):
                 routes.apply_controls({"target": "airband", "gain": "20"}, _state_with_profile())
             self.assertEqual(ctx.exception.code, 400)
 
-    def test_non_airband_target_rejected(self):
+    def test_unknown_target_rejected(self):
         with self.assertRaises(routes.WriteError) as ctx:
-            routes.apply_controls({"target": "ground", "gain": "20", "squelch_dbfs": "-55"},
+            routes.apply_controls({"target": "banana", "gain": "20", "squelch_dbfs": "-55"},
                                   _state_with_profile())
         self.assertEqual(ctx.exception.code, 400)
 

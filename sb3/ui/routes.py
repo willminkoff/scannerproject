@@ -21,6 +21,7 @@ from ..state import State
 
 GUARDED = ownership.GUARDED_MOUNTS  # ("neptune-trunk.mp3", "neptune-air.mp3")
 AIR_MOUNT = "neptune-air.mp3"
+GROUND_MOUNT = "neptune-ground.mp3"
 DIGITAL_MOUNT = "neptune-trunk.mp3"
 
 
@@ -37,12 +38,17 @@ def build_status(state: State) -> Dict:
     icecast_mounts = backends.icecast_mounts()
     air = backends.mount_state(AIR_MOUNT)
     trunk = backends.mount_state(DIGITAL_MOUNT)
+    ground = backends.mount_state(GROUND_MOUNT)
     devicesets = backends.sdrangel_devicesets()
-    profile = state.read_loaded_profile() or {}
+    profiles = state.read_loaded_profiles()
+    profile = profiles.get("air") or {}
+    ground_profile = profiles.get("ground") or {}
 
-    # Is the Air deviceset live (real device bound + running)?
-    air_ds = next((d for d in devicesets if d.index == profile.get("deviceset_index", 0)), None)
-    air_running = bool(air_ds and not air_ds.is_phantom and air_ds.state == "running")
+    def _running(rec):
+        d = next((x for x in devicesets if x.index == rec.get("deviceset_index", -99)), None)
+        return bool(d and not d.is_phantom and d.state == "running")
+    air_running = _running(profile) if profile else False
+    ground_running = _running(ground_profile) if ground_profile else False
 
     sdrangel_up = "com.scannerproject.sdrangel" in loaded
     sdrtrunk_up = "com.scannerproject.sdrtrunk" in loaded
@@ -53,19 +59,20 @@ def build_status(state: State) -> Dict:
         # analog presence/activity (Air role is on RTL; Ground not deployed yet)
         "airband_present": sdrangel_up,
         "airband_active": air_running,
-        "ground_present": False,          # Ground role not yet deployed (§ role map)
-        "ground_active": False,
-        "rtl_active": air_running,
+        "ground_present": bool(ground_profile),
+        "ground_active": ground_running,
+        "rtl_active": air_running or ground_running,
         # icecast + mounts
         "icecast_active": trunk.present or air.present,
         "icecast_mounts": icecast_mounts,
         "icecast_expected_mounts": list(GUARDED),
         "icecast_port": 8000,
         "stream_mount": AIR_MOUNT,
+        "ground_stream_mount": GROUND_MOUNT,
         "digital_stream_mount": DIGITAL_MOUNT,
-        # loaded profile (Phase 2 record)
-        "profile_airband": profile.get("name", "") if profile.get("role") == "air" else "",
-        "profile_ground": "",
+        # loaded profiles (per role)
+        "profile_airband": profile.get("name", ""),
+        "profile_ground": ground_profile.get("name", ""),
         # digital (SDRTrunk) — from the log-tail observer (Phase 3.3)
         "digital_present": sdrtrunk_up,
         **sdrtrunk_client.observe(running=sdrtrunk_up),
@@ -78,7 +85,7 @@ def build_status(state: State) -> Dict:
         # per-channel state for the Airband channel list (Phase 3.2)
         "channels": _channel_states(profile.get("deviceset_index", 0)),
         # mount detail for a debug panel / SITREP
-        "mounts": {m.mount: m.http_status for m in (air, trunk)},
+        "mounts": {m.mount: m.http_status for m in (air, trunk, ground)},
     }
 
 
@@ -166,12 +173,11 @@ def build_profiles(state: State) -> Dict:
     Full profile registry + editor is Phase 3.2+. For now, report the one
     loaded Air profile as the active airband profile.
     """
-    profile = state.read_loaded_profile() or {}
-    active_air = profile.get("name", "") if profile.get("role") == "air" else ""
+    profs = state.read_loaded_profiles()
     return {
         "ok": True,
-        "active_airband_id": active_air,
-        "active_ground_id": "",
+        "active_airband_id": (profs.get("air") or {}).get("name", ""),
+        "active_ground_id": (profs.get("ground") or {}).get("name", ""),
         "profiles": [],   # registry not exposed yet
     }
 
@@ -199,6 +205,7 @@ from ..sdrangel import SDRangelClient  # noqa: E402
 
 # bounds
 AIRBAND_MIN_HZ, AIRBAND_MAX_HZ = 108_000_000, 137_000_000
+VHF_MIN_HZ, VHF_MAX_HZ = 136_000_000, 174_000_000   # Ground VHF (incl. NOAA WX 162)
 SQUELCH_MIN, SQUELCH_MAX = -100.0, 0.0
 CUTOFF_MIN, CUTOFF_MAX = 1_000, 25_000
 VOLUME_MIN, VOLUME_MAX = 0.0, 5.0
@@ -235,15 +242,25 @@ def _num(form: Dict, key: str, lo: float, hi: float) -> float:
     return v
 
 
-def _keepalive_offset(state: State, center_hz: int) -> "int | None":
-    """The keepalive channel's inputFrequencyOffset, so writes can spare it.
+# The UI's target strings map to SB3 roles.
+_TARGET_ROLE = {"airband": "air", "ground": "ground"}
+
+
+def _role_for(target: str) -> str:
+    role = _TARGET_ROLE.get(target)
+    if role is None:
+        raise WriteError(400, f"unknown target {target!r} (want airband|ground)")
+    return role
+
+
+def _keepalive_offset(state: State, role: str, center_hz: int) -> "int | None":
+    """The role's keepalive channel offset, so writes can spare it.
 
     Raising the keepalive channel's squelch would let the mount drop when every
     real channel gates closed — the whole reason it exists. So squelch/volume
-    writes skip it. Determined from the loaded profile file (the runtime record
-    doesn't carry the keepalive flag).
+    writes skip it, for whichever role (Air or Ground) is being written.
     """
-    rec = state.read_loaded_profile()
+    rec = state.read_loaded_profile(role)
     if not rec:
         return None
     path = resolve_profile_path(rec.get("name", ""))
@@ -257,9 +274,11 @@ def _keepalive_offset(state: State, center_hz: int) -> "int | None":
     return ka[0].offset_from(center_hz) if ka else None
 
 
-def _airband_deviceset(client: SDRangelClient, state: State):
-    """Return (idx, hw, channels, center_hz) for the airband deviceset, or raise."""
-    rec = state.read_loaded_profile() or {}
+def _role_deviceset(client: SDRangelClient, state: State, role: str):
+    """Return (idx, hw, channels, center_hz) for the role's deviceset, or raise."""
+    rec = state.read_loaded_profile(role)
+    if not rec:
+        raise WriteError(400, f"no {role} profile loaded")
     idx = rec.get("deviceset_index", 0)
     sd = client.sampling_device(idx)
     if not sd:
@@ -271,12 +290,6 @@ def _airband_deviceset(client: SDRangelClient, state: State):
     return idx, hw, client.list_channels(idx), int(center)
 
 
-def _only_airband(target: str):
-    if target != "airband":
-        raise WriteError(400, f"target {target!r} not supported yet "
-                              f"(only 'airband' is deployed)")
-
-
 def apply_controls(form: Dict, state: State, *, with_filter: bool = False) -> Dict:
     """/api/apply and /api/apply-batch — device gain + per-channel squelch (+cutoff).
 
@@ -284,14 +297,14 @@ def apply_controls(form: Dict, state: State, *, with_filter: bool = False) -> Di
     channel is spared, to keep the mount up). cutoff_hz → rfBandwidth on the same
     real channels.
     """
-    _only_airband(form.get("target", "airband"))
+    role = _role_for(form.get("target", "airband"))
     gain = _num(form, "gain", GAIN_MIN, GAIN_MAX)
     squelch = _num(form, "squelch_dbfs", SQUELCH_MIN, SQUELCH_MAX)
     cutoff = _num(form, "cutoff_hz", CUTOFF_MIN, CUTOFF_MAX) if with_filter else None
 
     c = _client()
-    idx, hw, channels, center = _airband_deviceset(c, state)
-    ka_off = _keepalive_offset(state, center)
+    idx, hw, channels, center = _role_deviceset(c, state, role)
+    ka_off = _keepalive_offset(state, role, center)
 
     # device gain (RTL gain field is tenths of dB)
     if not c.patch_device(idx, hw, HW_SETTINGS_KEY[hw], {"gain": int(round(gain * 10))}):
@@ -322,10 +335,10 @@ def apply_controls(form: Dict, state: State, *, with_filter: bool = False) -> Di
 
 def apply_filter(form: Dict, state: State) -> Dict:
     """/api/filter — rfBandwidth on every real channel."""
-    _only_airband(form.get("target", "airband"))
+    role = _role_for(form.get("target", "airband"))
     cutoff = _num(form, "cutoff_hz", CUTOFF_MIN, CUTOFF_MAX)
     c = _client()
-    idx, hw, channels, _ = _airband_deviceset(c, state)
+    idx, hw, channels, _ = _role_deviceset(c, state, role)
     touched = 0
     for ch in channels:
         ctype = ch.get("id", "AMDemod")
@@ -341,11 +354,12 @@ def tune(form: Dict, state: State) -> Dict:
     Camp mode has fixed channels around one center; 'tune' moves that center.
     Bounds-checked to the airband.
     """
-    _only_airband(form.get("target", "airband"))
-    freq_mhz = _num(form, "freq", AIRBAND_MIN_HZ / 1e6, AIRBAND_MAX_HZ / 1e6)
+    role = _role_for(form.get("target", "airband"))
+    lo, hi = (AIRBAND_MIN_HZ, AIRBAND_MAX_HZ) if role == "air" else (VHF_MIN_HZ, VHF_MAX_HZ)
+    freq_mhz = _num(form, "freq", lo / 1e6, hi / 1e6)
     center_hz = int(round(freq_mhz * 1e6))
     c = _client()
-    idx, hw, _, _ = _airband_deviceset(c, state)
+    idx, hw, _, _ = _role_deviceset(c, state, role)
     if not c.patch_device(idx, hw, HW_SETTINGS_KEY[hw], {"centerFrequency": center_hz}):
         raise WriteError(503, "tune PATCH failed (SDRangel unhealthy)")
     return {"ok": True, "center_hz": center_hz, "freq_mhz": freq_mhz}
@@ -354,9 +368,10 @@ def tune(form: Dict, state: State) -> Dict:
 def volume(form: Dict, state: State) -> Dict:
     """/api/volume — action=set&level=<0-100> maps to per-channel volume; get reads it."""
     action = form.get("action", "get")
+    role = _role_for(form.get("target", "airband"))
     c = _client()
-    idx, hw, channels, center = _airband_deviceset(c, state)
-    ka_off = _keepalive_offset(state, center)
+    idx, hw, channels, center = _role_deviceset(c, state, role)
+    ka_off = _keepalive_offset(state, role, center)
     if action == "get":
         vols = []
         for ch in channels:

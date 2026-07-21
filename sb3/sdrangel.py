@@ -254,14 +254,19 @@ class SDRangelClient:
         Two lessons, both measured on Neptune 2026-07-19:
           * Plain arming does NOT start the sender thread — the 0→1 toggle does
             (the REST-armed-but-not-emitting bug fix-neptune-angel.sh exists for).
-          * If MORE THAN ONE output device has copyToUDP on the same UDP port,
+          * If MORE THAN ONE output device has copyToUDP on the SAME UDP port,
             two senders write to one socket and the bridge gets a corrupt,
-            flapping stream (200→404→200). So disable copyToUDP on every OTHER
-            output device first — exactly one sender.
+            flapping stream. So disable copyToUDP on every other device SENDING
+            TO THIS PORT — but leave devices on OTHER ports alone. This is what
+            lets Air (idx-1 → :9998) and Ground (idx0 → :9999) coexist: two
+            mounts, two ports, one sender each. (Disabling all-other-devices
+            would kill Air's tap when Ground armed — Phase 3.3 fix.)
         """
         for dev in self.audio_outputs():
             idx = dev.get("index")
-            if idx is not None and idx != audio_index and dev.get("copyToUDP"):
+            same_port = dev.get("udpPort") == port
+            if (idx is not None and idx != audio_index and dev.get("copyToUDP")
+                    and same_port):
                 self._req("PATCH", "/audio/output/parameters",
                           {"index": idx, "copyToUDP": 0})
                 self._wait(0.3)

@@ -105,6 +105,10 @@ GUARDED_MOUNTS: tuple = (
                            # "mount = role" model). kill must guard the mount the
                            # Air profile actually streams to, or a live Air mount
                            # would go unprotected across a kill.
+    "neptune-ground.mp3",  # Ground role (Phase 3.3). When a Ground profile is
+                           # live it is 200 and kill guards it; when no Ground is
+                           # loaded it is 404 and the verify treats it as
+                           # "already down; not ours" — safe either way.
 )
 
 

@@ -205,6 +205,17 @@ def resolve_audio_tap(strategy: str = "system_default",
         for dev in outs:
             if dev.get("name") == "System default device":
                 return dev.get("name"), dev.get("index")
+    # "index:N" — pick a specific output device by index (Phase 3.3: a second
+    # role needs a DIFFERENT output device than Air's, for an independent
+    # copyToUDP port). Falls back to idx 0.
+    if strategy.startswith("index:"):
+        try:
+            want = int(strategy.split(":", 1)[1])
+        except ValueError:
+            want = 0
+        for dev in outs:
+            if dev.get("index") == want:
+                return dev.get("name"), dev.get("index")
     for dev in outs:
         if dev.get("index") == 0:
             return dev.get("name"), dev.get("index")

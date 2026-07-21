@@ -27,7 +27,9 @@ def _mount(name, code, present):
 class TestStatusPayload(unittest.TestCase):
     def _state(self, profile=None):
         st = State(Path("/nonexistent"))
-        st.read_loaded_profile = lambda: profile
+        profs = {profile["role"]: profile} if profile else {}
+        st.read_loaded_profile = lambda role=None: (profs.get(role) if role else profs.get("air"))
+        st.read_loaded_profiles = lambda: profs
         return st
 
     def _patch_backends(self, *, air, trunk, loaded, devicesets):

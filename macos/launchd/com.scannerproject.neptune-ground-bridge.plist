@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.scannerproject.neptune-ground-bridge — the Ground audio bridge.
+
+  BACKEND agent, NOT SB3-owned: like neptune-audio-bridge, it is plumbing that
+  survives `sb3-ctl kill`. Install manually:
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.neptune-ground-bridge.plist
+
+  Reads UDP :9999 (Ground's copyToUDP port) -> MP3 -> icecast neptune-ground.mp3.
+  KeepAlive so it restarts if ffmpeg exits; the script traps and reaps its
+  ffmpeg child so a bootout is clean.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.neptune-ground-bridge</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{{HOME}}/scannerproject/macos/bin/neptune-ground-bridge.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/neptune-ground-bridge.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/neptune-ground-bridge.err.log</string>
+</dict>
+</plist>

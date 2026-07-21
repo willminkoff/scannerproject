@@ -48,6 +48,9 @@ def _channel_settings(prof: Profile, ch, audio_name: str) -> dict:
         "audioDeviceName": audio_name,
         "audioMute": 0,
     }
+    # NFM (Ground WX) carries an audio-filter bandwidth AM does not.
+    if ch.demod == "NFM":
+        s["afBandwidth"] = 3000
     return s
 
 
@@ -113,7 +116,10 @@ def apply(prof: Profile, *, execute: bool, emit: Emit,
     # DIFFERENT profile that is already loaded and live: unload it first.
     marker = state.marker_present()
     mount_now = backends.mount_state(prof.mount)
-    record = state.read_loaded_profile()
+    # per-role: only a DIFFERENT profile of the SAME role blocks (Air load must
+    # not be blocked by a live Ground, and vice versa — different DS, different
+    # mount).
+    record = state.read_loaded_profile(prof.role)
     emit(f"  baseline: mount {prof.mount} = {mount_now.http_status}, "
          f"pause marker {'present' if marker else 'ABSENT'}, "
          f"loaded profile = {record.get('name') if record else 'none'}")
@@ -256,7 +262,7 @@ def unload(prof: Profile, *, execute: bool, emit: Emit,
     c._req("PATCH", "/audio/output/parameters", {"index": 0, "copyToUDP": 0})
     c._wait(1.0) if hasattr(c, "_wait") else None
     if execute:
-        state.clear_loaded_profile()
+        state.clear_loaded_profile(prof.role)
         emit(f"  cleared loaded-profile record: {state.loaded_profile_path}")
     else:
         emit(f"  would: clear loaded-profile record {state.loaded_profile_path}")
@@ -270,14 +276,16 @@ def unload(prof: Profile, *, execute: bool, emit: Emit,
 # ---------------------------------------------------------------------------
 
 def observe(prof: Optional[Profile], *, emit: Emit,
-            state: Optional[State] = None) -> str:
-    """Classify live SDRangel state against the loaded profile. Read-only.
+            state: Optional[State] = None, role: Optional[str] = None) -> str:
+    """Classify live SDRangel state against a loaded profile. Read-only.
 
     Returns one of: 'no-profile' | 'matches' | 'drifted' | 'phantom'.
-    Never auto-corrects — Phase 2 is read-only; the human is right (§4.4).
+    role selects which loaded record to compare against (Air vs Ground). Never
+    auto-corrects — the human is right (§4.4).
     """
     state = state or State()
-    record = state.read_loaded_profile()
+    record = state.read_loaded_profile(role if role is not None
+                                       else (prof.role if prof else None))
     if prof is None and record is None:
         emit("  no profile loaded")
         return "no-profile"
