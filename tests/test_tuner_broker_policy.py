@@ -43,10 +43,11 @@ class RealRepoPolicyTest(unittest.TestCase):
         # `version` is the SCHEMA version the broker enforces (stays 2); the
         # human arrangement label lives in the policy's `revision` string.
         self.assertEqual(pol.version, 2)
-        # Revision 5.0 (arrangement C, 2026-07-16): 1 RSPduo (RSP-A 180903EF32
-        # = digital) + 3 RTLs (airband/ground/sounding). RSP-B (1809063632) is
-        # Venus's device and is not in this host's fleet.
-        self.assertEqual(len(pol.devices), 4)  # 1 RSPduo + 3 RTL (Neptune actual)
+        # Revision 5.1 (arrangement C, 2026-07-21): 1 RSPduo (RSP-A 180903EF32
+        # = digital) + 2 RTLs (airband 95339533 / ground 61108285). The Blog V4
+        # 83241970 and the 12-Mb/s sounding dongle 56919602 were retired in the
+        # 2026-07-19 swap. RSP-B (1809063632) is Venus's device, not this fleet's.
+        self.assertEqual(len(pol.devices), 3)  # 1 RSPduo + 2 RTL (rev 5.1)
         self.assertEqual(pol.invariants.max_concurrent_dual_tuner_rspduo, 1)
         self.assertEqual(pol.invariants.rspduo_open_gap_sec, 2.0)
         self.assertEqual(pol.invariants.min_restart_interval_sec, 30.0)
@@ -77,18 +78,19 @@ class RealRepoPolicyTest(unittest.TestCase):
         # 1809063632 is VENUS's RSPduo (airband via SDRangel there). It is not
         # part of Neptune's fleet and must NOT be in the active device list.
         self.assertIsNone(pol.device_by_serial("1809063632"))
-        # RTL roles reconciled to the ACTUAL dongles on the M1 (3 RTLs, no 4th):
-        # airband AM on the Blog V4 (83241970), ground NFM on 61108285 (the
-        # proven 2026-06-18 fix), sounding on 56919602. Both analog bands are
-        # RTL-only under C; the RSP is digital-only.
+        # RTL roles reconciled to the ACTUAL dongles after the 2026-07-19 swaps
+        # (rev 5.1): airband AM on the NESDR SMArTee 95339533 (replaced the flaky
+        # Blog V4 83241970), ground NFM on 61108285 (the proven 2026-06-18 fix).
+        # The 12-Mb/s sounding dongle 56919602 was retired. Both analog bands are
+        # RTL-only; the RSP is digital-only.
         self.assertEqual(
-            [d.serial for d in pol.devices_for_role("chirp-airband")], ["83241970"]
+            [d.serial for d in pol.devices_for_role("chirp-airband")], ["95339533"]
         )
         self.assertEqual(
             [d.serial for d in pol.devices_for_role("chirp-ground")], ["61108285"]
         )
         self.assertEqual(pol.devices_for_role("flex-digital"), [])
-        self.assertEqual(len(pol.devices), 4)  # 1 RSPduo + 3 RTL
+        self.assertEqual(len(pol.devices), 3)  # 1 RSPduo + 2 RTL (rev 5.1)
         self.assertIsNone(pol.device_by_serial("nope"))
         self.assertEqual(pol.devices_for_role("nope"), [])
 
