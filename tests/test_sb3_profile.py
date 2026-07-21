@@ -107,7 +107,7 @@ class _RecordingClient(SDRangelClient):
     def _req(self, method, path, body=None, timeout=8.0):
         self.calls.append((method, path, body))
         if method == "GET" and path == "":
-            return 200, {}
+            return 200, {"devicesetlist": {"deviceSets": [{}, {}]}}
         if method == "GET" and path == "/audio":
             return 200, {"outputDevices": [
                 {"index": -1, "name": "System default device", "copyToUDP": 1},
