@@ -3318,7 +3318,7 @@
           <span>⚙️ Radio Controls</span>
           <div class="tabs">
             <button class="tab active" id="tab-airband" type="button" onclick="switchTarget('airband')">Airband</button>
-            <button class="tab" id="tab-ground" type="button" onclick="switchTarget('ground')">Ground</button>
+            <button class="tab" id="tab-vfo" type="button" onclick="switchTarget('vfo')">VFO</button>
             <button class="tab" id="tab-digital" type="button" onclick="switchTarget('digital')">Digital</button>
             <button class="tab" id="tab-philly" type="button" onclick="switchTarget('philly')">Philly</button>
           </div>
@@ -4945,8 +4945,8 @@
       lastHitGroundLabel: '',
       lastHitDigital: '',
       hits: [],
-      hold: { airband: null, ground: null, digital: null },
-      lastProfile: { airband: '', ground: '' },
+      hold: { airband: null, ground: null, vfo: null, digital: null },
+      lastProfile: { airband: '', ground: '', vfo: '' },
       bandScanReturnProfile: { airband: '', ground: '' },
       tuned: false,
       tunedFreq: null,
@@ -5034,6 +5034,20 @@
         applied_gain: null,
         applied_squelch_dbfs: null,
         filter: 3500,
+        profiles: [],
+        currentProfile: '',
+        avoids: [],
+      },
+      // VFO: single free-tuning NFM receiver on DS1 (RTL 95339533), sharing the
+      // analog mount with Air.  Same control shape as the analog roles so the
+      // shared #controls-analog UI binds to it via activeTarget='vfo'.
+      vfo: {
+        gain: 35.0,
+        squelch_mode: 'dbfs',
+        squelch_dbfs: 0,
+        applied_gain: null,
+        applied_squelch_dbfs: null,
+        filter: 12500,
         profiles: [],
         currentProfile: '',
         avoids: [],
@@ -5416,7 +5430,7 @@
       avoidsTarget: document.getElementById('avoids-target'),
       piTime: document.getElementById('pi-time'),
       tabAirband: document.getElementById('tab-airband'),
-      tabGround: document.getElementById('tab-ground'),
+      tabVfo: document.getElementById('tab-vfo'),
       tabDigital: document.getElementById('tab-digital'),
       tabPhilly: document.getElementById('tab-philly'),
       controlsPhilly: document.getElementById('controls-philly'),
@@ -14021,21 +14035,23 @@
     
     function switchTarget(target) {
       activeView = target;
-      if (target === 'airband' || target === 'ground') {
+      if (target === 'airband' || target === 'vfo') {
         activeTarget = target;
       }
       els.tabAirband.classList.toggle('active', target === 'airband');
-      els.tabGround.classList.toggle('active', target === 'ground');
+      if (els.tabVfo) els.tabVfo.classList.toggle('active', target === 'vfo');
       if (els.tabDigital) els.tabDigital.classList.toggle('active', target === 'digital');
       if (els.tabPhilly) els.tabPhilly.classList.toggle('active', target === 'philly');
-      // Airband pane (#controls-analog) holds the shared analog controls
-      // AND the Airband player-box.  We show it for both 'airband' and
-      // 'ground' so the gain/squelch UI keeps working on the Ground tab
-      // (state binds via activeTarget).  The Airband <audio> itself is
-      // hidden when the active tab is Ground via #player-box-analog.
-      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'ground');
-      if (els.controlsGround) els.controlsGround.classList.toggle('hidden', target !== 'ground');
-      if (els.playerBoxAnalog) els.playerBoxAnalog.classList.toggle('hidden', target !== 'airband');
+      // Airband pane (#controls-analog) holds the shared analog controls AND the
+      // analog player-box.  We show it for both 'airband' and 'vfo' so the
+      // gain/squelch/filter/tune/volume UI keeps working on the VFO tab (state
+      // binds via activeTarget → writes go to target=vfo → DS1 ch0).  VFO SHARES
+      // the analog mount (neptune-analog.mp3) with Air, so it reuses the same
+      // #player-box-analog rather than a mount of its own.  The legacy Ground
+      // player pane (#controls-ground, a separate mount) stays retired here.
+      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'vfo');
+      if (els.controlsGround) els.controlsGround.classList.add('hidden');
+      if (els.playerBoxAnalog) els.playerBoxAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'vfo');
       if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
       if (els.controlsPhilly) els.controlsPhilly.classList.toggle('hidden', target !== 'philly');
       if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital' || target === 'philly');
@@ -14111,7 +14127,7 @@
 
     function markPendingAnalogGain(target, gain) {
       const name = String(target || '').trim().toLowerCase();
-      if (name !== 'airband' && name !== 'ground') return;
+      if (name !== 'airband' && name !== 'ground' && name !== 'vfo') return;
       const value = Number(gain);
       if (!Number.isFinite(value)) return;
       state.pendingApply[name] = { gain: value, at: Date.now() };
@@ -14119,7 +14135,7 @@
 
     function resolveAnalogGain(target, observedGain, observedAppliedGain) {
       const name = String(target || '').trim().toLowerCase();
-      if (name !== 'airband' && name !== 'ground') return observedGain;
+      if (name !== 'airband' && name !== 'ground' && name !== 'vfo') return observedGain;
       const pending = state.pendingApply[name];
       if (!pending || !Number.isFinite(pending.gain)) return observedGain;
       const observed = Number(observedGain);
@@ -14985,10 +15001,11 @@
           state.airbandPresent = Boolean(airbandPresent);
           state.groundPresent = Boolean(groundPresent);
           state.groundStatus = (typeof data.ground_status === 'string') ? data.ground_status : '';
+          state.vfoStatus = (typeof data.vfo_status === 'string') ? data.vfo_status : '';
           // Keep analog tabs manually selectable even when one side is temporarily
           // unavailable (for quick profile recovery / retargeting from the UI).
           if (els.tabAirband) els.tabAirband.disabled = false;
-          if (els.tabGround) els.tabGround.disabled = false;
+          if (els.tabVfo) els.tabVfo.disabled = false;
           const airbandActiveSignal = (typeof data.airband_active === 'boolean') ? data.airband_active : null;
           const groundActiveSignal = (typeof data.ground_active === 'boolean') ? data.ground_active : null;
           state.sdr1Active = airbandActiveSignal !== null
@@ -15820,11 +15837,11 @@
           switchTarget('airband');
         };
       }
-      if (els.tabGround) {
-        els.tabGround.disabled = false;
-        els.tabGround.onclick = (e) => {
+      if (els.tabVfo) {
+        els.tabVfo.disabled = false;
+        els.tabVfo.onclick = (e) => {
           e.preventDefault();
-          switchTarget('ground');
+          switchTarget('vfo');
         };
       }
       if (els.tabDigital) {

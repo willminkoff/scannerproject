@@ -286,7 +286,8 @@ class SDRangelClient:
             mounts, two ports, one sender each. (Disabling all-other-devices
             would kill Air's tap when Ground armed — Phase 3.3 fix.)
         """
-        for dev in self.audio_outputs():
+        outs = self.audio_outputs()
+        for dev in outs:
             idx = dev.get("index")
             same_port = dev.get("udpPort") == port
             if (idx is not None and idx != audio_index and dev.get("copyToUDP")
@@ -294,6 +295,16 @@ class SDRangelClient:
                 self._req("PATCH", "/audio/output/parameters",
                           {"index": idx, "copyToUDP": 0})
                 self._wait(0.3)
+        # Shared-tap case (VFO shares Air's neptune-analog.mp3): if THIS device
+        # is ALREADY emitting to THIS port, a co-tenant role already started the
+        # sender thread. Re-toggling it 0→1 would stop that sender for ~1s and
+        # blip the shared mount; a channel newly routed to this device just mixes
+        # into the live tap, no toggle needed. So skip the toggle when live.
+        if any(d.get("index") == audio_index and d.get("copyToUDP")
+               and d.get("udpPort") == port for d in outs):
+            self.emit(f"copyToUDP already live on idx {audio_index} → :{port} "
+                      f"(shared tap) — not re-toggling")
+            return
         self._req("PATCH", "/audio/output/parameters",
                   {"index": audio_index, "copyToUDP": 0})
         self._wait(1.0)

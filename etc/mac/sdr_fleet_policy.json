@@ -59,7 +59,7 @@
       "reliability": "NESDR SMArTee v5 (R820T2 + 0.5ppm TCXO + LNA). Replaced 83241970, whose chronic USB re-enumeration (error -71) repeatedly wedged SDRangel; the SMArTee has been stable in the SB3 Air role.",
       "sample_rate_hz": 2400000, "gain_db": 32.8, "usb_group": "G3", "shared_with": [],
       "status": "validated",
-      "_note": "AIRBAND AM on the NESDR SMArTee RTL 95339533. Under SB3 this device is driven by SDRangel (profiles/air-airband-nashville.json -> neptune-air.mp3), not the chirp/gr-osmosdr stack; the role key stays 'chirp-airband' for broker-policy continuity. 95339533 is what the SB3 Air profile targets and what ioreg measures on the bus. No bandwidth_hz needed for RTL (0 = driver default)." },
+      "_note": "AIRBAND AM on the NESDR SMArTee RTL 95339533. Under SB3 this device is driven by SDRangel (profiles/air-airband-nashville.json -> neptune-analog.mp3), not the chirp/gr-osmosdr stack; the role key stays 'chirp-airband' for broker-policy continuity. 95339533 is what the SB3 Air profile targets and what ioreg measures on the bus. No bandwidth_hz needed for RTL (0 = driver default)." },
     { "id": "RTL-GROUND", "kind": "rtlsdr", "serial": "61108285", "serial_status": "PRESENT-on-M1 2026-07-16 (ioreg-confirmed, 480 Mb/s, on the VIA hub)",
       "label": "GROUND", "role": "chirp-ground", "consumer": "gr-demod@ground",
       "reliability": "stable", "sample_rate_hz": 2400000, "gain_db": 32, "usb_group": "G3", "shared_with": [],

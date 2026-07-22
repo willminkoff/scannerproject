@@ -194,6 +194,88 @@ class TestStatusChannels(unittest.TestCase):
         json.dumps(s)
 
 
+# ---------------------------------------------------------------------------
+# VFO role — single free-tuning NFM receiver on DS1, sharing the analog mount.
+# ---------------------------------------------------------------------------
+
+class _VfoFakeClient(_FakeClient):
+    """RTL on DS1 with ONE NFMDemod channel (no keepalive — VFO is hunt mode)."""
+    def sampling_device(self, idx):
+        if not self._has_device:
+            return {}
+        return {"hwType": "RTLSDR", "centerFrequency": 146620000}
+
+    def list_channels(self, idx):
+        return [{"index": 0, "id": "NFMDemod", "title": "VFO", "deltaFrequency": -100000}]
+
+    def _req(self, method, path, body=None, timeout=8.0):
+        self.calls.append((method, path, body))
+        if method == "GET" and "/channel/0/settings" in path:
+            return 200, {"NFMDemodSettings": {"inputFrequencyOffset": -100000, "volume": 3.0}}
+        return 200, {}
+
+
+def _state_with_vfo():
+    rec = {"name": "vfo.default", "role": "vfo",
+           "deviceset_index": 1, "center_freq_hz": 146620000}
+    st = State(Path("/nonexistent"))
+    st.read_loaded_profile = lambda r=None: (rec if r in (None, "vfo") else None)
+    st.read_loaded_profiles = lambda: {"vfo": rec}
+    return st
+
+
+class TestVfoWritePath(unittest.TestCase):
+    def test_tune_vfo_moves_lo_and_channel_offset(self):
+        # VFO tune keeps the DC-spike dodge: device LO = listen + 100 kHz, and the
+        # channel offset = -100 kHz. So tuning 146.520 lands the LO at 146.620.
+        c = _VfoFakeClient()
+        with mock.patch.object(routes, "_client", return_value=c):
+            out = routes.tune({"target": "vfo", "freq": "146.520"}, _state_with_vfo())
+        self.assertEqual(out["listen_hz"], 146520000)
+        self.assertEqual(out["center_hz"], 146620000)          # +100 kHz dodge
+        dev = [b for m, p, b in c.calls if p.endswith("/device/settings")]
+        self.assertEqual(dev[0]["rtlSdrSettings"]["centerFrequency"], 146620000)
+        ch = [b for m, p, b in c.calls if "/channel/0/settings" in p and m == "PATCH"]
+        self.assertEqual(ch[0]["NFMDemodSettings"]["inputFrequencyOffset"], -100000)
+
+    def test_tune_vfo_out_of_range_is_400(self):
+        with mock.patch.object(routes, "_client", return_value=_VfoFakeClient()):
+            with self.assertRaises(routes.WriteError) as ctx:
+                routes.tune({"target": "vfo", "freq": "10.0"}, _state_with_vfo())
+            self.assertEqual(ctx.exception.code, 400)
+
+    def test_apply_vfo_gain_and_squelch(self):
+        # hunt mode → no keepalive → squelch applies to the single channel.
+        c = _VfoFakeClient()
+        with mock.patch.object(routes, "_client", return_value=c), \
+             mock.patch.object(routes, "_keepalive_offset", return_value=None):
+            out = routes.apply_controls(
+                {"target": "vfo", "gain": "35.0", "squelch_dbfs": "-55"},
+                _state_with_vfo())
+        self.assertEqual(out["applied_gain"], 35.0)
+        self.assertEqual(out["keepalive_spared"], 0)
+        self.assertEqual(out["channels_touched"], 1)
+        dev = [b for m, p, b in c.calls if p.endswith("/device/settings")]
+        self.assertEqual(dev[0]["rtlSdrSettings"]["gain"], 350)   # tenths of dB
+
+    def test_vfo_status_live_in_build_status(self):
+        st = _state_with_vfo()
+        with mock.patch.object(backends, "launchctl_loaded", return_value=[]), \
+             mock.patch.object(backends, "icecast_mounts", return_value=[]), \
+             mock.patch.object(backends, "sdrangel_devicesets",
+                               return_value=[backends.DevicesetState(1, "RTLSDR", "95339533",
+                                                                     "running", 146620000, [])]), \
+             mock.patch.object(backends, "sdrangel_channels", return_value=[]), \
+             mock.patch.object(backends, "mount_state",
+                               side_effect=lambda m, **kw: backends.MountState(m, 200, True)):
+            s = routes.build_status(st)
+        self.assertEqual(s["vfo_status"], "live")
+        self.assertTrue(s["vfo_device_online"])
+        self.assertEqual(s["vfo_stream_mount"], routes.AIR_MOUNT)  # shares analog mount
+        self.assertEqual(s["profile_vfo"], "vfo.default")
+        json.dumps(s)
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-VALID_ROLES = {"air", "ground", "digital", "acars", "survey", "disco"}
+VALID_ROLES = {"air", "ground", "digital", "acars", "survey", "disco", "vfo"}
 VALID_MODES = {"camp", "hunt"}
 VALID_DEMODS = {"AM", "NFM", "WFM", "SSB", "DSB"}
 

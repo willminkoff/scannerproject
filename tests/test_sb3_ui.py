@@ -36,16 +36,16 @@ class TestStatusPayload(unittest.TestCase):
         return (
             mock.patch.object(backends, "launchctl_loaded", return_value=loaded),
             mock.patch.object(backends, "icecast_mounts",
-                              return_value=[m for m in ("neptune-trunk.mp3", "neptune-air.mp3")]),
+                              return_value=[m for m in ("neptune-trunk.mp3", "neptune-analog.mp3")]),
             mock.patch.object(backends, "sdrangel_devicesets", return_value=devicesets),
             mock.patch.object(backends, "mount_state",
-                              side_effect=lambda m, **kw: air if m == "neptune-air.mp3" else trunk),
+                              side_effect=lambda m, **kw: air if m == "neptune-analog.mp3" else trunk),
         )
 
     def test_status_healthy_air_loaded(self):
         prof = {"name": "air.airband.nashville", "role": "air", "deviceset_index": 0}
         pats = self._patch_backends(
-            air=_mount("neptune-air.mp3", 200, True),
+            air=_mount("neptune-analog.mp3", 200, True),
             trunk=_mount("neptune-trunk.mp3", 200, True),
             loaded=["com.scannerproject.sdrangel", "com.scannerproject.sdrtrunk",
                     "com.scannerproject.sb3-ui"],
@@ -58,13 +58,13 @@ class TestStatusPayload(unittest.TestCase):
         self.assertEqual(s["profile_airband"], "air.airband.nashville")
         self.assertTrue(s["icecast_active"])
         self.assertIn("com.scannerproject.sb3-ui", s["sb3"]["agents_up"])
-        self.assertEqual(s["mounts"]["neptune-air.mp3"], 200)
+        self.assertEqual(s["mounts"]["neptune-analog.mp3"], 200)
         # payload must be JSON-serialisable
         json.dumps(s)
 
     def test_status_is_valid_json_with_no_backends(self):
         pats = self._patch_backends(
-            air=_mount("neptune-air.mp3", None, False),
+            air=_mount("neptune-analog.mp3", None, False),
             trunk=_mount("neptune-trunk.mp3", None, False),
             loaded=[], devicesets=[])
         with pats[0], pats[1], pats[2], pats[3]:
@@ -76,7 +76,7 @@ class TestStatusPayload(unittest.TestCase):
     def test_phantom_deviceset_is_not_active(self):
         prof = {"name": "x", "role": "air", "deviceset_index": 0}
         pats = self._patch_backends(
-            air=_mount("neptune-air.mp3", 404, False),
+            air=_mount("neptune-analog.mp3", 404, False),
             trunk=_mount("neptune-trunk.mp3", 200, True),
             loaded=["com.scannerproject.sdrangel"],
             devicesets=[_ds(hw_type="AaroniaRTSA", serial=None, state="idle")])
@@ -93,30 +93,30 @@ class TestHeartbeatPayload(unittest.TestCase):
         st.read_loaded_profile = lambda: profile
         with mock.patch.object(backends, "sdrangel_devicesets", return_value=devicesets), \
              mock.patch.object(backends, "mount_state",
-                               side_effect=lambda m, **kw: air if m == "neptune-air.mp3" else trunk):
+                               side_effect=lambda m, **kw: air if m == "neptune-analog.mp3" else trunk):
             return routes.build_heartbeat(st)
 
     def test_all_live_is_quiet(self):
-        hb = self._hb(air=_mount("neptune-air.mp3", 200, True),
+        hb = self._hb(air=_mount("neptune-analog.mp3", 200, True),
                       trunk=_mount("neptune-trunk.mp3", 200, True),
                       profile={"name": "x", "role": "air"}, devicesets=[_ds()])
         self.assertEqual(hb["state"], "quiet")
         self.assertIn(hb["state"], self.VALID_STATES)
 
     def test_digital_down_is_wedged(self):
-        hb = self._hb(air=_mount("neptune-air.mp3", 200, True),
+        hb = self._hb(air=_mount("neptune-analog.mp3", 200, True),
                       trunk=_mount("neptune-trunk.mp3", 404, False),
                       profile=None, devicesets=[_ds()])
         self.assertEqual(hb["state"], "wedged")
 
     def test_air_profile_loaded_but_mount_dark_is_degraded(self):
-        hb = self._hb(air=_mount("neptune-air.mp3", 404, False),
+        hb = self._hb(air=_mount("neptune-analog.mp3", 404, False),
                       trunk=_mount("neptune-trunk.mp3", 200, True),
                       profile={"name": "air.x", "role": "air"}, devicesets=[_ds()])
         self.assertEqual(hb["state"], "rf_degraded")
 
     def test_heartbeat_shape_always_complete(self):
-        hb = self._hb(air=_mount("neptune-air.mp3", 200, True),
+        hb = self._hb(air=_mount("neptune-analog.mp3", 200, True),
                       trunk=_mount("neptune-trunk.mp3", 200, True),
                       profile=None, devicesets=[_ds()])
         for key in ("state", "headline", "explanation", "recovery", "evidence", "since"):
@@ -195,7 +195,7 @@ class TestGroundStatusField(unittest.TestCase):
         st.read_loaded_profiles = lambda: profs
         st.read_loaded_profile = lambda role=None: profs.get(role) if role else profs.get("air")
         mounts = {
-            "neptune-air.mp3": _mount("neptune-air.mp3", None, False),
+            "neptune-analog.mp3": _mount("neptune-analog.mp3", None, False),
             "neptune-trunk.mp3": _mount("neptune-trunk.mp3", 200, True),
             "neptune-ground.mp3": ground_mount,
         }
