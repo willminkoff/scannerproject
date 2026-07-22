@@ -20,6 +20,28 @@
 
 ---
 
+## REVISED 2026-07-21 — multi-instance is UNNECESSARY; one service already serves many clients/devices
+
+**The question this doc asks (two `apiService` instances) is moot for the actual need.** Measured on both macOS boxes (`lsof`, 2026-07-21):
+
+- **SDRTrunk and SDRangel each link the SAME system library** `/Library/SDRplayAPI/3.15.1/lib/libsdrplay_api.so.3.15`. Neither bundles its own bindings; neither bypasses the daemon. *(This confirms TL;DR row 5 — the daemon is required — and disproves the "SDRTrunk is direct-linked" hypothesis.)*
+- **Both reach `sdrplay_apiService` over POSIX shared memory**, not TCP: `Glbl\sdrSrvComShMem`, `Glbl\sdrSrvComMtx`, `Glbl\sdrSrvCmdSema`, `Glbl\sdrSrvRespSema`. A TCP-client probe shows **zero** clients and misleadingly looks like a bypass — do not use TCP as the test.
+- **The IPC carries PER-DEVICE sub-channels**: `Glbl\sdrSrvDv00_mCmdMap`, `…Dv00_mCmdSem`, `…Dv00_mDataMap`, `…Dv00_mDataRSem` (and `Dv01` for a second device). **The service is multi-client *and* multi-device by design.**
+
+**Live proof (Neptune, at time of writing):** SDRTrunk (RSPduo `180903EF32`, per-device `Dv00` open, 23 `sdrSrv` handles) and SDRangel (global channel, 4 handles) have been **concurrent `apiService` clients for 35+ hours** with `neptune-trunk.mp3` and `neptune-air.mp3` both at 200. Independently, Will ran **SDRTrunk on one RSP + SDRangel on the other RSP on Venus 2026-07-20** with no crash.
+
+### The real constraint
+> **One RSP per client PROCESS is fine. Two RSPs inside ONE process is not.**
+
+The `0x6bed` segfault / corrupt-IQ history belongs to the **one-process-two-RSPs** mode — a single SDRangel instance driving two RSP devicesets is exactly what crashed on Venus 2026-07-21 — and to rapid concurrent open/close churn. It does **not** come from two separate processes sharing the service.
+
+### Consequences
+- **No container-isolated `apiService` work is needed** to run SDRTrunk on the RSPduo and SDRangel on an RSP1B simultaneously on one host. The two-container prototype in this doc can stay shelved.
+- `etc/mac/sdr_fleet_policy.json` **rev 5.2** withdraws rev 5.1's blanket *"two RSPs on one host is toxic"* (which was inferred, not measured) and encodes the one-RSP-per-process rule instead.
+- Failure *isolation* (the original motivation — one RSPduo wedging the other) is a **separate** question this revision does not answer; it remains untested.
+
+---
+
 ## 1. How the SDRplay API v3.x is actually wired
 
 The chain is:
