@@ -47,12 +47,14 @@ def build_status(state: State) -> Dict:
     profiles = state.read_loaded_profiles()
     profile = profiles.get("air") or {}
     ground_profile = profiles.get("ground") or {}
+    vfo_profile = profiles.get("vfo") or {}
 
     def _running(rec):
         d = next((x for x in devicesets if x.index == rec.get("deviceset_index", -99)), None)
         return bool(d and not d.is_phantom and d.state == "running")
     air_running = _running(profile) if profile else False
     ground_running = _running(ground_profile) if ground_profile else False
+    vfo_running = _running(vfo_profile) if vfo_profile else False
 
     sdrangel_up = "com.scannerproject.sdrangel" in loaded
     sdrtrunk_up = "com.scannerproject.sdrtrunk" in loaded
@@ -70,6 +72,10 @@ def build_status(state: State) -> Dict:
         return "loaded — device offline"
     air_status = _role_status(bool(profile), air_running, air.present)
     ground_status = _role_status(bool(ground_profile), ground_running, ground.present)
+    # VFO shares AIR_MOUNT with Air (both DS route audio to the same idx -1 tap →
+    # :9998 → neptune-analog.mp3). So its "has audio" signal is air.present — the
+    # shared mount — not a mount of its own. vfo_running reflects its own DS1.
+    vfo_status = _role_status(bool(vfo_profile), vfo_running, air.present)
 
     return {
         "ok": True,
@@ -83,8 +89,13 @@ def build_status(state: State) -> Dict:
         # per-role status strings (additive; Ground offline banner reads these)
         "air_status": air_status,
         "ground_status": ground_status,
+        "vfo_status": vfo_status,
         "air_device_online": air_running,
         "ground_device_online": ground_running,
+        "vfo_device_online": vfo_running,
+        "vfo_active": vfo_running,
+        # VFO shares the analog mount with Air (no mount of its own)
+        "vfo_stream_mount": AIR_MOUNT,
         # icecast + mounts
         "icecast_active": trunk.present or air.present,
         "icecast_mounts": icecast_mounts,
@@ -96,6 +107,7 @@ def build_status(state: State) -> Dict:
         # loaded profiles (per role)
         "profile_airband": profile.get("name", ""),
         "profile_ground": ground_profile.get("name", ""),
+        "profile_vfo": vfo_profile.get("name", ""),
         # digital (SDRTrunk) — from the log-tail observer (Phase 3.3)
         "digital_present": sdrtrunk_up,
         **sdrtrunk_client.observe(running=sdrtrunk_up),
@@ -107,6 +119,9 @@ def build_status(state: State) -> Dict:
         },
         # per-channel state for the Airband channel list (Phase 3.2)
         "channels": _channel_states(profile.get("deviceset_index", 0)),
+        # VFO channel (single NFM receiver on DS1) — its tuned freq for the card
+        "vfo_channels": (_channel_states(vfo_profile.get("deviceset_index", 1))
+                         if vfo_profile else []),
         # mount detail for a debug panel / SITREP
         "mounts": {m.mount: m.http_status for m in (air, trunk, ground)},
     }
@@ -229,6 +244,11 @@ from ..sdrangel import SDRangelClient  # noqa: E402
 # bounds
 AIRBAND_MIN_HZ, AIRBAND_MAX_HZ = 108_000_000, 137_000_000
 VHF_MIN_HZ, VHF_MAX_HZ = 136_000_000, 174_000_000   # Ground VHF (incl. NOAA WX 162)
+# VFO is a free-tuning receiver on the RTL; bound it to the dongle's usable range.
+VFO_MIN_HZ, VFO_MAX_HZ = 24_000_000, 1_766_000_000
+# DC-spike dodge: the RTL LO sits this far ABOVE the listen freq so the NFM demod
+# is off the dongle's center DC spike (device center = freq + offset; ch = -offset).
+VFO_LO_DODGE_HZ = 100_000
 SQUELCH_MIN, SQUELCH_MAX = -100.0, 0.0
 CUTOFF_MIN, CUTOFF_MAX = 1_000, 25_000
 VOLUME_MIN, VOLUME_MAX = 0.0, 5.0
@@ -266,13 +286,13 @@ def _num(form: Dict, key: str, lo: float, hi: float) -> float:
 
 
 # The UI's target strings map to SB3 roles.
-_TARGET_ROLE = {"airband": "air", "ground": "ground"}
+_TARGET_ROLE = {"airband": "air", "ground": "ground", "vfo": "vfo"}
 
 
 def _role_for(target: str) -> str:
     role = _TARGET_ROLE.get(target)
     if role is None:
-        raise WriteError(400, f"unknown target {target!r} (want airband|ground)")
+        raise WriteError(400, f"unknown target {target!r} (want airband|ground|vfo)")
     return role
 
 
@@ -372,12 +392,19 @@ def apply_filter(form: Dict, state: State) -> Dict:
 
 
 def tune(form: Dict, state: State) -> Dict:
-    """/api/tune — retune the device CENTER (freq in MHz) for camp mode.
+    """/api/tune — retune (freq in MHz).
 
-    Camp mode has fixed channels around one center; 'tune' moves that center.
-    Bounds-checked to the airband.
+    Air/Ground are camp mode: fixed channels around one center; 'tune' moves that
+    device center, bounds-checked to the band.
+
+    VFO is a single free-tuning receiver (hunt mode): 'tune' moves the LISTEN
+    frequency, keeping the DC-spike dodge — device LO = freq + VFO_LO_DODGE_HZ and
+    the channel offset = -VFO_LO_DODGE_HZ, so the NFM demod never sits on the
+    dongle's center DC spike at any tuned frequency.
     """
     role = _role_for(form.get("target", "airband"))
+    if role == "vfo":
+        return _tune_vfo(form, state)
     lo, hi = (AIRBAND_MIN_HZ, AIRBAND_MAX_HZ) if role == "air" else (VHF_MIN_HZ, VHF_MAX_HZ)
     freq_mhz = _num(form, "freq", lo / 1e6, hi / 1e6)
     center_hz = int(round(freq_mhz * 1e6))
@@ -386,6 +413,26 @@ def tune(form: Dict, state: State) -> Dict:
     if not c.patch_device(idx, hw, HW_SETTINGS_KEY[hw], {"centerFrequency": center_hz}):
         raise WriteError(503, "tune PATCH failed (SDRangel unhealthy)")
     return {"ok": True, "center_hz": center_hz, "freq_mhz": freq_mhz}
+
+
+def _tune_vfo(form: Dict, state: State) -> Dict:
+    """VFO retune: move device LO + channel offset together (DC-dodge preserved)."""
+    freq_mhz = _num(form, "freq", VFO_MIN_HZ / 1e6, VFO_MAX_HZ / 1e6)
+    listen_hz = int(round(freq_mhz * 1e6))
+    center_hz = listen_hz + VFO_LO_DODGE_HZ
+    c = _client()
+    idx, hw, channels, _ = _role_deviceset(c, state, "vfo")
+    if not channels:
+        raise WriteError(503, "VFO deviceset has no channel")
+    if not c.patch_device(idx, hw, HW_SETTINGS_KEY[hw], {"centerFrequency": center_hz}):
+        raise WriteError(503, "VFO tune device PATCH failed (SDRangel unhealthy)")
+    ch = channels[0]
+    ctype = ch.get("id", "NFMDemod")
+    if not c.patch_channel(idx, ch.get("index"), ctype, ctype + "Settings",
+                           {"inputFrequencyOffset": -VFO_LO_DODGE_HZ}):
+        raise WriteError(503, "VFO tune channel PATCH failed (SDRangel unhealthy)")
+    return {"ok": True, "center_hz": center_hz, "listen_hz": listen_hz,
+            "freq_mhz": freq_mhz}
 
 
 def volume(form: Dict, state: State) -> Dict:
