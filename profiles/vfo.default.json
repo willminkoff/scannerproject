@@ -1,0 +1,24 @@
+{
+  "_comment": "SB3 profile: VFO role — a single user-tunable NFM receiver on the RTL NESDR SMArTee 95339533 (DS1), SHARING neptune-analog.mp3 with Air (DS0 = RSP1B). Both devicesets route audio to SDRangel's virtual 'System default device' (idx -1) whose copyToUDP tap goes to :9998 -> the neptune-audio-bridge -> neptune-analog.mp3. So Air's 4 airband channels AND this VFO channel MIX into one mount. This is the shares-a-mount design Will chose over a second SDRangel instance (2026-07-21): SDRangel sustains only ONE copyToUDP tap (idx -1), which Air owns, and a second role cannot get its own mount from one instance — but it CAN mix into the same tap. mode is 'hunt' (not 'camp') so no keepalive is required: Air's keepalive already holds the shared mount up, so the VFO channel is a plain squelched receiver (sq -55) that only opens on a real transmission. NO SECOND keepalive (that would just add always-open noise to the shared mount). DC-spike dodge: the device LO sits 100 kHz ABOVE the listen frequency (center 146.620, channel 146.520 => offset -100 kHz) so the NFM demod is off the RTL's center DC spike; dc_block on as well. Default 146.520 = 2m FM national simplex calling — a common non-empty starting point; freq/mode/squelch/volume are user-tunable via the UI (target=vfo -> DS1 ch0). CRITICAL 2-DS note: this is the first time SDRangel drives TWO devicesets both tapping idx -1 (RSP1B on DS0 + RTL on DS1). Prior 2-DS attempts wedged, but those used the NAMED BlackHole device (idx 2) whose tap never sustained -> mount 404 -> unwind -> wedge. Here the tap is idx -1 (proven), so the mount should stay 200 and there should be no unwind.",
+  "name": "vfo.default",
+  "role": "vfo",
+  "sub_role": "2m",
+  "mode": "hunt",
+  "deviceset_index": 1,
+  "device": {
+    "hardware_id": "RTLSDR",
+    "serial": "95339533",
+    "center_freq_hz": 146620000,
+    "sample_rate_hz": 2048000,
+    "log2_decim": 0,
+    "gain_tenths_db": 350,
+    "agc": false,
+    "dc_block": true
+  },
+  "channels": [
+    {"freq_hz": 146520000, "title": "VFO 146.520 (2m calling)", "demod": "NFM", "rf_bw_hz": 12500, "squelch_db": -55, "volume": 3.0}
+  ],
+  "audio_device": {"strategy": "system_default"},
+  "copy_to_udp": {"address": "127.0.0.1", "port": 9998},
+  "mount": "neptune-analog.mp3"
+}
