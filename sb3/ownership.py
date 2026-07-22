@@ -109,9 +109,10 @@ KILL_ORDER: tuple = (
 #: step 6).  A kill switch that does not verify these is a wish.
 GUARDED_MOUNTS: tuple = (
     "neptune-trunk.mp3",
-    "neptune-air.mp3",     # Air role (renamed from neptune-angel.mp3 2026-07-19,
-                           # "mount = role" model). kill must guard the mount the
-                           # Air profile actually streams to, or a live Air mount
+    "neptune-analog.mp3",  # Analog scanner mount (neptune-angel.mp3 -> neptune-air.mp3
+                           # 2026-07-19 -> neptune-analog.mp3 2026-07-21, renamed now
+                           # that VFO gets its own neptune-vfo.mp3). kill must guard the
+                           # mount the analog profile streams to, or a live analog mount
                            # would go unprotected across a kill.
     "neptune-ground.mp3",  # Ground role (Phase 3.3). When a Ground profile is
                            # live it is 200 and kill guards it; when no Ground is

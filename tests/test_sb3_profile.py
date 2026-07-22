@@ -145,13 +145,13 @@ class TestTranslatorApply(unittest.TestCase):
 
     def _patched(self, *, mount_present_after=True, idx0="Mac mini Speakers"):
         # mount is 404 before, 200 after (audio chain came up)
-        seq = [backends.MountState("neptune-air.mp3", 404, False)]
-        seq += [backends.MountState("neptune-air.mp3", 200 if mount_present_after else 404,
+        seq = [backends.MountState("neptune-analog.mp3", 404, False)]
+        seq += [backends.MountState("neptune-analog.mp3", 200 if mount_present_after else 404,
                                     mount_present_after)] * 6
         return (
             mock.patch.object(backends, "mount_state", side_effect=seq),
             mock.patch.object(backends, "resolve_audio_tap", return_value=(idx0, -1)),
-            mock.patch.object(backends, "icecast_mounts", return_value=["neptune-air.mp3"]),
+            mock.patch.object(backends, "icecast_mounts", return_value=["neptune-analog.mp3"]),
         )
 
     def test_apply_rebinds_when_serial_differs(self):
@@ -245,9 +245,9 @@ class TestTranslatorApply(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             st = State(Path(td))
             st.write_loaded_profile({"name": "ground.something.else",
-                                     "mount": "neptune-air.mp3"})
+                                     "mount": "neptune-analog.mp3"})
             with mock.patch.object(backends, "mount_state",
-                                   return_value=backends.MountState("neptune-air.mp3", 200, True)):
+                                   return_value=backends.MountState("neptune-analog.mp3", 200, True)):
                 c = _RecordingClient(self._emit, bound_serial="95339533")
                 rc = translator.apply(self._prof(), execute=True, emit=self._emit,
                                       state=st, client=c)
@@ -261,13 +261,13 @@ class TestTranslatorApply(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as td:
             st = State(Path(td))
-            seq = [backends.MountState("neptune-air.mp3", 200, True)]   # live at baseline
-            seq += [backends.MountState("neptune-air.mp3", 200, True)] * 6
+            seq = [backends.MountState("neptune-analog.mp3", 200, True)]   # live at baseline
+            seq += [backends.MountState("neptune-analog.mp3", 200, True)] * 6
             with mock.patch.object(backends, "mount_state", side_effect=seq), \
                  mock.patch.object(backends, "resolve_audio_tap",
                                    return_value=("System default device", -1)), \
                  mock.patch.object(backends, "icecast_mounts",
-                                   return_value=["neptune-air.mp3"]):
+                                   return_value=["neptune-analog.mp3"]):
                 c = _RecordingClient(self._emit, bound_serial="56919602", channels_after=4)
                 rc = translator.apply(self._prof(), execute=True, emit=self._emit,
                                       state=st, client=c)
@@ -358,7 +358,7 @@ class TestProfileCLI(unittest.TestCase):
 
     def test_load_dry_run_prints_rest_calls(self):
         with mock.patch.object(backends, "mount_state",
-                               return_value=backends.MountState("neptune-air.mp3", 404, False)):
+                               return_value=backends.MountState("neptune-analog.mp3", 404, False)):
             rc = profilecmd.run("load", "air.airband.nashville", execute=False, emit=self._emit)
         out = "\n".join(self.lines)
         self.assertEqual(rc, translator.OK)

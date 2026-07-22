@@ -23,8 +23,8 @@ from typing import Dict
 from .. import backends, gitdeploy, ownership, sdrtrunk_client
 from ..state import State
 
-GUARDED = ownership.GUARDED_MOUNTS  # ("neptune-trunk.mp3", "neptune-air.mp3")
-AIR_MOUNT = "neptune-air.mp3"
+GUARDED = ownership.GUARDED_MOUNTS  # ("neptune-trunk.mp3", "neptune-analog.mp3", ...)
+AIR_MOUNT = "neptune-analog.mp3"     # analog scanner mount (renamed from neptune-air.mp3 2026-07-21)
 GROUND_MOUNT = "neptune-ground.mp3"
 DIGITAL_MOUNT = "neptune-trunk.mp3"
 
