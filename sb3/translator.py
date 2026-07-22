@@ -64,6 +64,19 @@ def _device_settings(prof: Profile) -> dict:
     if prof.hardware_id == "RTLSDR":
         s["gain"] = prof.gain_tenths_db
         s["dcBlock"] = 1 if prof.dc_block else 0
+    elif prof.hardware_id == "SDRplayV3":
+        # SDRplay's gain model is NOT the RTL's single "gain" field: it takes an
+        # IF gain REDUCTION (negative dB) plus an LNA state index, and its AGC
+        # flag is `ifAGC` — a plain `agc` key is not a SDRplayV3 setting, so drop
+        # it rather than send a field the device will ignore. Emitting these
+        # explicitly is what keeps the noise floor below squelch; leaving SDRangel
+        # on its defaults floats the gain and buries the squelch in hiss.
+        s.pop("agc", None)
+        s["ifAGC"] = 1 if prof.agc else 0
+        s["ifGain"] = prof.if_gain_db
+        s["lnaIndex"] = prof.lna_index
+        s["bandwidthIndex"] = prof.bandwidth_index
+        s["tuner"] = prof.tuner
     return s
 
 

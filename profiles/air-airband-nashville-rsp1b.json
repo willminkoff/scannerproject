@@ -1,0 +1,29 @@
+{
+  "_comment": "SB3 profile: Air role on the RSP1B (SDRplayV3 serial 2405265A60) instead of the RTL NESDR SMArTee 95339533 — the 2026-07-21 Air->RSP1B trial. Channels, center, mount, and audio tap are IDENTICAL to air-airband-nashville.json so the ONLY variable under test is the device. Kept at 2.048 Msps (not 8) deliberately: the four channels span 118.400-119.450 = +/-525 kHz around center 118.925, which fits inside the +/-1.024 MHz window, and Neptune already runs SDRTrunk P25 on the RSPduo — minimizing the CPU delta protects neptune-trunk.mp3, the non-negotiable. bandwidthIndex 3 (1.536 MHz IF) covers the +/-525 kHz span and mirrors Venus's proven 2 Msps airband RSP recipe. GAIN: SDRplay does not use the RTL's single gain field — ifAGC 0 (fixed, no AGC float) + ifGain -30 (IF gain REDUCTION in negative dB) + lnaIndex 3. audio strategy stays system_default: per the Phase 2 finding, only SDRangel's virtual 'System default device' (idx -1) SUSTAINS the copyToUDP tap; a named/physical device bursts and flaps the mount. THIS PROFILE DOES NOT REPLACE air.airband.nashville — that RTL profile stays on disk untouched so `sb3-ctl profile load air.airband.nashville --execute` is a <60s rollback. Rev 5.2 of the fleet policy permits this: SDRTrunk holds the RSPduo in its own process (per-device Dv00) and SDRangel holds the RSP1B in its process (Dv01) — one RSP per process is the supported pattern.",
+  "name": "air.airband.nashville.rsp1b",
+  "role": "air",
+  "sub_role": "airband-rsp1b",
+  "mode": "camp",
+  "deviceset_index": 0,
+  "device": {
+    "hardware_id": "SDRplayV3",
+    "serial": "2405265A60",
+    "center_freq_hz": 118925000,
+    "sample_rate_hz": 2048000,
+    "log2_decim": 0,
+    "agc": false,
+    "if_gain_db": -30,
+    "lna_index": 3,
+    "bandwidth_index": 3,
+    "tuner": 0
+  },
+  "channels": [
+    {"freq_hz": 118400000, "title": "KBNA App/Dep East", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -100, "volume": 0.4, "keepalive": true},
+    {"freq_hz": 118600000, "title": "KBNA Tower", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0},
+    {"freq_hz": 119350000, "title": "KBNA App/Dep West", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0},
+    {"freq_hz": 119450000, "title": "KJWN Tower", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0}
+  ],
+  "audio_device": {"strategy": "system_default"},
+  "copy_to_udp": {"address": "127.0.0.1", "port": 9998},
+  "mount": "neptune-air.mp3"
+}

@@ -515,3 +515,55 @@ class TestSoftRecycle(unittest.TestCase):
         self.assertFalse(any(m == "PUT" for m, p, _ in c.calls),
                          "must not rebind once the budget is blown")
         self.assertIn("budget", "\n".join(self.lines))
+
+
+class TestSDRplayV3DeviceSettings(unittest.TestCase):
+    """SDRplayV3 needs its own gain model — not the RTL's single `gain` field.
+
+    Regression guard for the 2026-07-21 Air->RSP1B trial: before this,
+    _device_settings() emitted only center/rate/decim/agc for non-RTL hardware,
+    so an RSP would run on whatever gain SDRangel defaulted to (AGC float ->
+    noise floor above squelch -> continuous hiss).
+    """
+
+    def _prof(self, **over):
+        import json as _json
+        from pathlib import Path as _Path
+        raw = _json.loads(
+            (_Path(__file__).resolve().parent.parent
+             / "profiles" / "air-airband-nashville-rsp1b.json").read_text())
+        raw["device"].update(over)
+        return parse_profile(raw, "<test>")
+
+    def test_sdrplay_emits_gain_model_and_drops_agc(self):
+        from sb3.translator import _device_settings
+        s = _device_settings(self._prof())
+        self.assertEqual(s["ifAGC"], 0)
+        self.assertEqual(s["ifGain"], -30)
+        self.assertEqual(s["lnaIndex"], 3)
+        self.assertEqual(s["bandwidthIndex"], 3)
+        self.assertEqual(s["tuner"], 0)
+        # `agc` is not an SDRplayV3 field — must not be sent
+        self.assertNotIn("agc", s)
+        # and the RTL-only fields must not leak in
+        self.assertNotIn("gain", s)
+        self.assertNotIn("dcBlock", s)
+
+    def test_sdrplay_settings_key_and_agc_flag(self):
+        from sb3.translator import _device_settings
+        p = self._prof(agc=True)
+        self.assertEqual(p.device_settings_key, "sdrPlayV3Settings")
+        self.assertEqual(_device_settings(p)["ifAGC"], 1)
+
+    def test_rtl_payload_unchanged_by_sdrplay_support(self):
+        """The rollback profile must keep emitting the exact RTL payload."""
+        import json as _json
+        from pathlib import Path as _Path
+        from sb3.translator import _device_settings
+        raw = _json.loads((_Path(__file__).resolve().parent.parent
+                           / "profiles" / "air-airband-nashville.json").read_text())
+        s = _device_settings(parse_profile(raw, "<test>"))
+        self.assertEqual(s["gain"], 297)
+        self.assertEqual(s["dcBlock"], 1)
+        self.assertEqual(s["agc"], 0)
+        self.assertNotIn("ifGain", s)

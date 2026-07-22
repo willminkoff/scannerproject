@@ -91,6 +91,14 @@ class Profile:
     udp_address: str
     udp_port: int
     mount: str
+    # SDRplayV3 gain model (ignored for RTLSDR). SDRplay does NOT take a single
+    # "gain dB" — it takes an IF gain REDUCTION in negative dB plus an LNA state
+    # index, and its AGC flag is `ifAGC`, not `agc`. Defaults mirror the recipe
+    # proven on Venus's airband RSP (ifAGC 0 / ifGain -40 / lnaIndex 3).
+    if_gain_db: int = -40
+    lna_index: int = 3
+    bandwidth_index: int = 3
+    tuner: int = 0
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     # -- derived ----------------------------------------------------------
@@ -211,6 +219,10 @@ def parse_profile(data: Any, path: str = "<data>") -> Profile:
         udp_address=str(udp.get("address", "127.0.0.1")),
         udp_port=int(udp.get("port", 9998)),
         mount=str(_req(data, "mount", path)),
+        if_gain_db=int(dev.get("if_gain_db", -40)),
+        lna_index=int(dev.get("lna_index", 3)),
+        bandwidth_index=int(dev.get("bandwidth_index", 3)),
+        tuner=int(dev.get("tuner", 0)),
         raw=data,
     )
     _validate(prof, path)
