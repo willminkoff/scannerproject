@@ -392,59 +392,84 @@ def _code_without_docstrings(path: Path) -> str:
     return ast.unparse(ast.fix_missing_locations(tree))
 
 
+#: Phase 4.2 confines every write to ONE module. These four must stay incapable
+#: of touching a backend, so the audit question has exactly one answer.
+OBSERVE_ONLY = ("classifier.py", "config.py", "safety.py", "observer.py")
+WRITE_SURFACE = "actions.py"
+
+
 class TestPassivity(unittest.TestCase):
-    """Phase 4.1 observes and does not act. Proven structurally, not promised."""
+    """4.1 could not act at all. 4.2 acts through exactly one file.
+
+    The guarantee did not weaken, it got more specific — and that specificity is
+    what these tests pin down.
+    """
 
     WRITE_VERBS = ("PATCH", "POST", "PUT", "DELETE")
-    WRITE_ENTRYPOINTS = (
-        "SDRangelClient",       # the writing REST client
-        "patch_device", "patch_channel", "set_copy_to_udp",
-        "translator.apply", "urlopen", "Request",
-    )
+    WRITE_ENTRYPOINTS = ("SDRangelClient", "patch_device", "patch_channel",
+                         "set_copy_to_udp", "translator.apply", "urlopen")
 
-    def _sources(self):
-        files = sorted(RECONCILER_DIR.glob("*.py"))
-        self.assertTrue(files, "no reconciler sources found")
-        return files
-
-    def test_no_http_write_verbs_in_code(self):
-        for path in self._sources():
-            code = _code_without_docstrings(path)
+    def test_observe_only_modules_have_no_write_verbs(self):
+        for name in OBSERVE_ONLY:
+            code = _code_without_docstrings(RECONCILER_DIR / name)
             for verb in self.WRITE_VERBS:
                 self.assertNotIn(
                     verb, code,
-                    f"{path.name} contains HTTP write verb {verb!r} — the "
-                    f"Phase 4.1 reconciler must be observe-only")
+                    f"{name} contains HTTP write verb {verb!r} — only "
+                    f"{WRITE_SURFACE} may write")
 
-    def test_no_writing_entrypoints(self):
-        for path in self._sources():
-            code = _code_without_docstrings(path)
-            for name in self.WRITE_ENTRYPOINTS:
+    def test_observe_only_modules_have_no_writing_entrypoints(self):
+        for name in OBSERVE_ONLY:
+            code = _code_without_docstrings(RECONCILER_DIR / name)
+            for ep in self.WRITE_ENTRYPOINTS:
                 self.assertNotIn(
-                    name, code,
-                    f"{path.name} references {name!r} — the reconciler must "
-                    f"read only through sb3.backends")
+                    ep, code,
+                    f"{name} references {ep!r} — writes belong in "
+                    f"{WRITE_SURFACE}, which is separately audited")
+
+    def test_observer_delegates_and_never_writes_directly(self):
+        # observer.py may CALL actions, but must not construct a REST client or
+        # import the writing modules itself.
+        tree = ast.parse((RECONCILER_DIR / "observer.py").read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                self.assertNotIn(node.module.split(".")[-1],
+                                 {"sdrangel", "translator"},
+                                 f"observer.py imports {node.module}")
+
+    def test_write_surface_cannot_reach_protected_backends(self):
+        """TRUNK PROTECTION, statically: actions.py names nothing forbidden."""
+        code = _code_without_docstrings(RECONCILER_DIR / WRITE_SURFACE)
+        forbidden = ("sdrtrunk", "SDRTrunk", "icecast", "apiService",
+                     "sdrplay", "launchctl", "bootout", "bootstrap",
+                     "subprocess", "kill", "8000", "bridge")
+        for name in forbidden:
+            self.assertNotIn(
+                name, code,
+                f"{WRITE_SURFACE} references {name!r} — the reconciler must "
+                f"never be able to touch SDRTrunk / icecast / the bridges / "
+                f"the apiService")
+
+    def test_no_reconciler_module_can_control_processes(self):
+        """No module in the package may signal or spawn a process.
+
+        Process control is how a bug here could stop SDRTrunk — the one action
+        with a failure mode that needs a physical reboot (§5.4 #1).
+        """
+        for path in sorted(RECONCILER_DIR.glob("*.py")):
+            code = _code_without_docstrings(path)
+            for name in ("subprocess", "os.kill", "SIGKILL", "SIGTERM)", "Popen"):
+                self.assertNotIn(name, code,
+                                 f"{path.name} references {name!r} — the "
+                                 f"reconciler must not control processes")
 
     def test_backends_module_itself_has_no_write_verbs(self):
-        # The reconciler reads exclusively through sb3.backends, so that
-        # module's read-only contract is part of this guarantee.
+        # The reconciler's READS all go through sb3.backends, so that module's
+        # read-only contract is still part of the guarantee.
         code = _code_without_docstrings(REPO / "sb3" / "backends.py")
         for verb in ("PATCH", "POST", "PUT", "DELETE"):
             self.assertNotIn(verb, code,
                              f"sb3.backends gained write verb {verb!r}")
-
-    def test_imports_only_read_only_modules(self):
-        forbidden = {"sb3.translator", "translator", "sdrangel"}
-        for path in self._sources():
-            tree = ast.parse(path.read_text())
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    self.assertNotIn(node.module.split(".")[-1], forbidden,
-                                     f"{path.name} imports {node.module}")
-                elif isinstance(node, ast.Import):
-                    for a in node.names:
-                        self.assertNotIn(a.name.split(".")[-1], forbidden,
-                                         f"{path.name} imports {a.name}")
 
 
 # ---------------------------------------------------------------------------

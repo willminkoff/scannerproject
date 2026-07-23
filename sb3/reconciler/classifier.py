@@ -145,6 +145,10 @@ class Classification(NamedTuple):
     issues: List[str]        # RECOVERABLE/BROKEN reasons, e.g. "phantom_deviceset"
     drifts: List[str]        # BENIGN details, e.g. "ch0.squelch:-55→-42"
     facts: Dict[str, str]    # extra key=value context for the log line
+    #: Channel offsets the profile expects that are NOT live. Phase 4.2's
+    #: missing-channel repair re-adds exactly these. Populated ONLY when the
+    #: live channel COUNT is short — see the note in classify_role.
+    missing_offsets: Sequence[int] = ()
 
     @property
     def is_clean(self) -> bool:
@@ -279,12 +283,24 @@ def classify_role(obs: RoleObservation) -> Classification:
             state = _worst(state, BENIGN)
 
     # --- channels (only meaningful once a real device is bound)
+    missing_offsets: List[int] = []
     if obs.ds_present and not obs.ds_phantom:
         n_want, n_live = len(obs.expected_channels), len(obs.live_channels)
         if n_live < n_want:
             issues.append("channel_missing")
             facts["channels"] = f"{n_live}/{n_want}"
             state = _worst(state, RECOVERABLE)
+            # WHICH channels are missing — computed by OFFSET, but ONLY when the
+            # count is short. That guard is load-bearing: with a full count, an
+            # offset that does not match expectation is a human RETUNING a
+            # channel (BENIGN, §4.4 the live backend wins). Diffing offsets
+            # unconditionally would read that retune as "channel missing" and
+            # Phase 4.2 would helpfully undo the user's tuning — the single
+            # worst thing an active reconciler could do.
+            live_offsets = {ch.offset_hz for ch in obs.live_channels
+                            if ch.offset_hz is not None}
+            missing_offsets = [c.offset_hz for c in obs.expected_channels
+                               if c.offset_hz not in live_offsets]
         elif n_live > n_want:
             # Extra channels are additive, not a failure — a human added one.
             drifts.append(f"channels:{n_want}→{n_live}")
@@ -299,11 +315,15 @@ def classify_role(obs: RoleObservation) -> Classification:
             state = _worst(state, sub.state)
 
         # keepalive present at all? (camp mode holds the mount open with one)
+        # Same count-short guard as above, for the same reason.
         if obs.mode == "camp":
             want_ka = [c for c in obs.expected_channels if c.keepalive]
-            if want_ka and n_live == 0:
-                issues.append("keepalive_missing")
-                state = _worst(state, RECOVERABLE)
+            if want_ka and n_live < n_want:
+                live_offsets = {ch.offset_hz for ch in obs.live_channels
+                                if ch.offset_hz is not None}
+                if want_ka[0].offset_hz not in live_offsets:
+                    issues.append("keepalive_missing")
+                    state = _worst(state, RECOVERABLE)
 
     # --- the mount: audio actually reaching listeners
     if not obs.mount_present:
@@ -313,7 +333,7 @@ def classify_role(obs: RoleObservation) -> Classification:
         facts["mount"] = f"{obs.want_mount}={obs.mount_status}"
         state = _worst(state, RECOVERABLE)
 
-    return Classification(state, issues, drifts, facts)
+    return Classification(state, issues, drifts, facts, tuple(missing_offsets))
 
 
 def classify_digital(obs: DigitalObservation) -> Classification:
