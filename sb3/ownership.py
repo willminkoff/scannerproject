@@ -60,6 +60,12 @@ MANAGED_AGENTS: Dict[str, str] = {
     "com.scannerproject.sb3-broker": "sb3.agents.broker_stub",
     "com.scannerproject.sb3-controller": "sb3.agents.controller_stub",
     "com.scannerproject.sb3-ui": "sb3.ui",
+    # Phase 4.1: the PASSIVE reconciler — reads live state every 30s, classifies
+    # drift, logs, and does nothing else. Real code, not a stub; it is managed
+    # here so `install` writes its plist and `resume` brings it back after a
+    # kill. It was already in SB3_LAYER and KILL_ORDER (both committed ahead of
+    # it), so adding it here is what makes those entries reachable.
+    "com.scannerproject.sb3-reconciler": "sb3.reconciler",
 }
 
 #: Where the plist templates live in-repo.

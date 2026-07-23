@@ -166,6 +166,38 @@ def sdrangel_channels(index: int, timeout: float = DEFAULT_TIMEOUT_SEC) -> List[
     return ds.get("channels", []) or []
 
 
+def sdrangel_channel_settings(ds_index: int, ch_index: int,
+                              timeout: float = DEFAULT_TIMEOUT_SEC) -> Optional[Dict]:
+    """One channel's live settings blob. Read-only GET, None if unreachable.
+
+    Returns the raw REST body, e.g. ``{"NFMDemodSettings": {"squelch": -55,
+    "volume": 3.0, ...}}`` — the caller unwraps by demod key, because the key
+    name varies per demod type and this module does not interpret.
+
+    Added for the Phase 4.1 reconciler, which needs per-channel squelch/volume to
+    tell "the user is tuning" (BENIGN) from "the profile is not live"
+    (RECOVERABLE).  ``sdrangel_channels()`` returns only the channel LIST
+    (index/id/title/deltaFrequency); the settings live at this sub-resource.
+    """
+    return _get_json(f"{SDRANGEL_REST}/deviceset/{ds_index}/channel/{ch_index}/settings",
+                     timeout)
+
+
+def channel_settings_body(raw: Optional[Dict]) -> Dict:
+    """Unwrap the ``<Demod>Settings`` sub-dict from a channel-settings body. Pure.
+
+    SDRangel nests the real fields one level down under a demod-specific key
+    (``AMDemodSettings``, ``NFMDemodSettings``, …).  Returns {} for anything
+    unrecognisable so callers never have to null-check a nest.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    for key, val in raw.items():
+        if key.endswith("Settings") and isinstance(val, dict):
+            return val
+    return {}
+
+
 def sdrangel_audio_outputs(timeout: float = DEFAULT_TIMEOUT_SEC) -> List[Dict]:
     """SDRangel output audio devices (from GET /sdrangel/audio). Read-only.
 
