@@ -77,6 +77,42 @@ def launchctl_loaded(prefix: str = "com.scannerproject.") -> List[str]:
     return sorted(labels)
 
 
+#: Backend processes the Phase 4.2 reconciler must NEVER disturb, and the
+#: pgrep pattern that identifies each.  SDRangel is deliberately ABSENT: the
+#: reconciler legitimately drives it over REST, and a rebind can move its
+#: internals.  These five are the ones that must be byte-identical before and
+#: after every action — SDRTrunk in particular, because a dirty release drops
+#: the RSPduo off the USB bus and needs a REBOOT (§5.4 #1).
+PROTECTED_PROCESSES: Dict[str, str] = {
+    "sdrtrunk": "io.github.dsheirer.gui.SDRTrunk",
+    "icecast": "icecast",
+    "sdrplay_apiservice": "sdrplay_apiService",
+    "audio_bridge": "neptune-audio-bridge",
+    "ground_bridge": "neptune-ground-bridge",
+}
+
+
+def process_pids(patterns: Optional[Dict[str, str]] = None,
+                 timeout: float = DEFAULT_TIMEOUT_SEC) -> Dict[str, Optional[str]]:
+    """{name: pid-or-None} for each pgrep pattern. READ-ONLY.
+
+    Used by the reconciler's backend guard to prove an action moved nothing it
+    was not allowed to move.  ``pgrep -f`` only reads the process table; there
+    is no signal-sending path here and there must never be one.
+    """
+    pats = patterns if patterns is not None else PROTECTED_PROCESSES
+    out: Dict[str, Optional[str]] = {}
+    for name, pattern in pats.items():
+        try:
+            res = subprocess.run(["pgrep", "-f", pattern],
+                                 capture_output=True, text=True, timeout=timeout)
+            pids = [l.strip() for l in res.stdout.splitlines() if l.strip()]
+            out[name] = pids[0] if pids else None
+        except (OSError, subprocess.SubprocessError):
+            out[name] = None
+    return out
+
+
 def mount_state(mount: str, timeout: float = DEFAULT_TIMEOUT_SEC) -> MountState:
     """HTTP status + icecast presence for one mount.
 

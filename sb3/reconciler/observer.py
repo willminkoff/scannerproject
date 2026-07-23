@@ -36,7 +36,10 @@ from typing import Dict, List, Optional, Sequence
 
 from .. import backends, ownership, sdrtrunk_client
 from ..state import State
+from . import actions as A
 from . import classifier as C
+from . import config as CFG
+from . import safety as S
 
 # -- defaults (overridable via ~/sb3/config.json) ---------------------------
 
@@ -51,6 +54,9 @@ DEFAULT_CONFIG_PATH = "~/sb3/config.json"
 _TICK_SEC = 0.25
 
 DIGITAL_MOUNT = "neptune-trunk.mp3"
+
+#: Where quarantine state is persisted (shared with sb3.reconcilercmd).
+QUARANTINE_PATH = "~/.local/state/sb3/reconciler_quarantine.json"
 
 
 def load_config(path: Optional[Path] = None) -> Dict:
@@ -75,7 +81,8 @@ class Observer:
 
     def __init__(self, *, config: Optional[Dict] = None,
                  state: Optional[State] = None,
-                 log_path: Optional[Path] = None) -> None:
+                 log_path: Optional[Path] = None,
+                 rc: Optional["CFG.ReconcilerConfig"] = None) -> None:
         cfg = config if config is not None else load_config()
         self.poll_sec = float(cfg.get("poll_interval_sec", DEFAULT_POLL_SEC))
         self.log_path = Path(os.path.expanduser(
@@ -87,6 +94,21 @@ class Observer:
         self._stop = False
         self._last_backend_pids: Optional[Dict[str, str]] = None
         self.passes = 0
+
+        # -- Phase 4.2: the acting half. Re-read from disk every pass (see
+        #    _reload_config) so `sb3-ctl reconciler enable/disable` takes effect
+        #    within one poll interval without restarting the agent.
+        self.rc = rc if rc is not None else CFG.load()
+        self.limiter = S.RateLimiter(base=self.rc.base_backoff,
+                                     cap=self.rc.max_backoff)
+        # Quarantine is persisted to the SAME file `sb3-ctl reconciler
+        # resume-action` clears, so a human can release it from another process.
+        self.failures = S.FailureCounter(
+            threshold=self.rc.quarantine_threshold,
+            path=Path(os.path.expanduser(QUARANTINE_PATH)))
+        self.guard = S.BackendGuard(pause_seconds=self.rc.emergency_pause_seconds)
+        self.actions_taken = 0
+        self._static_rc = rc is not None    # tests inject; don't reload over it
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -117,9 +139,12 @@ class Observer:
         self._configure_logging()
         self._install_signal_handlers()
         self.log.info(
-            "%s scope=startup state=UP pid=%d poll=%gs log=%s "
-            "mode=PASSIVE(observe-only,no-writes)",
-            _now_iso(), os.getpid(), self.poll_sec, self.log_path)
+            "%s scope=startup state=UP pid=%d poll=%gs log=%s mode=%s "
+            "actions=%s",
+            _now_iso(), os.getpid(), self.poll_sec, self.log_path,
+            self.rc.describe(),
+            ",".join(sorted(a for a in CFG.ACTIONABLE
+                            if self.rc.action_enabled(a))) or "none")
 
         last_pass = 0.0
         while not self._stop:
@@ -153,6 +178,7 @@ class Observer:
         assert on the exact lines, without a loop or a live box.
         """
         self.passes += 1
+        self._reload_config()
         ts = _now_iso()
         lines: List[str] = []
 
@@ -171,6 +197,7 @@ class Observer:
             return lines
 
         mount_flags: List[bool] = []
+        role_results = []
 
         # -- analog roles (SDRangel-backed), one line each
         for role, record in sorted(profiles.items()):
@@ -181,6 +208,7 @@ class Observer:
             lines.append(C.format_line(ts, cls, role=role,
                                        profile=obs.profile_name,
                                        ds=obs.deviceset_index))
+            role_results.append((role, record, obs, cls))
 
         # -- digital role (SDRTrunk), always classified: it has no SB3 profile
         #    record but it is the always-on core and its mount is the invariant
@@ -215,7 +243,188 @@ class Observer:
         if not scls.is_clean or self.passes == 1:
             lines.append(C.format_line(ts, scls, scope="system"))
 
+        # -- Phase 4.2: act on RECOVERABLE, if and only if every brake permits.
+        lines.extend(self.act_phase(ts, role_results, sdrangel_reachable))
+
         return lines
+
+    # -- the acting half (Phase 4.2) ---------------------------------------
+
+    def act_phase(self, ts: str, role_results, sdrangel_reachable: bool) -> List[str]:
+        """Decide and perform at most one repair per role. Returns log lines.
+
+        Every early return in here is a brake. They are checked in order of how
+        cheap they are to check and how bad it would be to skip them.
+        """
+        lines: List[str] = []
+
+        # BRAKE 0 — the config / sentinel. BROKEN is never actionable at all:
+        # a wedged REST or churning backend needs `sb3-ctl kill`/`resume` by a
+        # human, and "reconcile harder" is the wrong response to it.
+        if not self.rc.may_act():
+            return lines
+
+        # BRAKE — emergency pause from a previous backend-PID violation.
+        if self.guard.paused():
+            lines.append(f"ts={ts} scope=action state=SKIPPED "
+                         f"reason=emergency_pause "
+                         f"remaining={self.guard.pause_remaining():.0f}s "
+                         f"cause={self.guard.last_violation}")
+            return lines
+
+        planned = []
+        for role, record, obs, cls in role_results:
+            if cls.state != C.RECOVERABLE:
+                # Converged (or BENIGN/BROKEN) — clear this role's backoff so a
+                # later, unrelated problem starts from 30s and not from 240s.
+                self.limiter.record_clean(role)
+                continue
+
+            action = A.action_for(cls.issues)
+            if action is None:
+                lines.append(f"ts={ts} scope=action role={role} state=SKIPPED "
+                             f"reason=no_action_for_issue issue={','.join(cls.issues)}")
+                continue
+            if not self.rc.action_enabled(action):
+                lines.append(f"ts={ts} scope=action role={role} action={action} "
+                             f"state=SKIPPED reason=action_disabled")
+                continue
+
+            # BRAKE — broken-state pause. Never act on a reading we could not take.
+            ok, why = S.readings_trustworthy(
+                sdrangel_reachable=sdrangel_reachable,
+                mount_status=obs.mount_status)
+            if not ok:
+                lines.append(f"ts={ts} scope=action role={role} action={action} "
+                             f"state=SKIPPED reason={why}")
+                continue
+
+            # BRAKE — quarantine.
+            if self.failures.quarantined(role, action):
+                lines.append(f"ts={ts} scope=action role={role} action={action} "
+                             f"state=SKIPPED reason=quarantined "
+                             f"detail=needs-`sb3-ctl reconciler resume-action "
+                             f"{role} {action}`")
+                continue
+
+            # BRAKE — rate limit / backoff.
+            if not self.limiter.allowed(role):
+                reason = ("alarm_backoff_exhausted" if self.limiter.alarmed.get(role)
+                          else "rate_limited")
+                lines.append(f"ts={ts} scope=action role={role} action={action} "
+                             f"state=SKIPPED reason={reason} "
+                             f"streak={self.limiter.streak(role)}")
+                continue
+
+            ctx = self._build_context(role, record, obs, cls, action)
+            if ctx is None:
+                lines.append(f"ts={ts} scope=action role={role} action={action} "
+                             f"state=SKIPPED reason=profile_unreadable")
+                continue
+            planned.append((role, action, ctx))
+
+        # BRAKE — shared-tap de-duplication (Air + VFO share idx -1 → :9998).
+        kept, dropped = S.dedupe_tap_actions(planned)
+        for role in dropped:
+            lines.append(f"ts={ts} scope=action role={role} "
+                         f"action=mount_404_with_healthy_backend state=SKIPPED "
+                         f"reason=shared_tap_already_being_repaired")
+
+        for role, action, ctx in kept:
+            lines.extend(self._execute_action(ts, role, action, ctx))
+        return lines
+
+    def _execute_action(self, ts: str, role: str, action: str, ctx) -> List[str]:
+        """Run one action inside the PID guard and the path auditor."""
+        lines: List[str] = []
+        mode = "DRYRUN" if ctx.dry_run else "ACT"
+        trace: List[str] = []
+
+        before = backends.process_pids()
+        result = A.run_action(ctx, emit=trace.append)
+        after = backends.process_pids()
+
+        # BRAKE — did anything we are not allowed to touch move?
+        moved = self.guard.compare(before, after)
+        # BRAKE — did we call anything outside SDRangel's allowlist?
+        violations = S.PathAuditor.audit(result.calls,
+                                         result.base or S.EXPECTED_BASE)
+
+        if moved or violations:
+            msg = self.guard.trip(moved or [f"path:{v}" for v in violations])
+            lines.append(f"ts={ts} scope=action role={role} action={action} "
+                         f"state=EMERGENCY {msg} "
+                         f"violations={';'.join(violations) or 'none'}")
+            # An emergency is never counted as an ordinary failure — it must not
+            # be quietly absorbed by the quarantine counter and retried.
+            return lines
+
+        self.actions_taken += 1
+        self.limiter.record_action(role)
+        if result.ok:
+            self.failures.record_success(role, action)
+            state = "OK"
+        else:
+            quarantined = self.failures.record_failure(role, action, result.detail)
+            state = "QUARANTINED" if quarantined else "FAILED"
+
+        lines.append(
+            f"ts={ts} scope=action role={role} action={action} mode={mode} "
+            f"state={state} detail={result.detail} calls={len(result.calls)} "
+            f"fails={self.failures.failures(role, action)} "
+            f"backoff={self.limiter.backoff_for(self.limiter.streak(role)):.0f}s")
+        for t in trace:
+            lines.append(f"ts={ts} scope=action role={role} action={action} "
+                         f"trace={t.strip()}")
+        return lines
+
+    def _build_context(self, role: str, record: Dict, obs, cls, action: str):
+        """Assemble the ActionContext, loading the profile from disk."""
+        prof = self._load_profile(record)
+        if prof is None and action != "unbound_device":
+            # Only the run-it action can proceed without profile detail.
+            return None
+        audio_name, audio_index = "", 0
+        if prof is not None:
+            audio_name, audio_index = backends.resolve_audio_tap(prof.audio_strategy)
+            if audio_name is None:
+                audio_name, audio_index = "", 0
+        return A.ActionContext(
+            role=role,
+            action=action,
+            profile=prof,
+            deviceset_index=obs.deviceset_index,
+            mount=obs.want_mount,
+            dry_run=self.rc.dry_run,
+            missing_offsets=tuple(cls.missing_offsets),
+            audio_name=audio_name or "",
+            audio_index=audio_index if audio_index is not None else 0,
+            udp_address=(prof.udp_address if prof else "127.0.0.1"),
+            udp_port=(prof.udp_port if prof else 9998),
+        )
+
+    def _load_profile(self, record: Dict):
+        try:
+            from ..profile import load_profile
+            from ..profilecmd import resolve_profile_path
+            path = resolve_profile_path(str(record.get("name", "")))
+            return load_profile(path) if path else None
+        except Exception:
+            return None
+
+    def _reload_config(self) -> None:
+        """Re-read config each pass so enable/disable lands within one interval."""
+        if self._static_rc:
+            return
+        try:
+            self.rc = CFG.load()
+            self.limiter.base = self.rc.base_backoff
+            self.limiter.cap = self.rc.max_backoff
+            self.failures.threshold = self.rc.quarantine_threshold
+            # Re-read quarantine so `resume-action` from the CLI lands here.
+            self.failures.load()
+        except Exception:
+            pass    # keep the previous config rather than failing the pass
 
     def _backend_delta(self, loaded: Sequence[str]):
         """Which BACKEND agents vanished since the last pass. Read-only.

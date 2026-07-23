@@ -29,3 +29,20 @@ __all__ = [
     "Classification", "classify_role", "classify_digital", "classify_system",
     "format_line", "Observer", "main",
 ]
+
+# Phase 4.2 note — the passivity guarantee changed shape, so state it exactly.
+#
+# 4.1: NOTHING in this package could write. 4.2 gives it hands, but confines
+# them to ONE module:
+#
+#   classifier.py  pure, no I/O                      — still cannot write
+#   config.py      reads config, writes config only  — never touches a backend
+#   safety.py      pure brakes                       — never touches a backend
+#   observer.py    reads via sb3.backends, delegates — cannot write directly
+#   actions.py     THE write surface                 — SDRangel REST, nothing else
+#
+# The tests enforce all five statements separately, and additionally audit at
+# RUNTIME (safety.PathAuditor) that the calls an action actually made stayed
+# inside SDRangel's allowlist. SDRTrunk, sdrplay_apiService, the ffmpeg bridges
+# and icecast are unreachable from here by construction — different base URL,
+# different transport, and no process control anywhere in the package.

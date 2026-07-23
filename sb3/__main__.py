@@ -72,6 +72,16 @@ def build_parser() -> argparse.ArgumentParser:
     ap = sub.add_parser("apply", parents=[common],
                         help="apply a profile (not implemented)")
     ap.add_argument("profile")
+    rp = sub.add_parser("reconciler", parents=[common],
+                        help="Phase 4.2: enable/disable the ACTIVE reconciler")
+    rp.add_argument("action",
+                    choices=["status", "enable", "disable", "dry-run",
+                             "passive", "unpassive", "resume-action"],
+                    help="status | enable | disable | dry-run | passive "
+                         "(revert to 4.1 observe-only) | unpassive | "
+                         "resume-action <role> <action>")
+    rp.add_argument("role", nargs="?", help="for resume-action")
+    rp.add_argument("act", nargs="?", help="for resume-action")
     sub.add_parser("install", parents=[common],
                    help="write the SB3 launchd plists")
     sub.add_parser("uninstall", parents=[common],
@@ -94,6 +104,10 @@ def main(argv=None) -> int:
     if args.cmd == "profile":
         from . import profilecmd
         return profilecmd.run(args.action, args.name, execute=execute)
+    if args.cmd == "reconciler":
+        from . import reconcilercmd
+        return reconcilercmd.run(args.action, role=args.role, action_name=args.act,
+                                 execute=execute)
     if args.cmd == "install":
         return install_mod.cmd_install(execute=execute)
     if args.cmd == "uninstall":
