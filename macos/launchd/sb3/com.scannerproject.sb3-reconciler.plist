@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.scannerproject.sb3-reconciler — SB3 passive reconciler (Phase 4.1).
+
+  TEMPLATE. `sb3-ctl install` writes it to ~/Library/LaunchAgents/ after
+  substituting {{PYTHON}}, {{REPO_DIR}} and {{HOME}}.
+
+  Runs sb3.reconciler: every 30 s it reads live backend state (devicesets,
+  channels, mounts, loaded agents), classifies the difference from the loaded
+  profiles as CLEAN / BENIGN / RECOVERABLE / BROKEN, and writes one structured
+  line per role to ~/Library/Logs/sb3/reconciler.log (rotated at ~10 MB).
+
+  PASSIVE — it makes no changes to any backend. Phase 4.1 is a night of
+  observation, deliberately taken BEFORE anything is allowed to correct drift:
+  letting a process repair state it has never watched is how you get
+  sdrangel-restore.py, which re-asserts a stored config every 10 minutes and
+  would clobber a human mid-tune. §4.4: on divergence the LIVE backend wins.
+  tests/test_sb3_reconciler.py greps the package for write verbs and fails if
+  one appears, so passivity is asserted rather than assumed.
+
+  It reads ONLY through sb3.backends, whose module contract is read-only.
+
+  Ownership: it is in SB3_LAYER, so `sb3-ctl kill` stops it and `resume` brings
+  it back. It is stopped EARLY in KILL_ORDER (right after the controller) on
+  purpose — an observer left running through a teardown would spend the whole
+  kill logging RECOVERABLE/BROKEN findings about a layer that is being
+  dismantled deliberately. On resume it comes back late (the order reversed),
+  after the layer it observes is actually up.
+
+  KeepAlive={SuccessfulExit:false} — respawn on a CRASH, not on a clean exit,
+  so `launchctl bootout` is a real stop rather than a fight with launchd.
+
+  LimitLoadToSessionType=Aqua — must share the user session with the GUI backends.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.sb3-reconciler</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{PYTHON}}</string>
+        <string>-m</string>
+        <string>sb3.reconciler</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>{{REPO_DIR}}</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>{{REPO_DIR}}</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
+
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/reconciler.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/Library/Logs/sb3/reconciler.err.log</string>
+</dict>
+</plist>
