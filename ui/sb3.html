@@ -2276,49 +2276,6 @@
       box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
     }
 
-    .philly-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--bad);
-      box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
-    }
-
-    .philly-dot.active {
-      background: #f59e0b;
-      box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
-    }
-
-    .philly-freq-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 3px 8px;
-      background: rgba(255,255,255,0.03);
-      border-radius: 4px;
-      font-size: 11px;
-      gap: 6px;
-    }
-
-    .philly-freq-row .freq-info { flex: 1; min-width: 0; }
-    .philly-freq-row .freq-mode {
-      font-size: 10px;
-      color: var(--text-secondary);
-      background: rgba(255,255,255,0.06);
-      padding: 1px 5px;
-      border-radius: 3px;
-    }
-
-    .philly-freq-row .freq-rm {
-      cursor: pointer;
-      color: var(--bad);
-      opacity: 0.6;
-      font-size: 14px;
-      line-height: 1;
-      padding: 0 2px;
-    }
-
-    .philly-freq-row .freq-rm:hover { opacity: 1; }
 
     .hit-src-phi {
       color: #f59e0b;
@@ -3257,6 +3214,59 @@
         justify-content: flex-start;
       }
     }
+  
+    /* --- VFO keypad (VFO tab only) -------------------------------------
+       Touch-first: 56px min hit targets (Apple HIG ~44pt floor, sized up for
+       thumb use on a phone in a car), 8px gutters so adjacent keys are not
+       mis-hit, and no text input anywhere — the keypad is the only entry path. */
+    .vfo-keypad { margin-top: 12px; }
+    .vfo-kp-display {
+      display: flex; align-items: baseline; justify-content: center; gap: 8px;
+      padding: 14px 12px; margin-bottom: 10px;
+      background: rgba(10, 16, 24, 0.45);
+      border: 1px solid var(--border, rgba(255,255,255,.10));
+      border-radius: 10px;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 30px; font-weight: 600; letter-spacing: 0.5px;
+      transition: border-color 140ms ease;
+    }
+    .vfo-kp-display .unit { font-size: 14px; opacity: .65; font-weight: 500; }
+    .vfo-kp-display.placeholder { opacity: .45; }      /* showing current tune */
+    .vfo-kp-display.invalid { border-color: var(--bad); color: var(--bad); }
+    .vfo-kp-presets {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+    }
+    .vfo-kp-chip {
+      flex: 1 1 auto; min-width: 88px; min-height: 40px;
+      padding: 7px 10px; border-radius: 8px; cursor: pointer;
+      background: var(--bg-card, rgba(255,255,255,.04));
+      border: 1px solid var(--border, rgba(255,255,255,.10));
+      color: inherit; font-size: 12px; line-height: 1.25; text-align: center;
+    }
+    .vfo-kp-chip .f { display: block; font-weight: 700; font-size: 13px;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+    .vfo-kp-chip .n { display: block; opacity: .6; font-size: 10px; }
+    .vfo-kp-chip:active { background: var(--accent-dim, rgba(255,255,255,.10)); }
+    .vfo-kp-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    }
+    .vfo-kp-key {
+      min-height: 56px; font-size: 22px; font-weight: 600;
+      border-radius: 10px; cursor: pointer; color: inherit;
+      background: var(--bg-card, rgba(255,255,255,.05));
+      border: 1px solid var(--border, rgba(255,255,255,.10));
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+      user-select: none;
+    }
+    .vfo-kp-key:active { background: var(--accent-dim, rgba(255,255,255,.14)); }
+    .vfo-kp-actions {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+    }
+    .vfo-kp-actions .vfo-kp-key { font-size: 15px; }
+    .vfo-kp-tune { background: var(--accent-dim, rgba(122,155,184,.30)); font-weight: 700; }
+    .vfo-kp-hint { margin-top: 8px; font-size: 11px; opacity: .6; text-align: center; }
+
   </style>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.light.min.js"></script>
 </head>
@@ -3320,7 +3330,6 @@
             <button class="tab active" id="tab-airband" type="button" onclick="switchTarget('airband')">Airband</button>
             <button class="tab" id="tab-vfo" type="button" onclick="switchTarget('vfo')">VFO</button>
             <button class="tab" id="tab-digital" type="button" onclick="switchTarget('digital')">Digital</button>
-            <button class="tab" id="tab-philly" type="button" onclick="switchTarget('philly')">Philly</button>
           </div>
         </div>
         <div class="widget-body">
@@ -3362,6 +3371,37 @@
               <button class="action" id="btn-avoid">Avoid</button>
               <button class="action" id="btn-clear-avoids">Clear</button>
               <button class="action" id="btn-auto-squelch" title="Quickly estimate noise floor and apply squelch for both analog dongles">Auto Squelch</button>
+            </div>
+
+
+            <!-- VFO keypad — shown only on the VFO tab. Entry is keypad-only by
+                 design (no text input), so it works with a thumb and never
+                 raises a soft keyboard over the controls. -->
+            <div class="vfo-keypad hidden" id="vfo-keypad">
+              <div class="vfo-kp-display" id="vfo-kp-display"><span id="vfo-kp-value">--</span><span class="unit">MHz</span></div>
+
+              <div class="vfo-kp-presets" id="vfo-kp-presets"></div>
+
+              <div class="vfo-kp-grid" id="vfo-kp-grid">
+                <button class="vfo-kp-key" type="button" data-kp="1">1</button>
+                <button class="vfo-kp-key" type="button" data-kp="2">2</button>
+                <button class="vfo-kp-key" type="button" data-kp="3">3</button>
+                <button class="vfo-kp-key" type="button" data-kp="4">4</button>
+                <button class="vfo-kp-key" type="button" data-kp="5">5</button>
+                <button class="vfo-kp-key" type="button" data-kp="6">6</button>
+                <button class="vfo-kp-key" type="button" data-kp="7">7</button>
+                <button class="vfo-kp-key" type="button" data-kp="8">8</button>
+                <button class="vfo-kp-key" type="button" data-kp="9">9</button>
+                <button class="vfo-kp-key" type="button" data-kp=".">.</button>
+                <button class="vfo-kp-key" type="button" data-kp="0">0</button>
+                <button class="vfo-kp-key" type="button" data-kp="back" aria-label="Backspace">&#9003;</button>
+              </div>
+
+              <div class="vfo-kp-actions">
+                <button class="vfo-kp-key" type="button" id="vfo-kp-clear">Clear</button>
+                <button class="vfo-kp-key vfo-kp-tune" type="button" id="vfo-kp-tune">Tune</button>
+              </div>
+              <div class="vfo-kp-hint" id="vfo-kp-hint">Enter MHz, then Tune. Range 24 - 1766 MHz.</div>
             </div>
 
             <div class="band-scan" id="band-scan">
@@ -3516,101 +3556,6 @@
             </div>
           </div>
 
-          <div id="controls-philly" class="hidden">
-            <div class="player-box" id="player-box-philly">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;">
-                <div style="font-weight:700;display:flex;align-items:center;gap:7px;">
-                  <span class="philly-dot" id="philly-icecast-dot"></span>
-                  Philly Scanner
-                </div>
-                <a id="lnk-stream-philly" href="http://100.69.95.13:8000/gqrx.mp3" target="_blank" rel="noopener" style="font-size:12px;opacity:0.85;">Open Stream</a>
-              </div>
-              <audio id="audio-player-philly" controls preload="none" playsinline></audio>
-            </div>
-
-            <div class="control-item" style="margin-top:10px;">
-              <div class="control-label">
-                <span>Service</span>
-                <span class="control-value" id="philly-service-status">--</span>
-              </div>
-              <div class="control-applied">Profile: <span id="philly-active-profile">--</span></div>
-              <div class="control-applied">Squelch AM: <span id="philly-squelch-am">--</span> dB &nbsp;|&nbsp; NFM: <span id="philly-squelch-nfm">--</span> dB</div>
-              <div class="control-applied">Scanner: <span id="philly-scanner-state">--</span></div>
-              <div class="control-applied" id="philly-activation-row" style="display:none;">Step: <span id="philly-activation-step" style="color:var(--text-secondary);">--</span></div>
-            </div>
-
-            <div class="control-item" style="margin-top:10px;">
-              <div class="control-label"><span>Profile</span></div>
-              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                <select id="philly-profile-select" style="flex:1;min-width:120px;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px;">
-                  <option value="">Loading…</option>
-                </select>
-                <button class="action action-primary" id="btn-philly-activate" type="button" style="white-space:nowrap;">Activate</button>
-                <button class="action" id="btn-philly-new-profile" type="button">New</button>
-                <button class="action" id="btn-philly-del-profile" type="button" style="color:var(--bad);">Delete</button>
-              </div>
-              <div class="control-applied" id="philly-profile-status" style="margin-top:4px;"></div>
-            </div>
-
-            <div style="margin-top:10px;">
-              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
-                <span>Frequencies</span>
-                <button class="action" id="btn-philly-add-freq" type="button" style="font-size:10px;padding:2px 8px;">+ Add</button>
-              </div>
-              <div id="philly-freq-list" style="display:flex;flex-direction:column;gap:3px;max-height:200px;overflow-y:auto;"></div>
-            </div>
-
-            <div id="philly-add-freq-form" class="hidden" style="margin-top:8px;padding:8px;background:rgba(0,0,0,.2);border-radius:8px;border:1px solid var(--border);display:flex;flex-direction:column;gap:6px;">
-              <div style="font-size:11px;color:var(--text-secondary);font-weight:600;">Add Frequency</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                <div>
-                  <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px;">Freq (Hz)</div>
-                  <input type="number" id="philly-new-freq-hz" placeholder="118500000" style="width:100%;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;">
-                </div>
-                <div>
-                  <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px;">Label</div>
-                  <input type="text" id="philly-new-freq-label" placeholder="PHL Tower" style="width:100%;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;">
-                </div>
-                <div>
-                  <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px;">Mode</div>
-                  <select id="philly-new-freq-mode" style="width:100%;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;">
-                    <option value="am">AM</option>
-                    <option value="nfm">NFM</option>
-                  </select>
-                </div>
-                <div>
-                  <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px;">Squelch (dB)</div>
-                  <input type="number" id="philly-new-freq-squelch" value="-44" min="-120" max="0" style="width:100%;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;">
-                </div>
-              </div>
-              <div style="display:flex;gap:6px;">
-                <button class="action action-primary" id="btn-philly-confirm-add-freq" type="button">Add</button>
-                <button class="action" id="btn-philly-cancel-add-freq" type="button">Cancel</button>
-              </div>
-            </div>
-
-            <div class="control-item" style="margin-top:10px;">
-              <div class="control-label">
-                <span>Squelch AM (dB)</span>
-                <span class="control-value" id="philly-sq-am-value">--</span>
-              </div>
-              <input type="range" class="slider" id="philly-sq-am-slider" min="-120" max="0" step="1" value="-44">
-            </div>
-            <div class="control-item" style="margin-top:6px;">
-              <div class="control-label">
-                <span>Squelch NFM (dB)</span>
-                <span class="control-value" id="philly-sq-nfm-value">--</span>
-              </div>
-              <input type="range" class="slider" id="philly-sq-nfm-slider" min="-120" max="0" step="1" value="-42">
-            </div>
-
-            <div class="btn-row" style="margin-top:10px;">
-              <button class="action action-primary" id="btn-philly-squelch-apply" type="button">Apply Squelch</button>
-              <button class="action" id="btn-philly-pause" type="button">Pause</button>
-              <button class="action" id="btn-philly-resume" type="button">Resume</button>
-              <button class="action" id="btn-philly-restart" type="button">Restart</button>
-            </div>
-          </div>
 
         </div>
       </div>
@@ -5432,26 +5377,6 @@
       tabAirband: document.getElementById('tab-airband'),
       tabVfo: document.getElementById('tab-vfo'),
       tabDigital: document.getElementById('tab-digital'),
-      tabPhilly: document.getElementById('tab-philly'),
-      controlsPhilly: document.getElementById('controls-philly'),
-      phillyProfileSelect: document.getElementById('philly-profile-select'),
-      phillyProfileStatus: document.getElementById('philly-profile-status'),
-      phillyFreqList: document.getElementById('philly-freq-list'),
-      phillyAddFreqForm: document.getElementById('philly-add-freq-form'),
-      phillyServiceStatus: document.getElementById('philly-service-status'),
-      phillyActiveProfile: document.getElementById('philly-active-profile'),
-      phillySquelchAm: document.getElementById('philly-squelch-am'),
-      phillySquelchNfm: document.getElementById('philly-squelch-nfm'),
-      phillySqAmSlider: document.getElementById('philly-sq-am-slider'),
-      phillySqAmValue: document.getElementById('philly-sq-am-value'),
-      phillySqNfmSlider: document.getElementById('philly-sq-nfm-slider'),
-      phillySqNfmValue: document.getElementById('philly-sq-nfm-value'),
-      phillyIcecastDot: document.getElementById('philly-icecast-dot'),
-      audioPlayerPhilly: document.getElementById('audio-player-philly'),
-      phillyNewFreqHz: document.getElementById('philly-new-freq-hz'),
-      phillyNewFreqLabel: document.getElementById('philly-new-freq-label'),
-      phillyNewFreqMode: document.getElementById('philly-new-freq-mode'),
-      phillyNewFreqSquelch: document.getElementById('philly-new-freq-squelch'),
       logoToggle: document.getElementById('logo-toggle'),
       viewMain: document.querySelector('.view-main'),
       viewSitrep: document.querySelector('.view-sitrep'),
@@ -11907,12 +11832,10 @@
       const rows = visibleHits.map(hit => {
         const source = (() => {
           const sourceName = String(hit.source || '').trim().toLowerCase();
-          if (sourceName === 'philly') return 'PHI';
           if (sourceName === 'digital') return 'DIG';
           if (sourceName === 'airband') return 'AIR';
           if (sourceName === 'ground') return 'GND';
           const type = String(hit.type || '').trim().toLowerCase();
-          if (type === 'philly') return 'PHI';
           if (type === 'digital') return 'DIG';
           if (type === 'airband') return 'AIR';
           if (type === 'ground') return 'GND';
@@ -12097,7 +12020,6 @@
       airband: 'AIR',
       ground:  'GND',
       digital: 'DIG',
-      philly:  'PHI',
     };
 
     function _statusPillFavoriteLabel(target) {
@@ -12118,7 +12040,7 @@
           const match = profiles.find((p) => p && (p.id === id || String(p.id) === String(id)));
           return (match && (match.label || match.name)) || String(id);
         }
-        return ''; // philly handled by its own module — pill omits favorite
+        return '';
       } catch (_e) {
         return '';
       }
@@ -14033,6 +13955,151 @@
       updateSitrep();
     }
     
+
+    // ============================================
+    // VFO KEYPAD  (VFO tab; keypad-only entry)
+    // ============================================
+    //
+    // Presets are taken verbatim from etc/mac/sdrangel/scan-nashville.csv — the
+    // curated Nashville list — filtered to rows marked Enable=true AND to modes
+    // this receiver can actually demodulate.  The VFO channel is **NFM**
+    // (profiles/vfo.default.json) and /api/tune moves frequency only; it does
+    // not change demod.  So airband (121.500 / 118.400 / 118.600) is
+    // deliberately ABSENT: those are AM, they would tune but not demodulate,
+    // and airband already has its own tab on DS0.  Nothing here is invented.
+    const VFO_PRESETS = [
+      { mhz: 146.520, label: '2m Call' },      // HAM 2m FM national simplex calling CSQ
+      { mhz: 146.760, label: 'WA4PCD' },       // HAM 2m Nashville WA4PCD repeater
+      { mhz: 146.960, label: 'N4OEM' },        // HAM 2m Nashville N4OEM repeater PL114.8
+      { mhz: 147.020, label: 'AF4TZ' },        // HAM 2m Nashville AF4TZ repeater PL114.8
+      { mhz: 146.670, label: 'SKYWARN' },      // SKYWARN Nashville MTEARS primary AF4TZ PL114.8
+      { mhz: 145.470, label: 'SKYWARN Dav' },  // SKYWARN Nashville Davidson
+      { mhz: 147.240, label: 'SKYWARN Sum' },  // SKYWARN Sumner Co PL114.8
+      { mhz: 162.550, label: 'NOAA WX7' },     // WX NOAA Nashville WX7 KXI86 primary RX-only
+      { mhz: 162.475, label: 'NOAA WX4' },     // WX NOAA WX4 alt RX-only
+      { mhz: 442.750, label: '70cm N4OEM' },   // HAM 70cm Nashville N4OEM repeater PL100.0
+    ];
+
+    // Mirrors sb3/ui/routes.py VFO_MIN_HZ / VFO_MAX_HZ (the RTL's usable span).
+    const VFO_KP_MIN_MHZ = 24;
+    const VFO_KP_MAX_MHZ = 1766;
+
+    let vfoKpEntry = '';
+
+    function vfoKpParse(entry) {
+      const raw = String(entry || '').trim();
+      if (!raw) return null;
+      if (!/^[0-9]*\.?[0-9]*$/.test(raw)) return null;   // digits + at most one dot
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return null;
+      if (n < VFO_KP_MIN_MHZ || n > VFO_KP_MAX_MHZ) return null;
+      return n;
+    }
+
+    function renderVfoKeypad() {
+      const disp = document.getElementById('vfo-kp-display');
+      const val = document.getElementById('vfo-kp-value');
+      const tuneBtn = document.getElementById('vfo-kp-tune');
+      if (!disp || !val) return;
+
+      if (vfoKpEntry) {
+        val.textContent = vfoKpEntry;
+        disp.classList.remove('placeholder');
+        const ok = vfoKpParse(vfoKpEntry) !== null;
+        // Partial entries like "14" or "146." are not yet valid numbers to
+        // submit, but they are not *errors* either — only flag red when the
+        // entry can never become valid (out of range / malformed).
+        const couldGrow = /^[0-9]*\.?[0-9]*$/.test(vfoKpEntry) && Number(vfoKpEntry || 0) <= VFO_KP_MAX_MHZ;
+        disp.classList.toggle('invalid', !ok && !couldGrow);
+        if (tuneBtn) tuneBtn.disabled = !ok;
+      } else {
+        const cur = Number(state.vfoTunedHz);
+        val.textContent = Number.isFinite(cur) && cur > 0 ? (cur / 1e6).toFixed(3) : '--';
+        disp.classList.add('placeholder');
+        disp.classList.remove('invalid');
+        if (tuneBtn) tuneBtn.disabled = true;
+      }
+    }
+
+    function vfoKpPress(key) {
+      if (key === 'back') {
+        vfoKpEntry = vfoKpEntry.slice(0, -1);
+      } else if (key === '.') {
+        if (!vfoKpEntry.includes('.')) vfoKpEntry = vfoKpEntry === '' ? '0.' : vfoKpEntry + '.';
+      } else if (/^[0-9]$/.test(key)) {
+        if (vfoKpEntry.replace('.', '').length < 8) vfoKpEntry += key;   // sane cap
+      }
+      renderVfoKeypad();
+    }
+
+    function vfoKpClear() {
+      vfoKpEntry = '';
+      renderVfoKeypad();
+    }
+
+    async function vfoKpTune(explicitMhz) {
+      const freq = explicitMhz !== undefined ? Number(explicitMhz) : vfoKpParse(vfoKpEntry);
+      if (freq === null || !Number.isFinite(freq)) {
+        const disp = document.getElementById('vfo-kp-display');
+        if (disp) disp.classList.add('invalid');
+        return false;
+      }
+      const hint = document.getElementById('vfo-kp-hint');
+      if (hint) hint.textContent = `Tuning ${freq.toFixed(3)} MHz...`;
+      try {
+        const res = await postAPI('/api/tune', { target: 'vfo', freq });
+        if (res && res.listen_hz) state.vfoTunedHz = Number(res.listen_hz);
+        vfoKpEntry = '';
+        renderVfoKeypad();
+        if (hint) hint.textContent = `Tuned ${freq.toFixed(3)} MHz.`;
+        logActivity(`VFO tuned ${freq.toFixed(3)} MHz`, 'info', 'vfo-keypad-tune');
+        try { await refresh(); } catch (_e) {}
+        return true;
+      } catch (e) {
+        if (hint) hint.textContent = messageFromError(e, 'Tune failed');
+        logActivity(messageFromError(e, 'VFO tune failed'), 'warn', 'vfo-keypad-tune-fail');
+        return false;
+      }
+    }
+
+    function renderVfoPresets() {
+      const wrap = document.getElementById('vfo-kp-presets');
+      if (!wrap || wrap.dataset.built === '1') return;
+      wrap.innerHTML = VFO_PRESETS.map((p) => (
+        `<button class="vfo-kp-chip" type="button" data-kp-preset="${p.mhz}">` +
+        `<span class="f">${p.mhz.toFixed(3)}</span>` +
+        `<span class="n">${escapeHtml(p.label)}</span></button>`
+      )).join('');
+      wrap.dataset.built = '1';
+    }
+
+    function initVfoKeypad() {
+      renderVfoPresets();
+      const grid = document.getElementById('vfo-kp-grid');
+      if (grid) {
+        grid.addEventListener('click', (e) => {
+          const b = e.target && e.target.closest ? e.target.closest('button[data-kp]') : null;
+          if (b) vfoKpPress(b.getAttribute('data-kp'));
+        });
+      }
+      const presets = document.getElementById('vfo-kp-presets');
+      if (presets) {
+        presets.addEventListener('click', (e) => {
+          const b = e.target && e.target.closest ? e.target.closest('button[data-kp-preset]') : null;
+          if (!b) return;
+          // Tap-to-jump: fill the display, then fire immediately.
+          vfoKpEntry = Number(b.getAttribute('data-kp-preset')).toFixed(3);
+          renderVfoKeypad();
+          vfoKpTune(Number(b.getAttribute('data-kp-preset')));
+        });
+      }
+      const clr = document.getElementById('vfo-kp-clear');
+      if (clr) clr.addEventListener('click', vfoKpClear);
+      const tn = document.getElementById('vfo-kp-tune');
+      if (tn) tn.addEventListener('click', () => vfoKpTune());
+      renderVfoKeypad();
+    }
+
     function switchTarget(target) {
       activeView = target;
       if (target === 'airband' || target === 'vfo') {
@@ -14041,7 +14108,6 @@
       els.tabAirband.classList.toggle('active', target === 'airband');
       if (els.tabVfo) els.tabVfo.classList.toggle('active', target === 'vfo');
       if (els.tabDigital) els.tabDigital.classList.toggle('active', target === 'digital');
-      if (els.tabPhilly) els.tabPhilly.classList.toggle('active', target === 'philly');
       // Airband pane (#controls-analog) holds the shared analog controls AND the
       // analog player-box.  We show it for both 'airband' and 'vfo' so the
       // gain/squelch/filter/tune/volume UI keeps working on the VFO tab (state
@@ -14052,13 +14118,14 @@
       if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'vfo');
       if (els.controlsGround) els.controlsGround.classList.add('hidden');
       if (els.playerBoxAnalog) els.playerBoxAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'vfo');
+      // Keypad belongs to the VFO tab only — Airband is camp mode, where Tune
+      // moves the whole deviceset centre and the existing button is correct.
+      { const kp = document.getElementById('vfo-keypad');
+        if (kp) { kp.classList.toggle('hidden', target !== 'vfo'); if (target === 'vfo') renderVfoKeypad(); } }
       if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
-      if (els.controlsPhilly) els.controlsPhilly.classList.toggle('hidden', target !== 'philly');
-      if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital' || target === 'philly');
+      if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital');
       if (els.digitalProfilesWidget) els.digitalProfilesWidget.classList.toggle('hidden', target !== 'digital');
-      if (target === 'philly') {
-        PhillyPi.onTabOpen();
-      } else if (target !== 'digital') {
+      if (target !== 'digital') {
         els.gainSlider.classList.remove('dirty');
         els.filterSlider.classList.remove('dirty');
         updateControls();
@@ -15032,6 +15099,16 @@
           if (typeof data.stream_proxy_enabled === 'boolean') {
             state.streamProxyEnabled = data.stream_proxy_enabled;
           }
+          // VFO keypad shows the live tuned frequency when the entry is empty.
+          // /api/status.vfo_channels[0].freq_hz is the LISTEN freq (centre +
+          // channel offset), which is what the user thinks of as "tuned to".
+          try {
+            const vch = Array.isArray(data.vfo_channels) ? data.vfo_channels[0] : null;
+            if (vch && Number.isFinite(Number(vch.freq_hz))) {
+              state.vfoTunedHz = Number(vch.freq_hz);
+              if (typeof renderVfoKeypad === 'function') renderVfoKeypad();
+            }
+          } catch (_e) {}
           if (typeof data.stream_mount === 'string' && data.stream_mount.trim()) {
             state.streamMount = data.stream_mount.trim();
           }
@@ -15844,19 +15921,13 @@
           switchTarget('vfo');
         };
       }
+      initVfoKeypad();
       if (els.tabDigital) {
         els.tabDigital.onclick = (e) => {
           e.preventDefault();
           switchTarget('digital');
         };
       }
-      if (els.tabPhilly) {
-        els.tabPhilly.onclick = (e) => {
-          e.preventDefault();
-          switchTarget('philly');
-        };
-      }
-      PhillyPi.init();
       // Phase 2: null-check Last-Hit click handlers; the buttons were
       // removed from the top bar. Hold-toggle behavior is preserved if
       // the buttons ever come back; users can also toggle hold from the
@@ -16797,403 +16868,6 @@
       }, 8000);
     }
 
-    const PhillyPi = (() => {
-      const PI_BASE = 'http://100.69.95.13:5050';
-      const POLL_INTERVAL_MS = 8000;
-      const HIT_POLL_INTERVAL_MS = 5000;
-
-      let _statusTimer = null;
-      let _hitTimer = null;
-      let _profiles = [];
-      let _activeProfileName = null;
-      let _currentFreqs = [];
-      let _lastHitTs = null;
-      let _initialized = false;
-
-      async function _fetch(path, opts) {
-        const resp = await fetch(PI_BASE + path, { signal: AbortSignal.timeout(6000), ...opts });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return resp.json();
-      }
-
-      function _setStatus(msg, isErr) {
-        if (!els.phillyProfileStatus) return;
-        els.phillyProfileStatus.textContent = msg;
-        els.phillyProfileStatus.style.color = isErr ? 'var(--bad)' : 'var(--text-secondary)';
-      }
-
-      function _updateDot(active) {
-        if (!els.phillyIcecastDot) return;
-        els.phillyIcecastDot.classList.toggle('active', !!active);
-      }
-
-      async function pollStatus() {
-        try {
-          const data = await _fetch('/api/status');
-          const running = data.service === 'active' || data.service === 'running';
-          _updateDot(running);
-          if (els.phillyServiceStatus) {
-            els.phillyServiceStatus.textContent = data.service || '--';
-            els.phillyServiceStatus.style.color = running ? 'var(--good)' : 'var(--bad)';
-          }
-          if (data.active_profile && els.phillyActiveProfile) {
-            els.phillyActiveProfile.textContent = data.active_profile.replace(/_/g, ' ');
-            _activeProfileName = data.active_profile.replace(/_/g, ' ');
-          }
-          const amSq = data.am && data.am.squelch != null ? data.am.squelch : null;
-          const nfmSq = data.nfm && data.nfm.squelch != null ? data.nfm.squelch : null;
-          if (amSq != null && els.phillySquelchAm) els.phillySquelchAm.textContent = amSq;
-          if (nfmSq != null && els.phillySquelchNfm) els.phillySquelchNfm.textContent = nfmSq;
-
-          const gs = data.gqrx_scanner || {};
-          const scannerStateEl = document.getElementById('philly-scanner-state');
-          if (scannerStateEl) {
-            let txt = gs.state || '--';
-            if (gs.current_freq) txt += ` @ ${(gs.current_freq / 1e6).toFixed(4)} MHz`;
-            scannerStateEl.textContent = txt;
-          }
-
-          const act = data.activation || {};
-          const actRow = document.getElementById('philly-activation-row');
-          const actStep = document.getElementById('philly-activation-step');
-          if (actRow && actStep) {
-            if (act.busy) {
-              actRow.style.display = '';
-              actStep.textContent = act.step || '…';
-              actStep.style.color = 'var(--text-secondary)';
-            } else if (act.error) {
-              actRow.style.display = '';
-              actStep.textContent = 'Error: ' + act.error;
-              actStep.style.color = 'var(--bad)';
-            } else if (act.step === 'done') {
-              actRow.style.display = '';
-              actStep.textContent = 'Ready';
-              actStep.style.color = 'var(--good)';
-              setTimeout(() => { if (actRow) actRow.style.display = 'none'; }, 5000);
-            } else {
-              actRow.style.display = 'none';
-            }
-          }
-        } catch (_e) {
-          _updateDot(false);
-          if (els.phillyServiceStatus) {
-            els.phillyServiceStatus.textContent = 'offline';
-            els.phillyServiceStatus.style.color = 'var(--bad)';
-          }
-        }
-      }
-
-      async function loadProfiles() {
-        try {
-          const data = await _fetch('/api/profiles');
-          _profiles = data.profiles || [];
-          _activeProfileName = data.active || null;
-          const sel = els.phillyProfileSelect;
-          if (!sel) return;
-          const prev = sel.value;
-          sel.innerHTML = '';
-          _profiles.forEach((p) => {
-            const opt = document.createElement('option');
-            opt.value = p.name;
-            opt.textContent = p.name + (p.name === _activeProfileName ? ' ✓' : '');
-            sel.appendChild(opt);
-          });
-          if (prev && _profiles.find((p) => p.name === prev)) sel.value = prev;
-          else if (_activeProfileName && _profiles.find((p) => p.name === _activeProfileName)) sel.value = _activeProfileName;
-          onProfileSelectChange();
-        } catch (e) {
-          _setStatus('Could not load profiles: ' + e.message, true);
-        }
-      }
-
-      async function onProfileSelectChange() {
-        const sel = els.phillyProfileSelect;
-        if (!sel || !sel.value) return;
-        try {
-          const data = await _fetch('/api/profile?name=' + encodeURIComponent(sel.value));
-          _currentFreqs = (data.profile && data.profile.frequencies) || [];
-        } catch (_e) {
-          _currentFreqs = [];
-        }
-        renderFreqList(_currentFreqs);
-      }
-
-      function renderFreqList(freqs) {
-        const container = els.phillyFreqList;
-        if (!container) return;
-        if (!freqs || !freqs.length) {
-          container.innerHTML = '<div style="font-size:11px;color:var(--text-secondary);padding:4px;">No frequencies</div>';
-          return;
-        }
-        container.innerHTML = freqs.map((f, i) => {
-          const hz = Number(f.freq || f.frequency || 0);
-          const mhz = hz >= 1e6 ? (hz / 1e6).toFixed(4) + ' MHz' : hz + ' Hz';
-          const label = f.label || f.description || '';
-          const mode = (f.mode || f.modulation || '').toUpperCase();
-          return `<div class="philly-freq-row">
-            <div class="freq-info"><span style="font-family:var(--font-mono)">${mhz}</span>${label ? ' — ' + escapeHtml(label) : ''}</div>
-            <span class="freq-mode">${escapeHtml(mode)}</span>
-            <span class="freq-rm" title="Remove" data-idx="${i}">×</span>
-          </div>`;
-        }).join('');
-        container.querySelectorAll('.freq-rm').forEach((btn) => {
-          btn.addEventListener('click', () => removeFreq(parseInt(btn.dataset.idx)));
-        });
-      }
-
-      async function activateProfile() {
-        const sel = els.phillyProfileSelect;
-        if (!sel || !sel.value) return;
-        _setStatus('Starting activation…', false);
-        try {
-          const resp = await _fetch('/api/profile/activate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: sel.value }),
-          });
-          if (resp.activating) {
-            _setStatus('Launching GQRX — check Step for progress', false);
-          } else {
-            _setStatus('Activated: ' + sel.value, false);
-          }
-          _activeProfileName = sel.value;
-          await pollStatus();
-          await loadProfiles();
-        } catch (e) {
-          _setStatus('Activate failed: ' + e.message, true);
-        }
-      }
-
-      async function pauseScanner() {
-        _setStatus('Pausing scanner…', false);
-        try {
-          await _fetch('/api/scanner/pause', { method: 'POST' });
-          _setStatus('Scanner paused', false);
-          setTimeout(pollStatus, 1000);
-        } catch (e) {
-          _setStatus('Pause failed: ' + e.message, true);
-        }
-      }
-
-      async function resumeScanner() {
-        _setStatus('Resuming scanner…', false);
-        try {
-          await _fetch('/api/scanner/resume', { method: 'POST' });
-          _setStatus('Scanner resumed', false);
-          setTimeout(pollStatus, 1000);
-        } catch (e) {
-          _setStatus('Resume failed: ' + e.message, true);
-        }
-      }
-
-      async function newProfile() {
-        const name = prompt('Profile name:');
-        if (!name || !name.trim()) return;
-        _setStatus('Creating…', false);
-        try {
-          await _fetch('/api/profile/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name.trim(), frequencies: [] }),
-          });
-          _setStatus('Created: ' + name.trim(), false);
-          await loadProfiles();
-          if (els.phillyProfileSelect) els.phillyProfileSelect.value = name.trim();
-          onProfileSelectChange();
-        } catch (e) {
-          _setStatus('Create failed: ' + e.message, true);
-        }
-      }
-
-      async function deleteProfile() {
-        const sel = els.phillyProfileSelect;
-        if (!sel || !sel.value) return;
-        if (!confirm('Delete profile "' + sel.value + '"?')) return;
-        _setStatus('Deleting…', false);
-        try {
-          await _fetch('/api/profile/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: sel.value }),
-          });
-          _setStatus('Deleted', false);
-          await loadProfiles();
-        } catch (e) {
-          _setStatus('Delete failed: ' + e.message, true);
-        }
-      }
-
-      function showAddFreqForm() {
-        if (els.phillyAddFreqForm) els.phillyAddFreqForm.classList.remove('hidden');
-      }
-
-      function hideAddFreqForm() {
-        if (els.phillyAddFreqForm) els.phillyAddFreqForm.classList.add('hidden');
-      }
-
-      async function addFreq() {
-        const sel = els.phillyProfileSelect;
-        if (!sel || !sel.value) {
-          _setStatus('Select a profile first', true);
-          return;
-        }
-        const hz = parseInt(els.phillyNewFreqHz ? els.phillyNewFreqHz.value : '');
-        const label = els.phillyNewFreqLabel ? els.phillyNewFreqLabel.value.trim() : '';
-        const mode = els.phillyNewFreqMode ? els.phillyNewFreqMode.value : 'am';
-        const squelch = els.phillyNewFreqSquelch ? parseInt(els.phillyNewFreqSquelch.value) : -44;
-        if (!hz || Number.isNaN(hz)) {
-          _setStatus('Enter a valid frequency in Hz', true);
-          return;
-        }
-        const updated = [..._currentFreqs, { freq: hz, label, mode, squelch }];
-        _setStatus('Saving…', false);
-        try {
-          await _fetch('/api/profile/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: sel.value, frequencies: updated }),
-          });
-          _currentFreqs = updated;
-          renderFreqList(_currentFreqs);
-          const prof = _profiles.find((p) => p.name === sel.value);
-          if (prof) prof.frequencies = updated;
-          hideAddFreqForm();
-          if (els.phillyNewFreqHz) els.phillyNewFreqHz.value = '';
-          if (els.phillyNewFreqLabel) els.phillyNewFreqLabel.value = '';
-          _setStatus('Frequency added', false);
-        } catch (e) {
-          _setStatus('Save failed: ' + e.message, true);
-        }
-      }
-
-      async function removeFreq(idx) {
-        const sel = els.phillyProfileSelect;
-        if (!sel || !sel.value) return;
-        const updated = _currentFreqs.filter((_item, i) => i !== idx);
-        _setStatus('Saving…', false);
-        try {
-          await _fetch('/api/profile/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: sel.value, frequencies: updated }),
-          });
-          _currentFreqs = updated;
-          renderFreqList(_currentFreqs);
-          const prof = _profiles.find((p) => p.name === sel.value);
-          if (prof) prof.frequencies = updated;
-          _setStatus('Removed', false);
-        } catch (e) {
-          _setStatus('Save failed: ' + e.message, true);
-        }
-      }
-
-      async function applySquelch() {
-        const am = els.phillySqAmSlider ? parseInt(els.phillySqAmSlider.value) : -44;
-        const nfm = els.phillySqNfmSlider ? parseInt(els.phillySqNfmSlider.value) : -42;
-        _setStatus('Applying squelch…', false);
-        try {
-          await _fetch('/api/squelch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ am, nfm }),
-          });
-          _setStatus(`Squelch set: AM ${am} dB / NFM ${nfm} dB`, false);
-          await pollStatus();
-        } catch (e) {
-          _setStatus('Squelch failed: ' + e.message, true);
-        }
-      }
-
-      async function restartScanner() {
-        if (!confirm('Restart Philly scanner service?')) return;
-        _setStatus('Restarting…', false);
-        try {
-          await _fetch('/api/restart', { method: 'POST' });
-          _setStatus('Restart triggered', false);
-          setTimeout(pollStatus, 3000);
-        } catch (e) {
-          _setStatus('Restart failed: ' + e.message, true);
-        }
-      }
-
-      async function pollHits() {
-        try {
-          const params = _lastHitTs ? `?since=${encodeURIComponent(_lastHitTs)}` : '';
-          const data = await _fetch('/api/hits' + params);
-          const hits = data.hits || [];
-          if (hits.length) {
-            _lastHitTs = hits[hits.length - 1].time || null;
-            hits.forEach((h) => {
-              state.hits.unshift({ ...h, source: 'philly', type: 'philly' });
-            });
-            if (state.hits.length > 200) state.hits = state.hits.slice(0, 200);
-            updateHitList();
-          }
-        } catch (_e) {
-          // Pi offline.
-        }
-      }
-
-      function _startTimers() {
-        if (_statusTimer) return;
-        _statusTimer = setInterval(pollStatus, POLL_INTERVAL_MS);
-        _hitTimer = setInterval(pollHits, HIT_POLL_INTERVAL_MS);
-      }
-
-      function onTabOpen() {
-        pollStatus();
-        pollHits();
-        loadProfiles();
-        _startTimers();
-      }
-
-      function _wireSlider(slider, valueEl) {
-        if (!slider || !valueEl) return;
-        const update = () => {
-          valueEl.textContent = slider.value;
-        };
-        slider.addEventListener('input', update);
-        update();
-      }
-
-      function init() {
-        if (_initialized) return;
-        _initialized = true;
-
-        _wireSlider(els.phillySqAmSlider, els.phillySqAmValue);
-        _wireSlider(els.phillySqNfmSlider, els.phillySqNfmValue);
-
-        const btnActivate = document.getElementById('btn-philly-activate');
-        const btnNew = document.getElementById('btn-philly-new-profile');
-        const btnDel = document.getElementById('btn-philly-del-profile');
-        const btnAddFreq = document.getElementById('btn-philly-add-freq');
-        const btnConfirmAdd = document.getElementById('btn-philly-confirm-add-freq');
-        const btnCancelAdd = document.getElementById('btn-philly-cancel-add-freq');
-        const btnSqApply = document.getElementById('btn-philly-squelch-apply');
-        const btnRestart = document.getElementById('btn-philly-restart');
-        const profSel = els.phillyProfileSelect;
-        const btnPause = document.getElementById('btn-philly-pause');
-        const btnResume = document.getElementById('btn-philly-resume');
-
-        if (btnActivate) btnActivate.addEventListener('click', activateProfile);
-        if (btnNew) btnNew.addEventListener('click', newProfile);
-        if (btnDel) btnDel.addEventListener('click', deleteProfile);
-        if (btnAddFreq) btnAddFreq.addEventListener('click', showAddFreqForm);
-        if (btnConfirmAdd) btnConfirmAdd.addEventListener('click', addFreq);
-        if (btnCancelAdd) btnCancelAdd.addEventListener('click', hideAddFreqForm);
-        if (btnSqApply) btnSqApply.addEventListener('click', applySquelch);
-        if (btnPause) btnPause.addEventListener('click', pauseScanner);
-        if (btnResume) btnResume.addEventListener('click', resumeScanner);
-        if (btnRestart) btnRestart.addEventListener('click', restartScanner);
-        if (profSel) profSel.addEventListener('change', onProfileSelectChange);
-
-        if (els.audioPlayerPhilly) {
-          els.audioPlayerPhilly.src = 'http://100.69.95.13:8000/gqrx.mp3';
-        }
-      }
-
-      return { init, onTabOpen, pollStatus, loadProfiles, renderFreqList };
-    })();
     
     init();
   </script>
