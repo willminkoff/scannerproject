@@ -101,6 +101,15 @@ def build_status(state: State) -> Dict:
         "icecast_mounts": icecast_mounts,
         "icecast_expected_mounts": list(GUARDED),
         "icecast_port": 8000,
+        # SB3 has no /stream/<mount> proxy and no /hls/ endpoint — it serves the
+        # UI and /api/* only. sb3.html defaults streamProxyEnabled to TRUE and
+        # only lowers it from THIS field, so omitting it left every player
+        # pointed at origin/stream/<mount> → 404: controls rendered, play did
+        # nothing, silently. Saying false selects the page's own
+        # shouldPreferDirectIcecastStream() path, which builds
+        # http://<host>:8000/<mount> — the live icecast mount. Both the analog
+        # and digital players read this one flag.
+        "stream_proxy_enabled": False,
         "stream_mount": AIR_MOUNT,
         "ground_stream_mount": GROUND_MOUNT,
         "digital_stream_mount": DIGITAL_MOUNT,

@@ -207,3 +207,39 @@ class TestServerRouting(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStreamProxyFlag(unittest.TestCase):
+    """Audio players are silent unless /api/status says the proxy is off.
+
+    sb3.html defaults streamProxyEnabled to true and only lowers it from
+    data.stream_proxy_enabled. SB3 serves no /stream/<mount> and no /hls/, so
+    omitting the field pointed every player at origin/stream/<mount> → 404 with
+    no error surfaced. Regression-guard the flag AND its value.
+    """
+
+    def test_status_declares_no_stream_proxy(self):
+        from unittest import mock
+
+        from sb3 import backends
+        from sb3.ui import routes
+
+        class _S:
+            def read_loaded_profiles(self):
+                return {}
+
+            def is_killed(self):
+                return False
+
+        with mock.patch.object(backends, "launchctl_loaded", return_value=[]), \
+             mock.patch.object(backends, "icecast_mounts", return_value=[]), \
+             mock.patch.object(backends, "sdrangel_devicesets", return_value=[]), \
+             mock.patch.object(backends, "sdrangel_channels", return_value=[]), \
+             mock.patch.object(backends, "mount_state",
+                               side_effect=lambda m, **kw: backends.MountState(m, 200, True)):
+            s = routes.build_status(_S())
+        self.assertIn("stream_proxy_enabled", s)
+        self.assertIs(s["stream_proxy_enabled"], False)
+        # the page needs both of these to build the direct icecast URL
+        self.assertEqual(s["icecast_port"], 8000)
+        self.assertTrue(s["stream_mount"])
