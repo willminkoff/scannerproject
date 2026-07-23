@@ -523,6 +523,42 @@ def hp_state(state: State) -> Dict:
     }
 
 
+# ---- Favorites Builder wizard (location → systems → channels) --------------
+# Thin delegators onto sb3.ui.wizard, which serves static countries/states and
+# real counties/systems/channels when the HomePatrol dump is present. Kept here
+# so server.py routes everything through routes.* uniformly.
+
+def wizard_countries() -> Dict:
+    from . import wizard
+    return wizard.countries()
+
+
+def wizard_states(country_id: int) -> Dict:
+    from . import wizard
+    return wizard.states(country_id)
+
+
+def wizard_counties(state_id: int) -> Dict:
+    from . import wizard
+    return wizard.counties(state_id)
+
+
+def wizard_systems(state_id: int, county_id: int, system_type: str,
+                   scope: str) -> Dict:
+    from . import wizard
+    return wizard.systems(state_id, county_id, system_type, scope)
+
+
+def wizard_channels(system_type: str, system_id: str, limit: int = 5000) -> Dict:
+    from . import wizard
+    return wizard.channels(system_type, system_id, limit)
+
+
+def wizard_scan_state(state: State) -> Dict:
+    from . import wizard
+    return wizard.scan_state(state)
+
+
 def ask_claude_stub(form: Dict, state: State) -> Dict:
     """/api/ask-claude — not wired into SB3. Return a graceful 200 the chat panel
     renders as a message turn (data.ok=false → data.error shown), rather than a

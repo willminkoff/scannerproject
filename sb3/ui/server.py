@@ -87,6 +87,36 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.digital_preflight(self._state))
         if p == "/api/digital/profiles":
             return self._json(routes.digital_profiles(self._state))
+        # Favorites Builder wizard (location → systems → channels). Static
+        # countries/states always; counties/systems/channels real when the
+        # HomePatrol dump is present, else an empty list + note.
+        if p == "/api/scan/state":
+            return self._json(routes.wizard_scan_state(self._state))
+        if p.startswith("/api/scan/favorites-wizard/"):
+            q = urllib.parse.parse_qs(self.path.split("?", 1)[1]
+                                      if "?" in self.path else "")
+            def _qi(key, default=0):
+                try:
+                    return int(q.get(key, [default])[-1])
+                except (TypeError, ValueError):
+                    return default
+            def _qs(key, default=""):
+                return q.get(key, [default])[-1]
+            leaf = p.rsplit("/", 1)[-1]
+            if leaf == "countries":
+                return self._json(routes.wizard_countries())
+            if leaf == "states":
+                return self._json(routes.wizard_states(_qi("country_id", 1)))
+            if leaf == "counties":
+                return self._json(routes.wizard_counties(_qi("state_id", 0)))
+            if leaf == "systems":
+                return self._json(routes.wizard_systems(
+                    _qi("state_id", 0), _qi("county_id", 0),
+                    _qs("system_type", "digital"), _qs("scope", "statewide")))
+            if leaf == "channels":
+                return self._json(routes.wizard_channels(
+                    _qs("system_type", "digital"), _qs("system_id", ""),
+                    _qi("limit", 5000)))
         if p == "/healthz":
             return self._json({"ok": True, "service": "sb3-ui"})
         # Unknown GET /api/* → empty-but-ok so the defensive UI degrades quietly.
