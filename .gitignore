@@ -81,3 +81,8 @@ etc/mac/icecast-credentials.env
 etc/mac/icecast.xml
 logs/
 **/__pycache__/
+
+# Phase 4.2 reconciler: per-host runtime config (the enable flag lives on the
+# box, not in the repo). Committing it would ship one host's ACTIVE/DISABLED
+# state to every other host on the next deploy.
+config/reconciler.json
