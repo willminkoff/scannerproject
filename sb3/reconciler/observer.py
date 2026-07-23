@@ -138,13 +138,17 @@ class Observer:
     def run(self) -> int:
         self._configure_logging()
         self._install_signal_handlers()
+        # `armed` is what will ACTUALLY run, not what config lists. Printing the
+        # per-category flags next to mode=DISABLED would read, to someone
+        # scanning at 2 a.m., as five live actions — the "useful liar" shape
+        # this project keeps finding. When nothing can act, say none.
+        armed = (",".join(sorted(a for a in CFG.ACTIONABLE
+                                 if self.rc.action_enabled(a))) or "none"
+                 ) if self.rc.may_act() else "none"
         self.log.info(
-            "%s scope=startup state=UP pid=%d poll=%gs log=%s mode=%s "
-            "actions=%s",
+            "%s scope=startup state=UP pid=%d poll=%gs log=%s mode=%s armed=%s",
             _now_iso(), os.getpid(), self.poll_sec, self.log_path,
-            self.rc.describe(),
-            ",".join(sorted(a for a in CFG.ACTIONABLE
-                            if self.rc.action_enabled(a))) or "none")
+            self.rc.describe(), armed)
 
         last_pass = 0.0
         while not self._stop:
