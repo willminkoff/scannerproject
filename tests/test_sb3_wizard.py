@@ -88,6 +88,67 @@ class TestDbTierDegradesGracefully(unittest.TestCase):
         self.assertFalse(s["persisted"])
 
 
+class TestChannelsDispatch(unittest.TestCase):
+    """Both shapes must reach the right query, and empty must explain itself.
+
+    Regression: the endpoint handled only the digital shape, so every ANALOG
+    system returned empty AND claimed the database was missing — wrong on both
+    counts. And a digital system whose talkgroups are all LTR-format returned a
+    bare empty list, which in the UI is indistinguishable from a broken wizard.
+    """
+
+    class _FakeWiz:
+        def __init__(self, rows=None):
+            self.rows = rows if rows is not None else []
+            self.calls = []
+
+        def get_channels(self, system_type, system_id, text_filter=""):
+            self.calls.append((system_type, system_id))
+            return ("Sys", list(self.rows))
+
+    def _with(self, wiz):
+        orig = wizard._wizard
+        wizard._wizard = lambda: wiz
+        self.addCleanup(lambda: setattr(wizard, "_wizard", orig))
+
+    def test_analog_reaches_the_analog_query_with_its_string_key(self):
+        w = self._FakeWiz([{"id": "c1"}])
+        self._with(w)
+        out = wizard.channels("analog", "CountyId:2446")
+        self.assertEqual(w.calls, [("analog", "CountyId:2446")])
+        self.assertEqual(len(out["channels"]), 1)
+        self.assertNotIn("note", out)
+
+    def test_digital_reaches_the_digital_query(self):
+        w = self._FakeWiz([{"id": "tgid:6495:1"}])
+        self._with(w)
+        out = wizard.channels("digital", "6495")
+        self.assertEqual(w.calls, [("digital", "6495")])
+        self.assertEqual(len(out["channels"]), 1)
+
+    def test_empty_result_explains_itself_instead_of_going_silent(self):
+        self._with(self._FakeWiz([]))
+        out = wizard.channels("digital", "2881")
+        self.assertEqual(out["channels"], [])
+        self.assertIn("note", out)
+        self.assertIn("LTR", out["note"])
+        # Must NOT claim the database is missing — it answered.
+        self.assertNotIn("not present", out["note"])
+
+    def test_bad_id_for_type_is_reported_not_raised(self):
+        class _Raiser:
+            def get_channels(self, system_type, system_id, text_filter=""):
+                raise ValueError("invalid literal for int()")
+        self._with(_Raiser())
+        out = wizard.channels("digital", "CountyId:2446")
+        self.assertTrue(out["ok"])
+        self.assertIn("not valid", out["note"])
+
+    def test_limit_is_applied(self):
+        self._with(self._FakeWiz([{"id": i} for i in range(10)]))
+        self.assertEqual(len(wizard.channels("digital", "1", limit=3)["channels"]), 3)
+
+
 class TestZeroByteDbIsTreatedAsAbsent(unittest.TestCase):
     def test_placeholder_db_does_not_count(self):
         import tempfile

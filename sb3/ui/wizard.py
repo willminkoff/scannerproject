@@ -205,26 +205,45 @@ def systems(state_id: int, county_id: int, system_type: str, scope: str) -> Dict
     return {"ok": True, "systems": [], "note": NO_DB_NOTE}
 
 
-def channels(system_type: str, system_id: str, limit: int = 5000) -> Dict:
-    """/api/scan/favorites-wizard/channels — real, or an empty list + note.
+#: Why a system with rows in the database can still yield nothing selectable.
+#: LTR/legacy systems store talkgroup ids in Area-LCN-Talkgroup form
+#: ("0-01-035"), and the channel query keeps only numeric ids — so every LTR
+#: talkgroup is dropped and the picker comes up empty. That is a real limit, not
+#: a fault, but it has to SAY so: an empty list with no explanation is
+#: indistinguishable from a broken wizard, which is exactly how this looked.
+EMPTY_SYSTEM_NOTE = ("No selectable channels for this system. LTR/legacy "
+                     "systems store non-numeric talkgroup ids (e.g. 0-01-035) "
+                     "which cannot be used as talkgroups, so they are skipped. "
+                     "Try a P25/Motorola system.")
 
-    The legacy query keys off an integer trunk_id for digital systems; a
-    non-integer system_id (or the analog path, which SB3 does not browse yet)
-    returns empty rather than raising.
+
+def channels(system_type: str, system_id: str, limit: int = 5000) -> Dict:
+    """/api/scan/favorites-wizard/channels — digital talkgroups OR analog freqs.
+
+    Dispatches through the legacy ``get_channels``, which routes on system_type:
+    digital keys off an integer trunk_id, analog off the string system_key
+    ("CountyId:2446"). Handling only the digital shape — as this did first —
+    meant every analog system returned empty *and* claimed the database was
+    missing, which was wrong on both counts.
     """
     wiz = _wizard()
-    if wiz is not None and str(system_type) == "digital":
-        try:
-            trunk_id = int(system_id)
-        except (TypeError, ValueError):
-            return {"ok": True, "channels": [],
-                    "note": f"system_id {system_id!r} is not a digital trunk id."}
-        try:
-            _name, rows = wiz.get_digital_channels(trunk_id)
-            return {"ok": True, "channels": rows[:int(limit)]}
-        except Exception:
-            pass
-    return {"ok": True, "channels": [], "note": NO_DB_NOTE}
+    if wiz is None:
+        return {"ok": True, "channels": [], "note": NO_DB_NOTE}
+    try:
+        _name, rows = wiz.get_channels(str(system_type), str(system_id))
+    except (TypeError, ValueError):
+        # digital path casts system_id to int; a mismatched type lands here.
+        return {"ok": True, "channels": [],
+                "note": f"system_id {system_id!r} is not valid for "
+                        f"system_type {system_type!r}."}
+    except Exception:
+        return {"ok": True, "channels": [], "note": NO_DB_NOTE}
+    out = rows[:int(limit)]
+    if not out:
+        # The database IS present and answered — so say why it is empty rather
+        # than leaving the picker blank.
+        return {"ok": True, "channels": [], "note": EMPTY_SYSTEM_NOTE}
+    return {"ok": True, "channels": out}
 
 
 def scan_state(state) -> Dict:
