@@ -13,11 +13,30 @@ This module serves them on a **two-tier** rule, matching the project's
   * Countries + US states are STATIC data — 51 rows that never change — so they
     are always served, with no database at all.  That alone un-empties the
     Location stage.
-  * Counties, systems and channels require the RadioReference dump.  When that
-    dump is present on the host we serve it for real (reusing the already-tested
-    queries in ``ui.hp_favorites_wizard``); when it is not — as on Neptune today
-    — we return an empty list plus a ``note`` the UI can show, rather than a raw
-    error.  No lookup is invented and nothing external is contacted.
+  * Counties, systems and channels require the HomePatrol dump.  When it is
+    present we serve it for real (reusing the already-tested queries in
+    ``ui.hp_favorites_wizard``); when it is not we return an empty list plus a
+    ``note`` the UI shows, rather than a raw error.  No lookup is invented and
+    nothing external is contacted.
+
+WHERE THE DUMP COMES FROM (this cost a search once — write it down):
+the .db itself is gitignored, but it is fully REPRODUCIBLE from the repo.  The
+68 per-state ``.hpd`` source files in ``assets/HPDB/`` (~42 MB) ARE tracked, and
+``scripts/hpdb_builder.py`` + ``scripts/homepatrol_db.py`` build them into
+``data/homepatrol.db`` (~52 MB)::
+
+    python3 scripts/hpdb_builder.py          # → data/homepatrol.db
+    cp data/homepatrol.db <deploy>/ui/hpdb.db
+
+Deployed on Neptune 2026-07-23 at ``~/sb3/ui/hpdb.db``.  It is gitignored, so
+``sb3-ctl update`` leaves it alone; a fresh clone would need the copy re-done.
+No restart is needed after dropping it in — every call below re-resolves the
+path and opens its own connection, so the data goes live on the next request.
+
+⚠️  The dump's ``state_id`` numbering is its OWN, not RadioReference's public
+one (Tennessee is 47 here, 43 there).  That is safe because when the dump is
+present the state list is served FROM it, so counties/systems key off the same
+scheme; the static table below is only ever used when there is no dump at all.
 
 The static state IDs use RadioReference's own ``stateId`` numbering (Tennessee =
 43, DC = 9), so if Will later drops the dump onto a host, the IDs already line
@@ -63,10 +82,13 @@ US_STATES = [
     (50, "WI", "Wisconsin"), (51, "WY", "Wyoming"),
 ]
 
-#: Shown to the user (and logged) whenever a stage needs the dump we don't have.
-NO_DB_NOTE = ("RadioReference/HomePatrol database not present on this host — "
-              "counties, systems and channels are unavailable until it is "
-              "installed. Country and state selection work without it.")
+#: Shown to the user whenever a stage needs the dump this host doesn't have.
+#: It names the fix, because a note that only says "missing" sends whoever reads
+#: it on the same search this module's docstring exists to prevent.
+NO_DB_NOTE = ("HomePatrol database not present on this host — counties, systems "
+              "and channels need it. Country/state selection work without it. "
+              "Rebuild with `python3 scripts/hpdb_builder.py` (sources are "
+              "tracked in assets/HPDB/) and copy the result to ui/hpdb.db.")
 
 
 # ---------------------------------------------------------------------------
