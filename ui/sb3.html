@@ -3265,6 +3265,21 @@
     }
     .vfo-kp-actions .vfo-kp-key { font-size: 15px; }
     .vfo-kp-tune { background: var(--accent-dim, rgba(122,155,184,.30)); font-weight: 700; }
+    .vfo-kp-power {
+      width: 100%; min-height: 52px; margin-top: 8px;
+      border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 700;
+      color: inherit; border: 1px solid var(--border, rgba(255,255,255,.10));
+      -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    }
+    /* Colour states the label alone: RUNNING shows the stop action (red-ish),
+       STOPPED shows the start action (green-ish). */
+    .vfo-kp-power.is-running {
+      background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.45);
+    }
+    .vfo-kp-power.is-stopped {
+      background: rgba(34, 197, 94, 0.16); border-color: rgba(34, 197, 94, 0.45);
+    }
+    .vfo-kp-power:disabled { opacity: .55; cursor: default; }
     .vfo-kp-hint { margin-top: 8px; font-size: 11px; opacity: .6; text-align: center; }
 
   </style>
@@ -3401,6 +3416,7 @@
                 <button class="vfo-kp-key" type="button" id="vfo-kp-clear">Clear</button>
                 <button class="vfo-kp-key vfo-kp-tune" type="button" id="vfo-kp-tune">Tune</button>
               </div>
+              <button class="vfo-kp-power is-running" type="button" id="vfo-kp-power">Stop VFO</button>
               <div class="vfo-kp-hint" id="vfo-kp-hint">Enter MHz, then Tune. Range 24 - 1766 MHz.</div>
             </div>
 
@@ -14073,6 +14089,50 @@
       wrap.dataset.built = '1';
     }
 
+
+    // --- Stop / Start VFO ------------------------------------------------
+    // Backed by audioMute on DS1 ch0: muting silences the VFO's contribution to
+    // the shared analog mount WITHOUT stopping the deviceset, so restart is
+    // instant and cannot disturb Air (whose keepalive holds that mount up).
+    // state.vfoMuted is refreshed from /api/status.vfo_muted every poll, so the
+    // label survives a reload and reflects the box, not what we last clicked.
+    function renderVfoPower() {
+      const btn = document.getElementById('vfo-kp-power');
+      if (!btn) return;
+      const muted = Boolean(state.vfoMuted);
+      btn.textContent = muted ? 'Start VFO' : 'Stop VFO';
+      btn.classList.toggle('is-running', !muted);
+      btn.classList.toggle('is-stopped', muted);
+      btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    }
+
+    async function toggleVfoPower() {
+      const btn = document.getElementById('vfo-kp-power');
+      const hint = document.getElementById('vfo-kp-hint');
+      const was = Boolean(state.vfoMuted);
+      const want = !was;                       // want === true means "mute/stop"
+      // Optimistic flip so the button feels instant on a phone...
+      state.vfoMuted = want;
+      renderVfoPower();
+      if (btn) btn.disabled = true;
+      if (hint) hint.textContent = want ? 'Stopping VFO...' : 'Starting VFO...';
+      try {
+        const res = await postAPI('/api/vfo/mute', { state: want ? 'on' : 'off' });
+        // ...but trust the server's readback over the optimistic guess.
+        if (res && typeof res.muted === 'boolean') state.vfoMuted = res.muted;
+        renderVfoPower();
+        if (hint) hint.textContent = state.vfoMuted ? 'VFO stopped (muted).' : 'VFO running.';
+        logActivity(state.vfoMuted ? 'VFO stopped' : 'VFO started', 'info', 'vfo-power');
+      } catch (e) {
+        state.vfoMuted = was;                  // revert on failure
+        renderVfoPower();
+        if (hint) hint.textContent = messageFromError(e, 'VFO stop/start failed');
+        logActivity(messageFromError(e, 'VFO stop/start failed'), 'warn', 'vfo-power-fail');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
     function initVfoKeypad() {
       renderVfoPresets();
       const grid = document.getElementById('vfo-kp-grid');
@@ -14097,7 +14157,10 @@
       if (clr) clr.addEventListener('click', vfoKpClear);
       const tn = document.getElementById('vfo-kp-tune');
       if (tn) tn.addEventListener('click', () => vfoKpTune());
+      const pw = document.getElementById('vfo-kp-power');
+      if (pw) pw.addEventListener('click', toggleVfoPower);
       renderVfoKeypad();
+      renderVfoPower();
     }
 
     function switchTarget(target) {
@@ -14121,7 +14184,7 @@
       // Keypad belongs to the VFO tab only — Airband is camp mode, where Tune
       // moves the whole deviceset centre and the existing button is correct.
       { const kp = document.getElementById('vfo-keypad');
-        if (kp) { kp.classList.toggle('hidden', target !== 'vfo'); if (target === 'vfo') renderVfoKeypad(); } }
+        if (kp) { kp.classList.toggle('hidden', target !== 'vfo'); if (target === 'vfo') { renderVfoKeypad(); renderVfoPower(); } } }
       if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
       if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital');
       if (els.digitalProfilesWidget) els.digitalProfilesWidget.classList.toggle('hidden', target !== 'digital');
@@ -15102,6 +15165,10 @@
           // VFO keypad shows the live tuned frequency when the entry is empty.
           // /api/status.vfo_channels[0].freq_hz is the LISTEN freq (centre +
           // channel offset), which is what the user thinks of as "tuned to".
+          if (typeof data.vfo_muted === 'boolean') {
+            state.vfoMuted = data.vfo_muted;
+            if (typeof renderVfoPower === 'function') renderVfoPower();
+          }
           try {
             const vch = Array.isArray(data.vfo_channels) ? data.vfo_channels[0] : null;
             if (vch && Number.isFinite(Number(vch.freq_hz))) {

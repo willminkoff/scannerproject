@@ -90,3 +90,73 @@ class TestPresetsAreRealNotFabricated(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStopStartVfoButton(unittest.TestCase):
+    """Stop/Start VFO — audioMute on DS1 ch0, reversible in one click."""
+
+    def test_button_present_on_the_vfo_pane(self):
+        self.assertIn('id="vfo-kp-power"', HTML)
+
+    def test_button_lives_inside_the_vfo_keypad_block(self):
+        block = HTML[HTML.index('id="vfo-keypad"'):HTML.index('id="vfo-kp-hint"')]
+        self.assertIn('id="vfo-kp-power"', block)
+
+    def test_both_labels_exist(self):
+        self.assertIn("'Start VFO'", HTML)
+        self.assertIn("'Stop VFO'", HTML)
+
+    def test_posts_to_the_mute_endpoint(self):
+        self.assertIn("postAPI('/api/vfo/mute', { state: want ? 'on' : 'off' })", HTML)
+
+    def test_label_is_driven_by_status_not_by_the_last_click(self):
+        """Survives a reload: /api/status.vfo_muted refreshes the label."""
+        self.assertIn("typeof data.vfo_muted === 'boolean'", HTML)
+        self.assertIn("state.vfoMuted = data.vfo_muted", HTML)
+
+    def test_failure_reverts_the_optimistic_flip(self):
+        self.assertIn("state.vfoMuted = was;", HTML)
+
+
+class TestVfoMuteEndpoint(unittest.TestCase):
+    def test_route_is_wired(self):
+        server = (REPO / "sb3" / "ui" / "server.py").read_text()
+        self.assertIn('p == "/api/vfo/mute"', server)
+
+    def test_status_exposes_vfo_muted(self):
+        routes = (REPO / "sb3" / "ui" / "routes.py").read_text()
+        self.assertIn('"vfo_muted"', routes)
+
+    def test_bad_state_value_is_rejected(self):
+        from sb3.ui import routes as R
+
+        class _S:
+            def read_loaded_profiles(self):
+                return {"vfo": {"name": "vfo.default", "deviceset_index": 1}}
+
+            def read_loaded_profile(self, role=None):
+                return self.read_loaded_profiles()["vfo"]
+
+            def is_killed(self):
+                return False
+
+        with self.assertRaises(R.WriteError) as ctx:
+            R.vfo_mute({"state": "banana"}, _S())
+        self.assertEqual(ctx.exception.code, 400)
+
+    def test_missing_state_is_rejected(self):
+        from sb3.ui import routes as R
+
+        class _S:
+            def read_loaded_profiles(self):
+                return {"vfo": {"deviceset_index": 1}}
+
+            def read_loaded_profile(self, role=None):
+                return {"deviceset_index": 1}
+
+            def is_killed(self):
+                return False
+
+        with self.assertRaises(R.WriteError) as ctx:
+            R.vfo_mute({}, _S())
+        self.assertEqual(ctx.exception.code, 400)

@@ -156,6 +156,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(routes.tune(form, state))
             if p == "/api/volume":
                 return self._json(routes.volume(form, state))
+            if p == "/api/vfo/mute":
+                # Accept the flag from the query string OR the form body — the
+                # endpoint is specified as ?state=on|off, and postAPI sends a
+                # body; supporting both means neither caller has to care.
+                merged = dict(form)
+                if "?" in self.path:
+                    q = urllib.parse.parse_qs(self.path.split("?", 1)[1])
+                    for k, v in q.items():
+                        merged.setdefault(k, v[-1])
+                return self._json(routes.vfo_mute(merged, state))
             # Ask Claude is not wired into SB3 — answer 200 with a graceful
             # marker the chat panel renders as a message (not a raw HTTP error).
             if p == "/api/ask-claude":
