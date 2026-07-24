@@ -91,3 +91,10 @@ config/reconciler.json
 # POST /api/scan/state — never version-controlled, and `sb3-ctl update` must
 # leave them alone.
 /user-profiles/
+
+# macOS Finder / iCloud duplicate copies ("foo 2.py", "bar 3.sh"). They are
+# inert clones that shadow nothing but WILL be swept in by `git add -A <dir>`
+# and then rot out of sync with the real file. Committed twice by accident
+# (1ab5c86, 3b86030) before this rule existed.
+* [0-9].py
+* [0-9].sh
