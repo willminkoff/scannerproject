@@ -3265,6 +3265,33 @@
     }
     .vfo-kp-actions .vfo-kp-key { font-size: 15px; }
     .vfo-kp-tune { background: var(--accent-dim, rgba(122,155,184,.30)); font-weight: 700; }
+    /* --- wizard: save picked channels as a loadable SB3 profile --- */
+    .wp-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55);
+      z-index: 120; display: flex; align-items: center; justify-content: center; }
+    .wp-modal { width: min(460px, 94vw); max-height: 90vh; overflow: auto;
+      background: var(--bg-panel); border: 1px solid var(--border, rgba(255,255,255,.12));
+      border-radius: 12px; padding: 16px; }
+    .wp-modal h3 { margin: 0 0 4px; font-size: 16px; }
+    .wp-modal .sub { font-size: 12px; opacity: .7; margin-bottom: 12px; }
+    .wp-field { display: block; margin-bottom: 10px; font-size: 12px; }
+    .wp-field span { display: block; margin-bottom: 4px; opacity: .8; }
+    .wp-field input, .wp-field select, .wp-field textarea {
+      width: 100%; padding: 9px 10px; border-radius: 8px; font-size: 14px;
+      background: rgba(10,16,24,.5); color: inherit;
+      border: 1px solid var(--border, rgba(255,255,255,.12)); }
+    .wp-field input.invalid { border-color: var(--bad); }
+    .wp-warn { font-size: 11px; opacity: .75; margin: -4px 0 10px; }
+    .wp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .wp-btn { min-height: 44px; border-radius: 8px; cursor: pointer; font-weight: 600;
+      font-size: 14px; color: inherit; background: var(--bg-card, rgba(255,255,255,.05));
+      border: 1px solid var(--border, rgba(255,255,255,.12)); }
+    .wp-btn.primary { background: var(--accent-dim, rgba(122,155,184,.30)); }
+    .wp-btn:disabled { opacity: .5; cursor: default; }
+    .wp-result { margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 12px;
+      line-height: 1.45; word-break: break-word; }
+    .wp-result.ok { background: rgba(34,197,94,.14); border: 1px solid rgba(34,197,94,.4); }
+    .wp-result.err { background: rgba(239,68,68,.14); border: 1px solid rgba(239,68,68,.4); }
+    .wp-result code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; }
     .vfo-kp-power {
       width: 100%; min-height: 52px; margin-top: 8px;
       border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 700;
@@ -14133,6 +14160,129 @@
       }
     }
 
+
+    // ============================================
+    // WIZARD -> SB3 ANALOG PROFILE  (sub-phase 1)
+    // ============================================
+    // Turns the channels picked in the wizard into a real, loadable profile
+    // file. Analog only: digital (P25 -> an SDRTrunk playlist) is sub-phase 2.
+    let wpDevices = [];
+
+    function wpSelectedAnalogChannels() {
+      const b = state.hpFavoritesBuilder || {};
+      const ids = new Set(Array.isArray(b.selectedChannelIds) ? b.selectedChannelIds : []);
+      return (Array.isArray(b.channels) ? b.channels : [])
+        .filter((r) => ids.has(String(r.id || '').trim()))
+        .map((r) => {
+          // The analog channel rows carry `frequency` in MHz (float); the
+          // endpoint wants Hz.
+          const mhz = Number(r.frequency);
+          if (!Number.isFinite(mhz) || mhz <= 0) return null;
+          return { freq_hz: Math.round(mhz * 1e6),
+                   label: String(r.alpha_tag || r.label || '').trim() };
+        })
+        .filter(Boolean);
+    }
+
+    function wpSetResult(html, cls) {
+      const el = document.getElementById('wp-result');
+      if (!el) return;
+      el.className = 'wp-result ' + (cls || '');
+      el.innerHTML = html;
+      el.classList.remove('hidden');
+    }
+
+    async function wpOpenModal() {
+      const chans = wpSelectedAnalogChannels();
+      if (!chans.length) {
+        setHpFavStatus('Select one or more analog channels first.', true);
+        return;
+      }
+      const ov = document.getElementById('wp-modal-overlay');
+      const sub = document.getElementById('wp-modal-sub');
+      const res = document.getElementById('wp-result');
+      if (res) res.classList.add('hidden');
+      if (sub) sub.textContent = `${chans.length} channel${chans.length === 1 ? '' : 's'} selected. Analog only (sub-phase 1).`;
+      // device list from the backend so the UI never invents a serial
+      const sel = document.getElementById('wp-device');
+      if (sel && !wpDevices.length) {
+        try {
+          const d = await fetchJSON('/api/scan/devices');
+          wpDevices = Array.isArray(d.devices) ? d.devices : [];
+        } catch (_e) { wpDevices = []; }
+        sel.innerHTML = wpDevices.map((d) =>
+          `<option value="${escapeHtml(d.serial)}">${escapeHtml(d.label)} (${escapeHtml(d.serial)})</option>`).join('');
+      }
+      wpUpdateDeviceWarn();
+      if (ov) ov.classList.remove('hidden');
+      const nm = document.getElementById('wp-name');
+      if (nm) { nm.classList.remove('invalid'); nm.focus(); }
+    }
+
+    function wpUpdateDeviceWarn() {
+      const sel = document.getElementById('wp-device');
+      const warn = document.getElementById('wp-device-warn');
+      if (!sel || !warn) return;
+      const d = wpDevices.find((x) => x.serial === sel.value);
+      // Say up front what a later load would take over — the profile is written
+      // now, but loading it replaces a live role.
+      warn.textContent = d ? `Loading this profile later will replace ${d.replaces}.` : '';
+    }
+
+    function wpCloseModal() {
+      const ov = document.getElementById('wp-modal-overlay');
+      if (ov) ov.classList.add('hidden');
+    }
+
+    async function wpSaveProfile() {
+      const nameEl = document.getElementById('wp-name');
+      const btn = document.getElementById('wp-save');
+      const name = String(nameEl && nameEl.value || '').trim();
+      const chans = wpSelectedAnalogChannels();
+      if (!name) { if (nameEl) nameEl.classList.add('invalid');
+        wpSetResult('Give the profile a name.', 'err'); return; }
+      if (!chans.length) { wpSetResult('No channels selected.', 'err'); return; }
+      const sel = document.getElementById('wp-device');
+      const serial = sel && sel.value;
+      if (!serial) { wpSetResult('Pick a device.', 'err'); return; }
+      if (nameEl) nameEl.classList.remove('invalid');
+      if (btn) btn.disabled = true;
+      wpSetResult('Saving...', '');
+      try {
+        const desc = String((document.getElementById('wp-desc') || {}).value || '').trim();
+        const res = await postJSON('/api/scan/state', {
+          name, device_serial: serial, description: desc, channels: chans,
+        }, { timeoutMs: 20000 });
+        wpSetResult(
+          `<b>Saved as <code>${escapeHtml(res.profile_id)}</code></b><br>` +
+          `${res.channels} channels · ${(res.center_freq_hz / 1e6).toFixed(4)} MHz centre · ` +
+          `${(res.sample_rate_hz / 1e6).toFixed(3)} Msps · ${escapeHtml(res.demod)}<br>` +
+          `<code>${escapeHtml(res.path)}</code><br><br>` +
+          `Load it with:<br><code>${escapeHtml(res.load_command)}</code><br>` +
+          `<span style="opacity:.8">This would replace ${escapeHtml(res.replaces)}.</span>`, 'ok');
+        logActivity(`Wizard saved profile ${res.profile_id}`, 'info', 'wizard-profile-save');
+      } catch (e) {
+        // Show the server's actual reason (409 name clash, 400 mixed demod, ...)
+        wpSetResult(escapeHtml(messageFromError(e, 'Save failed')), 'err');
+        logActivity(messageFromError(e, 'Wizard profile save failed'), 'warn', 'wizard-profile-save-fail');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function initWizardProfileSave() {
+      const open = document.getElementById('hp-fav-save-profile');
+      if (open) open.addEventListener('click', wpOpenModal);
+      const cancel = document.getElementById('wp-cancel');
+      if (cancel) cancel.addEventListener('click', wpCloseModal);
+      const save = document.getElementById('wp-save');
+      if (save) save.addEventListener('click', wpSaveProfile);
+      const dev = document.getElementById('wp-device');
+      if (dev) dev.addEventListener('change', wpUpdateDeviceWarn);
+      const ov = document.getElementById('wp-modal-overlay');
+      if (ov) ov.addEventListener('click', (e) => { if (e.target === ov) wpCloseModal(); });
+    }
+
     function initVfoKeypad() {
       renderVfoPresets();
       const grid = document.getElementById('vfo-kp-grid');
@@ -15989,6 +16139,7 @@
         };
       }
       initVfoKeypad();
+      initWizardProfileSave();
       if (els.tabDigital) {
         els.tabDigital.onclick = (e) => {
           e.preventDefault();
@@ -16938,5 +17089,22 @@
     
     init();
   </script>
+  <div class="wp-modal-overlay hidden" id="wp-modal-overlay">
+    <div class="wp-modal" role="dialog" aria-modal="true" aria-labelledby="wp-modal-title">
+      <h3 id="wp-modal-title">Save as SB3 profile</h3>
+      <div class="sub" id="wp-modal-sub">Analog channels only (sub-phase 1).</div>
+      <label class="wp-field"><span>Device</span><select id="wp-device"></select></label>
+      <div class="wp-warn" id="wp-device-warn"></div>
+      <label class="wp-field"><span>Profile name</span>
+        <input id="wp-name" type="text" maxlength="64" placeholder="davidson-med-net" autocomplete="off"></label>
+      <label class="wp-field"><span>Description (optional)</span>
+        <textarea id="wp-desc" rows="2" maxlength="300" placeholder="What is this list for?"></textarea></label>
+      <div class="wp-actions">
+        <button class="wp-btn" type="button" id="wp-cancel">Cancel</button>
+        <button class="wp-btn primary" type="button" id="wp-save">Save profile</button>
+      </div>
+      <div class="wp-result hidden" id="wp-result"></div>
+    </div>
+  </div>
 </body>
 </html>
