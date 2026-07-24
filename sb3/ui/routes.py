@@ -131,9 +131,34 @@ def build_status(state: State) -> Dict:
         # VFO channel (single NFM receiver on DS1) — its tuned freq for the card
         "vfo_channels": (_channel_states(vfo_profile.get("deviceset_index", 1))
                          if vfo_profile else []),
+        # Stop/Start VFO button state. audioMute on DS1 ch0 IS the stop switch:
+        # muting silences the VFO's contribution to the shared analog mount
+        # without touching the deviceset, so restart is instant and reversible.
+        "vfo_muted": (_vfo_muted(vfo_profile.get("deviceset_index", 1))
+                      if vfo_profile else False),
         # mount detail for a debug panel / SITREP
         "mounts": {m.mount: m.http_status for m in (air, trunk, ground)},
     }
+
+
+def _vfo_muted(idx: int) -> bool:
+    """True if DS1 ch0 is muted (the VFO is 'stopped'). Read-only.
+
+    Fail-closed toward "running": if the deviceset, the channel, or SDRangel
+    itself cannot be read, report False. A button that wrongly reads "Start VFO"
+    invites one harmless extra click; one that wrongly reads "Stop VFO" tells
+    the user audio is live when it may not be.
+    """
+    try:
+        chans = backends.sdrangel_channels(idx)
+        if not chans:
+            return False
+        ch_idx = chans[0].get("index", 0)
+        body = backends.channel_settings_body(
+            backends.sdrangel_channel_settings(idx, ch_idx))
+        return bool(body.get("audioMute"))
+    except Exception:
+        return False
 
 
 def _channel_states(idx: int) -> list:
@@ -442,6 +467,53 @@ def _tune_vfo(form: Dict, state: State) -> Dict:
         raise WriteError(503, "VFO tune channel PATCH failed (SDRangel unhealthy)")
     return {"ok": True, "center_hz": center_hz, "listen_hz": listen_hz,
             "freq_mhz": freq_mhz}
+
+
+def vfo_mute(form: Dict, state: State) -> Dict:
+    """/api/vfo/mute — Stop/Start the VFO by muting DS1 ch0.
+
+    ``state=on``  → audioMute 1 → VFO STOPPED (silent in the shared mount)
+    ``state=off`` → audioMute 0 → VFO RUNNING
+
+    Muting the channel rather than stopping the deviceset is deliberate: DS1 is
+    left running, so restart is one PATCH with no device re-open, no USB churn,
+    and no risk to the shared analog mount that Air's keepalive holds up.
+
+    Idempotent — asking for the state it is already in still returns ok, so a
+    double-tap or a retry is harmless. Fail-CLOSED: if the VFO deviceset or its
+    channel cannot be resolved, refuse loudly rather than reporting success for
+    a write that never landed.
+    """
+    raw = str(form.get("state", form.get("on", ""))).strip().lower()
+    if raw in ("on", "1", "true", "mute", "stop"):
+        want_mute = True
+    elif raw in ("off", "0", "false", "unmute", "start"):
+        want_mute = False
+    else:
+        raise WriteError(400, "state must be on|off (on = muted/stopped)")
+
+    c = _client()
+    idx, _hw, channels, _center = _role_deviceset(c, state, "vfo")
+    if not channels:
+        raise WriteError(500, f"VFO deviceset ds{idx} has no channel to mute")
+    ch = channels[0]
+    ch_idx = ch.get("index", 0)
+    ctype = ch.get("id", "NFMDemod")
+
+    if not c.patch_channel(idx, ch_idx, ctype, ctype + "Settings",
+                           {"audioMute": 1 if want_mute else 0}):
+        raise WriteError(503, "audioMute PATCH failed (SDRangel unhealthy)")
+
+    # Read back — never report a write as landed without confirming it.
+    body = backends.channel_settings_body(
+        backends.sdrangel_channel_settings(idx, ch_idx))
+    now_muted = bool(body.get("audioMute"))
+    if now_muted != want_mute:
+        raise WriteError(503, f"audioMute did not take (wanted {want_mute}, "
+                              f"reads {now_muted})")
+    return {"ok": True, "muted": now_muted,
+            "running": not now_muted, "deviceset_index": idx,
+            "channel_index": ch_idx}
 
 
 def volume(form: Dict, state: State) -> Dict:
