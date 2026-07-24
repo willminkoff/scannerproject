@@ -640,6 +640,74 @@ def wizard_scan_state(state: State) -> Dict:
     return wizard.scan_state(state)
 
 
+def wizard_save_profile(payload: Dict, state: State) -> Dict:
+    """POST /api/scan/state — turn a wizard channel pick into a real profile.
+
+    Sub-phase 1 is ANALOG ONLY. The payload is
+    ``{name, device_serial, channels:[{freq_hz,label}], description?}``.
+
+    Refuses to clobber: an existing file at the target path — in either the repo
+    set or the user set — is a 409 naming the path, never an overwrite. Losing a
+    profile you spent ten minutes picking, because the name collided, is not a
+    recoverable mistake.
+    """
+    import json as _json
+    import os as _os
+
+    from ..profilecmd import user_profile_dir
+    from . import profilegen
+
+    try:
+        profile = profilegen.build_profile(payload or {})
+    except profilegen.GenError as exc:
+        raise WriteError(exc.code, exc.reason)
+
+    name = profile["name"]
+
+    # No-clobber, checked against BOTH sets so a user file can never shadow-
+    # collide with a curated one either.
+    repo_hit = gitdeploy.deploy_root() / "profiles" / f"{name}.json"
+    if repo_hit.is_file():
+        raise WriteError(409, f"a repo profile named {name!r} already exists "
+                              f"({repo_hit}) — choose another name")
+    target = user_profile_dir() / f"{name}.json"
+    if target.exists():
+        raise WriteError(409, f"profile {name!r} already exists at {target} — "
+                              f"choose another name or delete that file first")
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Write via a temp file + rename so a crash mid-write cannot leave a
+        # half-profile that `profile load` would then try to parse.
+        tmp = target.with_suffix(".json.tmp")
+        tmp.write_text(_json.dumps(profile, indent=2) + "\n")
+        _os.chmod(tmp, 0o644)
+        _os.replace(tmp, target)
+    except OSError as exc:
+        raise WriteError(500, f"could not write {target}: {exc}")
+
+    dev = profilegen.DEVICES[profile["device"]["serial"]]
+    return {
+        "ok": True,
+        "profile_id": name,
+        "path": str(target),
+        "channels": len(profile["channels"]),
+        "center_freq_hz": profile["device"]["center_freq_hz"],
+        "sample_rate_hz": profile["device"]["sample_rate_hz"],
+        "demod": profile["channels"][0]["demod"],
+        "role": profile["role"],
+        "deviceset_index": profile["deviceset_index"],
+        "replaces": dev["replaces"],
+        "load_command": f"sb3-ctl profile load {name} --execute",
+    }
+
+
+def wizard_devices() -> Dict:
+    """GET /api/scan/devices — the device dropdown for the save modal."""
+    from . import profilegen
+    return {"ok": True, "devices": profilegen.describe_devices()}
+
+
 def ask_claude_stub(form: Dict, state: State) -> Dict:
     """/api/ask-claude — not wired into SB3. Return a graceful 200 the chat panel
     renders as a message turn (data.ok=false → data.error shown), rather than a

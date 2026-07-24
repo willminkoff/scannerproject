@@ -19,67 +19,29 @@ from .state import State
 Emit = Callable[[str], None]
 
 
-#: Wizard-generated profiles live here, beside the repo's own ``profiles/``.
-#: Separate directory on purpose: the repo set is curated and version
-#: controlled, this one is user data that `sb3-ctl update` must never touch
-#: (it is gitignored) and that a bad save can never corrupt.
-USER_PROFILE_DIRNAME = "user-profiles"
-
-
-def user_profile_dir() -> Path:
-    return deploy_root() / USER_PROFILE_DIRNAME
-
-
 def resolve_profile_path(name: str) -> Optional[Path]:
-    """Map a profile name/path to a file under <deploy>/profiles/ or user-profiles/.
+    """Map a profile name/path to a file under <deploy>/profiles/.
 
     Accepts a dotted name (air.airband.nashville → air-airband-nashville.json),
     a bare basename, or a direct path.
-
-    **The repo set wins on a name collision.** Deterministic precedence matters
-    more than which one is "newer": a curated profile must not be shadowed by a
-    user file that happens to share its name, and `profile list` flags the
-    shadowed copy so the collision is visible rather than mysterious.
     """
     p = Path(name)
     if p.is_file():
         return p
     root = deploy_root()
-    stem_variants = (f"{name}.json", f"{name.replace('.', '-')}.json", name)
-    for d in (root / "profiles", user_profile_dir()):     # repo first = wins
-        for v in stem_variants:
-            c = d / v
-            if c.is_file():
-                return c
+    candidates = [
+        root / "profiles" / f"{name}.json",
+        root / "profiles" / f"{name.replace('.', '-')}.json",
+        root / "profiles" / name,
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
     return None
-
-
-def list_profiles() -> list:
-    """[(name, source, path)] across both directories, repo first.
-
-    ``source`` is 'repo' or 'user'; a user profile shadowed by a repo one of the
-    same name is reported as 'user (shadowed)' rather than hidden.
-    """
-    root = deploy_root()
-    out, seen = [], set()
-    for source, d in (("repo", root / "profiles"), ("user", user_profile_dir())):
-        if not d.is_dir():
-            continue
-        for f in sorted(d.glob("*.json")):
-            stem = f.stem
-            tag = source
-            if stem in seen:
-                tag = f"{source} (shadowed by repo)"
-            seen.add(stem)
-            out.append((stem, tag, f))
-    return out
 
 
 def run(action: str, name: str, *, execute: bool, emit: Emit = print) -> int:
     state = State()
-
-    if action == "list":
-        return _list(emit=emit)
 
     if action == "status":
         return _status(name, emit=emit, state=state)
@@ -138,22 +100,3 @@ def _status(name: str, *, emit: Emit, state: State) -> int:
     emit("")
     emit(f"  classification: {cls}")
     return translator.OK
-
-
-def _list(*, emit: Emit = print) -> int:
-    """`sb3-ctl profile list` — every loadable profile, tagged by source."""
-    rows = list_profiles()
-    emit("sb3-ctl profile list")
-    emit("")
-    if not rows:
-        emit(f"  (none found under {deploy_root()/'profiles'}/ "
-             f"or {user_profile_dir()}/)")
-        return 0
-    width = max(len(n) for n, _s, _p in rows)
-    for name, source, path in rows:
-        emit(f"  {name:<{width}}  {source:<22} {path}")
-    emit("")
-    emit(f"  repo:  {deploy_root()/'profiles'}")
-    emit(f"  user:  {user_profile_dir()}  (wizard-generated; gitignored)")
-    emit("  On a name collision the repo copy wins — the user copy is marked.")
-    return 0

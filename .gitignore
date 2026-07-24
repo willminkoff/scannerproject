@@ -86,3 +86,8 @@ logs/
 # box, not in the repo). Committing it would ship one host's ACTIVE/DISABLED
 # state to every other host on the next deploy.
 config/reconciler.json
+
+# Wizard-generated analog profiles. User data, per-host, written at runtime by
+# POST /api/scan/state — never version-controlled, and `sb3-ctl update` must
+# leave them alone.
+/user-profiles/

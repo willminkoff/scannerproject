@@ -92,6 +92,8 @@ class Handler(BaseHTTPRequestHandler):
         # HomePatrol dump is present, else an empty list + note.
         if p == "/api/scan/state":
             return self._json(routes.wizard_scan_state(self._state))
+        if p == "/api/scan/devices":
+            return self._json(routes.wizard_devices())
         if p.startswith("/api/scan/favorites-wizard/"):
             q = urllib.parse.parse_qs(self.path.split("?", 1)[1]
                                       if "?" in self.path else "")
@@ -125,6 +127,18 @@ class Handler(BaseHTTPRequestHandler):
                                "path": p})
         self._json({"error": "not found", "path": p}, 404)
 
+    def _json_body(self) -> dict:
+        """Parse a JSON request body. {} if absent or unparseable."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if not length:
+            return {}
+        raw = self.rfile.read(length)
+        try:
+            data = json.loads(raw.decode())
+            return data if isinstance(data, dict) else {}
+        except (ValueError, UnicodeDecodeError):
+            return {}
+
     def _form(self) -> dict:
         length = int(self.headers.get("Content-Length", 0) or 0)
         raw = self.rfile.read(length).decode() if length else ""
@@ -141,10 +155,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": False, "error": "sb3-killed",
                                "note": "SB3 is killed; writes refused"}, 409)
 
-        try:
-            form = self._form()
-        except Exception as exc:
-            return self._json({"ok": False, "error": f"bad body: {exc}"}, 400)
+        # /api/scan/state carries JSON; everything else is form-encoded. The
+        # body can only be read once, so choose by path before consuming it.
+        self._scan_body = None
+        if p == "/api/scan/state":
+            try:
+                self._scan_body = self._json_body()
+                form = {}
+            except Exception as exc:
+                return self._json({"ok": False, "error": f"bad body: {exc}"}, 400)
+        else:
+            try:
+                form = self._form()
+            except Exception as exc:
+                return self._json({"ok": False, "error": f"bad body: {exc}"}, 400)
 
         try:
             if p in ("/api/apply", "/api/apply-batch"):
@@ -156,6 +180,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(routes.tune(form, state))
             if p == "/api/volume":
                 return self._json(routes.volume(form, state))
+            if p == "/api/scan/state":
+                # Two different callers POST here. The wizard's Save sends a
+                # profile request ({name, device_serial, channels}); the older
+                # favorites/filters panels send a favorites-state blob. Dispatch
+                # on SHAPE rather than assuming — misreading a filters save as a
+                # profile would write a garbage file, and answering "not
+                # implemented" to a real Save would be the old silent failure.
+                body = getattr(self, "_scan_body", None)
+                if body is None:
+                    body = {}
+                if body.get("name") and isinstance(body.get("channels"), list):
+                    return self._json(routes.wizard_save_profile(body, state))
+                return self._json({
+                    "ok": False,
+                    "error": "favorites-list persistence is not implemented in "
+                             "SB3 yet — only the wizard's analog profile save "
+                             "is wired (send name + channels).",
+                }, 501)
             if p == "/api/vfo/mute":
                 # Accept the flag from the query string OR the form body — the
                 # endpoint is specified as ?state=on|off, and postAPI sends a
