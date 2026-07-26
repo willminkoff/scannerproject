@@ -250,6 +250,13 @@ Each row is only entered after the previous is durable. **48 h burn-in between s
 
 33 `.py` / 6,972 LOC in `sb3/`; SDRTrunk observer (`sdrtrunk_client.py`) **reused as-is**, chirp + `ui/chirp_client.py` + disco **already exist**. Rewrite concentrates on control adapters (digital = deploy `default.xml` + `systemctl restart`; analog = chirp JSON bus), the apply engine, and the reconciler retarget. **Add to the estimate:** translate the launchd plists → the hardened systemd units above (mechanical) and add the three RTL-tool hit-tailers + `/healthz` probes. Still **≈2 phases**; the hardening is unit files + scripts, not new control logic.
 
+**Hit feed — ~80% already in the repo (correction to an earlier "needs building" statement).** The end-to-end hit path largely exists and is tested; the only missing piece is wiring it into SB3's `/api/hits`:
+- **Analog producer:** `chirp/hit_detector.py` — `HitDetector` polls per-slot squelch, emits `hit_start`/`hit_end`, and persists JSONL to `/var/log/chirp/hits.jsonl` (`{ch, freq_mhz, peak_dbfs, duration_s, start/end_ts_ms, cluster_center_hz}`). It's the very analog engine we're deploying, so this comes free with the chirp port-back.
+- **Reader/aggregator:** `ui/scanner.py` — `_read_chirp_hits_from_jsonl`, `read_hit_list`/`read_hit_list_cached`, per-unit last-hit, icecast hit log; UI-shaped output, with tests (`tests/test_scanner_hit_path.py`, `test_sb3_recent_hits_layout_guardrails.py`).
+- **Digital source:** `sb3/sdrtrunk_client.py` already parses call events (`GRP_VCH_GRNT`/`TSBK`) into `digital_*` (incl. `digital_last_time`).
+- **UI:** `sb3.html` consumes `/api/hits` (baseline + session-event counting) plus a last-hit chip system.
+- **The gap:** `sb3/ui/routes.py:hits()` is a one-line stub (`"SB3 has no hit log yet"` → `{items:[]}`). Post-migration = adopt `scanner.py`'s chirp-JSONL reader into that handler, fold in `sdrtrunk_client` call events, add the 3 RTL-tool tailers. **Integration of tested code, not greenfield** — folds inside the ≈2-phase estimate, doesn't add to it.
+
 ---
 
 ## 11. Backing plan — Pi 5 (unchanged)
