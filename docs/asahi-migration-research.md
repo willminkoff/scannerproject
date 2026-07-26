@@ -1,163 +1,268 @@
-# Asahi Linux migration — architecture evaluation (rev 3, locked stack)
+# Asahi Linux migration — stability-hardened plan (rev 4)
 
 **Date:** 2026-07-26 · **Branch:** `sb3-asahi-research` · **Scope:** read-only research, **no box changes**.
-**Target:** Ubuntu Asahi on Neptune (M1 Mac mini), running a native Linux SDR stack, replacing macOS SDRangel + SDRTrunk-on-macOS.
+**Target:** **Ubuntu Server 24.04 LTS (Asahi)** on Neptune (M1 Mac mini), running a hardened Linux SDR stack, replacing macOS SDRangel + SDRTrunk-on-macOS.
 
-> **Rev 3.** Will locked the architecture. This evaluates it engine-by-engine and reworks the install plan and cost. Revs 1–2 (RTL-first, then op25-for-digital) are superseded: **digital is now SDRTrunk headless**, which — importantly — is a tool this project already runs and whose log-observer code (`sdrtrunk_client.py`) is **reused unchanged**. LOC counts and the phase-estimate structure are preserved; the estimate **drops** because two of the three decode engines and their client code already exist in-repo.
+> **Rev 4 — stability first.** Same locked stack as rev 3 (SDRTrunk headless / chirp / disco / 3× RTL), re-engineered so every subsystem is isolated, supervised, observable, rolls back cleanly, and is **burned in before the next one is added**. The headline gate: the reconciler stays **PASSIVE for ≥168 h (7 days)** and only graduates to ACTIVE after clean drift logs. Prior revs 1–3 are superseded.
 
 ---
 
-## Locked stack & role model
+## What's different in rev 4 (the one-page "why this is stable now")
 
-| Radio | Serial | Role | Engine | Engine status |
+| Dimension | rev 3 | **rev 4 (hardened)** |
+|---|---|---|
+| Base OS | "Ubuntu Asahi" (unversioned) | **Ubuntu Server 24.04 LTS Asahi** — headless, LTS, no desktop |
+| Identity | ambiguous (macOS root/HOME pain) | **dedicated non-root `scannerproject` user**; no root services |
+| Config location | `~/SDRTrunk/`, user home | **`/etc/scannerproject/`** (config) + `/var/lib/scannerproject/` (runtime) + `/var/log/scannerproject/` (logs, rotated) |
+| Process model | "run it" | **one systemd unit per subsystem**, `Restart=on-failure`, `After/Wants/Requires` graph, crash-isolated |
+| SDR readiness | assumed | **`sdrplay-apiService` unit + udev rules + a oneshot enumeration gate** that blocks decoders until both RSPs are present |
+| Headless X | Xvfb (`xvfb-run`) | **separate `Xvfb :99` unit** SDRTrunk depends on (not `xvfb-run`; **not xpra** — see §3); survives SDRTrunk restarts |
+| Audio | ad-hoc bridge | **`neptune-mixer` ffmpeg systemd unit** + apt icecast2; per-role mounts as fallback |
+| Reconciler | "PASSIVE then ACTIVE" | **enforced 168 h PASSIVE**, `sb3-ctl reconciler graduate` with prerequisite checks |
+| Rollout | "one evening" | **staged A–F, 48 h burn-in between each subsystem**, each stage a durable checkpoint |
+| Rollback | "reboot to macOS" | reboot to macOS **+ per-service `systemctl stop` isolation + wipeable partition + Pi 5 backing plan** |
+| Observability | logs somewhere | **journald per unit + `/var/log/scannerproject/` rotated + `/healthz` per service from day 1** |
+
+**Net:** rev 3 proved the stack is *possible*; rev 4 makes it *operable unattended*. Nothing is chained to a risky neighbor; every stage has a known-good checkpoint and a stop button.
+
+---
+
+## Stability principles → concrete design
+
+1. **Minimize failure modes / every step reversible** → systemd `systemctl stop <unit>` isolates any subsystem; macOS dual-boot is the whole-rig rollback; the Asahi partition is wipeable from macOS Disk Utility.
+2. **LTS + stable branches** → Ubuntu **24.04 LTS**, **Temurin JDK 21 LTS**, SDRTrunk stable release, GNU Radio 3.10 from the LTS repo, op25 stable branch pre-staged.
+3. **Test in isolation before combining** → the burn-in ladder (§8): each SDR/decoder is proven alone for 48 h before the next joins.
+4. **Durable known-good checkpoints** → each of the 10 checkpoints is a state you can return to; config is version-controlled and deployed, not hand-edited live.
+5. **Persistent config in `/etc`** → `/etc/scannerproject/{sdrtrunk,chirp,disco,rtl,audio}/`; runtime writable state in `/var/lib/scannerproject/`; **no service reads/writes a user home.**
+6. **systemd hardening** → `Restart=on-failure`, `RestartSec`, `After/Wants/Requires`, `TimeoutStopSec`, `WatchdogSec` where supported, resource caps.
+7. **Dedicated non-root user** → `scannerproject` (in `plugdev`/`dialout` + a `sdr` group for udev-owned devices). Kills the root/HOME confusion permanently.
+8. **Observability from day 1** → journald per unit, `/var/log/scannerproject/*.log` with `logrotate`, a `/healthz` on the UI and a per-decoder liveness probe.
+9. **Isolation / no cascade** → decoders use `Wants/After` (soft) for ordering, `Requires` only on their true hard dep (`sdrplay-apiService`); a chirp crash cannot stop SDRTrunk; the mixer degrades to whatever mounts are live.
+
+---
+
+## Locked stack & role model (unchanged)
+
+| Radio | Serial | Role | Engine | systemd unit |
 |---|---|---|---|---|
-| **RSPduo** | `180903EF32` | Two concurrent trunked P25 systems (Tuner 1 + Tuner 2) | **SDRTrunk headless** | exists; used today on macOS |
-| **RSP1B** | `2405265A60` | Analog scanning (airband/NFM) | **chirp** | **in-repo** (`chirp/`), Linux-native |
-| **HackRF One** | `c66c63dc35742683` | Disco / spectrum survey + RF classifier | **disco** | **in-repo** (`disco/`), SoapySDR-based |
-| **RTL (SMArTee, bias-tee)** | `95339533` | **Radiosonde** | radiosonde_auto_rx | mature 3rd-party |
-| **RTL (SMArt)** | `61108285` | **ACARS** | acarsdec (f00b4r0) | mature 3rd-party |
-| **RTL (SMArt)** | `56919602` | **VDL2** | dumpvdl2 (szpajder) | mature 3rd-party |
+| RSPduo | `180903EF32` | 2 concurrent trunked P25 (Tuner 1+2) | **SDRTrunk headless** | `sdrtrunk.service` |
+| RSP1B | `2405265A60` | Analog (airband/NFM) | **chirp** (in-repo) | `chirp-airband.service` |
+| HackRF | `c66c63dc35742683` | Disco / RF classifier | **disco** (in-repo) | `disco-*.service` |
+| RTL SMArTee (bias-tee) | `95339533` | Radiosonde | radiosonde_auto_rx | `radiosonde-autorx.service` |
+| RTL SMArt | `61108285` | ACARS | acarsdec (f00b4r0) | `acarsdec.service` |
+| RTL SMArt | `56919602` | VDL2 | dumpvdl2 (szpajder) | `dumpvdl2.service` |
 
-**Coherence verdict (the implied question): the stack is coherent, and the Linux move actively *fixes* two things it doesn't just move.** SDRTrunk-under-systemd+Xvfb eliminates the macOS root/`sudo`/Aqua-session/`HOME=/var/root` mess we've been fighting (it becomes a normal `systemctl` service), and SDRTrunk natively drives the **RSPduo dual-tuner** (two tuners → two systems) — the exact thing op25 could only do via an unproven dual-instance pilot in rev 2. Two flagged items, neither a blocker: **(1)** SDRTrunk needs a virtual display (Xvfb) — pilot its 24/7 stability; **(2)** disco must be **retargeted from SDRplay to HackRF** (SoapySDR driver swap + classifier re-validation on 8-bit HackRF samples).
-
----
-
-## Executive summary + recommendation
-
-Every engine is either already in the repo (SDRTrunk client, chirp, disco) or a mature third-party tool with a clean Ubuntu build (acarsdec, dumpvdl2, radiosonde_auto_rx). The shared platform dependency is the **SDRplay v3 API** (RSPduo for SDRTrunk, RSP1B for chirp) — Ubuntu-LTS-tested, so **Ubuntu Asahi** remains the right base (vendor-tested SDRplay, apt-native everything). Asahi's `macsmc-hwmon` gives fan control on the M1, and the USB-A ports handle all six single-function SDRs.
-
-**The one genuine unknown is SDRTrunk headless (§1).** It is a JavaFX desktop app with no native headless mode (DSheirer issue #92, open for years); the community answer is **Xvfb**. That is workable and, on Linux, cleaner than what we run today — but 24/7 Xvfb+JavaFX stability must be piloted. If it disappoints, the fallback is **op25** (rev 2's plan, native-headless but with the dual-tuner pilot) or **Trunk Recorder**.
-
-**Recommendation:** proceed with the **dual-boot Ubuntu Asahi pilot** (zero-risk; macOS + SDRangel/SDRTrunk stay as instant fallback). Install order (§7): SDRplay API → **SDRTrunk headless under Xvfb** (prove first — it's the load-bearing unknown, and Cumberland Public Safety on RSPduo Tuner 1 is tonight's real target) → chirp on RSP1B → disco retargeted to HackRF → acarsdec/dumpvdl2/radiosonde_auto_rx on the RTLs. If Xvfb+SDRTrunk is flaky after a couple evenings, pivot digital to op25 without changing anything else in the stack.
-
-**Migration cost: ≈2 SB3-phase-equivalents** (down from 3) — because SDRTrunk is reused (its log observer `sdrtrunk_client.py` works unchanged) and chirp/disco + `ui/chirp_client.py` already exist. The rewrite concentrates on the *control* adapters and the reconciler.
+Coherence + engine details are unchanged from rev 3 (§SDRTrunk-headless is the one pilot risk; disco needs a HackRF classifier re-validation). This rev is about *how* they run, not *what* they are.
 
 ---
 
-## 1. SDRTrunk headless — the load-bearing question
+## 1. Distro — final recommendation
 
-**Verdict: needs Xvfb (virtual framebuffer). No native `--nogui`; not a fork; workable and, on Linux+systemd, cleaner than today.**
+**Use Ubuntu Server 24.04 LTS (Asahi). Honest tradeoff below.**
 
-- **No headless mode.** SDRTrunk is JavaFX and "won't run headless because it needs various GUI bits." The request has been open for years (DSheirer/sdrtrunk **issue #92, "Command line with no GUI"**). `-Djava.awt.headless=true` "is less likely to work" for JavaFX. [SDRTrunk issue #92], [SDRTrunk headless thread]
-- **The workaround is Xvfb** — `xvfb-run java -jar sdr-trunk.jar` (or a systemd unit that starts an Xvfb display, then SDRTrunk against it). This is the standard pattern for headless JavaFX. Some run it under a minimal WM/VNC instead. [Xvfb for GUI apps]
-- **Config is file-based — no GUI needed to operate.** Channels, aliases, and the icecast broadcaster live in `~/.config/SDRTrunk/playlist/default.xml` (we already edit this directly on Neptune — the whole MTRTRS/Cumberland playlist work was file edits, no GUI). So SB3's "apply" for digital = write `default.xml` + restart the service. Tuner config is `tuner_configuration.json` (the RSP1B blacklist / RSPduo assignment we already manage).
-- **Linux fixes the macOS pain.** Today SDRTrunk runs as a `sudo`-launched Aqua-session GUI app with `HOME=/var/root`, unkillable from SSH — the exact saga blocking Cumberland right now. Under **systemd + Xvfb** it becomes a normal user service: `systemctl --user restart sdrtrunk`, clean SIGTERM, predictable `$HOME`, logs to the journal. **This is a net simplification, not a lateral move.**
-- **RSPduo dual-tuner is native.** SDRTrunk already enumerates `RSPduo Tuner 1` + `Tuner 2` (we've seen this in Neptune's logs) and can source one channel/system per tuner — delivering the two-concurrent-systems requirement **without** op25's unproven dual-instance pilot. It needs the SDRplay v3 API present (shared with chirp).
-- **Observer reused as-is.** `sb3/sdrtrunk_client.py` tails `sdrtrunk_app.log` with regexes for broadcaster/tuner/P25 activity. **The log format is identical on Linux** → this file is **REUSE, not rewrite** (rev 2 had it as needs-rewrite). Big cost drop.
-- **Pilot risk:** 24/7 Xvfb+JavaFX robustness (memory footprint, occasional JavaFX exceptions). **Mitigation / fallback:** op25 (native headless; rev 2 dual-instance pilot) or **Trunk Recorder** (native C++ trunking, headless-first) if Xvfb proves unreliable.
+- **There is no 22.04 Asahi.** Ubuntu Asahi ships **24.04 LTS** (Desktop *and* **Server**) for Apple Silicon — the Asahi kernel requires a newer base than 22.04. 24.04 is itself an LTS (support to 2029), so the "LTS over cutting-edge" principle is satisfied at 24.04. Prefer the **Server** image: no desktop/GPU stack to destabilize a headless box. [Ubuntu Asahi], [Ubuntu Asahi deep-dive]
+- **Ubuntu vs Fedora Asahi Remix — the tradeoff:**
+  - **Ubuntu Asahi (recommended):** SDRplay API is **vendor-tested on Ubuntu LTS** (out-of-box `.run`), op25/acarsdec/dumpvdl2/radiosonde_auto_rx/chirp are all **apt-native or apt-dep** — the entire SDR userland installs as upstream intends. Downside: Ubuntu Asahi is a **community remix** (built on Asahi's kernel/drivers), not the Asahi *flagship*, so kernel/platform updates trail Fedora's.
+  - **Fedora Asahi Remix 43 (fallback):** the **upstream flagship** — best-maintained kernel/platform, longest Apple-Silicon track record, GNU Radio 3.10 in-repo. Downside for *this* stack: SDRplay is **unofficial on Fedora**, and every SDR tool needs apt→dnf translation and more from-source builds — more moving parts, against principle #1.
+- **Verdict:** for an **RSP-centric, stability-first** box, minimizing SDR-userland friction (Ubuntu) outweighs platform-update freshness (Fedora), *because* the load-bearing radios are SDRplay and SDRplay is Ubuntu-tested. Keep Fedora Asahi Remix 43 as the fallback if Ubuntu Asahi's platform integration on the M1 mini proves rough during Checkpoints 1–2.
 
 ---
 
-## 2. chirp on Ubuntu Asahi (analog / RSP1B)
+## 0/2. Foundation + SDRplay API hardening
 
-**Buildable — confirmed.** `chirp/requirements.txt` states GNU Radio 3.10 is a **system apt package** (`apt-get install gnuradio python3-gi python3-numpy`), plus pip `pydantic>=2.10`, `numpy`. It uses `osmosdr.source` (probe log: `gr-osmosdr 0.2.0.0 / gnuradio 3.10.9.2`).
+**User & filesystem (Phase C):**
+```
+useradd -r -m -d /var/lib/scannerproject -G plugdev,dialout scannerproject
+install -d -o scannerproject /etc/scannerproject/{sdrtrunk,chirp,disco,rtl,audio}
+install -d -o scannerproject /var/lib/scannerproject /var/log/scannerproject
+```
+`logrotate` drop-in `/etc/logrotate.d/scannerproject` (daily, rotate 14, compress, copytruncate).
 
-- **Deps on Ubuntu aarch64:** `gnuradio` + `gr-osmosdr` + `python3-gi`/`numpy` are apt packages; `pydantic` via pip. The only source build is the **SDRplay bridge** — `SoapySDRPlay3` + `gr-osmosdr` with SDRplay (fventuri's `sdrplay3` branch supports RSPduo all modes), the same build SDRTrunk's SDRplay support relies on the API for. No aarch64-specific blockers.
-- **Port issues:** chirp was proven on the (x86_64) Ubuntu Scannerbox; aarch64 is not expected to differ for pure-Python-over-GNU-Radio. The known operational hazard is the `sdrplay_apiService` wedge on daemon bounce (chirp's whole README is about handling it) — **Linux-native and already engineered for**, unlike the macOS variant.
-- **`ui/chirp_client.py` — stable interface?** Yes: chirp exposes a **JSON command bus over loopback UDP** (retune / squelch / add-remove scan slot **without restarting the SDR**) and `ui/chirp_client.py` + `ui/chirp_adapter.py` already speak it, with tests (`ui/tests/test_chirp_client.py`, `test_chirp_adapter.py`). It's a deliberate, tested contract — SB3 adopts it rather than writing an analog client. Analog is a **port-back**, not a rewrite.
+**udev — deterministic device ownership** (`/etc/udev/rules.d/70-scannerproject-sdr.rules`):
+```
+# RTL-SDR (RTL2832U) → scannerproject-owned, stable per-serial symlink
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="2838", \
+  MODE="0660", GROUP="scannerproject", SYMLINK+="rtl-$attr{serial}"
+# HackRF One
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="6089", \
+  MODE="0660", GROUP="scannerproject"
+# SDRplay RSPs are claimed by sdrplay_apiService; its .run installs 66-mirics.rules.
+```
+Reload: `udevadm control --reload && udevadm trigger`. Per-serial symlinks make the ACARS/VDL2/sonde units bind the *right* dongle regardless of USB port order.
+
+**`sdrplay-apiService.service`** — the vendor `.run` installs a service; wrap/verify it as:
+```
+[Unit]
+Description=SDRplay API service
+After=network.target
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/sdrplay_apiService
+Restart=on-failure
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+```
+
+**`sdr-enum-gate.service`** (oneshot readiness gate — decoders `After`/`Requires` this):
+```
+[Unit]
+Description=Verify RSPduo + RSP1B enumerate before decoders start
+After=sdrplay-apiService.service
+Requires=sdrplay-apiService.service
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# exits non-zero (blocking dependents) if either serial is missing
+ExecStart=/usr/local/bin/sdr-enum-gate.sh 180903EF32 2405265A60
+[Install]
+WantedBy=multi-user.target
+```
+`sdr-enum-gate.sh` = `SoapySDRUtil --find | grep -q <serial>` for each; retries N times with backoff. This is the **health check that stops a half-enumerated bus from cascading** into SDRTrunk/chirp failures.
 
 ---
 
-## 3. disco on HackRF (spectrum survey + classifier)
+## 3. SDRTrunk hardening (the load-bearing subsystem)
 
-**Status: substantial and complete-ish, not a skeleton — but currently SDRplay-targeted; needs a HackRF retarget.**
+- **Java: Temurin JDK 21 LTS** (SDRTrunk's official target; releases also bundle a JRE). Pin it; don't float to 22-beta. [SDRTrunk Getting Started], [JDK 21]
+- **Headless display: Xvfb as a *separate* unit — not `xvfb-run`, not xpra.**
+  - **Why not xpra:** xpra runs a compositing WM *on top of Xvfb* to add attach/detach — a feature a 24/7 decoder never uses, so it's pure added failure surface. xpra has a documented runaway failure mode (Xorg processes climbing to ~1800 in 6 h, host blocked). For an always-on service, fewer moving parts wins. [xpra man], [xpra runaway issue #4250]
+  - **Why a separate `Xvfb :99` unit (not `xvfb-run`):** `xvfb-run` ties the display's lifetime to a single process; when SDRTrunk restarts (`Restart=on-failure`) it would orphan/re-spawn the display. A standing `Xvfb :99` unit lets SDRTrunk reconnect to the same display across restarts, and lets an operator `x11vnc -display :99` to peek on demand without changing the service.
+  - Optional upgrade: **`Xorg -config dummy` (Xdummy)** instead of Xvfb — better RandR/memory behavior for long-running JavaFX; keep as a tuning option if Xvfb shows memory creep.
+```
+# xvfb@.service  (enable: xvfb@99)
+[Service]
+ExecStart=/usr/bin/Xvfb :%i -screen 0 1280x1024x16 -nolisten tcp
+Restart=on-failure
+RestartSec=5
 
-- **What's there:** `disco/` has `src/` (`band_plan`, `classifier`, `fingerprint`, `identification`, `current_location`, `dashboard`, `hpdb`, `cdbs`), a `training/` pipeline (RadioML CNN → `export_onnx.py` → `radioml.onnx`), `models/`, `configs/`, `bin/`, and **systemd units** (`disco-sweep@`, `disco-coordinator`, `disco-classifier`). It was deployed on the Micro. It is a full SoapySDR-sweep → ONNX-CNN classification → identification subsystem.
-- **SDR path:** SoapySDR, **not** hackrf_sweep — `disco/src/phase0_smoketest.py` opens `SoapySDR.Device({"driver":"sdrplay","serial":...,"mode":"DT"})`. Because it's SoapySDR-abstracted, moving to HackRF is a **driver-string swap** to `{"driver":"hackrf"}` + `soapysdr-module-hackrf` (apt on Ubuntu).
-- **The real work is validation, not porting:** the CNN classifier was trained against RSPduo-captured samples at a set rate; HackRF is 8-bit (vs 14-bit RSP) with up to 20 MHz (wider than RSP's 10). Sweep parameters and possibly a classifier re-validation/retrain on HackRF captures are needed. `training/synthesize.py` + `train_radioml.py` exist to regenerate the model. **Flag: budget a HackRF classifier-validation pass; the plumbing is done.**
-- **SoapyHackRF on Ubuntu Asahi:** `apt install soapysdr-module-hackrf hackrf` — HackRF arm64 support is mature. 🟢
+# sdrtrunk.service
+[Unit]
+After=network-online.target sdrplay-apiService.service sdr-enum-gate.service xvfb@99.service
+Wants=network-online.target xvfb@99.service
+Requires=sdrplay-apiService.service sdr-enum-gate.service
+[Service]
+User=scannerproject
+Environment=DISPLAY=:99 HOME=/var/lib/scannerproject/sdrtrunk
+ExecStart=/opt/sdrtrunk/bin/sdr-trunk
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=45          # SDRTrunk ~6 s clean exit; generous, never SIGKILL early
+```
+- **Playlist lives in `/etc/scannerproject/sdrtrunk/playlist/default.xml`** (canonical, deployed by SB3). SDRTrunk works on a copy in `$HOME=/var/lib/scannerproject/sdrtrunk` (it rewrites its playlist on exit — the copy-on-deploy pattern we already use avoids clobbering the canonical source). `tuner_configuration.json` (RSP1B blacklist / RSPduo Tuner1+2) likewise deployed from `/etc`.
+- **Restart isolation:** a SDRTrunk crash → `Restart=on-failure` after 30 s, reconnects to the standing Xvfb, re-reads the playlist. No root, no Aqua session, no `HOME=/var/root` — **the entire macOS restart saga is gone.**
+- **48 h unattended pilot (Checkpoint 4):** run SDRTrunk alone under Xvfb, rotate stop/start cycles, watch RSS/`journalctl` for JavaFX leaks. **If it degrades over 48 h → swap to the pre-staged op25** (native headless; the digital decoder is the only thing that changes — playlist/observer/mixer are decoder-agnostic).
 
 ---
 
-## 4. RTL dongles — tool selection + serial→role mapping
+## 4. chirp / disco / RTL tools — each an isolated unit
 
-| Role | Tool (recommended) | Why / install | Citation |
+Every decoder is its own `Restart=on-failure` unit; none `Requires` another. Ordering via `After`/`Wants` only.
+
+- **`chirp-airband.service`** — `User=scannerproject`, `Requires=sdrplay-apiService sdr-enum-gate`, config `/etc/scannerproject/chirp/`, JSON bus on loopback, `Restart=on-failure`, `RestartSec=15`. chirp already self-heals the `sdrplay_apiService` wedge (its whole design) — surface that via journald + a `/healthz`.
+- **`disco-sweep.service` / `disco-classifier.service`** — HackRF via SoapySDR `driver=hackrf`; no SDRplay dependency, so **fully isolated from the RSP chain** (a HackRF hiccup can't touch digital/analog). Retarget + **classifier re-validation on 8-bit HackRF captures is a Checkpoint-7 line item**, not a blocker.
+- **`acarsdec.service`** (RTL `61108285`), **`dumpvdl2.service`** (RTL `56919602` — validate the IQ-artifact-history dongle first), **`radiosonde-autorx.service`** (RTL `95339533` + bias-tee). Each binds its dongle by the udev per-serial symlink, `Restart=on-failure`, own log in `/var/log/scannerproject/`. All three are independent leaf services — any can crash without touching the others.
+
+---
+
+## 5. Audio pipeline as proper Linux services
+
+- **`icecast2`** from apt (well-known, stable); config + source password in `/etc/scannerproject/audio/` (mode 0640, `scannerproject`-owned).
+- **`neptune-mixer.service`** — the resilient ffmpeg supervisor (already written for macOS) ported to a unit:
+```
+[Unit]
+After=icecast2.service
+Wants=icecast2.service chirp-airband.service sdrtrunk.service
+[Service]
+User=scannerproject
+ExecStart=/usr/local/bin/neptune-mixer.sh    # mixes whichever source mounts are live
+Restart=on-failure
+RestartSec=10
+```
+- **One mount `neptune.mp3`** mixing analog + digital; **fallback:** if the mixer struggles under load, drop to **per-role mounts** (`neptune-analog.mp3`, `neptune-trunk.mp3`) and let the client pick — no mixer in the hot path. (`Wants` not `Requires` on the decoders → the mixer runs and degrades gracefully whether or not a given source is up.)
+
+---
+
+## 6. systemd dependency graph (isolation-first)
+
+```
+network-online.target
+        │
+sdrplay-apiService.service ──Requires──► sdr-enum-gate.service (oneshot)
+        │                                      │
+        │                        ┌─────────────┼───────────────┐
+        ▼                        ▼             ▼               (Requires apiService+gate)
+   xvfb@99.service        chirp-airband   sdrtrunk.service
+        │                  .service            │
+        └────Wants/After────────┐              │
+                                ▼              ▼
+                        (independent leaves; Restart=on-failure each)
+   disco-*.service   acarsdec.service   dumpvdl2.service   radiosonde-autorx.service
+        │
+icecast2.service ──Wants──► neptune-mixer.service ──Wants──► {chirp, sdrtrunk}
+sb3-ui.service (/healthz)   sb3-reconciler.service (PASSIVE, §7)
+```
+**Rule:** `Requires` only points at a true hard dependency (the SDRplay API + enum gate). Everything else is `Wants`/`After` (ordering, not coupling). Result: **no decoder can take down another; the mixer and UI survive any single decoder crash.**
+
+---
+
+## 7. Reconciler — enforced 168 h PASSIVE → graduate
+
+- The reconciler starts and **stays PASSIVE for ≥168 h (7 days)** on the new backend (config off-switch + a graduation gate). It observes and logs drift (CLEAN/BENIGN/RECOVERABLE/BROKEN) but **takes no action**.
+- **`sb3-ctl reconciler graduate`** — refuses unless prerequisites pass: (a) ≥168 h of PASSIVE uptime, (b) drift log **0 BROKEN / 0 emergency-pauses**, (c) RECOVERABLE events all explained, (d) backend PIDs stable across the window. Only then does it flip to ACTIVE, and even then with the existing cascade brakes (rate limiter, failure-counter quarantine, BackendGuard emergency-pause). The classifier taxonomy + safety machinery are **reused unchanged** from the current reconciler.
+- This is the single most important stability rule: **automation earns ACTIVE by a week of clean observation, not by assertion.**
+
+---
+
+## 8. Burn-in ladder — 10 durable checkpoints (each a known-good state)
+
+| # | Checkpoint | Gate to pass | Rollback |
 |---|---|---|---|
-| **ACARS** | **`f00b4r0/acarsdec`** | TLeconte's original is now **legacy**; the f00b4r0 fork is the maintained one — multi-channel (up to 8 freqs/dongle), rtl_sdr/**soapysdr**/airspy/sdrplay front-ends, optional `acarsserv` DB. Build from source (cmake); compiles on any modern Linux incl. aarch64. | [f00b4r0/acarsdec], [TLeconte/acarsdec (legacy)] |
-| **VDL2** | **`szpajder/dumpvdl2`** | Canonical VDL Mode 2 decoder (Tomasz Lemiech). Build from source: apt `build-essential cmake libglib2.0-dev librtlsdr-dev` + **libacars** dep, then cmake/make. Up to 8 VDL2 channels/dongle. openwebrx maintains a Debian-packaging fork if we want `.deb`. | [szpajder/dumpvdl2], [rtl-sdr.com dumpvdl2] |
-| **Radiosonde** | **`projecthorus/radiosonde_auto_rx`** | Active, RTL/AirSpy, multi-sonde (RS41/RS92/DFM/iMet), auto-scan+decode, web UI + telemetry upload. Ubuntu apt deps documented; **Docker image is the recommended install**. | [radiosonde_auto_rx], [rtl-sdr.com auto_rx] |
+| 1 | **Ubuntu boots reliably** | 3 clean unattended boots to Ubuntu default | reboot macOS |
+| 2 | **All SDRs enumerate** | 5 devices present every boot for **24 h** | `systemctl stop`; reseat; macOS |
+| 3 | **SDRplay apiService stable** | 24 h of looped open/close cycles, no wedge | restart unit; reboot |
+| 4 | **SDRTrunk headless survives** | **48 h** unattended + stop/start rotation, no leak | swap to op25 |
+| 5 | **Cumberland CC locks + decodes** | reliable lock on RSPduo Tuner 1 (Cumberland; verify vs TACN/Metro) | edit playlist; op25 |
+| 6 | **chirp analog** | RSP1B airband proven, `neptune.mp3` audio | `systemctl stop chirp` |
+| 7 | **disco HackRF** | sweep + **classifier re-validated** on HackRF samples | disable disco units |
+| 8 | **RTL tools** | acarsdec / dumpvdl2 / radiosonde each proven **alone** | stop the one unit |
+| 9 | **Reconciler PASSIVE** | **168 h**, 0 false positives / 0 BROKEN | stays passive |
+| 10 | **Reconciler ACTIVE** | `sb3-ctl reconciler graduate` prerequisites met | `reconciler passive --execute` |
 
-**Note on attribution:** acarsdec is Thierry Leconte's (not Fabrice Bellard's); dumpvdl2 is Tomasz Lemiech / *szpajder* (not Szymon Ludwiczak). Recommending the maintained forks above. **acars-decoder-typescript is a parsing *library*, not an RTL front-end — acarsdec is the correct choice** for decoding off a dongle.
-
-### Serial → role mapping (capability-driven)
-
-- **`95339533` (Nooelec SMArTee — has bias-tee) → Radiosonde.** Radiosondes (400–406 MHz, often weak/distant balloon signals) benefit most from a mast **LNA powered over the coax** — exactly what the SMArTee's bias-tee provides. `radiosonde_auto_rx` can also toggle the bias-tee.
-- **`61108285` (SMArt) → ACARS** (~131 MHz, strong line-of-sight aircraft — no LNA needed).
-- **`56919602` (SMArt) → VDL2** (~136 MHz). ⚠️ **Validate this dongle first** — its history includes a 1275 Hz internal IQ artifact cleared only by a USB replug (the old "VFO Nooelec" incident; it was the fleet "sounding" dongle). VDL2's digital decode is fairly tolerant, but confirm a clean spectrum before committing it.
-- Frequency ranges don't constrain the mapping — all three are R820T2/RTL2832 (~24–1766 MHz) and cover 131/136/400 MHz. The bias-tee is the only hardware differentiator, so it drives the radiosonde assignment.
-
----
-
-## 5. Aggregation / UI backend routing
-
-`sb3.html` (683 KB, served verbatim) talks only to `/api/*` — so all migration work is behind that contract. New routing, **no SDRangel REST anywhere**:
-
-| Surface | Source on Linux | Mechanism | Reuse? |
-|---|---|---|---|
-| Digital status/hits | **SDRTrunk** | tail `sdrtrunk_app.log` → `digital_*` dict | **`sdrtrunk_client.py` reused as-is** |
-| Digital control | **SDRTrunk** | write `default.xml` + `systemctl restart sdrtrunk` | new (thin: file + service) |
-| Analog status/control | **chirp** | JSON command bus (loopback UDP) | **`ui/chirp_client.py` reused** |
-| Disco | **disco** | its `state/` + `dashboard.py` + classifier output | adopt disco's own surface |
-| ACARS / VDL2 / Radiosonde | acarsdec / dumpvdl2 / auto_rx | each emits text/JSON (acarsdec → UDP/JSON or `acarsserv`; dumpvdl2 → JSON/ZMQ; auto_rx → telemetry/log) | new: 3 small log/JSON tailers → unified hits feed |
-
-**Sketch:** `/api/status` fans out to {`sdrtrunk_client` (digital), `chirp_client` (analog), `disco` state, ACARS/VDL2/sonde tailers}; `/api/hits` aggregates SDRTrunk call events + chirp hits + the three RTL-tool feeds into the existing activity feed. The aggregation pattern (tail a log/JSON, normalize to a hit) is exactly what `sdrtrunk_client.py` already does — replicate it three times for the RTL tools. No new protocol; a `HitSource` interface with 6 implementations behind the current `/api/*`.
+Each row is only entered after the previous is durable. **48 h burn-in between subsystems in Phase E** — no chaining two unproven things.
 
 ---
 
-## 6. SB3 control-plane inventory & revised cost
+## 9. Install sequence (phased, paced) + time
 
-**Totals (unchanged):** 33 `.py`, **6,972 LOC** under `sb3/`; `ui/sb3.html` (683 KB) served verbatim. Separately in-repo and now **reused as engines**: `chirp/` (large — `daemon.py` ~95 KB + dsp/tests) and `disco/` (full subsystem).
+- **Phase A — prep (30 min):** back up macOS state; stage the op25 fallback tarball; confirm Cumberland `default.xml` + `tuner_configuration.json` in `/etc` layout.
+- **Phase B — Asahi install (60–90 min):** `curl` Ubuntu Asahi installer; **partition ≥200 GB**; **set Ubuntu Server as default boot** so the first reboot lands in Ubuntu unattended. → **Checkpoint 1.**
+- **Phase C — base setup (45 min):** create `scannerproject` user + `/etc` `/var/lib` `/var/log` tree; **install Tailscale first** (get on the tailnet before touching SDR — remote hands from anywhere); apt base + GNU Radio 3.10 + icecast2 + Xvfb + Temurin JDK 21; udev rules; SDRplay API `.run` + its service. → **Checkpoints 2–3.**
+- **Phase D — first decode (90 min):** SDRTrunk unit + Xvfb unit; deploy Cumberland playlist; lock CC on RSPduo Tuner 1. → **Checkpoint 5. First real decode ~4 h elapsed.**
+- **Phase E — roll out the rest, one subsystem per session, 48 h burn-in between each:** Tuner 2 second system → chirp → disco (+ classifier validation) → acarsdec → dumpvdl2 → radiosonde_auto_rx. → **Checkpoints 4/6/7/8.** Deliberately **multi-session over ~2 weeks**, not one evening.
+- **Phase F — SB3 code migration (weeks):** the ≈2-phase-equivalent control-plane port (§10), landing the reconciler PASSIVE → **Checkpoints 9–10.**
 
-**What changes vs rev 2 (the cost drop):**
-- `sb3/sdrtrunk_client.py` (115) — **REUSE** (was rewrite). Linux SDRTrunk logs identically.
-- Analog client — **REUSE** `ui/chirp_client.py` / `chirp_adapter.py` (was "write new").
-- Digital control — thin new adapter: write `default.xml` + `systemctl restart` (far simpler than SDRangel's deviceset/channel REST choreography).
-
-**Still needs rewrite (~1,900 LOC, was ~2,300):** `sdrangel.py` (418) → replaced by the thin SDRTrunk-file + chirp-bus adapters (net smaller); `translator.py` (340, apply/verify/unload) → apply engine over file+systemctl+chirp-bus; `reconciler/observer.py` (543) → observe SDRTrunk log + chirp bus + disco state; `reconciler/actions.py` (250) → repairs via service restarts + chirp bus; SDRangel halves of `backends.py` (~150) and the `routes.py` write path (~300).
-
-**Reuses unchanged (~3,000+ LOC):** kill switch, launchd→**systemd** unit patterns (translate plists to units — the ownership/label mechanism reuses), git deploy/update, fail-closed `state.py`, CLI, reconciler **safety+config** + **classifier taxonomy**, profile **validator**, the **wizard/HPDB** path, the HTTP server shell, `sb3.html`.
-
-**Revised estimate: ≈2 SB3-phase-equivalents.** Phase A = control adapters (digital file+service, analog chirp-bus) + apply engine; Phase B = observers (reuse SDRTrunk client + chirp client + disco) + UI routing + the 3 RTL-tool hit tailers. The reconciler retarget folds into A/B rather than a full third phase, because SDRTrunk/chirp/disco are pre-existing and their observers are largely done. **The drop from 3→2 is real reuse: the digital decoder + its observer come for free by choosing SDRTrunk over op25.**
+**Time:**  ~**4 h hands-on to first Cumberland decode**; Phase E paced over ~2 weeks (48 h burn-ins); **reconciler ACTIVE no sooner than 168 h of clean PASSIVE**, realistically **~2–3 weeks calendar** once the backend is stable. Fast to *useful*, slow to *fully autonomous* — on purpose.
 
 ---
 
-## 7. Install plan for Neptune (M1 Mac mini) — locked-stack sequence
+## 10. Migration cost (unchanged from rev 3: ≈2 SB3-phase-equivalents)
 
-Dual-boot Ubuntu Asahi; keep macOS as instant fallback. Partition **≥200 GB**.
-
-1. **Ubuntu Asahi** install (ubuntuasahi.org flow); base packages; confirm USB-A enumerates all SDRs (`lsusb`), fan control (`macsmc-hwmon`, `fan_control=1`).
-2. **SDRplay v3 API** — arm64 `.run`, enable `sdrplay_apiService`; `SoapySDRUtil --find` sees RSPduo + RSP1B.
-3. **SDRTrunk headless (the load-bearing prove-out)** — install JRE + SDRTrunk; run under `xvfb-run` (or an Xvfb systemd unit); drop in the **Cumberland Public Safety** `default.xml` (CCs 453.650/460.1125/460.2125/460.625, P25.2) on **RSPduo Tuner 1**; confirm CC lock + Crossville PD/Sheriff/EMS/Fire + icecast → `neptune-trunk.mp3`. **Then add Tuner 2** for the second system. If Xvfb is flaky → op25 fallback.
-4. **chirp** (RSP1B analog) — `apt gnuradio python3-gi python3-numpy` + pip reqs + SoapySDRPlay3/gr-osmosdr build; start airband daemon; verify Crossville CTAF/AWOS/Guard → icecast; combined mount → `neptune.mp3`.
-5. **disco** (HackRF) — `apt soapysdr-module-hackrf hackrf`; swap SoapySDR driver to `hackrf`; run `phase0_smoketest`; validate/retune the classifier on HackRF captures; enable `disco-*` systemd units.
-6. **acarsdec** (RTL `61108285`) — build f00b4r0 fork; monitor 131.550/130.025/etc → JSON feed.
-7. **dumpvdl2** (RTL `56919602`, validate first) — build libacars + dumpvdl2; 136.975/136.725/etc → JSON feed.
-8. **radiosonde_auto_rx** (RTL `95339533` + bias-tee) — Docker or source; auto-scan 400–406 MHz.
-9. **Wire feeds** into `/api/*` per §5; port SB3 launchd plists → systemd units.
+33 `.py` / 6,972 LOC in `sb3/`; SDRTrunk observer (`sdrtrunk_client.py`) **reused as-is**, chirp + `ui/chirp_client.py` + disco **already exist**. Rewrite concentrates on control adapters (digital = deploy `default.xml` + `systemctl restart`; analog = chirp JSON bus), the apply engine, and the reconciler retarget. **Add to the estimate:** translate the launchd plists → the hardened systemd units above (mechanical) and add the three RTL-tool hit-tailers + `/healthz` probes. Still **≈2 phases**; the hardening is unit files + scripts, not new control logic.
 
 ---
 
-## 8. Risk assessment + coherence answer
+## 11. Backing plan — Pi 5 (unchanged)
 
-- **Not recoverable if the pilot fails? Nothing** — dual-boot preserves macOS + today's rig; reboot restores it.
-- **Load-bearing risk: SDRTrunk under Xvfb for 24/7.** Mitigation: prove single-system first; fallback op25 or Trunk Recorder. Everything downstream (playlists, `sdrtrunk_client`, icecast) is unaffected by which digital decoder wins.
-- **Second risk: disco→HackRF classifier validity** — plumbing done, model may need re-validation on 8-bit HackRF samples (training pipeline is in-repo).
-- **Third: SDRplay-on-Ubuntu-Asahi** — lowest of the three (vendor tests on Ubuntu; Ubuntu Asahi is community but the kernel/USB/SDR-userland is standard Ubuntu).
-- **Is the stack coherent, or is there a mismatch to address before committing?** **Coherent — with eyes open on two points.** (a) SDRTrunk is a GUI app; you are committing to running a JavaFX app under Xvfb 24/7. That is genuinely fine on Linux+systemd (and *better* than the macOS Aqua/root situation), but it's the piece to pilot first, and op25 remains the escape hatch. (b) disco moves from the RSPduo it was trained on to the HackRF — validate the classifier. Neither is a mismatch that should stop the commit; both are pilot line-items. Everything else — SDRplay on Ubuntu, chirp, the three RTL tools, the UI aggregation — is well-trodden or already in your repo.
-
----
-
-## 9. Fallback: Pi 5 hybrid (unchanged, carried)
-
-If Asahi fights the RSPs, relocate the digital+analog RSP stack to a **Pi 5 (8 GB)** running the proven Debian SDRplay + SDRTrunk/op25 stack, keep RSP1B analog on macOS SDRangel, and let Neptune aggregate over the LAN via the icecast pattern this project already runs (two-box harness; philly-exit Pi `rtl_tcp`). Simpler to first-decode; costs one box. Asahi is the elegant consolidation and is zero-risk to try (dual-boot), so pilot it first.
+If the Asahi stack proves unstable after Phase D despite the hardening, relocate the RSP digital+analog stack to a **Pi 5 (8 GB)** on proven Debian, keep RSP1B analog on macOS if needed, and aggregate over the LAN via the icecast pattern this project already runs. Neptune stays on macOS. Zero data loss, one box added.
 
 ---
 
 ## Sources
 
-- SDRTrunk headless — [issue #92 "Command line with no GUI"](https://github.com/DSheirer/sdrtrunk/issues/92) · [headless/performance thread](https://groups.google.com/g/sdrtrunk/c/Meh-Vnd5V18) · [Xvfb for GUI apps](https://github.com/processing/processing/wiki/Running-without-a-Display)
-- chirp / disco — in-repo `chirp/README.md`, `chirp/requirements.txt`, `ui/chirp_client.py`, `disco/src/phase0_smoketest.py`, `disco/training/`
-- ACARS — [f00b4r0/acarsdec (maintained)](https://github.com/f00b4r0/acarsdec) · [TLeconte/acarsdec (legacy)](https://github.com/TLeconte/acarsdec)
-- VDL2 — [szpajder/dumpvdl2](https://github.com/szpajder/dumpvdl2) · [rtl-sdr.com: dumpvdl2](https://www.rtl-sdr.com/dumpvdl2-lightweight-vdl2-decoder/) · [openwebrx/dumpvdl2-debian](https://github.com/openwebrx/dumpvdl2-debian)
-- Radiosonde — [projecthorus/radiosonde_auto_rx](https://github.com/projecthorus/radiosonde_auto_rx) · [rtl-sdr.com: auto_rx](https://www.rtl-sdr.com/tracking-radiosondes-with-an-rtl-sdr-and-radiosonde_auto_rx/)
-- SDRplay / Asahi / SoapySDRPlay3 — [SDRplay API](https://www.sdrplay.com/api/) · [fventuri SoapySDRPlay3](https://github.com/fventuri/SoapySDRPlay3) · [fventuri gr-osmosdr (RSPduo all modes)](https://github.com/fventuri/gr-osmosdr) · [Ubuntu Asahi](https://ubuntuasahi.org/) · [Fedora Asahi Remix 43](https://www.linuxteck.com/fedora-asahi-remix-43-apple-silicon/) · [Asahi M1 feature support](https://asahilinux.org/docs/platform/feature-support/m1/) · [Asahi fan control](https://datcu-andrei-2.gitbook.io/)
+- Distro — [Ubuntu Asahi (24.04 Desktop + Server)](https://ubuntuasahi.org/) · [Ubuntu Asahi deep-dive](https://linuxvox.com/blog/ubuntu-asahi/) · [Fedora Asahi Remix 43](https://www.linuxteck.com/fedora-asahi-remix-43-apple-silicon/) · [Asahi M1 feature support](https://asahilinux.org/docs/platform/feature-support/m1/) · [Asahi fan control (macsmc-hwmon)](https://datcu-andrei-2.gitbook.io/)
+- SDRTrunk — [Getting Started (Java 21)](https://github.com/DSheirer/sdrtrunk/wiki/Getting-Started) · [headless issue #92](https://github.com/DSheirer/sdrtrunk/issues/92) · [JDK 21 LTS](https://openjdk.org/projects/jdk/21/)
+- Headless X — [xpra man page](https://manpages.ubuntu.com/manpages/xenial/man1/xpra.1.html) · [xpra runaway-process issue #4250](https://github.com/Xpra-org/xpra/issues/4250)
+- SDRplay / SoapySDRPlay3 — [SDRplay API](https://www.sdrplay.com/api/) · [fventuri SoapySDRPlay3 (RSPduo all modes)](https://github.com/fventuri/SoapySDRPlay3) · [fventuri gr-osmosdr](https://github.com/fventuri/gr-osmosdr)
+- RTL tools — [f00b4r0/acarsdec](https://github.com/f00b4r0/acarsdec) · [szpajder/dumpvdl2](https://github.com/szpajder/dumpvdl2) · [projecthorus/radiosonde_auto_rx](https://github.com/projecthorus/radiosonde_auto_rx)
+- In-repo — `chirp/README.md`, `chirp/requirements.txt`, `ui/chirp_client.py`, `disco/src/`, `sb3/sdrtrunk_client.py`, `sb3/reconciler/`
