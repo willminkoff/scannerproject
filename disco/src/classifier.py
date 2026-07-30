@@ -117,6 +117,18 @@ except Exception as _r4e:
     _RTL433_AVAILABLE = False
     _RTL433_IMPORT_ERROR = _r4e
 
+# PR #32 — multimon-ng specialist decoder for paging bands. Pipes the IQ
+# slice through multimon-ng to decode POCSAG/FLEX page content. Same
+# non-fatal import + never-raises contract as rtl433.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import multimon as _multimon
+    _MULTIMON_AVAILABLE = True
+except Exception as _mme:
+    _multimon = None
+    _MULTIMON_AVAILABLE = False
+    _MULTIMON_IMPORT_ERROR = _mme
+
 # Broadcast band cutoffs (Hz) — CDBS fallback only fires when freq is in-band.
 _BCAST_AM_LO_HZ = 530e3
 _BCAST_AM_HI_HZ = 1710e3
@@ -613,6 +625,18 @@ def classifier_loop(cfg, conn):
     else:
         LOG.warning("rtl_433 module import unavailable: %s", _RTL433_IMPORT_ERROR)
 
+    # PR #32 — same for multimon-ng.
+    if _MULTIMON_AVAILABLE and _multimon is not None:
+        LOG.info("multimon layer: binary=%s enabled=%s",
+                 "present" if _multimon.is_available() else "MISSING",
+                 _multimon.is_enabled())
+        try:
+            _multimon._write_stats()
+        except Exception:
+            pass
+    else:
+        LOG.warning("multimon module import unavailable: %s", _MULTIMON_IMPORT_ERROR)
+
     seen_count = 0; classified_count = 0; last_log = time.time()
 
     while not _STOP:
@@ -821,6 +845,25 @@ def classifier_loop(cfg, conn):
                                         _f / 1e6, _r4le)
                             rtl433_match_dict = None
 
+                # PR #32 — multimon-ng page decode for paging-band slices. A
+                # decoded POCSAG/FLEX page wins ahead of HPDB/CDBS/ULS (it's
+                # definitive content). Invoked only for paging allocations;
+                # paging and classic-ISM bands don't overlap so it never
+                # competes with the rtl_433 priority step. Module never raises.
+                multimon_match_dict: dict | None = None
+                if (_MULTIMON_AVAILABLE and _multimon is not None
+                        and _multimon.is_available() and _multimon.is_enabled()
+                        and _multimon.is_paging_band(meta["freq_hz"])):
+                    try:
+                        multimon_match_dict = _multimon.lookup_multimon(
+                            slice_path,
+                            meta["freq_hz"],
+                        )
+                    except Exception as _mmle:
+                        LOG.warning("multimon lookup raised at %.6f MHz: %s",
+                                    meta["freq_hz"] / 1e6, _mmle)
+                        multimon_match_dict = None
+
                 # PR B — fingerprint the slice's spectral + temporal features
                 # against the curated catalog. Only fires when HPDB/CDBS
                 # both returned empty (the fingerprint layer in the trust
@@ -860,6 +903,7 @@ def classifier_loop(cfg, conn):
                             cdbs_match=cdbs_match,
                             rtl433_match=rtl433_match_dict,
                             rtl433_priority=rtl433_priority,
+                            multimon_match=multimon_match_dict,
                             uls_match=uls_match,
                             signature_match=sig_match_dict,
                         )
