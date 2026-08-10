@@ -98,3 +98,8 @@ config/reconciler.json
 # (1ab5c86, 3b86030) before this rule existed.
 * [0-9].py
 * [0-9].sh
+
+# Icecast secrets — never commit
+icecast/icecast-secrets.env
+icecast/*-secrets.env
+**/icecast-*credentials*.env
