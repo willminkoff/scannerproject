@@ -2238,6 +2238,107 @@ def _unit_exists_cached(unit: str) -> bool:
     return value
 
 
+# =====================================================================
+# Neptune lean-stack health model (Asahi migration).
+#
+# The legacy heartbeat/sitrep model is hardwired to the Debian
+# rtl-airband / op25 / scanner-vlc unit layout.  Neptune's lean stack is
+# five services, three of which run as ``systemd --user`` — which the
+# system-scope probe (``_unit_active_cached`` → ``systemctl is-active``)
+# cannot see, so they read permanently "inactive" and pin the badge to
+# WEDGED.  When ``HEALTH_SERVICE_MODEL=lean`` the heartbeat + sitrep swap
+# to this list and use the scope-aware probe below.
+#
+# This is HEALTH-CHECK-ONLY.  The service backend, every restart cascade,
+# and the legacy (flag-unset) code path are untouched — an empty / other
+# value leaves behavior byte-for-byte identical for the Debian audience.
+# =====================================================================
+HEALTH_SERVICE_MODEL = os.getenv("HEALTH_SERVICE_MODEL", "").strip().lower()
+
+# (label, unit, scope, core).  scope ∈ {"user","system"}; core rows drive
+# the WEDGED decision, non-core rows are surfaced as evidence only.
+_LEAN_HEALTH_SERVICES: tuple[tuple[str, str, str, bool], ...] = (
+    ("sb3-ui",        os.getenv("UNIT_SB3_UI",   "sb3-ui.service"),        "user",   True),
+    ("chirp-airband", os.getenv("UNIT_CHIRP",    "chirp-airband.service"), "user",   True),
+    ("icecast",       os.getenv("UNIT_ICECAST",  "icecast.service"),       "system", True),
+    ("sdrtrunk",      os.getenv("UNIT_SDRTRUNK", "sdrtrunk.service"),      "user",   False),
+    ("sdrplay",       os.getenv("UNIT_SDRPLAY",  "sdrplay.service"),       "system", False),
+)
+
+
+def _health_model_is_lean() -> bool:
+    return HEALTH_SERVICE_MODEL == "lean"
+
+
+# Scope-aware caches (health-check-local; distinct from the system-scope
+# _UNIT_*_CACHE so the two never collide on a same-named unit).
+_USER_UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
+_USER_UNIT_EXISTS_CACHE: dict[str, tuple[float, bool]] = {}
+
+
+def _user_systemctl_env() -> dict:
+    """Env for ``systemctl --user`` from inside the (--user) UI service.
+
+    systemd --user already exports XDG_RUNTIME_DIR into the UI process, but
+    set it defensively so the probe still works if the UI is ever launched
+    outside a user-manager session."""
+    env = dict(os.environ)
+    env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    return env
+
+
+def _user_unit_active_cached(unit: str) -> bool:
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        entry = _USER_UNIT_ACTIVE_CACHE.get(unit)
+        if entry and (now - float(entry[0])) <= _UNIT_ACTIVE_CACHE_TTL_SEC:
+            return bool(entry[1])
+    import subprocess
+    try:
+        value = subprocess.run(
+            ["systemctl", "--user", "is-active", "--quiet", unit],
+            env=_user_systemctl_env(), timeout=5.0,
+        ).returncode == 0
+    except Exception:
+        value = False
+    with _CACHE_LOCK:
+        _USER_UNIT_ACTIVE_CACHE[unit] = (now, value)
+    return value
+
+
+def _user_unit_exists_cached(unit: str) -> bool:
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        entry = _USER_UNIT_EXISTS_CACHE.get(unit)
+        if entry and (now - float(entry[0])) <= _UNIT_EXISTS_CACHE_TTL_SEC:
+            return bool(entry[1])
+    import subprocess
+    value = False
+    try:
+        proc = subprocess.run(
+            ["systemctl", "--user", "show", "-p", "LoadState", "--value", unit],
+            env=_user_systemctl_env(), capture_output=True, text=True, timeout=5.0,
+        )
+        value = (proc.stdout or "").strip() == "loaded"
+    except Exception:
+        value = False
+    with _CACHE_LOCK:
+        _USER_UNIT_EXISTS_CACHE[unit] = (now, value)
+    return value
+
+
+def _svc_active_scoped(unit: str, scope: str) -> bool:
+    if scope == "user":
+        return _user_unit_active_cached(unit)
+    return _unit_active_cached(unit)
+
+
+def _svc_exists_scoped(unit: str, scope: str) -> bool:
+    if scope == "user":
+        return _user_unit_exists_cached(unit)
+    return _unit_exists_cached(unit)
+
+
 # H2 (2026-06-03): the heartbeat used to flip ANY inactive service to warn,
 # which made acarsdec / radiosonde-auto-rx / scanner-vlc-vfo show permanent
 # yellow flags even though they are intentionally `systemctl disable`d. This
@@ -3494,7 +3595,7 @@ def _compute_heartbeat_payload() -> dict:
     except Exception:
         _chirp_on = False
 
-    if not _chirp_on:
+    if not _chirp_on and not _health_model_is_lean():
         # 1) rtl-airband stats file freshness — the contractual heartbeat
         #    of the RF→audio sample path. Stale ⇒ pipeline stuck.
         try:
@@ -3525,30 +3626,39 @@ def _compute_heartbeat_payload() -> dict:
                 wedged_reasons.append(stats.get("reason") or "rtl-airband stats stale")
                 recovery = recovery or f"systemctl restart {UNITS.get('rtl_airband','rtl-airband-airband')}"
 
-    # 2) Service active state for the 5 core units.
-    if _chirp_on:
+    # 2) Service active state for the core units.
+    #    Each entry is (label, unit, scope); scope ∈ {"user","system"}.
+    if _health_model_is_lean():
+        # Neptune lean stack: core rows are the wedge-driving services,
+        # probed scope-aware (the --user units are invisible to the
+        # system-scope probe used below for the Debian layout).
+        service_units = [
+            (lbl, unit, scope)
+            for (lbl, unit, scope, core) in _LEAN_HEALTH_SERVICES if core
+        ]
+    elif _chirp_on:
         # Phase 4d: chirp gr-demod replaces rtl-airband.  The 5-core
         # block becomes airband-ui + gr-demod@airband + gr-demod@ground
         # + icecast2 + scanner-vlc-digital so the operator sees the
         # actual analog pipeline.
         service_units = [
-            ("airband-ui",          UNITS.get("ui", "airband-ui")),
-            ("gr-demod@airband",    UNITS.get("rtl_airband", "gr-demod@airband.service")),
-            ("gr-demod@ground",     UNITS.get("rtl_ground", "gr-demod@ground.service")),
-            ("icecast2",            UNITS.get("icecast", "icecast2")),
-            ("scanner-vlc-digital", "scanner-vlc-digital.service"),
+            ("airband-ui",          UNITS.get("ui", "airband-ui"), "system"),
+            ("gr-demod@airband",    UNITS.get("rtl_airband", "gr-demod@airband.service"), "system"),
+            ("gr-demod@ground",     UNITS.get("rtl_ground", "gr-demod@ground.service"), "system"),
+            ("icecast2",            UNITS.get("icecast", "icecast2"), "system"),
+            ("scanner-vlc-digital", "scanner-vlc-digital.service", "system"),
         ]
     else:
         service_units = [
-            ("airband-ui",          UNITS.get("ui", "airband-ui")),
-            ("rtl-airband-airband", UNITS.get("rtl_airband", "rtl-airband-airband")),
-            ("rtl-airband-ground",  UNITS.get("rtl_ground", "rtl-airband-ground")),
-            ("icecast2",            UNITS.get("icecast", "icecast2")),
-            ("scanner-vlc-digital", "scanner-vlc-digital.service"),
+            ("airband-ui",          UNITS.get("ui", "airband-ui"), "system"),
+            ("rtl-airband-airband", UNITS.get("rtl_airband", "rtl-airband-airband"), "system"),
+            ("rtl-airband-ground",  UNITS.get("rtl_ground", "rtl-airband-ground"), "system"),
+            ("icecast2",            UNITS.get("icecast", "icecast2"), "system"),
+            ("scanner-vlc-digital", "scanner-vlc-digital.service", "system"),
         ]
-    for label, unit in service_units:
+    for label, unit, scope in service_units:
         try:
-            active = _unit_active_cached(unit)
+            active = _svc_active_scoped(unit, scope)
         except Exception:
             active = False
         evidence.append({
@@ -3569,21 +3679,30 @@ def _compute_heartbeat_payload() -> dict:
     #     than `bad`, so a stopped decoder doesn't catastrophize the badge.
     #     Units not installed on this host → status `ok`, value `not
     #     configured` (skipped cleanly, no failure).
-    extended_service_units = [
-        ("scanner-digital-op25",        "scanner-digital-op25.service"),
-        ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service"),
-        ("scanner-vfo",                 UNITS.get("vfo", "scanner-vfo")),
-        ("scanner-tuner-broker",        "scanner-tuner-broker.service"),
-        ("dumpvdl2",                    "dumpvdl2.service"),
-        ("acarsdec",                    "acarsdec.service"),
-        ("radiosonde-auto-rx",          "radiosonde-auto-rx.service"),
-        ("scanner-vlc-analog",          "scanner-vlc-analog.service"),
-        ("scanner-vlc-ground",          "scanner-vlc-ground.service"),
-        ("scanner-vlc-vfo",             "scanner-vlc-vfo.service"),
-    ]
-    for label, unit in extended_service_units:
+    #     Each entry is (label, unit, scope); scope ∈ {"user","system"}.
+    if _health_model_is_lean():
+        # Neptune lean stack: the non-core services (digital + SDRplay
+        # API) — surfaced as evidence, not wedge drivers.
+        extended_service_units = [
+            (lbl, unit, scope)
+            for (lbl, unit, scope, core) in _LEAN_HEALTH_SERVICES if not core
+        ]
+    else:
+        extended_service_units = [
+            ("scanner-digital-op25",        "scanner-digital-op25.service", "system"),
+            ("scanner-digital-op25-audio",  "scanner-digital-op25-audio.service", "system"),
+            ("scanner-vfo",                 UNITS.get("vfo", "scanner-vfo"), "system"),
+            ("scanner-tuner-broker",        "scanner-tuner-broker.service", "system"),
+            ("dumpvdl2",                    "dumpvdl2.service", "system"),
+            ("acarsdec",                    "acarsdec.service", "system"),
+            ("radiosonde-auto-rx",          "radiosonde-auto-rx.service", "system"),
+            ("scanner-vlc-analog",          "scanner-vlc-analog.service", "system"),
+            ("scanner-vlc-ground",          "scanner-vlc-ground.service", "system"),
+            ("scanner-vlc-vfo",             "scanner-vlc-vfo.service", "system"),
+        ]
+    for label, unit, scope in extended_service_units:
         try:
-            exists = _unit_exists_cached(unit)
+            exists = _svc_exists_scoped(unit, scope)
         except Exception:
             exists = True  # err on the side of probing; worst case we surface inactive
         if not exists:
@@ -3594,7 +3713,7 @@ def _compute_heartbeat_payload() -> dict:
             })
             continue
         try:
-            active = _unit_active_cached(unit)
+            active = _svc_active_scoped(unit, scope)
         except Exception:
             active = False
         if active:
@@ -3626,9 +3745,11 @@ def _compute_heartbeat_payload() -> dict:
                 "status": "warn",
             })
 
-    # 3) Icecast ANALOG.mp3 mount-publishing state (cheap — icecast JSON).
+    # 3) Icecast analog mount-publishing state (cheap — icecast JSON).
     analog_mount_publishing = False
     icecast_status_text = ""
+    _analog_mount_name = str(PLAYER_MOUNT or "ANALOG.mp3").strip().lstrip("/")
+    _analog_mount_label = f"/{_analog_mount_name} mount"
     try:
         icecast_status_text = fetch_local_icecast_status()
         analog_mount_publishing = mount_publishing(
@@ -3636,21 +3757,21 @@ def _compute_heartbeat_payload() -> dict:
         )
     except Exception:
         evidence.append({
-            "label": "/ANALOG.mp3 mount",
+            "label": _analog_mount_label,
             "value": "icecast status unreachable",
             "status": "bad",
         })
         wedged_reasons.append("icecast status unreachable")
     else:
         evidence.append({
-            "label": "/ANALOG.mp3 mount",
+            "label": _analog_mount_label,
             "value": "publishing" if analog_mount_publishing else "no source",
             "status": "ok" if analog_mount_publishing else "warn",
         })
         if not analog_mount_publishing:
             # `no source` is not always wedged (the upstream may be in a
             # legitimate retune), but flag for follow-on byte probe.
-            wedged_reasons.append("/ANALOG.mp3 has no source")
+            wedged_reasons.append(f"/{_analog_mount_name} has no source")
 
     # 4) Operator-facing mp3 mounts — Option B hybrid byte-delta probe.
     #
@@ -3669,7 +3790,25 @@ def _compute_heartbeat_payload() -> dict:
     #    operator-relevant.
     _hb_now = time.time()
     _hb_admin = _heartbeat_fetch_admin_stats()
-    for _hb_mount in _HEARTBEAT_PROBE_MOUNTS:
+    if _health_model_is_lean():
+        # Neptune publishes only the analog + digital mounts.  (These
+        # config symbols are function-local imports elsewhere in this
+        # module, so import them here too rather than assuming globals.)
+        try:
+            from .config import PLAYER_MOUNT as _hb_analog_mount
+            from .config import DIGITAL_STREAM_MOUNT as _hb_digital_mount
+        except ImportError:
+            from ui.config import PLAYER_MOUNT as _hb_analog_mount
+            from ui.config import DIGITAL_STREAM_MOUNT as _hb_digital_mount
+        _hb_probe_mounts = tuple(
+            m for m in (
+                str(_hb_analog_mount or "").strip().lstrip("/"),
+                str(_hb_digital_mount or "").strip().lstrip("/"),
+            ) if m
+        )
+    else:
+        _hb_probe_mounts = _HEARTBEAT_PROBE_MOUNTS
+    for _hb_mount in _hb_probe_mounts:
         _hb_result = _heartbeat_check_mount_bytes(_hb_mount, _hb_admin, _hb_now)
         evidence.append({
             "label": f"/{_hb_mount} byte rate",
@@ -3687,11 +3826,18 @@ def _compute_heartbeat_payload() -> dict:
     # ``fail`` here counts as a wedged_reason so a downed chirp daemon
     # rolls the badge up to WEDGED, which matches operator expectation
     # under the chirp regime.
+    #
+    # Lean/Neptune exception: the chirp analog daemon there streams hits
+    # via a file and does NOT expose the operator control socket (ports
+    # 7400/7401 are closed by design), and there is no ground channel at
+    # all.  Probing the sockets would wedge permanently, so skip this
+    # block under the lean model — ``chirp-airband.service`` active-state
+    # (a core row above) is the authoritative "is chirp up" signal.
     try:
         _chirp_on = bool(_chirp_use_gr_demod())
     except Exception:
         _chirp_on = False
-    if _chirp_on:
+    if _chirp_on and not _health_model_is_lean():
         try:
             _chirp_air = _chirp_airband_client()
             _chirp_gnd = _chirp_ground_client()
@@ -3763,20 +3909,27 @@ def _compute_heartbeat_payload() -> dict:
                     "status": "warn",
                 })
 
-    # Phase 6a — live evidence rows for the two waterfall RTL-SDRs.
-    # Backed by /run/scannerproject/waterfall/state.json which the
-    # scanner-waterfall.service writes once a frame is in hand.
-    for row in _waterfall_dongle_evidence_rows():
-        evidence.append(row)
-    # Phase 6b — live VFO row.
-    evidence.append(_vfo_dongle_evidence_row())
-    # Phase 6c — per-Disco-dongle live evidence rows backed by
-    # /run/scannerproject/disco/coord_state.json.
-    # Phase 6d — overridden by broker ownership when sounding is on:
-    # a dongle loaned to ACARS / VDL2 shows the consumer's evidence
-    # instead of the (stale) disco coordinator view.
-    for row in _broker_aware_dongle_rows():
-        evidence.append(row)
+    # Phase 6a/6b/6c/6d — live per-dongle evidence rows (waterfall RTLs,
+    # VFO, Disco).  These monitor hardware roles that do not exist on the
+    # Neptune lean stack (no waterfall / VFO / disco services or dongles),
+    # so they would report permanent hard-DOWN and pin the badge to WEDGED.
+    # Skip them under the lean model; the core service rows above are the
+    # authoritative health signal there.
+    if not _health_model_is_lean():
+        # Phase 6a — live evidence rows for the two waterfall RTL-SDRs.
+        # Backed by /run/scannerproject/waterfall/state.json which the
+        # scanner-waterfall.service writes once a frame is in hand.
+        for row in _waterfall_dongle_evidence_rows():
+            evidence.append(row)
+        # Phase 6b — live VFO row.
+        evidence.append(_vfo_dongle_evidence_row())
+        # Phase 6c — per-Disco-dongle live evidence rows backed by
+        # /run/scannerproject/disco/coord_state.json.
+        # Phase 6d — overridden by broker ownership when sounding is on:
+        # a dongle loaned to ACARS / VDL2 shows the consumer's evidence
+        # instead of the (stale) disco coordinator view.
+        for row in _broker_aware_dongle_rows():
+            evidence.append(row)
 
     # Decide state. The rollup reflects EVERY evidence row (see
     # `_heartbeat_rollup_state` for the severity rule and the bug it fixes).
@@ -4885,6 +5038,30 @@ def _sitrep_services() -> list[dict]:
     ``active=False`` and ``installed=False`` so the modal can render them
     as "not configured" rather than red-flagging the grid.
     """
+    if _health_model_is_lean():
+        rows = []
+        for label, unit, scope, _core in _LEAN_HEALTH_SERVICES:
+            try:
+                exists = _svc_exists_scoped(unit, scope)
+            except Exception:
+                exists = True
+            if not exists:
+                rows.append({
+                    "label": label, "unit": unit,
+                    "active": False, "installed": False, "status": "ok",
+                })
+                continue
+            try:
+                active = _svc_active_scoped(unit, scope)
+            except Exception:
+                active = False
+            rows.append({
+                "label": label, "unit": unit,
+                "active": active, "installed": True,
+                "status": "ok" if active else "bad",
+            })
+        return rows
+
     rows = []
     for label, unit in _sitrep_active_service_units():
         try:
