@@ -721,8 +721,14 @@ def ask_claude_stub(form: Dict, state: State) -> Dict:
 
 
 def hits(state: State) -> Dict:
-    """/api/hits — recent activity. SB3 has no hit log yet; empty feed (valid shape)."""
-    return {"ok": True, "items": []}
+    """/api/hits — recent activity read from chirp's analog hit log."""
+    try:
+        from ui import scanner as _sc
+        items = _sc._read_chirp_hits_from_jsonl(
+            _sc._CHIRP_AIRBAND_HITS_PATH, "airband", limit=50)
+    except Exception:
+        items = []
+    return {"ok": True, "items": items}
 
 
 # ---- digital fallback endpoints (Phase 3.3) --------------------------------
