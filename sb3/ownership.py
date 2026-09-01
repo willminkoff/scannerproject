@@ -114,7 +114,7 @@ KILL_ORDER: tuple = (
 #: Mounts whose continuity is the invariant `kill` exists to protect (§4.3
 #: step 6).  A kill switch that does not verify these is a wish.
 GUARDED_MOUNTS: tuple = (
-    "neptune-trunk.mp3",
+    "venus-digital.mp3",
     "neptune-analog.mp3",  # Analog scanner mount (neptune-angel.mp3 -> neptune-air.mp3
                            # 2026-07-19 -> neptune-analog.mp3 2026-07-21, renamed now
                            # that VFO gets its own neptune-vfo.mp3). kill must guard the

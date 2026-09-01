@@ -18,8 +18,9 @@ from typing import Dict, List, Optional
 
 DEFAULT_LOG = Path(os.environ.get(
     "SB3_SDRTRUNK_LOG", os.path.expanduser("~/SDRTrunk/logs/sdrtrunk_app.log")))
+REMOTE_URL = os.environ.get("SB3_SDRTRUNK_REMOTE_URL", "").rstrip("/")
 
-TAIL_BYTES = 200_000        # read only the last ~200 KB
+TAIL_BYTES = 1_000_000        # read only the last ~200 KB
 _TS_RE = re.compile(r"^(\d{8}) (\d{6})\.(\d{3})")
 _BROADCAST_RE = re.compile(r"AudioStreamingBroadcaster - \[([^\]]+)\] status: (\w+)")
 _TUNER_RE = re.compile(r"Tuner: (RSPduo Tuner \d+ SER#\w+)")
@@ -39,6 +40,16 @@ def _epoch(ts_date: str, ts_time: str, ms: str) -> Optional[float]:
 
 
 def _tail_lines(path: Path, nbytes: int = TAIL_BYTES) -> List[str]:
+    # If SB3_SDRTRUNK_REMOTE_URL is set, fetch the tail over HTTP.
+    if REMOTE_URL:
+        try:
+            import urllib.request
+            url = f"{REMOTE_URL}/sdrtrunk_app.log?tail={nbytes}"
+            with urllib.request.urlopen(url, timeout=3) as r:
+                data = r.read()
+            return data.decode("utf-8", "replace").splitlines()
+        except Exception:
+            return []
     try:
         size = path.stat().st_size
         with path.open("rb") as f:
@@ -50,6 +61,42 @@ def _tail_lines(path: Path, nbytes: int = TAIL_BYTES) -> List[str]:
         return []
 
 
+
+
+def _tail_remote_event_log(nbytes: int = TAIL_BYTES) -> List[str]:
+    """When REMOTE_URL is set, fetch tails of ALL recent decoded_messages logs
+    (touched in last 5 min) so we detect TSBK/GRP_VCH activity across every
+    active P25 system, not just whichever event log was most recently written."""
+    if not REMOTE_URL:
+        return []
+    try:
+        import urllib.request, json, time
+        idx = urllib.request.urlopen(f"{REMOTE_URL}/event_logs/", timeout=3).read()
+        items = json.loads(idx).get("items", [])
+        now = time.time()
+        # recent decoded_messages logs (touched in the last 5 min)
+        decoded = [x for x in items
+                   if "decoded_messages" in x["name"]
+                   and (now - x.get("mtime", 0)) < 300]
+        if not decoded:
+            return []
+        per_log = max(4096, nbytes // max(len(decoded), 1))
+        out: List[str] = []
+        for entry in decoded:
+            try:
+                with urllib.request.urlopen(
+                    f"{REMOTE_URL}/event_logs/{entry["name"]}?tail={per_log}",
+                    timeout=3,
+                ) as r:
+                    data = r.read()
+                out.extend(data.decode("utf-8", "replace").splitlines())
+            except Exception:
+                continue
+        return out
+    except Exception:
+        return []
+
+
 def observe(log_path: Optional[Path] = None, *, running: bool = True) -> Dict:
     """Structured SDRTrunk state for the Digital tab. Read-only.
 
@@ -57,7 +104,7 @@ def observe(log_path: Optional[Path] = None, *, running: bool = True) -> Dict:
     probe processes, only the log.
     """
     path = log_path or DEFAULT_LOG
-    lines = _tail_lines(path)
+    lines = _tail_lines(path) + _tail_remote_event_log()
 
     broadcaster_status = None
     broadcaster_name = None
@@ -111,5 +158,5 @@ def observe(log_path: Optional[Path] = None, *, running: bool = True) -> Dict:
         "digital_playlist_source_ok": bool(lines),
         "digital_playlist_source_type": "sdrtrunk-log",
         "digital_log_path": str(path),
-        "digital_log_present": path.is_file() if hasattr(path, "is_file") else False,
+        "digital_log_present": bool(REMOTE_URL) or (path.is_file() if hasattr(path, "is_file") else False),
     }

@@ -53,7 +53,7 @@ DEFAULT_CONFIG_PATH = "~/sb3/config.json"
 #: in well under a second instead of being slept through for up to 30s.
 _TICK_SEC = 0.25
 
-DIGITAL_MOUNT = "neptune-trunk.mp3"
+DIGITAL_MOUNT = "venus-digital.mp3"
 
 #: Where quarantine state is persisted (shared with sb3.reconcilercmd).
 QUARANTINE_PATH = "~/.local/state/sb3/reconciler_quarantine.json"

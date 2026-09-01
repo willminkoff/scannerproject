@@ -20,13 +20,13 @@ import platform
 import socket
 from typing import Dict
 
-from .. import backends, gitdeploy, ownership, sdrtrunk_client
+from .. import backends, gitdeploy, ownership, sdrtrunk_client, op25_client
 from ..state import State
 
-GUARDED = ownership.GUARDED_MOUNTS  # ("neptune-trunk.mp3", "neptune-analog.mp3", ...)
+GUARDED = ownership.GUARDED_MOUNTS  # ("venus-digital.mp3", "neptune-analog.mp3", ...)
 AIR_MOUNT = "neptune-analog.mp3"     # analog scanner mount (renamed from neptune-air.mp3 2026-07-21)
 GROUND_MOUNT = "neptune-ground.mp3"
-DIGITAL_MOUNT = "neptune-trunk.mp3"
+DIGITAL_MOUNT = "venus-digital.mp3"
 
 
 def _now_iso() -> str:
@@ -57,7 +57,7 @@ def build_status(state: State) -> Dict:
     vfo_running = _running(vfo_profile) if vfo_profile else False
 
     sdrangel_up = "com.scannerproject.sdrangel" in loaded
-    sdrtrunk_up = "com.scannerproject.sdrtrunk" in loaded
+    sdrtrunk_up = ("com.scannerproject.sdrtrunk" in loaded) or bool(os.environ.get("SB3_SDRTRUNK_REMOTE_URL"))
 
     # Per-role one-word status the UI surfaces (e.g. the Ground offline banner).
     # Derived only from data already fetched above — no extra SDRangel call, so
@@ -119,7 +119,7 @@ def build_status(state: State) -> Dict:
         "profile_vfo": vfo_profile.get("name", ""),
         # digital (SDRTrunk) — from the log-tail observer (Phase 3.3)
         "digital_present": sdrtrunk_up,
-        **sdrtrunk_client.observe(running=sdrtrunk_up),
+        **op25_client.observe(running=sdrtrunk_up),
         # SB3 self
         "sb3": {
             "killed": state.is_killed(),
@@ -740,3 +740,36 @@ def digital_preflight(state: State) -> Dict:
 
 def digital_profiles(state: State) -> Dict:
     return {"ok": True, "profiles": [], "active_digital_id": ""}
+
+def apply_profile(form, state):
+    """POST /api/profile/apply — take {name: <profile_name>} and dispatch to
+    the analog (chirp) or digital (sdrtrunk) applier based on profile role.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+    from ..profilecmd import resolve_profile_path as _resolve
+
+    name = (form.get("name") or "").strip()
+    if not name:
+        return {"ok": False, "error": "name required"}
+
+    path = _resolve(name)
+    if not path or not path.is_file():
+        return {"ok": False, "error": f"profile not found: {name}"}
+
+    try:
+        profile = _json.loads(path.read_text())
+    except Exception as exc:
+        return {"ok": False, "error": f"profile parse failed: {exc}"}
+
+    role = profile.get("role")
+    try:
+        if role in ("air", "vfo"):
+            from ..chirp_applier import apply_profile_to_chirp
+            return apply_profile_to_chirp(profile, band=("vfo" if role == "vfo" else "airband"))
+        if role == "digital":
+            from ..sdrtrunk_applier import apply_digital_profile
+            return apply_digital_profile(profile)
+        return {"ok": False, "error": f"unsupported role: {role!r}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"applier raised: {exc}"}

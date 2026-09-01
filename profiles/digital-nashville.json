@@ -1,0 +1,42 @@
+{
+  "_comment": "Digital P25 profile for Nashville — TACN Tennessee Tower + MTRTRS Davidson County Simulcast, both on RSPduo 1809063632. Applied to SDRTrunk on Venus via sb3.sdrtrunk_applier.",
+  "name": "digital.nashville",
+  "role": "digital",
+  "sub_role": "p25-phase1",
+  "backend": "sdrtrunk",
+  "target_host": "willminkoff@100.114.219.115",
+  "stream": {
+    "name": "scanner-digital",
+    "mount_point": "/neptune-trunk.mp3",
+    "bit_rate": 16,
+    "sample_rate": 8000,
+    "host": "127.0.0.1",
+    "port": 8000,
+    "user_name": "source",
+    "password": "digitalpw123",
+    "alias_list_name": "Nashville Digital"
+  },
+  "systems": [
+    {
+      "name": "TACN Nashville (Tennessee Tower)",
+      "preferred_tuner": "RSPduo SER:1809063632 Tuner 1",
+      "modulation": "CQPSK",
+      "traffic_channel_pool_size": 20,
+      "ignore_data_calls": false,
+      "control_channels_hz": [852987500, 853737500]
+    },
+    {
+      "name": "MTRTRS Davidson County Simulcast",
+      "preferred_tuner": "RSPduo SER:1809063632 Tuner 2",
+      "modulation": "CQPSK",
+      "traffic_channel_pool_size": 20,
+      "ignore_data_calls": false,
+      "control_channels_hz": [856487500, 856712500, 857037500, 857487500]
+    }
+  ],
+  "disabled_tuners": [
+    {"tunerClass": "RSP", "id": "RSPduo Tuner 1 SER#180903EF32"},
+    {"tunerClass": "RSP", "id": "RSPduo Tuner 2 SER#180903EF32"},
+    {"tunerClass": "HACKRF", "id": "HackRF USB Bus:1 Port:14"}
+  ]
+}

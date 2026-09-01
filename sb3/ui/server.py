@@ -198,6 +198,8 @@ class Handler(BaseHTTPRequestHandler):
                              "SB3 yet — only the wizard's analog profile save "
                              "is wired (send name + channels).",
                 }, 501)
+            if p == "/api/profile/apply":
+                return self._json(routes.apply_profile(form, state))
             if p == "/api/vfo/mute":
                 # Accept the flag from the query string OR the form body — the
                 # endpoint is specified as ?state=on|off, and postAPI sends a
