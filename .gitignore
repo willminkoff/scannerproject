@@ -98,3 +98,7 @@ config/reconciler.json
 # (1ab5c86, 3b86030) before this rule existed.
 * [0-9].py
 * [0-9].sh
+
+# Scratch dirs for op25 host runtime files and ad-hoc audio dumps.
+/op25-runtime/
+/outputs/
