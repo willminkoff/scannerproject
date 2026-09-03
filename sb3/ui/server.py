@@ -91,7 +91,9 @@ class Handler(BaseHTTPRequestHandler):
         # countries/states always; counties/systems/channels real when the
         # HomePatrol dump is present, else an empty list + note.
         if p == "/api/scan/state":
-            return self._json(routes.wizard_scan_state(self._state))
+            return self._json(routes.hp_scan_state_get())
+        if p == "/api/scan/service-types":
+            return self._json(routes.hp_service_types_get())
         if p == "/api/scan/devices":
             return self._json(routes.wizard_devices())
         if p.startswith("/api/scan/favorites-wizard/"):
@@ -192,14 +194,17 @@ class Handler(BaseHTTPRequestHandler):
                     body = {}
                 if body.get("name") and isinstance(body.get("channels"), list):
                     return self._json(routes.wizard_save_profile(body, state))
-                return self._json({
-                    "ok": False,
-                    "error": "favorites-list persistence is not implemented in "
-                             "SB3 yet — only the wizard's analog profile save "
-                             "is wired (send name + channels).",
-                }, 501)
+                # Favorites-state blob — persist via HPState.
+                return self._json(routes.hp_scan_state_save(body))
             if p == "/api/profile/apply":
                 return self._json(routes.apply_profile(form, state))
+            if p == "/api/profile":
+                # UI compatibility: sb3.html posts {profile, target}. Map to
+                # {name} for apply_profile, which resolves the profile file.
+                alias = dict(form)
+                if "profile" in alias and "name" not in alias:
+                    alias["name"] = alias["profile"]
+                return self._json(routes.apply_profile(alias, state))
             if p == "/api/vfo/mute":
                 # Accept the flag from the query string OR the form body — the
                 # endpoint is specified as ?state=on|off, and postAPI sends a

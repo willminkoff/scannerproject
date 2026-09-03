@@ -240,17 +240,51 @@ def build_heartbeat(state: State) -> Dict:
 
 
 def build_profiles(state: State) -> Dict:
-    """Minimal /api/profiles so sb3.html's profile lookups don't error.
+    """/api/profiles — analog profile registry (airband/ground/vfo)."""
+    import json as _json
+    from ..profilecmd import user_profile_dir as _user_dir
 
-    Full profile registry + editor is Phase 3.2+. For now, report the one
-    loaded Air profile as the active airband profile.
-    """
     profs = state.read_loaded_profiles()
+    active_air = (profs.get("air") or {}).get("name", "")
+    active_ground = (profs.get("ground") or {}).get("name", "")
+    active_vfo = (profs.get("vfo") or {}).get("name", "")
+
+    seen = set()
+    all_profs = []
+    from pathlib import Path as _Path
+    _root = _Path(__file__).resolve().parent.parent.parent
+    for source, d in (("repo", _root / "profiles"), ("user", _user_dir())):
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.json")):
+            stem = f.stem
+            if stem in seen:
+                continue
+            seen.add(stem)
+            try:
+                data = _json.loads(f.read_text())
+            except Exception:
+                continue
+            role = str(data.get("role") or "").strip().lower()
+            all_profs.append({
+                "id": stem,
+                "name": data.get("name") or stem,
+                "role": role,
+                "sub_role": data.get("sub_role") or "",
+                "description": data.get("description") or data.get("_comment", "")[:200],
+                "source": source,
+            })
+
     return {
         "ok": True,
-        "active_airband_id": (profs.get("air") or {}).get("name", ""),
-        "active_ground_id": (profs.get("ground") or {}).get("name", ""),
-        "profiles": [],   # registry not exposed yet
+        "active_airband_id": active_air,
+        "active_ground_id": active_ground,
+        "active_vfo_id": active_vfo,
+        "profiles_airband": [p for p in all_profs if p["role"] == "air"],
+        "profiles_ground": [p for p in all_profs if p["role"] == "ground"],
+        "profiles_vfo": [p for p in all_profs if p["role"] == "vfo"],
+        # legacy: some UI code reads .profiles as a flat list
+        "profiles": all_profs,
     }
 
 
@@ -367,17 +401,88 @@ def _role_deviceset(client: SDRangelClient, state: State, role: str):
     return idx, hw, client.list_channels(idx), int(center)
 
 
+def _apply_via_chirp(band: str, gain: float, squelch: float, cutoff, port: int) -> Dict:
+    """Send set_sdr_gain + set_global_squelch_dbfs to chirp's UDP cmd port.
+
+    Neptune-side airband/ground run under chirp, not SDRangel. sb3-ui's
+    apply_controls historically only knew the SDRangel path; this shim
+    routes controls to chirp when the target band is chirp-backed.
+    """
+    import socket, json as _json
+    channels_applied = 0
+    errors = []
+
+    def _send(cmd: str, args: dict):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.settimeout(2.0)
+            msg = _json.dumps({"v": 1, "id": cmd, "cmd": cmd, "args": args}) + "\n"
+            s.sendto(msg.encode(), ("127.0.0.1", port))
+            data, _ = s.recvfrom(4096)
+            return _json.loads(data.decode())
+        finally:
+            s.close()
+
+    try:
+        r = _send("set_sdr_gain", {"db": float(gain)})
+        if r.get("error"): errors.append(f"gain: {r['error']}")
+    except Exception as exc:
+        errors.append(f"gain send failed: {exc!r}")
+    try:
+        r = _send("set_global_squelch_dbfs", {"dbfs": float(squelch)})
+        if r.get("error"):
+            errors.append(f"squelch: {r['error']}")
+        else:
+            channels_applied = int((r.get("data") or {}).get("channels_applied", 0))
+    except Exception as exc:
+        errors.append(f"squelch send failed: {exc!r}")
+    return {
+        "ok": not errors,
+        "applied_gain": gain,
+        "applied_squelch_dbfs": squelch,
+        "cutoff_hz": cutoff,
+        "channels_touched": channels_applied,
+        "keepalive_spared": 0,
+        "restart_ok": True,
+        "backend": f"chirp:{band}",
+        "errors": errors,
+    }
+
+
 def apply_controls(form: Dict, state: State, *, with_filter: bool = False) -> Dict:
     """/api/apply and /api/apply-batch — device gain + per-channel squelch (+cutoff).
 
-    Gain is device-level. Squelch is applied to every REAL channel (the keepalive
-    channel is spared, to keep the mount up). cutoff_hz → rfBandwidth on the same
-    real channels.
+    Airband/ground on Neptune run under chirp; when a chirp daemon is
+    reachable for the requested band, controls are dispatched there
+    instead of SDRangel. The keepalive-sparing SDRangel path remains for
+    bands that still use SDRangel.
     """
     role = _role_for(form.get("target", "airband"))
     gain = _num(form, "gain", GAIN_MIN, GAIN_MAX)
     squelch = _num(form, "squelch_dbfs", SQUELCH_MIN, SQUELCH_MAX)
     cutoff = _num(form, "cutoff_hz", CUTOFF_MIN, CUTOFF_MAX) if with_filter else None
+
+    # chirp bands: airband on :7400, ground on :7401 (env-overridable).
+    import os as _os
+    chirp_ports = {
+        "air": int(_os.environ.get("SB3_CHIRP_AIRBAND_PORT", "7400")),
+        "ground": int(_os.environ.get("SB3_CHIRP_GROUND_PORT", "7401")),
+    }
+    if role in chirp_ports:
+        # Probe cmd port before committing to chirp path; if unreachable, fall
+        # through to the SDRangel path for backwards compatibility.
+        import socket as _socket
+        _probe = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        _probe.settimeout(0.5)
+        try:
+            import json as _pj
+            _probe.sendto((_pj.dumps({"v":1,"id":"p","cmd":"get_status","args":{}}) + "\n").encode(), ("127.0.0.1", chirp_ports[role]))
+            _probe.recvfrom(4096)
+            _probe.close()
+            return _apply_via_chirp(role, gain, squelch, cutoff, chirp_ports[role])
+        except Exception:
+            _probe.close()
+            # fall through to SDRangel path
 
     c = _client()
     idx, hw, channels, center = _role_deviceset(c, state, role)
@@ -439,6 +544,18 @@ def tune(form: Dict, state: State) -> Dict:
     role = _role_for(form.get("target", "airband"))
     if role == "vfo":
         return _tune_vfo(form, state)
+
+    # Chirp-backed bands: dispatch to chirp cmd port (Ground = VFO tune).
+    if role in ("air", "ground"):
+        band = "airband" if role == "air" else role
+        port = _CHIRP_PORT_BY_BAND.get(band)
+        if port and _chirp_probe(port):
+            lo, hi = (AIRBAND_MIN_HZ, AIRBAND_MAX_HZ) if role == "air" else (VHF_MIN_HZ, VHF_MAX_HZ)
+            freq_mhz = _num(form, "freq", lo / 1e6, hi / 1e6)
+            result = _tune_chirp_band(role, freq_mhz)
+            result["backend"] = f"chirp:{band}"
+            return result
+
     lo, hi = (AIRBAND_MIN_HZ, AIRBAND_MAX_HZ) if role == "air" else (VHF_MIN_HZ, VHF_MAX_HZ)
     freq_mhz = _num(form, "freq", lo / 1e6, hi / 1e6)
     center_hz = int(round(freq_mhz * 1e6))
@@ -721,8 +838,86 @@ def ask_claude_stub(form: Dict, state: State) -> Dict:
 
 
 def hits(state: State) -> Dict:
-    """/api/hits — recent activity. SB3 has no hit log yet; empty feed (valid shape)."""
-    return {"ok": True, "items": []}
+    """/api/hits — unified recent activity across all bands.
+
+    Reads: chirp-airband hits.jsonl, chirp-ground.hits.jsonl, and op25 digital
+    /hits from Venus (SB3_OP25_REMOTE_URL). Merges + sorts by ts descending.
+    """
+    import json as _json, os as _os, urllib.request as _ur, urllib.error as _ue
+    from pathlib import Path as _Path
+
+    LIMIT = 200
+    items = []
+
+    def _tail_jsonl(path, band, keep=100):
+        try:
+            with open(path, "rb") as fh:
+                fh.seek(0, 2)
+                size = fh.tell()
+                fh.seek(max(0, size - 200_000))
+                data = fh.read().decode("utf-8", errors="ignore")
+        except OSError:
+            return
+        lines = data.splitlines()[-keep:]
+        for ln in lines:
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                obj = _json.loads(ln)
+            except Exception:
+                continue
+            evt = obj.get("evt")
+            if evt and evt != "hit_end":
+                continue
+            ts_val = obj.get("ts")
+            if not ts_val:
+                end_ms = obj.get("end_ts_ms") or 0
+                ts_val = end_ms / 1000.0 if end_ms else 0.0
+            fmhz = float(obj.get("freq_mhz") or 0.0)
+            items.append({
+                "band": band,
+                "source": band,
+                "ts": float(ts_val),
+                "freq_mhz": fmhz,
+                "freq": f"{fmhz:.3f}",
+                "channel_id": obj.get("ch") or "",
+                "duration_s": float(obj.get("duration_s") or 0.0),
+                "peak_dbfs": obj.get("peak_dbfs"),
+                "kind": "voice",
+            })
+
+    _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "hits.jsonl", "airband")
+    _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "ground.hits.jsonl", "ground")
+
+    remote = _os.environ.get("SB3_OP25_REMOTE_URL", "").rstrip("/")
+    if remote:
+        try:
+            with _ur.urlopen(f"{remote}/hits?limit=100", timeout=3) as resp:
+                d = _json.loads(resp.read().decode("utf-8"))
+            for h in d.get("items", []) or []:
+                fmhz = float(h.get("freq_mhz") or 0.0)
+                tg = h.get("tg")
+                items.append({
+                    "band": "digital",
+                    "source": "digital",
+                    "type": "digital",
+                    "ts": float(h.get("ts") or 0.0),
+                    "freq_mhz": fmhz,
+                    "freq": f"{fmhz:.3f}",
+                    "channel_id": str(tg or "?"),
+                    "tgid": tg,
+                    "talkgroup": tg,
+                    "rid": h.get("rid"),
+                    "slot": h.get("slot"),
+                    "prio": h.get("prio"),
+                    "kind": "voice",
+                })
+        except (_ue.URLError, TimeoutError, OSError):
+            pass
+
+    items.sort(key=lambda x: x.get("ts") or 0.0, reverse=True)
+    return {"ok": True, "items": items[:LIMIT]}
 
 
 # ---- digital fallback endpoints (Phase 3.3) --------------------------------
@@ -739,7 +934,40 @@ def digital_preflight(state: State) -> Dict:
 
 
 def digital_profiles(state: State) -> Dict:
-    return {"ok": True, "profiles": [], "active_digital_id": ""}
+    """/api/digital/profiles — digital profile registry."""
+    import json as _json
+    from pathlib import Path as _Path
+    from ..profilecmd import user_profile_dir as _user_dir
+
+    profs = state.read_loaded_profiles()
+    active = (profs.get("digital") or {}).get("name", "")
+
+    seen = set()
+    out = []
+    _root = _Path(__file__).resolve().parent.parent.parent
+    for source, d in (("repo", _root / "profiles"), ("user", _user_dir())):
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.json")):
+            stem = f.stem
+            if stem in seen:
+                continue
+            seen.add(stem)
+            try:
+                data = _json.loads(f.read_text())
+            except Exception:
+                continue
+            if str(data.get("role") or "").strip().lower() != "digital":
+                continue
+            out.append({
+                "id": stem,
+                "name": data.get("name") or stem,
+                "sub_role": data.get("sub_role") or "",
+                "backend": data.get("backend") or "",
+                "description": data.get("description") or data.get("_comment", "")[:200],
+                "source": source,
+            })
+    return {"ok": True, "profiles": out, "active_digital_id": active}
 
 def apply_profile(form, state):
     """POST /api/profile/apply — take {name: <profile_name>} and dispatch to
@@ -764,12 +992,177 @@ def apply_profile(form, state):
 
     role = profile.get("role")
     try:
-        if role in ("air", "vfo"):
+        if role in ("air", "vfo", "ground"):
             from ..chirp_applier import apply_profile_to_chirp
-            return apply_profile_to_chirp(profile, band=("vfo" if role == "vfo" else "airband"))
+            band = "airband" if role == "air" else role
+            return apply_profile_to_chirp(profile, band=band)
         if role == "digital":
+            backend = str(profile.get("backend") or "sdrtrunk").strip().lower()
+            if backend == "op25":
+                from ..op25_applier import apply_digital_profile_op25
+                return apply_digital_profile_op25(profile)
             from ..sdrtrunk_applier import apply_digital_profile
             return apply_digital_profile(profile)
         return {"ok": False, "error": f"unsupported role: {role!r}"}
     except Exception as exc:
         return {"ok": False, "error": f"applier raised: {exc}"}
+
+
+def _hp_state_module():
+    from ui import hp_state as _hp
+    return _hp
+
+
+def _hp_state_load():
+    return _hp_state_module().HPState.load()
+
+
+def hp_scan_state_get():
+    try:
+        state = _hp_state_load()
+    except Exception as exc:
+        return {"ok": False, "error": "load failed: " + repr(exc), "state": {}}
+    return {"ok": True, "state": state.to_dict(), "backend": "sb3", "persisted": True}
+
+
+def hp_scan_state_save(body):
+    try:
+        state = _hp_state_load()
+    except Exception as exc:
+        return {"ok": False, "error": "load failed: " + repr(exc)}
+    try:
+        from ui import handlers as _handlers
+        _handlers._apply_hp_state_form(state, body or {})
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    try:
+        state.save()
+    except Exception as exc:
+        return {"ok": False, "error": "save failed: " + repr(exc)}
+
+    # Runtime sync: push the saved favorites through to whichever runtime
+    # backends are wired (rtl-airband configs, chirp, etc.). Best-effort:
+    # a sync failure does not fail the save.
+    sync_payload = None
+    sync_error = None
+    try:
+        request_id = _handlers._enqueue_favorites_runtime_sync()
+        _handlers._wait_for_favorites_runtime_sync(
+            request_id, float(getattr(_handlers, "HP_STATE_SYNC_WAIT_SEC", 10.0))
+        )
+        sync_payload = _handlers._snapshot_favorites_runtime_sync(request_id)
+    except Exception as exc:
+        sync_error = repr(exc)
+
+    resp = {"ok": True, "state": state.to_dict()}
+    if sync_payload is not None:
+        resp["favorites_runtime_sync"] = sync_payload
+    if sync_error:
+        resp["sync_error"] = sync_error
+    return resp
+
+
+def hp_service_types_get():
+    try:
+        from ui.service_types import get_all_service_types
+        return {"ok": True, "service_types": get_all_service_types()}
+    except Exception as exc:
+        return {"ok": False, "error": "service_types unavailable: " + repr(exc), "service_types": []}
+
+
+# ---------------------------------------------------------------------------
+# Chirp tune helpers (used by /api/tune for chirp-backed bands).
+# ---------------------------------------------------------------------------
+
+_CHIRP_PORT_BY_BAND = {"airband": 7400, "ground": 7401}
+
+
+def _chirp_probe(port: int) -> bool:
+    import socket as _s, json as _j
+    try:
+        sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM)
+        sk.settimeout(0.5)
+        sk.sendto((_j.dumps({"v": 1, "id": "p", "cmd": "get_status", "args": {}}) + "\n").encode(),
+                  ("127.0.0.1", port))
+        sk.recvfrom(4096)
+        sk.close()
+        return True
+    except Exception:
+        return False
+
+
+def _chirp_send(port: int, cmd: str, args: dict, timeout: float = 3.0) -> dict:
+    import socket as _s, json as _j
+    sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM)
+    try:
+        sk.settimeout(timeout)
+        sk.sendto(_j.dumps({"v": 1, "id": cmd, "cmd": cmd, "args": args}).encode(),
+                  ("127.0.0.1", port))
+        data, _ = sk.recvfrom(65535)
+        return _j.loads(data)
+    finally:
+        sk.close()
+
+
+def _tune_chirp_band(role: str, freq_mhz: float) -> Dict:
+    """VFO-style hot-tune on a chirp band: replace non-keepalive channels
+    with one 'vfo' channel at freq_mhz. Keepalive is preserved so the mount
+    stays up between transmissions."""
+    band = "airband" if role == "air" else role
+    port = _CHIRP_PORT_BY_BAND.get(band)
+    if not port:
+        return {"ok": False, "error": f"no chirp port for band={band!r}"}
+    freq_hz = int(round(freq_mhz * 1_000_000))
+
+    try:
+        status = _chirp_send(port, "get_status", {})
+    except Exception as exc:
+        return {"ok": False, "error": f"chirp status failed: {exc!r}"}
+    if status.get("status") != "ok":
+        return {"ok": False, "error": f"chirp status non-ok: {status}"}
+
+    channels = status.get("data", {}).get("channels", [])
+    if isinstance(channels, dict):
+        channel_ids = list(channels.keys())
+    else:
+        channel_ids = [c.get("id") for c in channels if c.get("id")]
+
+    removed = 0
+    for cid in channel_ids:
+        cid_str = str(cid or "")
+        # Preserve keepalive channels (they hold the mount up during quiet).
+        if "keepalive" in cid_str.lower():
+            continue
+        # Preserve any existing 'vfo' channel — we'll retune it.
+        if cid_str == "vfo":
+            continue
+        try:
+            _chirp_send(port, "remove_channel", {"id": cid_str})
+            removed += 1
+        except Exception:
+            pass
+
+    # Retune existing vfo channel OR add a new one.
+    if "vfo" in [str(c) for c in channel_ids]:
+        r = _chirp_send(port, "set_freq", {"id": "vfo", "freq_hz": freq_hz})
+        added_or_moved = "moved"
+    else:
+        mode = "am" if band == "airband" else "nfm"
+        r = _chirp_send(port, "add_channel", {"channels": [{
+            "id": "vfo",
+            "freq_mhz": round(freq_hz / 1e6, 6),
+            "mode": mode,
+            "squelch_dbfs": -55.0,
+            "gain_db": 3.0,
+        }]})
+        added_or_moved = "added"
+
+    ok = (r.get("status") == "ok") or (r.get("ok") is True)
+    return {
+        "ok": bool(ok),
+        "freq_hz": freq_hz,
+        "freq_mhz": round(freq_hz / 1e6, 6),
+        "removed_channels": removed,
+        "vfo_channel": added_or_moved,
+        "chirp_response": r,
+    }

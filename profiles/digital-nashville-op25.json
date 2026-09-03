@@ -1,0 +1,24 @@
+{
+  "name": "nashville_curated",
+  "role": "digital",
+  "backend": "op25",
+  "target_host_url": "http://100.114.219.115:9200",
+  "systems": [
+    {
+      "name": "MTRTRS",
+      "preferred_tuner_serial": "RSPduo Tuner 1 SER#1809063632",
+      "control_channels_mhz": [856.4875, 856.7125, 857.0375, 857.4875],
+      "gains": "IFGR:20,RFGR:0"
+    },
+    {
+      "name": "TACN",
+      "preferred_tuner_serial": "RSPduo Tuner 2 SER#1809063632",
+      "control_channels_mhz": [852.9875, 853.7375],
+      "gains": "IFGR:20,RFGR:0"
+    }
+  ],
+  "talkgroups": [
+    {"dec": 3207, "hex": "C87", "mode": "D", "alpha": "Vandy PD"},
+    {"dec": 47008, "hex": "B7A0", "mode": "D", "alpha": "THP D3 Disp"}
+  ]
+}

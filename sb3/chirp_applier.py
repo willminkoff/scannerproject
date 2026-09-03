@@ -35,6 +35,37 @@ CHIRP_SERVICE = os.environ.get(
 )
 
 
+# Per-band chirp config: cmd port, env file, launchd service.
+_BAND_CFG = {
+    "airband": {
+        "port": 7400,
+        "env":  "/Users/willminkoff/.config/sb3/chirp-airband.env",
+        "svc":  "com.scannerproject.chirp-airband",
+    },
+    "ground": {
+        "port": 7401,
+        "env":  "/Users/willminkoff/.config/sb3/chirp-ground.env",
+        "svc":  "com.scannerproject.chirp-ground",
+    },
+    "vfo": {
+        "port": 7400,
+        "env":  "/Users/willminkoff/.config/sb3/chirp-airband.env",
+        "svc":  "com.scannerproject.chirp-airband",
+    },
+}
+
+
+def _select_band_cfg(band: str) -> dict:
+    """Override the module-level chirp targets for one band. Mutates globals."""
+    global CHIRP_UDP_PORT, CHIRP_ENV_PATH, CHIRP_SERVICE
+    cfg = _BAND_CFG.get(band) or _BAND_CFG["airband"]
+    CHIRP_UDP_PORT = int(cfg["port"])
+    CHIRP_ENV_PATH = Path(cfg["env"])
+    CHIRP_SERVICE = str(cfg["svc"])
+    return cfg
+
+
+
 def _send(cmd: dict, timeout: float = 3.0) -> dict:
     """Fire a JSON command at chirp's UDP bus and return its response."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -114,9 +145,12 @@ def apply_profile_to_chirp(profile: Dict[str, Any], band: str = "airband") -> Di
 
     Returns {"ok": bool, "actions": [...], "warnings": [...], "errors": [...]}.
     """
-    if profile.get("role") not in ("air", "vfo"):
+    if profile.get("role") not in ("air", "vfo", "ground"):
         return {"ok": False, "errors": [
-            f"profile role={profile.get('role')!r} — only 'air'/'vfo' can drive chirp"]}
+            f"profile role={profile.get('role')!r} — only 'air'/'vfo'/'ground' can drive chirp"]}
+
+    # Per-band chirp target (port/env/service). Overrides module-level constants.
+    _select_band_cfg(band)
 
     actions: List[str] = []
     warnings: List[str] = []
