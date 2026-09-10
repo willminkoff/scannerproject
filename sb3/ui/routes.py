@@ -454,7 +454,7 @@ def _apply_via_chirp(band: str, gain: float, squelch: float, cutoff, port: int) 
         try:
             s.settimeout(2.0)
             msg = _json.dumps({"v": 1, "id": cmd, "cmd": cmd, "args": args}) + "\n"
-            s.sendto(msg.encode(), ("127.0.0.1", port))
+            s.sendto(msg.encode(), (_chirp_host(port), port))
             data, _ = s.recvfrom(4096)
             return _json.loads(data.decode())
         finally:
@@ -513,7 +513,7 @@ def apply_controls(form: Dict, state: State, *, with_filter: bool = False) -> Di
         _probe.settimeout(0.5)
         try:
             import json as _pj
-            _probe.sendto((_pj.dumps({"v":1,"id":"p","cmd":"get_status","args":{}}) + "\n").encode(), ("127.0.0.1", chirp_ports[role]))
+            _probe.sendto((_pj.dumps({"v":1,"id":"p","cmd":"get_status","args":{}}) + "\n").encode(), (_chirp_host(chirp_ports[role]), chirp_ports[role]))
             _probe.recvfrom(4096)
             _probe.close()
             return _apply_via_chirp(role, gain, squelch, cutoff, chirp_ports[role])
@@ -1319,6 +1319,11 @@ def hp_service_types_get():
 # ---------------------------------------------------------------------------
 
 _CHIRP_PORT_BY_BAND = {"airband": 7400, "ground": 7401}
+# Chirp cmd hosts per port: airband lives on Venus, ground stays local.
+_CHIRP_HOSTS_BY_PORT = {7400: "100.114.219.115", 7401: "127.0.0.1"}
+
+def _chirp_host(port):
+    return _CHIRP_HOSTS_BY_PORT.get(int(port), "127.0.0.1")
 
 
 def _chirp_probe(port: int) -> bool:
@@ -1327,7 +1332,7 @@ def _chirp_probe(port: int) -> bool:
         sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM)
         sk.settimeout(0.5)
         sk.sendto((_j.dumps({"v": 1, "id": "p", "cmd": "get_status", "args": {}}) + "\n").encode(),
-                  ("127.0.0.1", port))
+                  (_chirp_host(port), port))
         sk.recvfrom(4096)
         sk.close()
         return True
@@ -1341,7 +1346,7 @@ def _chirp_send(port: int, cmd: str, args: dict, timeout: float = 3.0) -> dict:
     try:
         sk.settimeout(timeout)
         sk.sendto(_j.dumps({"v": 1, "id": cmd, "cmd": cmd, "args": args}).encode(),
-                  ("127.0.0.1", port))
+                  (_chirp_host(port), port))
         data, _ = sk.recvfrom(65535)
         return _j.loads(data)
     finally:
@@ -1429,7 +1434,7 @@ def build_subsystems():
         try:
             s.settimeout(1.0)
             s.sendto((_json.dumps({"v":1,"id":"p","cmd":"get_status","args":{}}) + "\n").encode(),
-                     ("127.0.0.1", port))
+                     (_chirp_host(port), port))
             data, _ = s.recvfrom(65535)
             return _json.loads(data.decode("utf-8", errors="ignore"))
         except Exception:
