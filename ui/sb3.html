@@ -3324,6 +3324,7 @@
        WX button still deleted.  Sitrep still reached via status-pill click. -->
   <div class="header">
     <div class="header-left">
+      <button class="logo" id="logo-toggle" type="button" aria-pressed="false" title="Open situation report" style="margin-right:8px;">SB3</button>
       <button class="status-pill" id="status-pill" type="button" aria-pressed="false"
               title="Click for full service health (Esc to return)">
         <span class="status-pill-chain" id="status-pill-chain">—</span>
@@ -3522,7 +3523,7 @@
                  its own #controls-ground pane with /ANALOG_GROUND.mp3. -->
             <div class="player-box" id="player-box-analog">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
-                <div style="font-weight:700;">Airband Player</div>
+                <div style="font-weight:700;" id="player-box-analog-title">Airband Player</div>
                 <a id="lnk-stream-analog" href="/ANALOG.mp3" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Airband</a>
               </div>
               <audio id="audio-player-analog" src="/ANALOG.mp3" controls preload="none" playsinline></audio>
@@ -3548,9 +3549,9 @@
             <div class="player-box" id="player-box-ground">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
                 <div style="font-weight:700;">Ground Player</div>
-                <a id="lnk-stream-ground" href="/ANALOG_GROUND.mp3" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Ground</a>
+                <a id="lnk-stream-ground" href="neptune-ground.mp3" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Ground</a>
               </div>
-              <audio id="audio-player-ground" src="/ANALOG_GROUND.mp3" controls preload="none" playsinline></audio>
+              <audio id="audio-player-ground" src="neptune-ground.mp3" controls preload="none" playsinline></audio>
             </div>
           </div>
 
@@ -3858,74 +3859,70 @@
         <div class="sitrep-card" id="sitrep-service-card">
           <div class="sitrep-card-title">Service + Microservice Health</div>
           <div class="service-list">
-            <div class="service-item" data-service="api">
+            <div class="service-item" data-service="sb3ui">
               <div>
-                <div class="service-name">API Core</div>
-                <div class="service-meta">Status: <span id="service-api">--</span></div>
+                <div class="service-name">SB3 UI</div>
+                <div class="service-meta">Status: <span id="service-sb3ui">--</span></div>
               </div>
               <span class="service-dot"></span>
             </div>
-            <div class="service-item" data-service="sse">
+            <div class="service-item" data-service="chirp_airband">
               <div>
-                <div class="service-name">SSE Stream</div>
-                <div class="service-meta">Status: <span id="service-sse">--</span></div>
+                <div class="service-name">Chirp Airband</div>
+                <div class="service-meta">Status: <span id="service-chirp_airband">--</span></div>
+                <div class="service-meta" id="service-chirp_airband-note"></div>
               </div>
               <span class="service-dot"></span>
             </div>
-            <div class="service-item" data-service="airband">
+            <div class="service-item" data-service="chirp_ground">
               <div>
-                <div class="service-name">Combined Scanner</div>
-                <div class="service-meta">Status: <span id="service-airband">--</span></div>
+                <div class="service-name">Chirp Ground</div>
+                <div class="service-meta">Status: <span id="service-chirp_ground">--</span></div>
+                <div class="service-meta" id="service-chirp_ground-note"></div>
               </div>
               <span class="service-dot"></span>
             </div>
-            <div class="service-item" data-service="ground">
+            <div class="service-item" data-service="op25">
               <div>
-                <div class="service-name">Ground Unit</div>
-                <div class="service-meta">Status: <span id="service-ground">--</span></div>
+                <div class="service-name">Op25 Digital</div>
+                <div class="service-meta">Status: <span id="service-op25">--</span></div>
+                <div class="service-meta" id="service-op25-note"></div>
               </div>
               <span class="service-dot"></span>
             </div>
-            <div class="service-item" data-service="digital">
+            <div class="service-item" data-service="op25_audio">
               <div>
-                <div class="service-name">Digital Decoder</div>
-                <div class="service-meta">Status: <span id="service-digital">--</span></div>
-                <div class="service-meta" id="service-digital-note"></div>
-              </div>
-              <span class="service-dot"></span>
-            </div>
-            <div class="service-item" data-service="sdrtrunk">
-              <div>
-                <div class="service-name">SDRTrunk Runtime</div>
-                <div class="service-meta">Status: <span id="service-sdrtrunk">--</span></div>
-              </div>
-              <span class="service-dot"></span>
-            </div>
-            <div class="service-item" data-service="mixer">
-              <div>
-                <div class="service-name">Digital Mixer</div>
-                <div class="service-meta">Status: <span id="service-mixer">--</span></div>
-              </div>
-              <span class="service-dot"></span>
-            </div>
-            <div class="service-item" data-service="digital_allocation">
-              <div>
-                <div class="service-name">Digital Allocation</div>
-                <div class="service-meta">Status: <span id="service-digital_allocation">--</span></div>
+                <div class="service-name">Op25 Audio Bridge</div>
+                <div class="service-meta">Status: <span id="service-op25_audio">--</span></div>
               </div>
               <span class="service-dot"></span>
             </div>
             <div class="service-item" data-service="icecast">
               <div>
-                <div class="service-name">Icecast Audio</div>
+                <div class="service-name">Icecast (mounts)</div>
                 <div class="service-meta">Status: <span id="service-icecast">--</span></div>
+                <div class="service-meta" id="service-icecast-note"></div>
               </div>
               <span class="service-dot"></span>
             </div>
-            <div class="service-item" data-service="vlc">
+            <div class="service-item" data-service="acars">
               <div>
-                <div class="service-name">VLC Playback</div>
-                <div class="service-meta">Status: <span id="service-vlc">--</span></div>
+                <div class="service-name">ACARS</div>
+                <div class="service-meta">Status: <span id="service-acars">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="vdl2">
+              <div>
+                <div class="service-name">VDL2</div>
+                <div class="service-meta">Status: <span id="service-vdl2">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="disco">
+              <div>
+                <div class="service-name">Disco (Venus)</div>
+                <div class="service-meta">Status: <span id="service-disco">--</span></div>
               </div>
               <span class="service-dot"></span>
             </div>
@@ -9471,7 +9468,9 @@
     }
 
     function hlsDigitalAvailable() {
-      return hlsSupported() || hlsNativeSupported(els.audioPlayerDigital);
+      // Disabled: sb3-ui has no /hls/ proxy for /hls/digital/live.m3u8, so
+      // the HLS path 404s. Force the direct-icecast fallback instead.
+      return false;
     }
 
     function startHlsDigital() {
@@ -10287,7 +10286,7 @@
         // native play button works without changing src in the gesture
         // handler (which breaks iOS autoplay policy).
         if (!hlsSupported() && hlsNativeSupported(els.audioPlayerDigital)) {
-          els.audioPlayerDigital.src = HLS_DIGITAL_URL;
+          // els.audioPlayerDigital.src = HLS_DIGITAL_URL; // sb3-ui has no /hls/ proxy — use direct icecast instead
         }
       }
       bindAudioAutoRecover(els.audioPlayerAnalog, reloadAnalogStream);
@@ -14335,16 +14334,10 @@
       // #player-box-analog rather than a mount of its own.  The legacy Ground
       // player pane (#controls-ground, a separate mount) stays retired here.
       if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'vfo' && target !== 'ground');
-      if (els.controlsGround) els.controlsGround.classList.add('hidden');
-      if (els.playerBoxAnalog) els.playerBoxAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'vfo' && target !== 'ground');
-      // When Ground tab is active, retarget the (shared) analog player to the
-      // ground mount so users hear ground audio, not airband.
-      if (els.audioPlayerAnalog) {
-        try {
-          const base = (target === 'ground') ? groundStreamUrl() : analogStreamUrl();
-          if (base) syncAudioSource(els.audioPlayerAnalog, base);
-        } catch (_e) { /* best-effort */ }
-      }
+
+      if (els.playerBoxAnalog) els.playerBoxAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'vfo');
+      if (els.controlsGround) els.controlsGround.classList.toggle('hidden', target !== 'ground');
+
       // Keypad belongs to the VFO tab only — Airband is camp mode, where Tune
       // moves the whole deviceset centre and the existing button is correct.
       { const kp = document.getElementById('vfo-keypad');
@@ -17122,3 +17115,35 @@
   </div>
 </body>
 </html>
+<script>
+    // -------------------------------------------------------------------
+    // Sitrep service card refresher (chirp+op25 era).
+    // Reads /api/subsystems and paints each service card's status + dot.
+    // Runs every 5s and once on load.
+    // -------------------------------------------------------------------
+    (function () {
+      const CARDS = ["sb3ui","chirp_airband","chirp_ground","op25","op25_audio","icecast","acars","vdl2","disco","adsb"];
+      function paint(name, entry) {
+        const el = document.getElementById("service-" + name);
+        const noteEl = document.getElementById("service-" + name + "-note");
+        const item = document.querySelector(".service-item[data-service=\"" + name + "\"]");
+        if (!el || !item) return;
+        const state = (entry && entry.state) || "unknown";
+        const detail = (entry && entry.detail) || "";
+        el.textContent = detail || state;
+        if (noteEl) noteEl.textContent = (entry && entry.note) || "";
+        item.classList.toggle("bad", state === "bad");
+        item.classList.toggle("good", state === "good");
+      }
+      async function refresh() {
+        try {
+          const r = await fetch("/api/subsystems", { cache: "no-store" });
+          const d = await r.json();
+          const map = (d && d.subsystems) || {};
+          CARDS.forEach(name => paint(name, map[name]));
+        } catch (_e) { /* best-effort */ }
+      }
+      window.addEventListener("load", () => { refresh(); setInterval(refresh, 5000); });
+    })();
+
+</script>

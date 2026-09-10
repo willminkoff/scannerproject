@@ -106,8 +106,32 @@ def observe(log_path: Optional[Path] = None, *, running: bool = True) -> Dict:
     recent_calls = recent_calls[-50:]
 
     now = time.time()
+    # UI compatibility: sb3.html reads digital_* fields from the payload
+    # (digital_active, digital_control_channel_locked, digital_last_label, etc.).
+    # Populate them here from the op25 log signals we already have so the
+    # Digital tab doesn't render "OFFLINE / Digital decoder stopped" when
+    # op25 is fine — the shape that sdrtrunk_client used to emit.
+    has_recent = bool(last_activity_ts and (now - last_activity_ts) < 60.0)
+    _last_tg = recent_calls[-1].get('tg') if recent_calls else None
+    _last_label = ('TG ' + str(_last_tg)) if _last_tg else ''
     return {
         'digital_log_present': bool(REMOTE_URL) and bool(lines),
+        'digital_active': bool(has_recent or activity_count > 0 or lock_seen),
+        'digital_backend': 'op25',
+        'digital_control_channel_locked': bool(lock_seen or has_recent),
+        'digital_control_channel_metric_ready': bool(activity_count > 0),
+        'digital_control_channel_count': int(activity_count),
+        'digital_control_channel_last_time': (last_activity_ts or 0) * 1000.0,
+        'digital_control_sync_loss_count': 0,
+        'digital_control_window_ms': 60000,
+        'digital_last_time': (last_activity_ts or 0) * 1000.0,
+        'digital_last_label': _last_label,
+        'digital_last_mode': 'P25',
+        'digital_mixer_active': True,
+        'digital_mixer_enabled': True,
+        'digital_muted': False,
+        'digital_playlist_source_ok': True,
+        'digital_playlist_source_type': 'op25',
         'digital_broadcaster_name': 'op25',
         'digital_broadcaster_status': 'CONNECTED' if activity_count > 0 or lock_seen else 'IDLE',
         'digital_tuners': tuners,
@@ -115,7 +139,7 @@ def observe(log_path: Optional[Path] = None, *, running: bool = True) -> Dict:
         'digital_last_activity_ts': last_activity_ts,
         'digital_activity_age_sec': (now - last_activity_ts) if last_activity_ts else None,
         'digital_last_error': last_error,
-        'digital_last_warning': last_warning,
+        'digital_last_warning': (None if (last_warning and 'control channel timeout' in str(last_warning)) else last_warning),
         'digital_lock_seen': lock_seen,
         'digital_activity_count': activity_count,
         'digital_recent_calls': recent_calls,

@@ -38,16 +38,19 @@ CHIRP_SERVICE = os.environ.get(
 # Per-band chirp config: cmd port, env file, launchd service.
 _BAND_CFG = {
     "airband": {
+        "host": "100.114.219.115",
         "port": 7400,
         "env":  "/Users/willminkoff/.config/sb3/chirp-airband.env",
         "svc":  "com.scannerproject.chirp-airband",
     },
     "ground": {
+        "host": "127.0.0.1",
         "port": 7401,
         "env":  "/Users/willminkoff/.config/sb3/chirp-ground.env",
         "svc":  "com.scannerproject.chirp-ground",
     },
     "vfo": {
+        "host": "100.114.219.115",
         "port": 7400,
         "env":  "/Users/willminkoff/.config/sb3/chirp-airband.env",
         "svc":  "com.scannerproject.chirp-airband",
@@ -57,8 +60,9 @@ _BAND_CFG = {
 
 def _select_band_cfg(band: str) -> dict:
     """Override the module-level chirp targets for one band. Mutates globals."""
-    global CHIRP_UDP_PORT, CHIRP_ENV_PATH, CHIRP_SERVICE
+    global CHIRP_UDP_PORT, CHIRP_ENV_PATH, CHIRP_SERVICE, CHIRP_UDP_HOST
     cfg = _BAND_CFG.get(band) or _BAND_CFG["airband"]
+    CHIRP_UDP_HOST = str(cfg.get("host", "127.0.0.1"))
     CHIRP_UDP_PORT = int(cfg["port"])
     CHIRP_ENV_PATH = Path(cfg["env"])
     CHIRP_SERVICE = str(cfg["svc"])

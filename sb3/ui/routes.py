@@ -77,8 +77,45 @@ def build_status(state: State) -> Dict:
     # shared mount — not a mount of its own. vfo_running reflects its own DS1.
     vfo_status = _role_status(bool(vfo_profile), vfo_running, air.present)
 
+    # Fetch live chirp squelch/gain from cmd ports (best-effort, 0.5s timeout).
+    # Per-port chirp host mapping: airband lives on Venus, ground on Neptune.
+    _CHIRP_HOSTS = {7400: "100.114.219.115", 7401: "127.0.0.1"}
+    def _chirp_snap(port):
+        import socket as _s, json as _j
+        try:
+            sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM); sk.settimeout(0.5)
+            sk.sendto((_j.dumps({"v":1,"id":"p","cmd":"get_status","args":{}}) + chr(10)).encode(), (_CHIRP_HOSTS.get(port, "127.0.0.1"), port))
+            data, _ = sk.recvfrom(65535); sk.close()
+            return _j.loads(data.decode("utf-8", errors="ignore")).get("data", {}) or {}
+        except Exception:
+            return {}
+    _air_snap = _chirp_snap(7400)
+    _gnd_snap = _chirp_snap(7401)
+    _air_sq = _air_snap.get("global_squelch_dbfs")
+    _gnd_sq = _gnd_snap.get("global_squelch_dbfs")
+
+    # Chirp-based liveness override: if chirp-ground/airband cmd port answers
+    # AND has channels, consider the role live regardless of legacy profile
+    # tracking (which was tied to the retired rtl-airband/SDRTrunk flow).
+    def _chirp_live(snap):
+        if not snap:
+            return False
+        chans = snap.get("channels", [])
+        n = len(chans) if isinstance(chans, list) else len(chans.keys())
+        return n > 0
+    if _chirp_live(_air_snap):
+        air_status = "live"
+        air_running = True
+    if _chirp_live(_gnd_snap):
+        ground_status = "live"
+        ground_running = True
+
     return {
         "ok": True,
+        "airband_squelch_dbfs": float(_air_sq) if _air_sq is not None else None,
+        "airband_applied_squelch_dbfs": float(_air_sq) if _air_sq is not None else None,
+        "ground_squelch_dbfs": float(_gnd_sq) if _gnd_sq is not None else None,
+        "ground_applied_squelch_dbfs": float(_gnd_sq) if _gnd_sq is not None else None,
         "server_time": _now_iso(),
         # analog presence/activity (Air role is on RTL; Ground not deployed yet)
         "airband_present": sdrangel_up,
@@ -837,6 +874,68 @@ def ask_claude_stub(form: Dict, state: State) -> Dict:
     }
 
 
+
+
+from pathlib import Path as _PathTop
+_HP_STATE_PATH = _PathTop("/Users/willminkoff/scannerproject/data/hp_state.json")
+
+
+def _build_tg_label_map():
+    """Read hp_state.json custom_favorites → {tgid_str: alpha_tag}.
+
+    Cached module-side would be nicer but this file is <100KB so re-reading
+    it per /api/hits call is fine and keeps stale-cache bugs out.
+    """
+    import json as _j
+    try:
+        d = _j.loads(_HP_STATE_PATH.read_text())
+    except Exception:
+        return {}
+    m = {}
+    for cf in d.get("custom_favorites", []) or []:
+        tg = str(cf.get("talkgroup") or "").strip()
+        alpha = str(cf.get("alpha_tag") or "").strip()
+        if tg and alpha:
+            m[tg] = alpha
+    return m
+
+
+def _fmt_hit_time(ts):
+    import time as _t
+    try:
+        if not ts:
+            return ""
+        return _t.strftime("%H:%M:%S", _t.localtime(float(ts)))
+    except Exception:
+        return ""
+
+
+
+
+def _pretty_chirp_label(ch):
+    """Turn a chirp channel id into a human label.
+
+    Examples:
+        n4-0-tower                         -> Tower
+        n4-3-mtears-nashville-(davidson-co) -> Mtears Nashville (Davidson Co)
+        kbna-tower                         -> Kbna Tower
+    """
+    import re as _re
+    s = str(ch or "").strip()
+    if not s:
+        return ""
+    s = _re.sub(r"^n\d+-\d+-", "", s)
+    s = s.replace("-", " ")
+    words = []
+    for w in s.split():
+        if w.startswith("(") and w.endswith(")"):
+            inner = w[1:-1]
+            words.append("(" + " ".join(x.capitalize() for x in inner.split(" ")) + ")")
+        else:
+            words.append(w.capitalize())
+    return " ".join(words)
+
+
 def hits(state: State) -> Dict:
     """/api/hits — unified recent activity across all bands.
 
@@ -848,6 +947,7 @@ def hits(state: State) -> Dict:
 
     LIMIT = 200
     items = []
+    _tg_label_map = _build_tg_label_map()
 
     def _tail_jsonl(path, band, keep=100):
         try:
@@ -858,7 +958,11 @@ def hits(state: State) -> Dict:
                 data = fh.read().decode("utf-8", errors="ignore")
         except OSError:
             return
-        lines = data.splitlines()[-keep:]
+        # Filter for hit_start events first, THEN keep the last N. Otherwise
+        # cluster_hop noise dominates the tail and hit_starts get truncated.
+        all_lines = data.splitlines()
+        hit_lines = [ln for ln in all_lines if b"hit_start" in ln.encode() or "hit_start" in ln]
+        lines = hit_lines[-keep:]
         for ln in lines:
             ln = ln.strip()
             if not ln:
@@ -868,27 +972,35 @@ def hits(state: State) -> Dict:
             except Exception:
                 continue
             evt = obj.get("evt")
-            if evt and evt != "hit_end":
+            if evt != "hit_start":
                 continue
             ts_val = obj.get("ts")
             if not ts_val:
                 end_ms = obj.get("end_ts_ms") or 0
                 ts_val = end_ms / 1000.0 if end_ms else 0.0
             fmhz = float(obj.get("freq_mhz") or 0.0)
+            _ch = obj.get("ch") or ""
+            _dur = float(obj.get("duration_s") or 0.0)
+            _pretty = _pretty_chirp_label(_ch)
             items.append({
                 "band": band,
                 "source": band,
                 "ts": float(ts_val),
+                "time": _fmt_hit_time(ts_val),
+                "duration": round(_dur, 1),
+                "duration_s": _dur,
+                "label": _pretty,
+                "label_full": _pretty,
                 "freq_mhz": fmhz,
                 "freq": f"{fmhz:.3f}",
-                "channel_id": obj.get("ch") or "",
+                "channel_id": _ch,
                 "duration_s": float(obj.get("duration_s") or 0.0),
                 "peak_dbfs": obj.get("peak_dbfs"),
                 "kind": "voice",
             })
 
-    _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "hits.jsonl", "airband")
-    _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "ground.hits.jsonl", "ground")
+    _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "airband.out.log", "airband")
+    _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "ground.out.log", "ground")
 
     remote = _os.environ.get("SB3_OP25_REMOTE_URL", "").rstrip("/")
     if remote:
@@ -898,11 +1010,18 @@ def hits(state: State) -> Dict:
             for h in d.get("items", []) or []:
                 fmhz = float(h.get("freq_mhz") or 0.0)
                 tg = h.get("tg")
+                tg_label = _tg_label_map.get(str(tg) or "", "")
+                _display = tg_label or (f"TG {tg}" if tg else "")
+                _ts = float(h.get("ts") or 0.0)
                 items.append({
                     "band": "digital",
                     "source": "digital",
                     "type": "digital",
-                    "ts": float(h.get("ts") or 0.0),
+                    "ts": _ts,
+                    "time": _fmt_hit_time(_ts),
+                    "duration": 0,
+                    "label": _display,
+                    "label_full": _display,
                     "freq_mhz": fmhz,
                     "freq": f"{fmhz:.3f}",
                     "channel_id": str(tg or "?"),
@@ -1025,6 +1144,136 @@ def hp_scan_state_get():
     return {"ok": True, "state": state.to_dict(), "backend": "sb3", "persisted": True}
 
 
+
+
+# Constants for the HP -> chirp/op25 sync.
+_HP_SYNC_MTRTRS_CCS = [856.4875, 856.7125, 857.0375, 857.4875]
+_HP_SYNC_TACN_CCS = [852.9875, 853.7375]
+_HP_SYNC_KNOWN_TRUNKED = {
+    "7078": {"name": "MTRTRS", "ccs": _HP_SYNC_MTRTRS_CCS,
+             "tuner": "RSPduo Tuner 1 SER#1809063632"},
+    "6355": {"name": "TACN",   "ccs": _HP_SYNC_TACN_CCS,
+             "tuner": "RSPduo Tuner 2 SER#1809063632"},
+}
+
+
+def _hp_extract_pool(state_obj):
+    """Split HPState custom_favorites into airband / ground / digital groups."""
+    airs, grounds = [], []
+    digital_by_system = {}
+    for cf in state_obj.get("custom_favorites", []) or []:
+        kind = cf.get("kind")
+        if kind == "trunked":
+            sid = str(cf.get("system_id") or "")
+            entry = digital_by_system.setdefault(sid, {"name": cf.get("system_name",""), "tgs": []})
+            try:
+                dec = int(cf.get("talkgroup"))
+            except Exception:
+                continue
+            entry["tgs"].append({
+                "dec": dec,
+                "alpha": cf.get("alpha_tag", ""),
+                "description": cf.get("department_name", ""),
+            })
+        elif kind == "conventional":
+            try:
+                freq_mhz = float(cf.get("frequency") or 0)
+            except Exception:
+                continue
+            label = cf.get("alpha_tag", "")
+            if 108 <= freq_mhz <= 137:
+                airs.append({"freq_mhz": freq_mhz, "label": label})
+            elif 137 < freq_mhz <= 175 or 400 <= freq_mhz <= 470:
+                grounds.append({"freq_mhz": freq_mhz, "label": label})
+    return airs, grounds, digital_by_system
+
+
+def _hp_push_chirp(port, freqs, mode):
+    """Remove all non-keepalive/vfo channels then add fresh N4-derived ones."""
+    import socket as _s, json as _j
+    _hosts = {7400: "100.114.219.115", 7401: "127.0.0.1"}
+    _host = _hosts.get(port, "127.0.0.1")
+    def send(cmd, args, timeout=3.0):
+        sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM); sk.settimeout(timeout)
+        try:
+            sk.sendto(_j.dumps({"v": 1, "id": cmd, "cmd": cmd, "args": args}).encode(),
+                      (_host, port))
+            data, _ = sk.recvfrom(65535)
+            return _j.loads(data)
+        finally:
+            sk.close()
+    try:
+        st = send("get_status", {})
+    except Exception as exc:
+        return {"ok": False, "error": "chirp %s:%d unreachable: %r" % (_host, port, exc)}
+    chans = st.get("data", {}).get("channels", [])
+    cur_ids = list(chans.keys()) if isinstance(chans, dict) else [c.get("id") for c in chans if c.get("id")]
+    removed = 0
+    for cid in cur_ids:
+        cid_str = str(cid or "")
+        if "keepalive" in cid_str.lower() or cid_str == "vfo":
+            continue
+        try:
+            send("remove_channel", {"id": cid_str})
+            removed += 1
+        except Exception:
+            pass
+    if not freqs:
+        return {"ok": True, "removed": removed, "added": 0}
+    ch_list = []
+    for i, f in enumerate(freqs):
+        safe = str(f.get("label", "")).lower().replace(" ", "-").replace("/", "-")[:30]
+        ch_list.append({
+            "id": "n4-%d-%s" % (i, safe),
+            "freq_mhz": round(float(f.get("freq_mhz")), 6),
+            "mode": mode,
+            "squelch_dbfs": -40.0 if mode == "am" else -55.0,
+            "gain_db": 3.0,
+        })
+    r = send("add_channel", {"channels": ch_list})
+    return {"ok": r.get("status") == "ok", "removed": removed, "added": len(ch_list), "chirp": r}
+
+
+def _hp_push_op25(digital_by_system):
+    """POST a digital profile blob to Venus op25-log-server /apply-profile."""
+    import json as _j, urllib.request as _ur, os as _os
+    blob = {"name": "hp-auto", "systems": [], "talkgroups": [], "op25_overrides": {},
+            "dongle_assignments": [], "activate": True}
+    for sid, info in (digital_by_system or {}).items():
+        known = _HP_SYNC_KNOWN_TRUNKED.get(sid)
+        if not known:
+            continue
+        sysname = known["name"]
+        blob["systems"].append({"name": sysname, "control_channels_mhz": known["ccs"]})
+        blob["op25_overrides"][sysname] = {"gains": "IFGR:20,RFGR:0"}
+        blob["dongle_assignments"].append({"system_name": sysname, "preferred_tuner_serial": known["tuner"]})
+        for tg in info["tgs"]:
+            blob["talkgroups"].append({
+                "dec": tg["dec"], "hex": format(tg["dec"], "X"), "mode": "D",
+                "alpha": tg["alpha"], "description": tg["description"],
+            })
+    if not blob["systems"]:
+        return {"ok": True, "skipped": "no known digital systems in favorites"}
+    target = _os.environ.get("SB3_OP25_APPLY_URL", "http://100.114.219.115:9200").rstrip("/")
+    req = _ur.Request(target + "/apply-profile", data=_j.dumps(blob).encode(),
+                      method="POST", headers={"Content-Type": "application/json"})
+    try:
+        with _ur.urlopen(req, timeout=45) as resp:
+            return _j.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        return {"ok": False, "error": "op25 push failed: %r" % (exc,)}
+
+
+def _hp_auto_sync(state_obj):
+    """Given the HPState dict, push its favorites out to chirp + op25."""
+    airs, grounds, digital = _hp_extract_pool(state_obj)
+    return {
+        "airband": _hp_push_chirp(7400, airs, "am"),
+        "ground":  _hp_push_chirp(7401, grounds, "nfm"),
+        "digital": _hp_push_op25(digital),
+    }
+
+
 def hp_scan_state_save(body):
     try:
         state = _hp_state_load()
@@ -1040,25 +1289,20 @@ def hp_scan_state_save(body):
     except Exception as exc:
         return {"ok": False, "error": "save failed: " + repr(exc)}
 
-    # Runtime sync: push the saved favorites through to whichever runtime
-    # backends are wired (rtl-airband configs, chirp, etc.). Best-effort:
-    # a sync failure does not fail the save.
-    sync_payload = None
-    sync_error = None
+    # Auto-sync: push the just-saved favorites into chirp (airband+ground)
+    # and op25 (digital via Venus). Best-effort — sync failure does not
+    # fail the save. Replaces the legacy sync_scan_pool_to_runtime path
+    # which targeted /usr/local/etc rtl-airband configs that no longer
+    # exist on this stack.
+    sync_result = None
     try:
-        request_id = _handlers._enqueue_favorites_runtime_sync()
-        _handlers._wait_for_favorites_runtime_sync(
-            request_id, float(getattr(_handlers, "HP_STATE_SYNC_WAIT_SEC", 10.0))
-        )
-        sync_payload = _handlers._snapshot_favorites_runtime_sync(request_id)
+        sync_result = _hp_auto_sync(state.to_dict())
     except Exception as exc:
-        sync_error = repr(exc)
+        sync_result = {"ok": False, "error": repr(exc)}
 
     resp = {"ok": True, "state": state.to_dict()}
-    if sync_payload is not None:
-        resp["favorites_runtime_sync"] = sync_payload
-    if sync_error:
-        resp["sync_error"] = sync_error
+    if sync_result is not None:
+        resp["auto_sync"] = sync_result
     return resp
 
 
@@ -1166,3 +1410,117 @@ def _tune_chirp_band(role: str, freq_mhz: float) -> Dict:
         "vfo_channel": added_or_moved,
         "chirp_response": r,
     }
+
+
+def build_subsystems():
+    """/api/subsystems - probe the chirp+op25 stack and return per-service
+    {state,detail,note} entries the sitrep cards paint from.
+
+    state = "good" | "bad" | "unknown"
+    """
+    import json as _json, socket as _sock, time as _time, urllib.request as _ur, urllib.error as _ue
+    out = {}
+
+    def _card(s, detail="", note=""):
+        return {"state": s, "detail": detail, "note": note}
+
+    def _udp_status(port):
+        s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+        try:
+            s.settimeout(1.0)
+            s.sendto((_json.dumps({"v":1,"id":"p","cmd":"get_status","args":{}}) + "\n").encode(),
+                     ("127.0.0.1", port))
+            data, _ = s.recvfrom(65535)
+            return _json.loads(data.decode("utf-8", errors="ignore"))
+        except Exception:
+            return None
+        finally:
+            s.close()
+
+    # sb3-ui (self) is up if we're serving this endpoint.
+    out["sb3ui"] = _card("good", "serving")
+
+    for band, port, key in (("airband", 7400, "chirp_airband"), ("ground", 7401, "chirp_ground")):
+        st = _udp_status(port)
+        if not st or st.get("status") != "ok":
+            out[key] = _card("bad", "no cmd port")
+            continue
+        data = st.get("data", {}) or {}
+        chans = data.get("channels", [])
+        n = len(chans) if isinstance(chans, list) else len(chans.keys())
+        lo = data.get("lo_scheduler", {}) or {}
+        plan_fail = lo.get("plan_failed_reason")
+        clusters = lo.get("n_clusters")
+        hold = lo.get("scan_hold_state")
+        detail = f"{n} ch / {clusters or 0} clusters" + (f" / {hold}" if hold else "")
+        note = f"plan failed: {plan_fail}" if plan_fail else ""
+        out[key] = _card("bad" if plan_fail else "good", detail, note)
+
+    # Op25 via Venus log-server /health + /hits recency.
+    remote = os.environ.get("SB3_OP25_REMOTE_URL", "").rstrip("/")
+    if remote:
+        try:
+            with _ur.urlopen(f"{remote}/health", timeout=2) as resp:
+                h = _json.loads(resp.read())
+            with _ur.urlopen(f"{remote}/hits?limit=1", timeout=2) as resp:
+                hits = _json.loads(resp.read()).get("items", [])
+            active = hits[0].get("ts") if hits else 0
+            age = _time.time() - float(active or 0)
+            active_str = f"last hit {int(age)}s ago" if hits else "no recent hits"
+            out["op25"] = _card("good", active_str, f"active profile: {h.get('active_profile','')[-32:]}")
+            out["op25_audio"] = _card("good", "publishing (venus)")
+        except Exception as exc:
+            out["op25"] = _card("bad", f"log-server unreachable: {exc!r}")
+            out["op25_audio"] = _card("bad", "log-server unreachable")
+    else:
+        out["op25"] = _card("unknown", "SB3_OP25_REMOTE_URL not set")
+        out["op25_audio"] = _card("unknown", "SB3_OP25_REMOTE_URL not set")
+
+    # Icecast mounts.
+    try:
+        with _ur.urlopen("http://127.0.0.1:8000/status-json.xsl", timeout=2) as resp:
+            d = _json.loads(resp.read())
+        s = d.get("icestats", {}).get("source", [])
+        s = [s] if isinstance(s, dict) else s
+        names = [str(x.get("listenurl","")).rsplit("/",1)[-1] for x in s]
+        want = ["neptune-analog.mp3", "neptune-ground.mp3", "venus-digital.mp3"]
+        missing = [w for w in want if w not in names]
+        detail = f"{len(names)} mounts"
+        note = "missing: " + ", ".join(missing) if missing else ""
+        out["icecast"] = _card("bad" if missing else "good", detail, note)
+    except Exception as exc:
+        out["icecast"] = _card("bad", f"unreachable: {exc!r}")
+
+    # ACARS + VDL2 via launchctl. Simple check on process existence.
+    import subprocess
+    def _launchd_loaded(label):
+        try:
+            r = subprocess.run(["launchctl", "list"], capture_output=True, text=True, timeout=3)
+            return label in r.stdout
+        except Exception:
+            return None
+
+    for name, label in (("acars", "com.scannerproject.acarsdec"),
+                        ("vdl2",  "com.scannerproject.dumpvdl2")):
+        loaded = _launchd_loaded(label)
+        if loaded is None:
+            out[name] = _card("unknown", "launchctl unavailable")
+        elif loaded:
+            out[name] = _card("good", "running")
+        else:
+            out[name] = _card("bad", "not loaded")
+
+    # Disco on Venus (dashboard at :8092 on Venus).
+    disco_url = os.environ.get("SB3_DISCO_URL", "http://100.114.219.115:8092")
+    try:
+        with _ur.urlopen(disco_url, timeout=2) as resp:
+            code = getattr(resp, "status", 200)
+        out["disco"] = _card("good" if 200 <= code < 400 else "bad", f"HTTP {code}")
+    except Exception as exc:
+        out["disco"] = _card("bad", f"unreachable: {exc!r}")
+
+    # ADS-B panel - placeholder until wired.
+    out["adsb"] = _card("unknown", "not probed")
+
+    return {"ok": True, "subsystems": out}
+

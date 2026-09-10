@@ -77,6 +77,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.build_profiles(self._state))
         if p == "/api/system":
             return self._json(routes.build_system(self._state))
+        if p == "/api/subsystems":
+            return self._json(routes.build_subsystems())
         if p == "/api/hp/state":
             return self._json(routes.hp_state(self._state))
         if p == "/api/hits":
