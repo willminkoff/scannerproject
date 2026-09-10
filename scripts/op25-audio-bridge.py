@@ -455,6 +455,17 @@ class AudioBridge:
 
     def _start_ffmpeg(self, reason: str) -> None:
         self._stop_ffmpeg()
+        # Clear all internal audio state so a wedged priority gate or stale
+        # ring buffer doesn't survive across ffmpeg restarts. Without this,
+        # icecast dropouts wedge the pipeline silently even after the child
+        # process comes back.
+        with self._ring_lock:
+            self._ring.clear()
+        self._voice_active = False
+        self._active_port = None
+        self._port_last_audio.clear()
+        self._last_voice_frame = self.silence_frame
+        self._plc_count = 0
         cmd = self._ffmpeg_cmd()
         _log(f"starting ffmpeg ({reason})")
         _log(f"ffmpeg cmd: {self._ffmpeg_cmd_for_log()}")

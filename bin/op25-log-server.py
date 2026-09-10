@@ -135,6 +135,12 @@ def _write_profile(body):
         return result
 
     try:
+        # Kickstart sdrplay first to release stale handles that cause
+        # MTRTRS Master to fail with no sdrplay device matches on cold
+        # restart. Two calls: sdrplay first, then op25.
+        subprocess.run(["sudo", "-n", "systemctl", "restart", "sdrplay"],
+                       capture_output=True, text=True, timeout=15)
+        import time as _t; _t.sleep(5)
         r = subprocess.run(
             ["sudo", "-n", "systemctl", "restart", OP25_SERVICE],
             capture_output=True, text=True, timeout=60,
@@ -142,6 +148,17 @@ def _write_profile(body):
         result["restarted"] = (r.returncode == 0)
         if r.returncode != 0:
             result["restart_stderr"] = r.stderr.strip()[:400]
+        # Bridge tends to wedge its priority-gate ring buffer around op25
+        # restarts (silent mp3 output while real UDP audio flows). Always
+        # bounce it after an apply so the mount comes back clean.
+        import time as _t; _t.sleep(3)
+        rb = subprocess.run(
+            ["sudo", "-n", "systemctl", "restart", "scanner-digital-op25-audio"],
+            capture_output=True, text=True, timeout=30,
+        )
+        result["audio_bridge_restarted"] = (rb.returncode == 0)
+        if rb.returncode != 0:
+            result["audio_bridge_stderr"] = rb.stderr.strip()[:400]
     except subprocess.TimeoutExpired:
         result["restarted"] = False
         result["restart_stderr"] = "timeout"

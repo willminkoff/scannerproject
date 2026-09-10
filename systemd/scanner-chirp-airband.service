@@ -1,0 +1,22 @@
+[Unit]
+Description=chirp airband daemon (Venus, RSP1B 2405265A60)
+After=network-online.target sdrplay.service icecast2.service
+Requires=sdrplay.service
+
+[Service]
+Type=simple
+User=willminkoff
+Group=willminkoff
+WorkingDirectory=/home/willminkoff/scannerproject
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/willminkoff/scannerproject
+EnvironmentFile=/home/willminkoff/.config/sb3/chirp-airband.env
+ExecStartPre=/bin/mkdir -p /home/willminkoff/.local/share/chirp/logs
+ExecStart=/usr/bin/python3 -m chirp.daemon
+Restart=on-failure
+RestartSec=6
+StandardOutput=append:/home/willminkoff/.local/share/chirp/logs/airband.out.log
+StandardError=append:/home/willminkoff/.local/share/chirp/logs/airband.err.log
+
+[Install]
+WantedBy=multi-user.target
