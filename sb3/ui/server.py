@@ -98,6 +98,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.hp_service_types_get())
         if p == "/api/scan/devices":
             return self._json(routes.wizard_devices())
+        if p == "/api/wx/status":
+            return self._json(routes.wx_status(self._state))
+        if p == "/api/wx/sounding":
+            return self._json(routes.wx_sounding(self._state))
+        if p == "/api/wx/messages":
+            _q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+            try:
+                _lim = int(_q.get("limit", ["100"])[0])
+            except Exception:
+                _lim = 100
+            return self._json(routes.wx_messages(self._state, _lim))
         if p.startswith("/api/scan/favorites-wizard/"):
             q = urllib.parse.parse_qs(self.path.split("?", 1)[1]
                                       if "?" in self.path else "")
@@ -175,6 +186,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error": f"bad body: {exc}"}, 400)
 
         try:
+            if p == "/api/wx/decoder":
+                return self._json(routes.wx_decoder(form, self._state))
             if p in ("/api/apply", "/api/apply-batch"):
                 return self._json(routes.apply_controls(
                     form, state, with_filter=(p == "/api/apply-batch")))

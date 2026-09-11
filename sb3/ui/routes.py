@@ -1542,3 +1542,168 @@ def build_subsystems():
 
     return {"ok": True, "subsystems": out}
 
+# ---------------------------------------------------------------------------
+# WX / ACARS-VDL2 pane endpoints.
+# ---------------------------------------------------------------------------
+
+from pathlib import Path as _WxPath  # noqa: E402
+_WX_ACARS_DIR = _WxPath("/Users/willminkoff/Library/Logs/acars")
+_WX_VDL2_DIR = _WxPath("/Users/willminkoff/Library/Logs/vdl2")
+
+
+def _wx_newest_jsonl(dir_path: _WxPath, limit_files: int = 2):
+    """Return the newest N non-empty *.jsonl files in a log dir, sorted newest last."""
+    try:
+        files = [p for p in dir_path.glob("*.jsonl") if p.is_file() and p.stat().st_size > 0]
+    except OSError:
+        return []
+    files.sort(key=lambda p: p.stat().st_mtime)
+    return files[-limit_files:]
+
+
+def _wx_tail_jsonl(paths, tail_bytes: int = 500_000):
+    """Read the tail of the given files and return a list of parsed JSON objs."""
+    import json as _json
+    out = []
+    for p in paths:
+        try:
+            with open(p, "rb") as fh:
+                fh.seek(0, 2)
+                size = fh.tell()
+                fh.seek(max(0, size - tail_bytes))
+                data = fh.read().decode("utf-8", errors="ignore")
+        except OSError:
+            continue
+        for ln in data.splitlines():
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                out.append(_json.loads(ln))
+            except Exception:
+                continue
+    return out
+
+
+def _wx_is_daemon_running(pattern: str) -> bool:
+    """True if any process command line contains the given substring."""
+    import subprocess as _sp
+    try:
+        r = _sp.run(["/bin/ps", "-eo", "command"], capture_output=True, text=True, timeout=2)
+        return pattern in r.stdout
+    except Exception:
+        return False
+
+
+def _wx_msg_is_met(obj: dict) -> bool:
+    """Heuristic: does this ACARS/VDL2 payload carry meteorological data?
+
+    AMDAR reports include altitude+wind+temp fields; BUFR blobs carry a marker.
+    Keep this cheap; the sidecar shows the flag next to each row.
+    """
+    if not isinstance(obj, dict):
+        return False
+    for k in ("temp_c", "temperature_c", "wind_speed_kt", "wind_dir_deg",
+              "altitude_ft", "pressure_hpa", "amdar", "bufr"):
+        if k in obj:
+            return True
+    text = str(obj.get("text") or obj.get("message") or "")
+    return "AMDAR" in text or "BUFR" in text
+
+
+def wx_status(state: State) -> Dict:
+    """/api/wx/status — daemon health + running message counts."""
+    acars_up = _wx_is_daemon_running("acarsdec")
+    vdl2_up = _wx_is_daemon_running("dumpvdl2")
+    # Cheap count: tail 200 KB of the newest file per stream.
+    acars_msgs = _wx_tail_jsonl(_wx_newest_jsonl(_WX_ACARS_DIR, 1), tail_bytes=200_000)
+    vdl2_msgs = _wx_tail_jsonl(_wx_newest_jsonl(_WX_VDL2_DIR, 1), tail_bytes=200_000)
+    total = len(acars_msgs) + len(vdl2_msgs)
+    met = sum(1 for m in acars_msgs if _wx_msg_is_met(m)) + sum(
+        1 for m in vdl2_msgs if _wx_msg_is_met(m)
+    )
+    # active_decoder is presentational: acars if either daemon is up.
+    active = "acars" if (acars_up or vdl2_up) else None
+    return {
+        "ok": True,
+        "active_decoder": active,
+        "collecting": bool(acars_up or vdl2_up),
+        "acars_running": acars_up,
+        "vdl2_running": vdl2_up,
+        "message_count": total,
+        "met_count": met,
+        "filtered_count": 0,
+        "spatial_filter": False,
+    }
+
+
+def wx_messages(state: State, limit: int = 100) -> Dict:
+    """/api/wx/messages — merged tail of the newest ACARS + VDL2 jsonl files."""
+    try:
+        limit = int(limit)
+    except Exception:
+        limit = 100
+    limit = max(1, min(500, limit))
+
+    acars = _wx_tail_jsonl(_wx_newest_jsonl(_WX_ACARS_DIR, 2))
+    vdl2 = _wx_tail_jsonl(_wx_newest_jsonl(_WX_VDL2_DIR, 2))
+
+    rows = []
+    for m in acars:
+        ts = m.get("timestamp") or m.get("ts") or 0
+        try:
+            ts = float(ts)
+        except Exception:
+            ts = 0
+        rows.append({
+            "timestamp": ts,
+            "source": "acars",
+            "source_id": m.get("flight") or m.get("tail") or m.get("reg") or "",
+            "is_met": _wx_msg_is_met(m),
+            "text": str(m.get("text") or m.get("message") or m.get("depa", "")
+                        + ("->" + m.get("dsta", "") if m.get("dsta") else ""))[:200],
+        })
+    for m in vdl2:
+        # dumpvdl2 nests payload under vdl2 → avlc → acars/xid
+        ts = m.get("vdl2", {}).get("t", {}).get("sec") or m.get("timestamp") or 0
+        try:
+            ts = float(ts)
+        except Exception:
+            ts = 0
+        payload = m.get("vdl2", {}).get("avlc", {}).get("acars", {}) or {}
+        sid = payload.get("flight") or payload.get("reg") or ""
+        txt = (payload.get("msg_text") or "").replace(chr(10), " ")[:200]
+        rows.append({
+            "timestamp": ts,
+            "source": "vdl2",
+            "source_id": sid,
+            "is_met": _wx_msg_is_met(payload) or _wx_msg_is_met(m),
+            "text": txt,
+        })
+
+    # Sort by ts ascending (UI reads newest-last), keep last N.
+    rows.sort(key=lambda r: r["timestamp"])
+    return {"ok": True, "messages": rows[-limit:]}
+
+
+def wx_sounding(state: State) -> Dict:
+    """/api/wx/sounding — parsed vertical profile.
+
+    Full AMDAR/BUFR extraction TBD. For now expose an empty levels list so
+    the sidecar renders 'No observations collected.' instead of erroring.
+    """
+    return {"ok": True, "levels": []}
+
+
+def wx_decoder(form: Dict, state: State) -> Dict:
+    """/api/wx/decoder — start/stop is a no-op in the current stack.
+
+    acarsdec + dumpvdl2 are launchd-managed and always running; the button
+    exists only to open the sidecar. Report the same status wx_status does.
+    """
+    action = str((form or {}).get("action", "")).lower()
+    st = wx_status(state)
+    st["accepted"] = action in ("start", "stop", "")
+    st["note"] = "acarsdec + dumpvdl2 are always-on launchd services; no start/stop needed"
+    return st
+
