@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 APP_LOG = Path(os.environ.get("OP25_APP_LOG", "/var/log/op25/op25.log"))
+CHIRP_AIRBAND_LOG = Path(os.environ.get("CHIRP_AIRBAND_LOG", "/home/willminkoff/.local/share/chirp/logs/airband.err.log"))
 INSTANCES_JSON = Path(os.environ.get("OP25_INSTANCES_PATH", "/run/scannerproject/op25/instances.json"))
 PROFILES_DIR = Path(os.environ.get("OP25_PROFILES_DIR", "/etc/scannerproject/digital/profiles"))
 ACTIVE_LINK = Path(os.environ.get("OP25_ACTIVE_LINK", "/etc/scannerproject/digital/active"))
@@ -187,6 +188,9 @@ class H(BaseHTTPRequestHandler):
         if u.path == "/op25.log":
             n = int(q.get("tail", ["200000"])[0])
             return self._send(200, "text/plain", _tail_bytes(APP_LOG, n))
+        if u.path == "/chirp/airband.out.log":
+            n = int(q.get("tail", ["200000"])[0])
+            return self._send(200, "text/plain", _tail_bytes(CHIRP_AIRBAND_LOG, n))
         if u.path == "/instances":
             try:
                 body = INSTANCES_JSON.read_bytes()
