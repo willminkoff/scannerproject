@@ -28,8 +28,8 @@ except Exception as _bpe:
     _BAND_PLAN_AVAILABLE = False
     _BAND_PLAN_IMPORT_ERROR = _bpe
 
-CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/ubuntu/scannerproject/disco/configs/sweep.yaml")
-BAND_PLAN_PATH = os.environ.get("DISCO_BAND_PLAN_PATH", "/home/ubuntu/scannerproject/disco/configs/us_band_plan.yaml")
+CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/willminkoff/scannerproject/disco/configs/sweep.yaml")
+BAND_PLAN_PATH = os.environ.get("DISCO_BAND_PLAN_PATH", "/home/willminkoff/scannerproject/disco/configs/us_band_plan.yaml")
 KEY_FILE = os.environ.get("DISCO_API_KEY_FILE", "/etc/disco/api_keys.conf")
 LOG = logging.getLogger("disco.interpret")
 _STOP = False

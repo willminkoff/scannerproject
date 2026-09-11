@@ -5,7 +5,7 @@ import SoapySDR
 from SoapySDR import SOAPY_SDR_RX, SOAPY_SDR_CF32
 import numpy as np
 
-CAPTURE_DIR = "/home/ubuntu/scannerproject/disco/captures"
+CAPTURE_DIR = "/home/willminkoff/scannerproject/disco/captures"
 SAMPLE_RATE = 6.144e6
 DURATION_S = 1.0
 TEST_FREQ = 100e6

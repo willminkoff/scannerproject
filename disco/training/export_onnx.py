@@ -34,7 +34,7 @@ def main():
     print(f"wrote {args.out}")
     print(f"classes ({len(ckpt.get('classes', []))}): {ckpt.get('classes', [])}")
     print()
-    print("Next: scp this to the Micro at /home/ubuntu/scannerproject/disco/models/radioml.onnx")
+    print("Next: scp this to the Micro at /home/willminkoff/scannerproject/disco/models/radioml.onnx")
     print("Then: sudo systemctl stop disco-classifier && sleep 2 && sudo systemctl start disco-classifier")
 
 

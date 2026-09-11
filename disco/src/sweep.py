@@ -16,7 +16,7 @@ import SoapySDR
 import yaml
 from SoapySDR import SOAPY_SDR_RX, SOAPY_SDR_CF32
 
-CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/ubuntu/scannerproject/disco/configs/sweep.yaml")
+CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/willminkoff/scannerproject/disco/configs/sweep.yaml")
 STATE_DIR = os.environ.get("DISCO_STATE_DIR", "/run/scannerproject/disco")
 SLICES_DIR = os.environ.get("DISCO_SLICES_DIR", "/run/scannerproject/disco/slices")
 N_COMPOSITE_BINS = 1024

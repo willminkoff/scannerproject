@@ -43,7 +43,7 @@ except Exception as _r4de:
 # user can hand the radios back to SB3 without ssh'ing.
 SVC_CTL = "/usr/local/bin/disco-svc-ctl"
 
-CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/ubuntu/scannerproject/disco/configs/sweep.yaml")
+CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/willminkoff/scannerproject/disco/configs/sweep.yaml")
 STATE_DIR = os.environ.get("DISCO_STATE_DIR", "/run/scannerproject/disco")
 with open(CONFIG_PATH) as f:
     CFG = yaml.safe_load(f)

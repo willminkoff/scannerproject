@@ -20,13 +20,13 @@ import sqlite3
 import sys
 
 CAPTURE_DIR = os.environ.get(
-    "DISCO_CAPTURE_DIR", "/home/ubuntu/scannerproject/disco/captures"
+    "DISCO_CAPTURE_DIR", "/home/willminkoff/scannerproject/disco/captures"
 )
 TRAINING_CAPTURES_DIR = os.environ.get(
-    "DISCO_TRAINING_CAPTURES_DIR", "/home/ubuntu/scannerproject/disco/training_captures"
+    "DISCO_TRAINING_CAPTURES_DIR", "/home/willminkoff/scannerproject/disco/training_captures"
 )
 DB_PATH = os.environ.get(
-    "DISCO_DB_PATH", "/home/ubuntu/scannerproject/disco/state/disco.sqlite"
+    "DISCO_DB_PATH", "/home/willminkoff/scannerproject/disco/state/disco.sqlite"
 )
 TZ_LOCAL = os.environ.get("DISCO_LOCAL_TZ", "America/Chicago")
 

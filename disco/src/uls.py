@@ -15,7 +15,7 @@ import sqlite3
 import threading
 from typing import Optional
 
-DEFAULT_DB_PATH = "/home/ubuntu/scannerproject/disco/state/uls.sqlite"
+DEFAULT_DB_PATH = "/home/willminkoff/scannerproject/disco/state/uls.sqlite"
 
 # Default observer location (Will, Nashville TN) — overridable per-call.
 DEFAULT_LAT_DD = 36.1627

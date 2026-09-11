@@ -13,7 +13,7 @@ file you can drop into Disco for live inference.
 ## Output
 
 A `radioml.onnx` file you scp to:
-`/home/ubuntu/scannerproject/disco/models/radioml.onnx` on the Micro.
+`/home/willminkoff/scannerproject/disco/models/radioml.onnx` on the Micro.
 The disco-classifier service auto-detects it on next start and switches from
 heuristic to ONNX backend.
 
@@ -45,7 +45,7 @@ python train_radioml.py \
 python export_onnx.py --checkpoint radioml_cnn.pth --out radioml.onnx
 
 # 5. Ship to Micro
-scp radioml.onnx root@100.67.20.40:/home/ubuntu/scannerproject/disco/models/radioml.onnx
+scp radioml.onnx root@100.67.20.40:/home/willminkoff/scannerproject/disco/models/radioml.onnx
 ssh root@100.67.20.40 'sudo systemctl stop disco-classifier && sleep 2 && sudo systemctl start disco-classifier && sudo journalctl -u disco-classifier -n 5 --no-pager'
 ```
 
@@ -92,7 +92,7 @@ python export_onnx.py --checkpoint radioml_cnn.pth --out radioml.onnx
 scp root@<vast-instance-ip>:/workspace/disco-training/radioml.onnx ./
 
 # 9. Ship to Micro:
-scp radioml.onnx root@100.67.20.40:/home/ubuntu/scannerproject/disco/models/radioml.onnx
+scp radioml.onnx root@100.67.20.40:/home/willminkoff/scannerproject/disco/models/radioml.onnx
 ssh root@100.67.20.40 'sudo systemctl stop disco-classifier && sleep 2 && sudo systemctl start disco-classifier'
 
 # 10. Tear down the GPU instance to stop billing.
@@ -116,4 +116,4 @@ Cost breakdown:
 - Class order: see `CLASSES_24` list in `train_radioml.py`. The disco classifier maps `class_<idx>` → modulation name via this list when ONNX backend is active.
 
 If your trained model uses a different shape, edit `init_onnx_model()` in
-`/home/ubuntu/scannerproject/disco/src/classifier.py` accordingly.
+`/home/willminkoff/scannerproject/disco/src/classifier.py` accordingly.

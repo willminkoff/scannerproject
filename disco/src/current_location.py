@@ -21,7 +21,7 @@ import time
 from typing import NamedTuple
 
 
-_DEFAULT_HP_STATE_PATH = "/home/ubuntu/scannerproject/data/hp_state.json"
+_DEFAULT_HP_STATE_PATH = "/home/willminkoff/scannerproject/data/hp_state.json"
 _DEFAULT_CACHE_TTL_SEC = 60.0
 
 # Home fallback. Used when the HPState file is missing, malformed, or has

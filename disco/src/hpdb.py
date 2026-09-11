@@ -26,7 +26,7 @@ import sqlite3
 import threading
 from typing import Optional
 
-DEFAULT_DB_PATH = "/home/ubuntu/scannerproject/data/homepatrol.db"
+DEFAULT_DB_PATH = "/home/willminkoff/scannerproject/data/homepatrol.db"
 
 # Default observer location (Will, Nashville TN) — overridable per-call.
 # Matches the uls.py / cdbs.py constants so behavior is consistent across

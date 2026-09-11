@@ -48,8 +48,8 @@ import time
 import zipfile
 from typing import Dict, Iterable, Optional, Tuple
 
-CDBS_RAW_DIR = "/home/ubuntu/scannerproject/disco/cdbs/raw"
-DB_PATH = "/home/ubuntu/scannerproject/disco/state/cdbs.sqlite"
+CDBS_RAW_DIR = "/home/willminkoff/scannerproject/disco/cdbs/raw"
+DB_PATH = "/home/willminkoff/scannerproject/disco/state/cdbs.sqlite"
 
 # fac_status values we accept as 'currently licensed / on the air'.
 ACTIVE_STATUSES = ("LICEN", "LICAN")

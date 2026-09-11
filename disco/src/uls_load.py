@@ -55,8 +55,8 @@ import time
 import zipfile
 from typing import Dict, Iterable, Optional, Tuple
 
-ULS_RAW_DIR = "/home/ubuntu/scannerproject/disco/uls/raw"
-DB_PATH = "/home/ubuntu/scannerproject/disco/state/uls.sqlite"
+ULS_RAW_DIR = "/home/willminkoff/scannerproject/disco/uls/raw"
+DB_PATH = "/home/willminkoff/scannerproject/disco/state/uls.sqlite"
 
 # Frequency range cutoffs (MHz). FR rows can include 4 GHz microwave links etc.
 # We keep everything because the index handles out-of-range fine, but rows below

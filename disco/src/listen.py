@@ -49,7 +49,7 @@ LOGGER = logging.getLogger("disco.listen")
 # parsing/writing logic for libconfig-style rtl-airband profiles is non-trivial
 # and battle-tested there. Falls back to a local minimal parser if import
 # fails (we want disco to be robust to airband-ui code path changes).
-_REPO_ROOT = "/home/ubuntu/scannerproject"
+_REPO_ROOT = "/home/willminkoff/scannerproject"
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -106,8 +106,8 @@ ICECAST_PORT_PUBLIC = int(os.environ.get("DISCO_ICECAST_PORT", "8000"))
 # below can repoint it at a freshly-added mount.
 DEFAULT_STREAM_MOUNT = os.environ.get("DISCO_STREAM_MOUNT", "")
 
-PROFILES_DIR = os.environ.get("DISCO_PROFILES_DIR", "/home/ubuntu/scannerproject/profiles")
-RUNTIME_DIR = os.environ.get("DISCO_RUNTIME_DIR", "/home/ubuntu/scannerproject/runtime")
+PROFILES_DIR = os.environ.get("DISCO_PROFILES_DIR", "/home/willminkoff/scannerproject/profiles")
+RUNTIME_DIR = os.environ.get("DISCO_RUNTIME_DIR", "/home/willminkoff/scannerproject/runtime")
 STATE_DIR = os.environ.get("DISCO_STATE_DIR", "/run/scannerproject/disco")
 
 # Where we persist the scratch list across restarts.
@@ -122,7 +122,7 @@ CONFIG_SYMLINK_GROUND = os.path.join(RUNTIME_DIR, "rtl_airband_ground.conf")
 
 RTL_UNIT = "rtl-airband"
 SYSTEMCTL_BIN = "/bin/systemctl"
-BUILD_COMBINED_SCRIPT = "/home/ubuntu/scannerproject/scripts/build-combined-config.py"
+BUILD_COMBINED_SCRIPT = "/home/willminkoff/scannerproject/scripts/build-combined-config.py"
 
 # Path used to remember which user-selected profile we hijacked, so on Stop
 # (when scratch goes empty) we can restore the symlink to its original target.

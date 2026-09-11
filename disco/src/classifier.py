@@ -132,15 +132,15 @@ def _is_broadcast_band(freq_hz: float) -> bool:
            (_BCAST_FM_LO_HZ <= freq_hz <= _BCAST_FM_HI_HZ)
 
 
-CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/ubuntu/scannerproject/disco/configs/sweep.yaml")
+CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/willminkoff/scannerproject/disco/configs/sweep.yaml")
 SLICES_DIR = os.environ.get("DISCO_SLICES_DIR", "/run/scannerproject/disco/slices")
-MODEL_PATH = os.environ.get("DISCO_MODEL_PATH", "/home/ubuntu/scannerproject/disco/models/radioml.onnx")
-BAND_PLAN_PATH = os.environ.get("DISCO_BAND_PLAN_PATH", "/home/ubuntu/scannerproject/disco/configs/us_band_plan.yaml")
+MODEL_PATH = os.environ.get("DISCO_MODEL_PATH", "/home/willminkoff/scannerproject/disco/models/radioml.onnx")
+BAND_PLAN_PATH = os.environ.get("DISCO_BAND_PLAN_PATH", "/home/willminkoff/scannerproject/disco/configs/us_band_plan.yaml")
 # Phase 7-mini capture: when enabled, slices from frequency ranges whose true
 # modulation we know a priori get archived to per-label directories before the
 # normal `unlink` happens. Used to assemble a real-data fine-tune dataset for
 # the disco-trained CNN. Disable by setting DISCO_CAPTURE_ENABLED=0.
-CAPTURE_DIR = os.environ.get("DISCO_CAPTURE_DIR", "/home/ubuntu/scannerproject/disco/captures")
+CAPTURE_DIR = os.environ.get("DISCO_CAPTURE_DIR", "/home/willminkoff/scannerproject/disco/captures")
 CAPTURE_ENABLED = os.environ.get("DISCO_CAPTURE_ENABLED", "1") not in ("0", "false", "False", "")
 CAPTURE_MAX_PER_LABEL = int(os.environ.get("DISCO_CAPTURE_MAX_PER_LABEL", "2000"))
 # Frequency-range → ground-truth label. Order matters: first matching rule wins.
