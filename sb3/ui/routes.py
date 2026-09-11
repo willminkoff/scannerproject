@@ -950,13 +950,20 @@ def hits(state: State) -> Dict:
     _tg_label_map = _build_tg_label_map()
 
     def _tail_jsonl(path, band, keep=100):
+        # Accept either a filesystem path or an http:// URL (used for cross-host
+        # airband log tail from Venus).
         try:
-            with open(path, "rb") as fh:
-                fh.seek(0, 2)
-                size = fh.tell()
-                fh.seek(max(0, size - 200_000))
-                data = fh.read().decode("utf-8", errors="ignore")
-        except OSError:
+            if isinstance(path, str) and path.startswith("http"):
+                import urllib.request as _ur
+                with _ur.urlopen(path, timeout=3) as resp:
+                    data = resp.read().decode("utf-8", errors="ignore")
+            else:
+                with open(path, "rb") as fh:
+                    fh.seek(0, 2)
+                    size = fh.tell()
+                    fh.seek(max(0, size - 200_000))
+                    data = fh.read().decode("utf-8", errors="ignore")
+        except (OSError, Exception):
             return
         # Filter for hit_start events first, THEN keep the last N. Otherwise
         # cluster_hop noise dominates the tail and hit_starts get truncated.
@@ -999,7 +1006,13 @@ def hits(state: State) -> Dict:
                 "kind": "voice",
             })
 
-    _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "airband.out.log", "airband")
+    _tail_jsonl(
+        _os.environ.get(
+            "SB3_CHIRP_AIRBAND_LOG_URL",
+            "http://100.114.219.115:9200/chirp/airband.out.log?tail=200000",
+        ),
+        "airband",
+    )
     _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "ground.out.log", "ground")
 
     remote = _os.environ.get("SB3_OP25_REMOTE_URL", "").rstrip("/")
