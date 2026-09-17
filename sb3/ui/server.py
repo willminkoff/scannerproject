@@ -71,6 +71,29 @@ class Handler(BaseHTTPRequestHandler):
             return self._html(SB3_HTML)
         if p == "/api/status":
             return self._json(routes.build_status(self._state))
+        if p == "/api/stream":
+            # Server-Sent Events. Push status + hits every 3s until
+            # the client disconnects.
+            import time as _t, json as _j
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache, no-store")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            try:
+                while True:
+                    try:
+                        status = routes.build_status(self._state)
+                        hits = routes.hits(self._state)
+                    except Exception:
+                        status, hits = {}, {"items": []}
+                    self.wfile.write(b"event: status\ndata: " + _j.dumps(status).encode() + b"\n\n")
+                    self.wfile.write(b"event: hits\ndata: " + _j.dumps(hits).encode() + b"\n\n")
+                    self.wfile.flush()
+                    _t.sleep(3)
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                return
+            return
         if p == "/api/heartbeat":
             return self._json(routes.build_heartbeat(self._state))
         if p == "/api/profiles":
@@ -98,6 +121,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.hp_service_types_get())
         if p == "/api/scan/devices":
             return self._json(routes.wizard_devices())
+        if p == "/api/dongles/power":
+            return self._json(routes.dongles_power({"action": "status"}, self._state))
         if p == "/api/wx/status":
             return self._json(routes.wx_status(self._state))
         if p == "/api/wx/sounding":
@@ -186,6 +211,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "error": f"bad body: {exc}"}, 400)
 
         try:
+            if p == "/api/dongles/power/schedule":
+                return self._json(routes.dongles_power_schedule(form, self._state))
+            if p == "/api/dongles/power":
+                return self._json(routes.dongles_power(form, self._state))
             if p == "/api/wx/decoder":
                 return self._json(routes.wx_decoder(form, self._state))
             if p in ("/api/apply", "/api/apply-batch"):
@@ -211,6 +240,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(routes.wizard_save_profile(body, state))
                 # Favorites-state blob — persist via HPState.
                 return self._json(routes.hp_scan_state_save(body))
+            if p == "/api/bandscan/apply":
+                return self._json(routes.bandscan_apply(form, state))
+            if p == "/api/profile/create":
+                return self._json(routes.profile_create_stub(form, state))
+            if p == "/api/profile-editor/analog/save":
+                return self._json(routes.profile_editor_analog_save_stub(form, state))
             if p == "/api/profile/apply":
                 return self._json(routes.apply_profile(form, state))
             if p == "/api/profile":
@@ -249,6 +284,13 @@ class Handler(BaseHTTPRequestHandler):
 
 def make_server(port: int = DEFAULT_PORT) -> ThreadingHTTPServer:
     return ThreadingHTTPServer(("0.0.0.0", port), Handler)
+
+
+def _bootstrap_power_schedule():
+    try:
+        routes._ensure_power_schedule_thread()
+    except Exception:
+        pass
 
 
 def main() -> int:

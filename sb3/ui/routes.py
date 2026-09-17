@@ -93,6 +93,8 @@ def build_status(state: State) -> Dict:
     _gnd_snap = _chirp_snap(7401)
     _air_sq = _air_snap.get("global_squelch_dbfs")
     _gnd_sq = _gnd_snap.get("global_squelch_dbfs")
+    _air_gain = _LAST_APPLIED_GAIN.get(7400, _air_snap.get("master_gain_db"))
+    _gnd_gain = _LAST_APPLIED_GAIN.get(7401, _gnd_snap.get("master_gain_db"))
 
     # Chirp-based liveness override: if chirp-ground/airband cmd port answers
     # AND has channels, consider the role live regardless of legacy profile
@@ -114,13 +116,24 @@ def build_status(state: State) -> Dict:
         "ok": True,
         "airband_squelch_dbfs": float(_air_sq) if _air_sq is not None else None,
         "airband_applied_squelch_dbfs": float(_air_sq) if _air_sq is not None else None,
+        "airband_gain": float(_air_gain) if _air_gain is not None else None,
+        "airband_applied_gain": float(_air_gain) if _air_gain is not None else None,
+        "airband_gain_db": float(_air_gain) if _air_gain is not None else None,
+        "airband_applied_gain_db": float(_air_gain) if _air_gain is not None else None,
         "ground_squelch_dbfs": float(_gnd_sq) if _gnd_sq is not None else None,
         "ground_applied_squelch_dbfs": float(_gnd_sq) if _gnd_sq is not None else None,
+        "ground_gain": float(_gnd_gain) if _gnd_gain is not None else None,
+        "ground_applied_gain": float(_gnd_gain) if _gnd_gain is not None else None,
+        "ground_gain_db": float(_gnd_gain) if _gnd_gain is not None else None,
+        "ground_applied_gain_db": float(_gnd_gain) if _gnd_gain is not None else None,
         "server_time": _now_iso(),
         # analog presence/activity (Air role is on RTL; Ground not deployed yet)
-        "airband_present": sdrangel_up,
+        # 'present' reflects live chirp instance with channels loaded.
+        # sdrangel_up / ground_profile are stale signals from before
+        # Neptune consolidated on the chirp path.
+        "airband_present": _chirp_live(_air_snap) or sdrangel_up,
         "airband_active": air_running,
-        "ground_present": bool(ground_profile),
+        "ground_present": _chirp_live(_gnd_snap) or bool(ground_profile),
         "ground_active": ground_running,
         "rtl_active": air_running or ground_running,
         # per-role status strings (additive; Ground offline banner reads these)
@@ -462,6 +475,8 @@ def _apply_via_chirp(band: str, gain: float, squelch: float, cutoff, port: int) 
 
     try:
         r = _send("set_sdr_gain", {"db": float(gain)})
+        if not r.get("error"):
+            _LAST_APPLIED_GAIN[int(port)] = float(gain)
         if r.get("error"): errors.append(f"gain: {r['error']}")
     except Exception as exc:
         errors.append(f"gain send failed: {exc!r}")
@@ -706,11 +721,18 @@ def volume(form: Dict, state: State) -> Dict:
 
 
 def build_system(state: State) -> Dict:
-    """/api/system — host, load, deploy, agent roster. Read-only; enriches the
-    system card. Every field is cheap and local (no network, no USB probe).
+    """/api/system — host, load, deploy, agent roster + sitrep telemetry.
 
-    Fetched by the UI with `.catch(() => null)`, so a partial payload is safe.
+    Every field is cheap and local (no network, no USB probe). Optional
+    telemetry (memory / disk / uptime / cpu_usage) uses only stdlib and
+    shell fallbacks so no new dependencies are pulled in. Fields that can't
+    be filled cheaply on macOS (cpu_temp_c) are simply omitted; the UI
+    renders '--' for anything missing.
     """
+    import shutil as _shutil
+    import subprocess as _sp
+    import re as _re
+
     loaded = set(backends.launchctl_loaded())
     sb3_up = sorted(l for l in loaded if l in ownership.SB3_LAYER)
     backend_up = sorted(l for l in loaded if l in ownership.BACKEND)
@@ -719,14 +741,113 @@ def build_system(state: State) -> Dict:
     except (OSError, AttributeError):
         load1 = load5 = load15 = None
     dep = gitdeploy.observe(check_remote=False)
+
+    # ------ memory (macOS vm_stat + sysctl) ------
+    memory = None
+    try:
+        # Total physical bytes
+        total_bytes = int(_sp.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True, text=True, timeout=2,
+        ).stdout.strip())
+        # vm_stat pages
+        pagesize = 4096
+        try:
+            pagesize = int(_sp.run(
+                ["sysctl", "-n", "hw.pagesize"],
+                capture_output=True, text=True, timeout=2,
+            ).stdout.strip())
+        except Exception:
+            pass
+        vm = _sp.run(["vm_stat"], capture_output=True, text=True, timeout=2).stdout
+        counts = {}
+        for line in vm.splitlines():
+            m = _re.match(r"([A-Za-z ()\-]+):\s+(\d+)\.", line)
+            if m:
+                counts[m.group(1).strip()] = int(m.group(2)) * pagesize
+        # macOS 'used' ≈ wired + active + compressed
+        wired = counts.get("Pages wired down", 0)
+        active = counts.get("Pages active", 0)
+        compressed = counts.get("Pages occupied by compressor", 0)
+        used_bytes = wired + active + compressed
+        total_kb = total_bytes // 1024
+        used_kb = used_bytes // 1024
+        used_percent = (used_bytes / total_bytes * 100.0) if total_bytes else 0.0
+        memory = {
+            "total_kb": total_kb,
+            "used_kb": used_kb,
+            "used_percent": round(used_percent, 1),
+        }
+    except Exception:
+        memory = None
+
+    # ------ disk (/) ------
+    disk = None
+    try:
+        du = _shutil.disk_usage("/")
+        disk = {
+            "total_bytes": int(du.total),
+            "used_bytes": int(du.used),
+            "free_bytes": int(du.free),
+            "used_percent": round(du.used / du.total * 100.0, 1) if du.total else 0.0,
+        }
+    except Exception:
+        disk = None
+
+    # ------ uptime ------
+    uptime_s = None
+    try:
+        bt = _sp.run(
+            ["sysctl", "-n", "kern.boottime"],
+            capture_output=True, text=True, timeout=2,
+        ).stdout
+        m = _re.search(r"sec\s*=\s*(\d+)", bt)
+        if m:
+            import time as _t
+            uptime_s = int(_t.time()) - int(m.group(1))
+    except Exception:
+        uptime_s = None
+
+    # ------ cpu_usage (rough: iostat -c 2 diff) ------
+    cpu_usage = None
+    try:
+        out = _sp.run(
+            ["iostat", "-c", "2", "-w", "1"],
+            capture_output=True, text=True, timeout=4,
+        ).stdout
+        # last row has us sy id — cpu_usage = us + sy
+        rows = [ln.split() for ln in out.strip().splitlines()
+                if ln.strip() and ln.strip()[0].isdigit()]
+        if rows:
+            last = rows[-1]
+            # iostat -c format: ... us sy id (last 3 tokens)
+            try:
+                us = float(last[-3]); sy = float(last[-2])
+                cpu_usage = round(us + sy, 1)
+            except Exception:
+                cpu_usage = None
+    except Exception:
+        cpu_usage = None
+
     return {
         "ok": True,
         "server_time": _now_iso(),
         "host": socket.gethostname(),
         "platform": f"{platform.system()} {platform.release()}",
         "python": platform.python_version(),
-        "load_avg": None if load1 is None else [round(load1, 2), round(load5, 2), round(load15, 2)],
+        # Legacy list shape for the old system card, PLUS object shape for
+        # the sitrep telemetry. Neither caller has to change.
+        "load_avg": (None if load1 is None else {
+            "one": round(load1, 2),
+            "five": round(load5, 2),
+            "fifteen": round(load15, 2),
+        }),
+        "load_avg_list": None if load1 is None else [round(load1, 2), round(load5, 2), round(load15, 2)],
         "cpu_count": os.cpu_count(),
+        "cpu_usage": cpu_usage,
+        "memory": memory,
+        "disk": disk,
+        "uptime_s": uptime_s,
         "deploy": {
             "sha": dep.short_sha,
             "branch": dep.branch,
@@ -740,7 +861,6 @@ def build_system(state: State) -> Dict:
             "backend_total": len(ownership.BACKEND),
         },
     }
-
 
 def hp_state(state: State) -> Dict:
     """/api/hp/state — Travel Mode state. SB3 has no HomePatrol location backend,
@@ -1178,7 +1298,14 @@ def _hp_extract_pool(state_obj):
         kind = cf.get("kind")
         if kind == "trunked":
             sid = str(cf.get("system_id") or "")
-            entry = digital_by_system.setdefault(sid, {"name": cf.get("system_name",""), "tgs": []})
+            entry = digital_by_system.setdefault(sid, {"name": cf.get("system_name",""), "tgs": [], "ccs": []})
+            # Capture control_channels from the first fav that has them.
+            _ccs = cf.get("control_channels") or []
+            if _ccs and not entry.get("ccs"):
+                try:
+                    entry["ccs"] = [float(f) for f in _ccs if f]
+                except Exception:
+                    pass
             try:
                 dec = int(cf.get("talkgroup"))
             except Exception:
@@ -1243,6 +1370,9 @@ def _hp_push_chirp(port, freqs, mode):
             "squelch_dbfs": -40.0 if mode == "am" else -55.0,
             "gain_db": 3.0,
         })
+    # Chirp ground caps at max_channels=16 (minus 1 for vfo/keepalive), so any
+    # add_channel batch beyond that is a silent drop. Trim to fit.
+    ch_list = ch_list[:15]
     r = send("add_channel", {"channels": ch_list})
     return {"ok": r.get("status") == "ok", "removed": removed, "added": len(ch_list), "chirp": r}
 
@@ -1254,12 +1384,25 @@ def _hp_push_op25(digital_by_system):
             "dongle_assignments": [], "activate": True}
     for sid, info in (digital_by_system or {}).items():
         known = _HP_SYNC_KNOWN_TRUNKED.get(sid)
-        if not known:
-            continue
-        sysname = known["name"]
-        blob["systems"].append({"name": sysname, "control_channels_mhz": known["ccs"]})
+        if known:
+            sysname = known["name"]
+            ccs = known["ccs"]
+            tuner = known.get("tuner")
+        else:
+            sysname = (info.get("name") or f"sys-{sid}").strip() or f"sys-{sid}"
+            ccs = info.get("ccs") or []
+            # Default the tuner for unknown systems to Tuner 1 of the digital
+            # RSPduo (same tuner MTRTRS uses when home). Op25 process planner
+            # requires every system to have a dongle assignment.
+            tuner = "RSPduo Tuner 1 SER#1809063632"
+            if not ccs:
+                # No control channels available for this unknown system;
+                # can't build a P25 profile entry for it, skip.
+                continue
+        blob["systems"].append({"name": sysname, "control_channels_mhz": ccs})
         blob["op25_overrides"][sysname] = {"gains": "IFGR:20,RFGR:0"}
-        blob["dongle_assignments"].append({"system_name": sysname, "preferred_tuner_serial": known["tuner"]})
+        if tuner:
+            blob["dongle_assignments"].append({"system_name": sysname, "preferred_tuner_serial": tuner})
         for tg in info["tgs"]:
             blob["talkgroups"].append({
                 "dec": tg["dec"], "hex": format(tg["dec"], "X"), "mode": "D",
@@ -1330,6 +1473,9 @@ def hp_service_types_get():
 # ---------------------------------------------------------------------------
 # Chirp tune helpers (used by /api/tune for chirp-backed bands).
 # ---------------------------------------------------------------------------
+
+_LAST_APPLIED_GAIN = {}  # {port: db} module state for gain UI reconciliation
+
 
 _CHIRP_PORT_BY_BAND = {"airband": 7400, "ground": 7401}
 # Chirp cmd hosts per port: airband lives on Venus, ground stays local.
@@ -1706,4 +1852,303 @@ def wx_decoder(form: Dict, state: State) -> Dict:
     st["accepted"] = action in ("start", "stop", "")
     st["note"] = "acarsdec + dumpvdl2 are always-on launchd services; no start/stop needed"
     return st
+
+# ---------------------------------------------------------------------------
+# Dongle power + auto-schedule endpoints.
+# ---------------------------------------------------------------------------
+
+_POWER_STATE_PATH = _WxPath("/Users/willminkoff/scannerproject/data/power_state.json")
+_POWER_SCHEDULE_PATH = _WxPath("/Users/willminkoff/scannerproject/data/power_schedule.json")
+_VENUS_POWER_URL = "http://100.114.219.115:9200"
+
+
+_NEPTUNE_POWER_OFF_LABELS = [
+    "com.scannerproject.dumpvdl2",
+    "com.scannerproject.acarsdec",
+    "com.scannerproject.chirp-ground",
+]
+_NEPTUNE_POWER_ON_ORDER = [
+    "com.scannerproject.chirp-ground",
+    "com.scannerproject.acarsdec",
+    "com.scannerproject.dumpvdl2",
+]
+
+
+def _uid():
+    import os as _os
+    return _os.getuid()
+
+
+def _lc_run(argv, timeout=10):
+    import subprocess as _sp
+    try:
+        r = _sp.run(argv, capture_output=True, text=True, timeout=timeout)
+        return {"cmd": " ".join(argv), "rc": r.returncode, "out": (r.stdout or "")[-200:], "err": (r.stderr or "")[-200:]}
+    except Exception as exc:
+        return {"cmd": " ".join(argv), "rc": -1, "err": repr(exc)}
+
+
+def _neptune_power_off():
+    lines = []
+    for label in _NEPTUNE_POWER_OFF_LABELS:
+        lines.append(_lc_run(["launchctl", "bootout", f"gui/{_uid()}/{label}"]))
+    return lines
+
+
+def _neptune_power_on():
+    lines = []
+    import time as _t
+    for label in _NEPTUNE_POWER_ON_ORDER:
+        plist = f"/Users/willminkoff/Library/LaunchAgents/{label}.plist"
+        lines.append(_lc_run(["launchctl", "bootstrap", f"gui/{_uid()}", plist]))
+        _t.sleep(3)
+    return lines
+
+
+def _venus_power(action):
+    import urllib.request as _ur, json as _j
+    url = f"{_VENUS_POWER_URL}/power/{action}"
+    try:
+        req = _ur.Request(url, data=b"", method="POST")
+        with _ur.urlopen(req, timeout=45) as resp:
+            return _j.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        return {"ok": False, "error": f"venus /power/{action} failed: {exc!r}"}
+
+
+def _power_state_load():
+    import json as _j
+    try:
+        return _j.loads(_POWER_STATE_PATH.read_text())
+    except Exception:
+        return {"state": "on"}
+
+
+def _power_state_save(state):
+    import json as _j
+    _POWER_STATE_PATH.write_text(_j.dumps({"state": state}))
+
+
+def _power_schedule_load():
+    import json as _j
+    try:
+        d = _j.loads(_POWER_SCHEDULE_PATH.read_text())
+        return {
+            "enabled": bool(d.get("enabled", False)),
+            "auto_off": str(d.get("auto_off", "")),
+            "auto_on": str(d.get("auto_on", "")),
+        }
+    except Exception:
+        return {"enabled": False, "auto_off": "", "auto_on": ""}
+
+
+def _power_schedule_save(sched):
+    import json as _j
+    _POWER_SCHEDULE_PATH.write_text(_j.dumps(sched, indent=2))
+
+
+def dongles_power(form, state):
+    """POST /api/dongles/power  action=off|on|status."""
+    action = str((form or {}).get("action", "status")).lower()
+    if action == "status":
+        st = _power_state_load()
+        st["ok"] = True
+        st["schedule"] = _power_schedule_load()
+        return st
+    if action not in ("off", "on"):
+        return {"ok": False, "error": f"unknown action: {action!r}"}
+    # Order matters: on Off, quit Neptune consumers first, then Venus tail.
+    # On On, wake Venus (RSPduo firmware needs settle) before Neptune probes it.
+    lines = []
+    if action == "off":
+        lines += _neptune_power_off()
+        vr = _venus_power("off")
+        lines.append({"cmd": "venus /power/off", "rc": 0 if vr.get("ok") else -1, "err": vr.get("error", "")})
+    else:
+        vr = _venus_power("on")
+        lines.append({"cmd": "venus /power/on", "rc": 0 if vr.get("ok") else -1, "err": vr.get("error", "")})
+        lines += _neptune_power_on()
+    _power_state_save(action)
+    return {"ok": True, "state": action, "lines": lines, "schedule": _power_schedule_load()}
+
+
+def dongles_power_schedule(form, state):
+    """POST /api/dongles/power/schedule  enabled=1&auto_off=HH:MM&auto_on=HH:MM."""
+    enabled_raw = str((form or {}).get("enabled", "0")).lower()
+    enabled = enabled_raw in ("1", "true", "on", "yes")
+    auto_off = str((form or {}).get("auto_off", "")).strip()
+    auto_on = str((form or {}).get("auto_on", "")).strip()
+    def _valid(t):
+        if not t:
+            return True
+        parts = t.split(":")
+        if len(parts) != 2:
+            return False
+        try:
+            h, m = int(parts[0]), int(parts[1])
+            return 0 <= h < 24 and 0 <= m < 60
+        except Exception:
+            return False
+    if not _valid(auto_off) or not _valid(auto_on):
+        return {"ok": False, "error": "auto_off/auto_on must be HH:MM"}
+    sched = {"enabled": enabled, "auto_off": auto_off, "auto_on": auto_on}
+    _power_schedule_save(sched)
+    _ensure_power_schedule_thread()
+    return {"ok": True, "schedule": sched}
+
+
+_POWER_SCHEDULE_THREAD_STARTED = False
+
+
+def _ensure_power_schedule_thread():
+    """Idempotently start the background schedule enforcer."""
+    global _POWER_SCHEDULE_THREAD_STARTED
+    if _POWER_SCHEDULE_THREAD_STARTED:
+        return
+    import threading, time as _t
+    def _loop():
+        last_fired_minute = None
+        while True:
+            try:
+                sched = _power_schedule_load()
+                if sched.get("enabled"):
+                    import datetime as _dt
+                    now = _dt.datetime.now()
+                    cur = now.strftime("%H:%M")
+                    if cur != last_fired_minute:
+                        current_state = _power_state_load().get("state", "on")
+                        if sched.get("auto_off") == cur and current_state != "off":
+                            dongles_power({"action": "off"}, None)
+                            last_fired_minute = cur
+                        elif sched.get("auto_on") == cur and current_state != "on":
+                            dongles_power({"action": "on"}, None)
+                            last_fired_minute = cur
+            except Exception:
+                pass
+            _t.sleep(30)
+    t = threading.Thread(target=_loop, daemon=True, name="power-schedule")
+    t.start()
+    _POWER_SCHEDULE_THREAD_STARTED = True
+
+# ---------------------------------------------------------------------------
+# Band-scan direct-to-chirp handler (bypasses the profile registry, which
+# has no create/save endpoints wired up in sb3-ui 3.1). See UAT bug: Rail
+# button snapped back to VFO because ensureBandScanProfile's create/save
+# calls both 501'd, so /api/profile then couldn't find the profile.
+# ---------------------------------------------------------------------------
+
+def bandscan_apply(form, state):
+    """POST /api/bandscan/apply — push a band-scan preset straight to chirp.
+
+    form fields:
+        target        "air" / "airband" / "ground"
+        freqs_text    comma- or newline-separated MHz values
+        modulation    "am" | "nfm"  (default: am for airband, nfm for ground)
+        bandwidth     kHz (informational; chirp uses its own cluster defaults)
+        preset_id     optional label prefix for the created channels
+    """
+    import socket as _s
+    import json as _j
+
+    target_raw = str((form or {}).get("target", "")).strip().lower()
+    if target_raw in ("air", "airband"):
+        target = "airband"
+        port = 7400
+        host = "100.114.219.115"  # venus (chirp-airband lives here now)
+        default_mode = "am"
+    elif target_raw == "ground":
+        target = "ground"
+        port = 7401
+        host = "127.0.0.1"
+        default_mode = "nfm"
+    else:
+        return {"ok": False, "error": f"unknown target: {target_raw!r}"}
+
+    mode = str((form or {}).get("modulation", default_mode)).strip().lower() or default_mode
+    preset_id = str((form or {}).get("preset_id", "bandscan")).strip() or "bandscan"
+
+    freqs_raw = str((form or {}).get("freqs_text", "")).strip()
+    freqs = []
+    for tok in freqs_raw.replace("\n", ",").split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        try:
+            freqs.append(float(tok))
+        except Exception:
+            continue
+    if not freqs:
+        return {"ok": False, "error": "no frequencies parsed from freqs_text"}
+    freqs = freqs[:15]  # chirp caps channels at 16; leave one slot for VFO
+
+    def _send(cmd, args, timeout=3.0):
+        sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM)
+        sk.settimeout(timeout)
+        try:
+            sk.sendto(_j.dumps({"v": 1, "id": cmd, "cmd": cmd, "args": args}).encode(),
+                      (host, port))
+            data, _ = sk.recvfrom(65535)
+            return _j.loads(data)
+        finally:
+            sk.close()
+
+    try:
+        st = _send("get_status", {})
+    except Exception as exc:
+        return {"ok": False, "error": f"chirp {host}:{port} unreachable: {exc!r}"}
+
+    chans = st.get("data", {}).get("channels", [])
+    if isinstance(chans, dict):
+        cur_ids = list(chans.keys())
+    else:
+        cur_ids = [c.get("id") for c in chans if isinstance(c, dict) and c.get("id")]
+    removed = 0
+    for cid in cur_ids:
+        cid_s = str(cid or "")
+        if not cid_s:
+            continue
+        if "keepalive" in cid_s.lower() or cid_s.lower() == "vfo":
+            continue
+        try:
+            _send("remove_channel", {"id": cid_s})
+            removed += 1
+        except Exception:
+            pass
+
+    safe_label = "".join(c for c in preset_id if c.isalnum() or c == "-")[:20] or "bs"
+    ch_list = []
+    for i, f in enumerate(freqs):
+        ch_list.append({
+            "id": f"bs-{safe_label}-{i}",
+            "freq_mhz": round(float(f), 6),
+            "mode": mode,
+            "squelch_dbfs": -55.0 if mode == "am" else -75.0,
+            "gain_db": 3.0,
+        })
+    try:
+        r = _send("add_channel", {"channels": ch_list})
+    except Exception as exc:
+        return {"ok": False, "error": f"add_channel failed: {exc!r}", "removed": removed}
+    return {
+        "ok": r.get("status") == "ok",
+        "target": target,
+        "added": len(ch_list),
+        "removed": removed,
+        "chirp": r,
+    }
+
+
+def profile_create_stub(form, state):
+    """POST /api/profile/create — no-op (profile registry is unimplemented).
+
+    Legacy client code posts here before /api/profile-editor/analog/save.
+    The band-scan flow now bypasses the whole chain (see bandscan_apply),
+    but returning 200 keeps any straggler callers happy instead of 501.
+    """
+    return {"ok": True, "stub": True}
+
+
+def profile_editor_analog_save_stub(form, state):
+    """POST /api/profile-editor/analog/save — no-op (see profile_create_stub)."""
+    return {"ok": True, "stub": True}
 

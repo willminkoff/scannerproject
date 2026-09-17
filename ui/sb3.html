@@ -13150,7 +13150,18 @@
 
     function updateSitrep() {
       if (!els.sitrepUpdated) return;
-      const updated = state.serverTime ? new Date(state.serverTime * 1000) : new Date();
+      // serverTime is an ISO 8601 string from /api/status. It used to be
+      // multiplied by 1000 (as if UNIX seconds), which produced NaN and
+      // rendered 'Invalid Date' in the sitrep header. Parse it directly.
+      let updated;
+      if (typeof state.serverTime === 'number' && isFinite(state.serverTime)) {
+        updated = new Date(state.serverTime * 1000);
+      } else if (typeof state.serverTime === 'string' && state.serverTime) {
+        const parsed = new Date(state.serverTime);
+        updated = isNaN(parsed.getTime()) ? new Date() : parsed;
+      } else {
+        updated = new Date();
+      }
       els.sitrepUpdated.textContent = updated.toLocaleTimeString([], serverTzOpts({ hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
       const sessionMs = Date.now() - state.sessionStart;
@@ -17144,6 +17155,67 @@
         } catch (_e) { /* best-effort */ }
       }
       window.addEventListener("load", () => { refresh(); setInterval(refresh, 5000); });
+    })();
+
+
+
+    // __BANDSCAN_DIRECT_POST_SHIM__
+    // Bypass the broken ensureBandScanProfile / selectProfileForTarget chain
+    // (both /api/profile/create and /api/profile-editor/analog/save return
+    // 501, so bandscan_* profiles never existed and /api/profile then failed
+    // with "profile not found"). Push the preset freqs straight to chirp.
+    (function () {
+      const originalApply = (typeof applyBandScanPresetByKey === 'function')
+        ? applyBandScanPresetByKey : null;
+      window.applyBandScanPresetByKey = async function (presetKey) {
+        const key = String(presetKey || '').trim();
+        const preset = (typeof BAND_SCAN_PRESET_BY_KEY === 'object'
+                        && BAND_SCAN_PRESET_BY_KEY) ? BAND_SCAN_PRESET_BY_KEY[key] : null;
+        if (!preset) return false;
+        const target = preset.target === 'ground' ? 'ground' : 'airband';
+        const label = String(preset.label || key);
+        // Prefer whatever the page already computes as the current freq list
+        // for the preset (respects any UI-side filtering).
+        let freqsText = '';
+        try {
+          if (typeof getBandScanFreqText === 'function') {
+            freqsText = getBandScanFreqText(preset) || '';
+          }
+        } catch (_) {}
+        if (!freqsText && Array.isArray(preset.frequencies)) {
+          freqsText = preset.frequencies.map(function (f) {
+            return (typeof f === 'object' && f) ? (f.freq_mhz || f.mhz || f) : f;
+          }).filter(Boolean).join(',');
+        }
+        if (!freqsText) {
+          try { logActivity('No frequencies for ' + label, 'warn', 'bandscan-nofreq-' + key); } catch (_) {}
+          return false;
+        }
+        try {
+          const res = await postAPI('/api/bandscan/apply', {
+            target: target,
+            freqs_text: freqsText,
+            modulation: String(preset.modulation || (target === 'airband' ? 'am' : 'nfm')),
+            bandwidth: Number(preset.bandwidth) || 12000,
+            preset_id: key,
+          }, { timeoutMs: 15000 });
+          const ok = Boolean(res && res.ok);
+          try {
+            logActivity(ok
+              ? (label + ' band scan applied (' + (res.added || 0) + ' freqs, ' + (res.removed || 0) + ' cleared)')
+              : (label + ' band scan failed: ' + (res && res.error || 'unknown')),
+              ok ? 'info' : 'warn', 'bandscan-apply-' + key);
+          } catch (_) {}
+          if (ok) {
+            try { if (typeof switchTarget === 'function') switchTarget(target); } catch (_) {}
+            try { if (typeof updateBandScanButtonStates === 'function') updateBandScanButtonStates(); } catch (_) {}
+          }
+          return ok;
+        } catch (e) {
+          try { logActivity(label + ' band scan error: ' + (e && e.message || e), 'warn', 'bandscan-err-' + key); } catch (_) {}
+          return false;
+        }
+      };
     })();
 
 </script>
