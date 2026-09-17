@@ -554,6 +554,131 @@ def api_strongest(since_seconds: float = 60.0, per_tuner: int = 15, bin_khz: flo
     return {"buckets": out, "total": total, "since_seconds": since_seconds}
 
 
+
+
+# ---------------------------------------------------------------------------
+# __DISCO_UX_FIXES_2026_09_17__
+# Sticky mode: return bins that qualify as "keep visible past the window" —
+# favorited (in disco_favorites) OR classified with modulation_confidence
+# >= 0.6, seen at any point in the last STICKY_LOOKBACK_S seconds. Client
+# merges these into the strongest table so the row survives past the
+# regular WINDOW filter.
+# ---------------------------------------------------------------------------
+
+STICKY_LOOKBACK_S = 24 * 3600  # 24h
+STICKY_CONF_MIN = 0.6
+
+
+@app.get("/api/sticky")
+def api_sticky(per_tuner: int = 15, bin_khz: float = 25.0):
+    """Bins that should stay visible past the WINDOW filter.
+
+    Returns the same row shape as /api/strongest so the client can merge
+    without special-casing. Only the fields the strongest table actually
+    renders are populated; the rest fall back to null.
+    """
+    import time as _t
+    cutoff = _t.time() - STICKY_LOOKBACK_S
+    bin_hz = bin_khz * 1000.0
+    _ensure_favorites_table()
+    c = _conn()
+    out = {}
+    for tid in TUNER_ORDER:
+        # Two passes: favorites, then high-confidence classified. UNION and
+        # rank by max_snr DESC. Keep the query narrow — no ULS/id_ fields —
+        # since the client re-uses whatever /api/strongest already carries
+        # when a bin appears in both.
+        rows = c.execute(
+            """
+            SELECT
+              MIN(freq_hz) as freq_hz,
+              MAX(power_dbfs) as max_power,
+              MAX(snr_db) as max_snr,
+              COUNT(*) as hits,
+              MAX(ts) as last_seen,
+              (
+                SELECT modulation_class FROM detections d2
+                WHERE d2.tuner_id = detections.tuner_id
+                  AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER)
+                  AND d2.modulation_class IS NOT NULL
+                  AND d2.ts >= ?
+                ORDER BY d2.modulation_confidence DESC LIMIT 1
+              ) as modulation_class,
+              (
+                SELECT modulation_confidence FROM detections d2
+                WHERE d2.tuner_id = detections.tuner_id
+                  AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER)
+                  AND d2.modulation_class IS NOT NULL
+                  AND d2.ts >= ?
+                ORDER BY d2.modulation_confidence DESC LIMIT 1
+              ) as modulation_confidence,
+              (
+                SELECT protocol_tag FROM detections d2
+                WHERE d2.tuner_id = detections.tuner_id
+                  AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER)
+                  AND d2.modulation_class IS NOT NULL
+                  AND d2.ts >= ?
+                ORDER BY d2.modulation_confidence DESC LIMIT 1
+              ) as protocol_tag,
+              (
+                SELECT uls_entity_name FROM detections d2
+                WHERE d2.tuner_id = detections.tuner_id
+                  AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER)
+                  AND d2.uls_callsign IS NOT NULL AND d2.ts >= ?
+                ORDER BY d2.snr_db DESC LIMIT 1
+              ) as uls_entity_name,
+              (
+                SELECT uls_callsign FROM detections d2
+                WHERE d2.tuner_id = detections.tuner_id
+                  AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER)
+                  AND d2.uls_callsign IS NOT NULL AND d2.ts >= ?
+                ORDER BY d2.snr_db DESC LIMIT 1
+              ) as uls_callsign,
+              1 as sticky,
+              (
+                CASE WHEN EXISTS (
+                  SELECT 1 FROM disco_favorites df
+                  WHERE ABS(df.freq_hz - detections.freq_hz) < ?
+                ) THEN 'favorite'
+                WHEN MAX(modulation_confidence) >= ?
+                  THEN 'classified'
+                ELSE 'unknown' END
+              ) as sticky_reason
+            FROM detections
+            WHERE tuner_id = ? AND ts >= ?
+              AND (
+                EXISTS (
+                  SELECT 1 FROM disco_favorites df
+                  WHERE ABS(df.freq_hz - detections.freq_hz) < ?
+                )
+                OR modulation_confidence >= ?
+              )
+            GROUP BY CAST(freq_hz / ? AS INTEGER)
+            ORDER BY max_snr DESC LIMIT ?
+            """,
+            (
+                bin_hz, bin_hz, cutoff,
+                bin_hz, bin_hz, cutoff,
+                bin_hz, bin_hz, cutoff,
+                bin_hz, bin_hz, cutoff,
+                bin_hz, bin_hz, cutoff,
+                bin_hz,                      # sticky_reason favorite tolerance
+                STICKY_CONF_MIN,             # sticky_reason classified threshold
+                tid, cutoff,                 # FROM ... WHERE tuner_id/ts
+                bin_hz,                      # WHERE favorites tolerance
+                STICKY_CONF_MIN,             # WHERE conf threshold
+                bin_hz, per_tuner,           # GROUP BY / LIMIT
+            ),
+        ).fetchall()
+        out[tid] = [dict(r) for r in rows]
+    c.close()
+    return {
+        "buckets": out,
+        "sticky_conf_min": STICKY_CONF_MIN,
+        "sticky_lookback_s": STICKY_LOOKBACK_S,
+    }
+
+
 @app.get("/api/status")
 def api_status():
     """Subsystem health/counters. PR #30 adds rtl_433 fields, sourced from
@@ -995,6 +1120,9 @@ tr.is-listening:hover{background:rgba(58,90,58,0.18)}
   .fav-bar,.filter-bar{display:flex !important}
   .collapsible-toggle{display:none !important}
 }
+
+/* __DISCO_UX_FIXES_2026_09_17__ */
+.sticky-pin{font-size:0.9em;margin-right:2px;opacity:0.85;cursor:help;}
 </style></head><body>
 <header class="app-header">
   <h1 class="brand">Disco<span class="brand-sub">Phase 2</span></h1>
@@ -1065,18 +1193,20 @@ tr.is-listening:hover{background:rgba(58,90,58,0.18)}
     </div>
     <div class="checkbox-grid" id="filter-band-grid"></div>
   </div>
-  <label>min SNR <input type="number" id="filter-snr" min="0" max="80" step="1" value="0"></label>
-  <label>licensee <input type="text" id="filter-licensee" placeholder="contains…"></label>
-  <label>window
+  <label title="Hide any row whose SNR is below this value. 0 disables the filter.">min SNR <input type="number" id="filter-snr" min="0" max="80" step="1" value="0"></label>
+  <label title="Only show rows whose FCC ULS licensee contains this text (case-insensitive substring).">licensee <input type="text" id="filter-licensee" placeholder="contains…"></label>
+  <label title="How far back to look for hits. Anything older than this ages off the table.">window
     <select id="filter-window">
       <option value="60">60s</option>
-      <option value="120" selected>120s</option>
+      <option value="120">2m</option>
       <option value="300">5m</option>
-      <option value="900">15m</option>
+      <option value="600" selected>10m</option>
       <option value="1800">30m</option>
+      <option value="3600">1h</option>
+      <option value="21600">6h</option>
     </select>
   </label>
-  <button class="clear" id="filter-clear" type="button">clear</button>
+  <button class="clear" id="filter-clear" type="button" title="Reset all filters back to defaults.">clear</button>
   <span class="hidden-control" id="hidden-control">
     <span id="hidden-count">0 hidden</span>
     <button id="hidden-toggle" type="button" title="Temporarily show hidden rows">show</button>
@@ -1187,7 +1317,7 @@ function setupTunerCard(tid, cfg){
     <div class="summary" data-summary>—</div>
     <canvas class="spectrum" data-spectrum width="800" height="100"></canvas>
     <canvas class="waterfall" data-waterfall width="800" height="160"></canvas>
-    <table data-strongest><thead><tr><th>freq</th><th>SNR</th><th>pwr</th><th>hits</th><th>mode</th><th>conf</th><th>licensed&nbsp;to</th><th>age</th></tr></thead><tbody></tbody></table>
+    <table data-strongest><thead><tr><th title="Center frequency of the 25 kHz bin, in MHz.">freq</th><th title="Signal-to-noise ratio in dB. Bigger means the signal stands out farther above noise. 30+ is strong.">SNR</th><th title="Absolute power in dBFS. -8 is strong, -14 is weaker. Not the same as SNR — SNR can be high even when a signal is faint if the noise floor is lower.">pwr</th><th title="How many times this bin fired inside the current window.">hits</th><th title="What the classifier thinks the signal is. 'unclassified' means confidence was too low to name it. 📌 means the row is kept past the window.">mode</th><th title="Classifier confidence, 0.00 to 1.00. Below ~0.5 is a guess; 0.7+ is a real call. Sticky mode keeps rows visible past the window if this is 0.60 or higher.">conf</th><th title="FCC ULS licensee match at this frequency, if any. '—' means no license record. Hover the row for callsign and distance.">licensed&nbsp;to</th><th title="Seconds since the last detection. Rows drop off once this passes the WINDOW value.">age</th></tr></thead><tbody></tbody></table>
   `;
   document.getElementById("tuners").appendChild(card);
   const t = {
@@ -1382,7 +1512,7 @@ const FILTER_STATE = (() => {
     preLmrState: raw.preLmrState || null,
     snr: typeof raw.snr === "number" ? raw.snr : 0,
     licensee: typeof raw.licensee === "string" ? raw.licensee : "",
-    window_s: raw.window_s || 120,
+    window_s: raw.window_s || 600,
   };
 })();
 let _persistTimer = null;
@@ -1453,12 +1583,42 @@ function rowMatchesFilter(r){
   return true;
 }
 
+function formatAgeSec(sec){
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return sec + 's';
+  if (sec < 3600) {
+    const m = Math.floor(sec / 60);
+    const r = sec % 60;
+    return r ? m + 'm ' + r + 's' : m + 'm';
+  }
+  const h = Math.floor(sec / 3600);
+  const rm = Math.floor((sec % 3600) / 60);
+  return rm ? h + 'h ' + rm + 'm' : h + 'h';
+}
 async function refreshTables(){
   const win = FILTER_STATE.window_s;
-  const [strong, summ] = await Promise.all([
+  const [strong, summ, sticky] = await Promise.all([
     fetch(`/api/strongest?since_seconds=${win}&per_tuner=8&bin_khz=25`).then(r=>r.json()),
     fetch(`/api/summary?since_seconds=${win}`).then(r=>r.json()),
+    fetch(`/api/sticky?per_tuner=8&bin_khz=25`).then(r=>r.json()).catch(()=>({buckets:{}})),
   ]);
+  // __DISCO_UX_FIXES_2026_09_17__
+  // Merge sticky rows into strong.buckets: favorited or high-conf
+  // classified bins from the last 24h that are not already in the
+  // fresh window get appended and flagged sticky:true. Dedup by the
+  // same 25 kHz bin index the server uses.
+  if (sticky && sticky.buckets) {
+    const BIN_HZ = 25000;
+    strong.buckets = strong.buckets || {};
+    for (const tid of Object.keys(sticky.buckets)) {
+      const fresh = strong.buckets[tid] || [];
+      const freshBins = new Set(fresh.map(r => Math.floor(r.freq_hz / BIN_HZ)));
+      const extras = (sticky.buckets[tid] || []).filter(
+        r => !freshBins.has(Math.floor(r.freq_hz / BIN_HZ))
+      );
+      strong.buckets[tid] = fresh.concat(extras);
+    }
+  }
   let totalBuckets = 0, totalFiltered = 0;
   for(const tid of CONFIG.tuner_order){
     const t = tuners[tid]; if(!t) continue;
@@ -1467,7 +1627,7 @@ async function refreshTables(){
     let sumStr = `${win}s: ${s.count} det`;
     if(s.classified) sumStr += `, ${s.classified} classified`;
     if(s.max_snr!=null) sumStr += `, peak ${s.max_snr.toFixed(1)} dB`;
-    if(s.last_seen) sumStr += `, last ${(Math.round(Date.now()/1000-s.last_seen))}s`;
+    if(s.last_seen) sumStr += `, last ${formatAgeSec(Date.now()/1000-s.last_seen)}`;
     t.summary.textContent = sumStr;
     const buckets = (strong.buckets && strong.buckets[tid]) || [];
     const filtered = buckets.filter(rowMatchesFilter);
@@ -1494,7 +1654,11 @@ async function refreshTables(){
         const compactClassName = r.modulation_class
           || (r.protocol_tag === "unclassified" ? "unclassified" : "—");
         const badgeCls = ab.rejected ? "mode-badge band-rejected" : "mode-badge band-allowed";
-        let modLabel = `<span class="mode-full">${fullText}</span>`
+        // sticky pin (kept past window)
+        const stickyPrefix = r.sticky
+          ? `<span class="sticky-pin" title="Kept in view (${r.sticky_reason || "sticky"} — would have aged out)">📌</span> `
+          : "";
+        let modLabel = stickyPrefix + `<span class="mode-full">${fullText}</span>`
           + `<span class="mode-compact"><span class="${badgeCls}" title="${ab.bandName || ""}">[${ab.label}]</span>${compactClassName}</span>`;
         // PR C — the details button now opens a card for every row that has
         // a trust-hierarchy tier, not just rows with Claude prose. High-tier
@@ -1563,7 +1727,7 @@ async function refreshTables(){
           `<td class="${modCls}">${serviceLine}${modLabel}</td>`+
           `<td>${modConf}</td>`+
           `<td class="uls">${ulsCell}</td>`+
-          `<td>${age}s</td>`;
+          `<td>${formatAgeSec(age)}</td>`;
         // Stash row context on the freshly-rendered button so the popup can
         // build a card (or pull prose) without re-fetching. tbody re-renders
         // every 2s, so we re-attach per row each refresh.
@@ -2142,7 +2306,7 @@ async function refreshFavorites(){
 function applyFilterUiToState(){
   FILTER_STATE.snr = parseFloat(document.getElementById("filter-snr").value || "0") || 0;
   FILTER_STATE.licensee = document.getElementById("filter-licensee").value || "";
-  FILTER_STATE.window_s = parseInt(document.getElementById("filter-window").value || "120", 10) || 120;
+  FILTER_STATE.window_s = parseInt(document.getElementById("filter-window").value || "600", 10) || 600;
   persistFilter();
   updateFilterToggleCount();
   refreshTables();
@@ -2203,7 +2367,7 @@ function clearFilters(){
   FILTER_STATE.bandCategories = new Set(BAND_CATEGORY_ORDER);
   FILTER_STATE.snr = 0;
   FILTER_STATE.licensee = "";
-  FILTER_STATE.window_s = 120;
+  FILTER_STATE.window_s = 600;
   FILTER_STATE.lmrMode = false;
   FILTER_STATE.preLmrState = null;
   hydrateFilterUi();
@@ -2326,7 +2490,7 @@ function activeFilterCount(){
   if (FILTER_STATE.bandCategories.size !== BAND_CATEGORY_ORDER.length) n++;
   if (FILTER_STATE.snr > 0) n++;
   if (FILTER_STATE.licensee) n++;
-  if (FILTER_STATE.window_s !== 120) n++;
+  if (FILTER_STATE.window_s !== 600) n++;
   return n;
 }
 function updateFilterToggleCount(){
