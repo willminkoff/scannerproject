@@ -1137,6 +1137,7 @@ tr.is-listening:hover{background:rgba(58,90,58,0.18)}
     <span class="lmr-label-short">LMR</span>
     <span class="lmr-state">OFF</span>
   </button>
+  <a href="/digest" class="digest-link" style="color:#7aa2f7;text-decoration:none;margin-right:12px;padding:6px 12px;border:1px solid #2a2f38;border-radius:4px;font-size:0.85rem;background:#1a1d24" title="Open the digest report (24h / 48h / 7d)">Digest ↗</a>
   <button class="spurious-toggle" id="spurious-toggle" type="button" data-on="true"
           title="Show or hide spurious-tier rows (band-rejected ML class, NOISE, sub-floor SNR)">
     🔴 Hide spurious
@@ -2605,6 +2606,418 @@ async function init(){
 init();
 </script></body></html>
 """
+
+
+
+# ---------------------------------------------------------------------------
+# __DISCO_DIGEST_2026_09_17__
+# Digest report: aggregates the last N hours of detections into a single
+# JSON payload the /digest HTML page renders. Reused by any caller that
+# wants a day-summary export (nightly cron, weekly digest email, etc).
+# ---------------------------------------------------------------------------
+
+DIGEST_TOP_LIMIT = 25
+DIGEST_ALL_LIMIT = 500
+DIGEST_MIN_CLASSIFIED_CONF = 0.6
+
+
+@app.get("/api/digest")
+def api_digest(hours: float = 24.0, tuner_id: str = ""):
+    """Return an aggregated report over the last `hours` hours.
+
+    If tuner_id is empty the aggregation spans every tuner. Otherwise it
+    restricts to a single tuner.
+    """
+    import time as _t
+    cutoff = _t.time() - hours * 3600.0
+    c = _conn()
+    where_tid = ""
+    params_tid = ()
+    if tuner_id:
+        where_tid = " AND tuner_id = ?"
+        params_tid = (tuner_id,)
+
+    # Totals
+    row = c.execute(
+        f"SELECT COUNT(*) as det, "
+        f"COUNT(DISTINCT CAST(freq_hz/25000 AS INTEGER)) as bins, "
+        f"COUNT(DISTINCT uls_entity_name) as licensees, "
+        f"COUNT(CASE WHEN modulation_class IS NOT NULL THEN 1 END) as classified_dets, "
+        f"COUNT(DISTINCT CASE WHEN modulation_class IS NOT NULL "
+        f"                    THEN CAST(freq_hz/25000 AS INTEGER) END) as classified_bins "
+        f"FROM detections WHERE ts >= ?{where_tid}",
+        (cutoff,) + params_tid,
+    ).fetchone()
+    totals = {
+        "detections": row["det"],
+        "distinct_bins": row["bins"],
+        "classified_detections": row["classified_dets"],
+        "classified_bins": row["classified_bins"],
+        "unique_licensees": row["licensees"],
+    }
+
+    # Classifier breakdown
+    classifier_rows = c.execute(
+        f"SELECT modulation_class as cls, COUNT(*) as n, "
+        f"ROUND(AVG(modulation_confidence), 2) as avg_conf, "
+        f"MAX(modulation_confidence) as max_conf "
+        f"FROM detections "
+        f"WHERE ts >= ? AND modulation_class IS NOT NULL{where_tid} "
+        f"GROUP BY modulation_class ORDER BY n DESC",
+        (cutoff,) + params_tid,
+    ).fetchall()
+    classifier = [
+        {"class": r["cls"], "count": r["n"], "avg_conf": r["avg_conf"], "max_conf": r["max_conf"]}
+        for r in classifier_rows
+    ]
+
+    # Most-active bins (top 25 by hit count)
+    active_rows = c.execute(
+        f"SELECT MIN(freq_hz) as freq_hz, COUNT(*) as hits, "
+        f"MAX(snr_db) as peak_snr, "
+        f"( SELECT modulation_class FROM detections d2 "
+        f"  WHERE CAST(d2.freq_hz/25000 AS INTEGER) = CAST(detections.freq_hz/25000 AS INTEGER) "
+        f"    AND d2.ts >= ? AND d2.modulation_class IS NOT NULL{where_tid.replace('tuner_id','d2.tuner_id')} "
+        f"  ORDER BY d2.modulation_confidence DESC LIMIT 1 ) as modulation_class, "
+        f"( SELECT modulation_confidence FROM detections d2 "
+        f"  WHERE CAST(d2.freq_hz/25000 AS INTEGER) = CAST(detections.freq_hz/25000 AS INTEGER) "
+        f"    AND d2.ts >= ? AND d2.modulation_class IS NOT NULL{where_tid.replace('tuner_id','d2.tuner_id')} "
+        f"  ORDER BY d2.modulation_confidence DESC LIMIT 1 ) as modulation_confidence, "
+        f"MIN(ts) as first_seen, MAX(ts) as last_seen, "
+        f"MAX(uls_entity_name) as licensee, MAX(uls_callsign) as callsign "
+        f"FROM detections WHERE ts >= ?{where_tid} "
+        f"GROUP BY CAST(freq_hz/25000 AS INTEGER) "
+        f"ORDER BY hits DESC LIMIT ?",
+        (cutoff,) + params_tid + (cutoff,) + params_tid + (cutoff,) + params_tid + (DIGEST_TOP_LIMIT,),
+    ).fetchall()
+    most_active = [dict(r) for r in active_rows]
+
+    # Newly-seen bins (first appearance inside the window, no prior record)
+    new_rows = c.execute(
+        f"SELECT MIN(freq_hz) as freq_hz, COUNT(*) as hits, "
+        f"MAX(snr_db) as peak_snr, "
+        f"MAX(modulation_class) as modulation_class, "
+        f"MAX(modulation_confidence) as modulation_confidence, "
+        f"MIN(ts) as first_seen, MAX(ts) as last_seen, "
+        f"MAX(uls_entity_name) as licensee, MAX(uls_callsign) as callsign "
+        f"FROM detections WHERE ts >= ?{where_tid} "
+        f"  AND CAST(freq_hz/25000 AS INTEGER) NOT IN ("
+        f"    SELECT DISTINCT CAST(freq_hz/25000 AS INTEGER) FROM detections WHERE ts < ?"
+        f"  ) "
+        f"GROUP BY CAST(freq_hz/25000 AS INTEGER) "
+        f"ORDER BY peak_snr DESC LIMIT ?",
+        (cutoff,) + params_tid + (cutoff, DIGEST_TOP_LIMIT),
+    ).fetchall()
+    new_bins = [dict(r) for r in new_rows]
+
+    # Notable classified — best-classified bins in window
+    classified_rows = c.execute(
+        f"SELECT MIN(freq_hz) as freq_hz, COUNT(*) as hits, "
+        f"MAX(snr_db) as peak_snr, "
+        f"( SELECT modulation_class FROM detections d2 "
+        f"  WHERE CAST(d2.freq_hz/25000 AS INTEGER) = CAST(detections.freq_hz/25000 AS INTEGER) "
+        f"    AND d2.ts >= ? AND d2.modulation_class IS NOT NULL{where_tid.replace('tuner_id','d2.tuner_id')} "
+        f"  ORDER BY d2.modulation_confidence DESC LIMIT 1 ) as modulation_class, "
+        f"MAX(modulation_confidence) as modulation_confidence, "
+        f"MIN(ts) as first_seen, MAX(ts) as last_seen, "
+        f"MAX(uls_entity_name) as licensee, MAX(uls_callsign) as callsign, "
+        f"MAX(interpretation) as interpretation "
+        f"FROM detections WHERE ts >= ?{where_tid} "
+        f"  AND modulation_confidence >= ? "
+        f"GROUP BY CAST(freq_hz/25000 AS INTEGER) "
+        f"ORDER BY MAX(modulation_confidence) DESC, hits DESC LIMIT ?",
+        (cutoff,) + params_tid + (cutoff,) + params_tid + (DIGEST_MIN_CLASSIFIED_CONF, DIGEST_TOP_LIMIT),
+    ).fetchall()
+    notable_classified = [dict(r) for r in classified_rows]
+
+    # Full list (searchable) — cap at DIGEST_ALL_LIMIT so pages stay light
+    all_rows = c.execute(
+        f"SELECT MIN(freq_hz) as freq_hz, COUNT(*) as hits, "
+        f"MAX(snr_db) as peak_snr, "
+        f"MAX(modulation_class) as modulation_class, "
+        f"MAX(modulation_confidence) as modulation_confidence, "
+        f"MIN(ts) as first_seen, MAX(ts) as last_seen, "
+        f"MAX(uls_entity_name) as licensee, MAX(uls_callsign) as callsign "
+        f"FROM detections WHERE ts >= ?{where_tid} "
+        f"GROUP BY CAST(freq_hz/25000 AS INTEGER) "
+        f"ORDER BY hits DESC LIMIT ?",
+        (cutoff,) + params_tid + (DIGEST_ALL_LIMIT,),
+    ).fetchall()
+    all_bins = [dict(r) for r in all_rows]
+
+    c.close()
+    import time as _t2
+    return {
+        "hours": hours,
+        "generated_at": _t2.time(),
+        "cutoff_ts": cutoff,
+        "totals": totals,
+        "classifier": classifier,
+        "most_active": most_active,
+        "new_bins": new_bins,
+        "notable_classified": notable_classified,
+        "all_bins": all_bins,
+        "limits": {
+            "top": DIGEST_TOP_LIMIT,
+            "all": DIGEST_ALL_LIMIT,
+            "min_classified_conf": DIGEST_MIN_CLASSIFIED_CONF,
+        },
+    }
+
+
+DIGEST_HTML = """<!doctype html>
+<html><head><meta charset=\"utf-8\">
+<title>Disco Digest</title>
+<style>
+:root{color-scheme:dark}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:#0d0f13;color:#dfe3ea;margin:0;padding:24px;line-height:1.4;}
+h1{font-size:1.5rem;margin:0 0 4px 0;font-weight:600}
+.crumbs{color:#8892a4;font-size:0.9rem;margin-bottom:20px}
+.crumbs a{color:#7aa2f7;text-decoration:none}
+.crumbs a:hover{text-decoration:underline}
+.picker{background:#1a1d24;padding:12px 16px;border-radius:6px;
+  display:flex;gap:12px;align-items:center;margin-bottom:24px;flex-wrap:wrap}
+.picker label{color:#8892a4;font-size:0.9rem}
+.picker select,.picker input{background:#0d0f13;color:#dfe3ea;
+  border:1px solid #2a2f38;padding:5px 8px;border-radius:4px}
+.picker button{background:#2a2f38;color:#dfe3ea;border:none;
+  padding:5px 12px;border-radius:4px;cursor:pointer}
+.picker button:hover{background:#3a4048}
+.picker button.reload{background:#3a5a8c}
+.picker button.reload:hover{background:#4a6a9c}
+.section{background:#1a1d24;padding:16px 20px;border-radius:6px;margin-bottom:20px}
+.section h2{font-size:1.1rem;margin:0 0 12px 0;color:#7aa2f7;font-weight:500}
+.section h2 .count{color:#8892a4;font-size:0.85rem;font-weight:400}
+.totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.total{background:#0d0f13;padding:12px;border-radius:4px}
+.total-label{color:#8892a4;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em}
+.total-value{font-size:1.6rem;font-weight:600;color:#dfe3ea;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:0.9rem}
+th{text-align:left;color:#8892a4;font-weight:500;padding:6px 8px;
+  border-bottom:1px solid #2a2f38;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.03em}
+td{padding:6px 8px;border-bottom:1px solid #1a1d24}
+tr:hover td{background:#212530}
+.freq{font-family:'SF Mono',Menlo,monospace;color:#e0af68}
+.hits{text-align:right;color:#9ece6a}
+.snr{text-align:right;color:#e0af68}
+.mod{color:#bb9af7}
+.conf{text-align:right;color:#7dcfff}
+.age{color:#8892a4;font-size:0.85em}
+.licensee{color:#dfe3ea;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{color:#8892a4;font-style:italic;text-align:center;padding:20px}
+.search-row input{background:#0d0f13;color:#dfe3ea;border:1px solid #2a2f38;
+  padding:6px 10px;border-radius:4px;width:220px;margin-bottom:8px}
+.classifier-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.cls-item{background:#0d0f13;padding:8px 10px;border-radius:4px;
+  display:flex;justify-content:space-between;align-items:center}
+.cls-name{color:#bb9af7;font-family:monospace}
+.cls-count{color:#9ece6a;font-weight:600}
+.cls-conf{color:#8892a4;font-size:0.75em;margin-left:6px}
+.loading{color:#8892a4;padding:20px;text-align:center}
+</style>
+</head><body>
+<div class=\"crumbs\">← <a href=\"/\">Disco live</a> · Digest</div>
+<h1>Disco Digest</h1>
+<div class=\"picker\">
+  <label>window
+    <select id=\"picker-hours\">
+      <option value=\"1\">1h</option>
+      <option value=\"6\">6h</option>
+      <option value=\"12\">12h</option>
+      <option value=\"24\" selected>24h</option>
+      <option value=\"48\">48h</option>
+      <option value=\"168\">7 days</option>
+    </select>
+  </label>
+  <button class=\"reload\" id=\"picker-reload\">Reload</button>
+  <span id=\"picker-generated\" style=\"color:#8892a4;font-size:0.85rem;margin-left:auto\"></span>
+</div>
+
+<div class=\"section\" id=\"section-totals\">
+  <h2>Totals</h2>
+  <div class=\"totals\" id=\"totals\"><div class=\"loading\">loading…</div></div>
+</div>
+
+<div class=\"section\">
+  <h2>Classifier breakdown</h2>
+  <div class=\"classifier-grid\" id=\"classifier\"><div class=\"loading\">loading…</div></div>
+</div>
+
+<div class=\"section\">
+  <h2>Most active bins <span class=\"count\" id=\"active-count\"></span></h2>
+  <table><thead><tr>
+    <th>freq (MHz)</th><th>hits</th><th>peak SNR</th><th>mode</th>
+    <th>conf</th><th>first seen</th><th>last seen</th><th>licensed to</th>
+  </tr></thead><tbody id=\"active-body\"><tr><td colspan=\"8\" class=\"loading\">loading…</td></tr></tbody></table>
+</div>
+
+<div class=\"section\">
+  <h2>Notable classified <span class=\"count\" id=\"notable-count\"></span></h2>
+  <table><thead><tr>
+    <th>freq (MHz)</th><th>hits</th><th>mode</th><th>conf</th>
+    <th>peak SNR</th><th>first seen</th><th>last seen</th><th>licensed to</th>
+  </tr></thead><tbody id=\"notable-body\"></tbody></table>
+</div>
+
+<div class=\"section\">
+  <h2>Newly seen bins <span class=\"count\" id=\"new-count\"></span></h2>
+  <table><thead><tr>
+    <th>freq (MHz)</th><th>hits</th><th>peak SNR</th><th>mode</th>
+    <th>conf</th><th>first seen</th><th>licensed to</th>
+  </tr></thead><tbody id=\"new-body\"></tbody></table>
+</div>
+
+<div class=\"section\">
+  <h2>All bins <span class=\"count\" id=\"all-count\"></span></h2>
+  <div class=\"search-row\"><input type=\"text\" id=\"all-search\" placeholder=\"filter by freq / mode / licensee…\"></div>
+  <table><thead><tr>
+    <th>freq (MHz)</th><th>hits</th><th>peak SNR</th><th>mode</th>
+    <th>conf</th><th>last seen</th><th>licensed to</th>
+  </tr></thead><tbody id=\"all-body\"></tbody></table>
+</div>
+
+<script>
+function fmt(n, digits=2){ return n==null? '—' : Number(n).toFixed(digits); }
+function fmtAge(ts){
+  if(!ts) return '—';
+  const now = Date.now()/1000;
+  const s = Math.max(0, Math.round(now - ts));
+  if(s < 60) return s + 's ago';
+  if(s < 3600) return Math.round(s/60) + 'm ago';
+  if(s < 86400) return Math.round(s/3600) + 'h ago';
+  return Math.round(s/86400) + 'd ago';
+}
+function fmtLicensee(row){
+  if(!row.licensee && !row.callsign) return '—';
+  const parts = [];
+  if(row.licensee) parts.push(row.licensee);
+  if(row.callsign) parts.push('<span style=\"color:#8892a4\">('+row.callsign+')</span>');
+  return parts.join(' ');
+}
+function tr(cells){
+  return '<tr>' + cells.map(c => '<td>' + (c==null?'—':c) + '</td>').join('') + '</tr>';
+}
+
+let ALL_ROWS = [];
+
+async function loadDigest(){
+  const hours = document.getElementById('picker-hours').value;
+  document.getElementById('picker-generated').textContent = 'loading…';
+  try {
+    const r = await fetch('/api/digest?hours=' + hours);
+    const d = await r.json();
+    renderTotals(d.totals);
+    renderClassifier(d.classifier);
+    renderTable('active-body', d.most_active, ['active','mod','conf','first_seen','last_seen','licensee']);
+    document.getElementById('active-count').textContent = '— top ' + (d.limits?.top||25) + ' by hit count';
+    renderTable('notable-body', d.notable_classified, ['notable']);
+    document.getElementById('notable-count').textContent = '— top ' + (d.limits?.top||25) + ' by classifier confidence (≥ ' + (d.limits?.min_classified_conf||0.6) + ')';
+    renderTable('new-body', d.new_bins, ['new']);
+    document.getElementById('new-count').textContent = '— top ' + (d.limits?.top||25) + ' new bins by peak SNR';
+    ALL_ROWS = d.all_bins;
+    renderAll('');
+    document.getElementById('all-count').textContent = '— up to ' + (d.limits?.all||500) + ' rows';
+    const dt = new Date(d.generated_at * 1000);
+    document.getElementById('picker-generated').textContent = 'generated ' + dt.toLocaleString();
+  } catch (e) {
+    document.getElementById('picker-generated').textContent = 'error: ' + e;
+  }
+}
+
+function renderTotals(t){
+  const el = document.getElementById('totals');
+  el.innerHTML = '';
+  for (const [label, key] of [
+    ['Detections','detections'],
+    ['Distinct 25kHz bins','distinct_bins'],
+    ['Classified detections','classified_detections'],
+    ['Classified bins','classified_bins'],
+    ['Unique FCC licensees','unique_licensees'],
+  ]) {
+    const v = t[key];
+    const d = document.createElement('div'); d.className='total';
+    d.innerHTML = '<div class=\"total-label\">' + label + '</div><div class=\"total-value\">' + (v==null?'—':v.toLocaleString()) + '</div>';
+    el.appendChild(d);
+  }
+}
+
+function renderClassifier(rows){
+  const el = document.getElementById('classifier');
+  el.innerHTML = '';
+  if(!rows || !rows.length){ el.innerHTML = '<div class=\"empty\">no classified detections in window</div>'; return; }
+  for (const r of rows) {
+    const d = document.createElement('div'); d.className='cls-item';
+    d.innerHTML = '<span class=\"cls-name\">' + r.class + '</span>'
+                + '<span><span class=\"cls-count\">' + r.count + '</span>'
+                + '<span class=\"cls-conf\">avg ' + fmt(r.avg_conf) + '</span></span>';
+    el.appendChild(d);
+  }
+}
+
+function renderTable(id, rows, mode){
+  const el = document.getElementById(id);
+  if(!rows || !rows.length){
+    el.innerHTML = '<tr><td colspan=\"8\" class=\"empty\">nothing in this window</td></tr>';
+    return;
+  }
+  el.innerHTML = rows.map(r => {
+    const freq = '<span class=\"freq\">' + (r.freq_hz/1e6).toFixed(4) + '</span>';
+    const hits = '<span class=\"hits\">' + r.hits + '</span>';
+    const snr = '<span class=\"snr\">' + fmt(r.peak_snr, 1) + '</span>';
+    const mod = '<span class=\"mod\">' + (r.modulation_class || '—') + '</span>';
+    const conf = '<span class=\"conf\">' + fmt(r.modulation_confidence) + '</span>';
+    const firstSeen = '<span class=\"age\">' + fmtAge(r.first_seen) + '</span>';
+    const lastSeen = '<span class=\"age\">' + fmtAge(r.last_seen) + '</span>';
+    const lic = '<span class=\"licensee\">' + fmtLicensee(r) + '</span>';
+    if(mode.includes('new')){
+      return tr([freq, hits, snr, mod, conf, firstSeen, lic]);
+    }
+    if(mode.includes('notable')){
+      return tr([freq, hits, mod, conf, snr, firstSeen, lastSeen, lic]);
+    }
+    return tr([freq, hits, snr, mod, conf, firstSeen, lastSeen, lic]);
+  }).join('');
+}
+
+function renderAll(query){
+  const el = document.getElementById('all-body');
+  const q = (query||'').toLowerCase().trim();
+  const rows = q ? ALL_ROWS.filter(r => {
+    const s = ((r.freq_hz/1e6).toFixed(4) + ' ' + (r.modulation_class||'') + ' ' + (r.licensee||'') + ' ' + (r.callsign||'')).toLowerCase();
+    return s.includes(q);
+  }) : ALL_ROWS;
+  if(!rows.length){
+    el.innerHTML = '<tr><td colspan=\"7\" class=\"empty\">no match</td></tr>';
+    return;
+  }
+  el.innerHTML = rows.slice(0, 200).map(r => {
+    return tr([
+      '<span class=\"freq\">' + (r.freq_hz/1e6).toFixed(4) + '</span>',
+      '<span class=\"hits\">' + r.hits + '</span>',
+      '<span class=\"snr\">' + fmt(r.peak_snr, 1) + '</span>',
+      '<span class=\"mod\">' + (r.modulation_class || '—') + '</span>',
+      '<span class=\"conf\">' + fmt(r.modulation_confidence) + '</span>',
+      '<span class=\"age\">' + fmtAge(r.last_seen) + '</span>',
+      '<span class=\"licensee\">' + fmtLicensee(r) + '</span>',
+    ]);
+  }).join('');
+}
+
+document.getElementById('picker-reload').addEventListener('click', loadDigest);
+document.getElementById('picker-hours').addEventListener('change', loadDigest);
+document.getElementById('all-search').addEventListener('input', e => renderAll(e.target.value));
+
+loadDigest();
+</script>
+</body></html>
+"""
+
+
+@app.get("/digest", response_class=HTMLResponse)
+def digest_page():
+    return DIGEST_HTML
+
 
 @app.get("/", response_class=HTMLResponse)
 def index():
