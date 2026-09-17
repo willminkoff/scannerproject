@@ -87,3 +87,28 @@ def tag_for(class_name: str, freq_hz: float, plan: List[Band]) -> str:
     if class_name in band.allowed_modes:
         return f"{band.name} — {class_name}"
     return f"{band.name} — unidentified"
+
+def band_prior_class(
+    freq_hz: float, plan: List[Band], strong_conf: float = 0.90
+) -> Optional[tuple]:
+    """Return (class_name, confidence) when the band-plan has a single-mode
+    rule for freq_hz; otherwise None.
+
+    Rationale: when the FCC table says exactly one modulation is legal in a
+    frequency slice, the band-plan is more authoritative than any ML
+    classifier trained on synthetic modulations. RadioML 2018.01A has no
+    FM_BROADCAST class, so it will *always* be wrong on 88-108 MHz. Better
+    to skip it entirely and stamp FM_BROADCAST at 0.90 confidence.
+
+    Multi-mode bands (e.g. AMATEUR_6M allows both FM_NARROW and AM_VOICE)
+    return None — the ML classifier still gets to guess between the legal
+    options, and derive_protocol_tag will down-rank illegal picks.
+    """
+    band = band_for(freq_hz, plan)
+    if band is None:
+        return None
+    modes = list(band.allowed_modes)
+    if len(modes) != 1:
+        return None
+    return (modes[0], float(strong_conf))
+

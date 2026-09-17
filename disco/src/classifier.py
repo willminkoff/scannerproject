@@ -670,6 +670,25 @@ def classifier_loop(cfg, conn):
                     cls_name, conf = heuristic_classify(iq, slice_rate)
             else:
                 cls_name, conf = heuristic_classify(iq, slice_rate)
+            # __BAND_PRIOR_OVERRIDE__ (Lever 1)
+            # If the FCC band-plan says exactly one modulation is
+            # legal at this frequency, the ML classifier's guess is
+            # irrelevant — the plan is the ground truth. RadioML
+            # 2018.01A doesn't even have FM_BROADCAST as a class,
+            # so 97.3 MHz would always come out as FSK4 or SSB.
+            # Override with the band prior before the confidence
+            # threshold check so it doesn't get demoted.
+            if _BAND_PLAN_AVAILABLE and band_plan is not None and plan:
+                try:
+                    _prior = band_plan.band_prior_class(meta['freq_hz'], plan)
+                    if _prior is not None:
+                        _pc, _pconf = _prior
+                        cls_name, conf = _pc, _pconf
+                except AttributeError:
+                    pass  # older band_plan without band_prior_class
+                except Exception as _bpe:
+                    LOG.warning('band_prior_class failed at %.6f MHz: %s',
+                                meta['freq_hz'] / 1e6, _bpe)
             if conf < confidence_threshold:
                 final_class = "unclassified"
                 tag = "unclassified"
