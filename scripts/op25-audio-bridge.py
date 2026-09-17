@@ -215,7 +215,7 @@ class AudioBridge:
         self.proc: subprocess.Popen[bytes] | None = None
         self.running = True
         self.last_audio_at = 0.0
-        self.last_health_check = 0.0
+        self.last_health_check = time.time()
         self.silence_frame = b"\x00" * OUTPUT_FRAME_BYTES
 
         # Ring buffer: output thread pops frames at a constant rate.
@@ -426,6 +426,13 @@ class AudioBridge:
             "-write_xing", "0",
             "-flush_packets", "1",
             "-content_type", "audio/mpeg",
+            "-ice_name", "OP25 Digital",
+            "-ice_description", "op25 P25 decoded voice",
+            "-ice_genre", "scanner",
+            "-ice_public", "0",
+            "-metadata", "icy-br=96",
+            "-metadata", "ice-audio-info=bitrate=96;samplerate=8000;channels=1",
+            "-legacy_icecast", "1",
             "-f", "mp3",
             mount_url,
         ]

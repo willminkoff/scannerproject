@@ -167,11 +167,66 @@ def _write_profile(body):
     return result
 
 
+_POWER_OFF_SERVICES = [
+    "scanner-chirp-airband",
+    "scanner-digital-op25-audio",
+    "scanner-digital-op25",
+    "disco-interpret",
+    "disco-classifier",
+    "disco-dashboard",
+]
+_POWER_ON_SERVICES_ORDER = [
+    "sdrplay",
+    "scanner-digital-op25",
+    "scanner-digital-op25-audio",
+    "scanner-chirp-airband",
+    "disco-classifier",
+    "disco-interpret",
+    "disco-dashboard",
+]
+
+
+def _run(cmd, timeout=15):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return {"cmd": " ".join(cmd), "rc": r.returncode, "out": (r.stdout or "").strip()[-400:], "err": (r.stderr or "").strip()[-400:]}
+    except Exception as exc:
+        return {"cmd": " ".join(cmd), "rc": -1, "err": repr(exc)}
+
+
+def _power_off():
+    lines = []
+    # Stop each app service (best-effort; skip missing units).
+    for svc in _POWER_OFF_SERVICES:
+        lines.append(_run(["sudo", "systemctl", "stop", svc]))
+    # Stop disco-sweep@* dynamically.
+    lines.append(_run(["bash", "-c",
+                        "sudo systemctl stop 'disco-sweep@*' 2>/dev/null || true"]))
+    # Finally stop sdrplay so RSPduo firmware sleeps.
+    lines.append(_run(["sudo", "systemctl", "stop", "sdrplay"]))
+    return lines
+
+
+def _power_on():
+    lines = []
+    for svc in _POWER_ON_SERVICES_ORDER:
+        lines.append(_run(["sudo", "systemctl", "start", svc]))
+        # Small gap between starts to let sdrplay register.
+        if svc == "sdrplay":
+            import time as _t; _t.sleep(4)
+    # Bring disco sweep back for HackRF.
+    lines.append(_run(["bash", "-c",
+                        "for u in $(systemctl list-unit-files 'disco-sweep@*' 2>/dev/null | awk '{print $1}' | grep -v UNIT); do sudo systemctl start \"$u\"; done"]))
+    return lines
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "op25-log-server/2.0"
 
     def log_message(self, fmt, *args):
         pass
+
+
 
     def do_GET(self):
         u = urlparse(self.path)
@@ -231,11 +286,23 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, "application/json", body)
             except Exception as exc:
                 return self._send(500, "application/json", json.dumps({"error": str(exc)}).encode())
+        if u.path == "/power/status":
+            state = "on" if _run(["systemctl", "is-active", "sdrplay"])["out"] == "active" else "off"
+            body = json.dumps({"ok": True, "state": state}).encode()
+            return self._send(200, "application/json", body)
         return self._send(404, "text/plain", b"not found")
 
     def do_POST(self):
         import traceback as _tb
         u = urlparse(self.path)
+        if u.path == "/power/off":
+            lines = _power_off()
+            body = json.dumps({"ok": True, "state": "off", "lines": lines}).encode()
+            return self._send(200, "application/json", body)
+        if u.path == "/power/on":
+            lines = _power_on()
+            body = json.dumps({"ok": True, "state": "on", "lines": lines}).encode()
+            return self._send(200, "application/json", body)
         if u.path != "/apply-profile":
             return self._send(404, "text/plain", b"not found")
         length = int(self.headers.get("Content-Length") or 0)

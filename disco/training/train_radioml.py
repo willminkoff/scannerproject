@@ -10,6 +10,7 @@ Output:
 import argparse
 import os
 import time
+from pathlib import Path
 import h5py
 import numpy as np
 import torch
@@ -33,6 +34,57 @@ RAW_CLASSES_24 = [
 ]
 RAW_TO_FIXED = [CLASSES_24.index(name) for name in RAW_CLASSES_24]
 
+
+
+
+class RML2018NpyDataset(Dataset):
+    """RadioML 2018.01A loaded from the Kaggle mirror's three .npy files.
+
+    Structure:
+        signals.npy : (N, 1024, 2) float32 — IQ pairs
+        labels.npy  : (N, 24)     float32 — one-hot, RAW_CLASSES_24 order
+        snrs.npy    : (N, 1)      float32
+    """
+    def __init__(self, npy_dir, snr_min_db=0, sample_per_class=None):
+        self.npy_dir = Path(npy_dir)
+        sigs = np.load(self.npy_dir / "signals.npy", mmap_mode="r")
+        labs = np.load(self.npy_dir / "labels.npy",  mmap_mode="r")
+        snrs = np.load(self.npy_dir / "snrs.npy",    mmap_mode="r")
+
+        raw_y = np.argmax(labs, axis=1)
+        remap = np.array(RAW_TO_FIXED, dtype=np.int64)
+        Y_full = remap[raw_y]
+        Z_full = snrs.squeeze()
+
+        mask = Z_full >= snr_min_db
+        indices = np.nonzero(mask)[0]
+        if sample_per_class:
+            new_idx = []
+            for c in range(24):
+                pool = indices[Y_full[indices] == c]
+                if len(pool):
+                    pick = np.random.choice(pool, size=min(sample_per_class, len(pool)), replace=False)
+                    new_idx.extend(pick.tolist())
+            indices = np.array(new_idx)
+
+        sorted_idx = np.sort(indices)
+        t0 = time.time()
+        print(f"loading {len(sorted_idx)} samples into RAM ...", flush=True)
+        # signals is memory-mapped; fancy-index copies to a real ndarray.
+        self.X = np.array(sigs[sorted_idx])
+        print(f"X loaded: {self.X.shape} {self.X.dtype}  ({time.time()-t0:.1f}s)", flush=True)
+        self.Y = Y_full[sorted_idx]
+        self.Z = Z_full[sorted_idx]
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, i):
+        x = self.X[i]
+        y = int(self.Y[i])
+        x = np.transpose(x, (1, 0)).astype(np.float32)
+        x = x / (np.max(np.abs(x)) + 1e-12)
+        return torch.from_numpy(x), y
 
 
 class RML2018Dataset(Dataset):
@@ -114,7 +166,13 @@ def pick_device(name: str) -> torch.device:
 def train(args):
     device = pick_device(args.device)
     print(f"device: {device}")
-    ds = RML2018Dataset(args.dataset, snr_min_db=args.snr_min_db, sample_per_class=args.sample_per_class)
+    from pathlib import Path as _Path
+    if _Path(args.dataset).is_dir():
+        print(f"loading NPY dataset dir {args.dataset}", flush=True)
+        ds = RML2018NpyDataset(args.dataset, snr_min_db=args.snr_min_db, sample_per_class=args.sample_per_class)
+    else:
+        print(f"loading HDF5 dataset {args.dataset}", flush=True)
+        ds = RML2018Dataset(args.dataset, snr_min_db=args.snr_min_db, sample_per_class=args.sample_per_class)
     print(f"dataset size: {len(ds)}")
     train_n = int(len(ds) * 0.85)
     val_n = len(ds) - train_n
