@@ -546,6 +546,7 @@ _KNOWN_CMDS = frozenset({
     "add_channel", "remove_channel", "set_squelch", "set_global_squelch_dbfs",
     "set_freq", "set_gain",
     "set_vad_bypass", "set_vad_threshold", "set_master_gain", "set_sdr_gain",
+    "set_sdr_amp_db",
     "reset", "get_status",
 })
 
@@ -854,6 +855,9 @@ class ChirpFlowgraph(gr.top_block):
                 return self._cmd_set_master_gain(env, args)
             if cmd == "set_sdr_gain":
                 return self._cmd_set_sdr_gain(env, args)
+            if cmd == "set_sdr_amp_db":
+                # __CHIRP_INTUITIVE_GAIN__ intuitive → IFGR then reuse
+                return self._cmd_set_sdr_amp_db(env, args)
             if cmd == "reset":
                 return self._cmd_reset(env, args)
             if cmd == "get_status":
@@ -1267,6 +1271,35 @@ class ChirpFlowgraph(gr.top_block):
             self._server.emit_event("sdr_gain_changed", db=actual)
             return Response.make_ok(env.id, {"db": actual})
 
+
+    def _cmd_set_sdr_amp_db(self, env, args):
+        """__CHIRP_INTUITIVE_GAIN__ — SDRangel-style gain (0=min amp, 59=max amp).
+
+        Converts to SDRplay IFGR (gain_db = 59 - amp_db) then calls the same
+        source.set_gain() as _cmd_set_sdr_gain, inline so we do not have to
+        rebuild the pydantic model.
+        """
+        # args is the validated SetSdrAmpArgs pydantic model — has .db
+        try:
+            amp_db = float(args.db)
+        except Exception:
+            try:
+                amp_db = float(args.get("db"))
+            except Exception:
+                amp_db = 0.0
+        amp_db = max(0.0, min(59.0, amp_db))
+        ifgr = 59.0 - amp_db
+        with self._lock:
+            if self._cfg.source_kind != "sdr":
+                return Response.make_rejected(
+                    env.id, f"set_sdr_amp_db requires source_kind=sdr "
+                            f"(have {self._cfg.source_kind!r})")
+            actual_ifgr = float(self.source.set_gain(ifgr))
+            self._cfg.sdr_gain_db = actual_ifgr
+            actual_amp = max(0.0, 59.0 - actual_ifgr)
+            self._server.emit_event("sdr_gain_changed", db=actual_ifgr)
+            return Response.make_ok(env.id, {"db": actual_amp, "ifgr_db": actual_ifgr})
+
     def _cmd_reset(self, env: Envelope, args: ResetArgs) -> Response:
         with self._lock:
             removed_ids = list(self._by_id.keys())
@@ -1335,6 +1368,7 @@ class ChirpFlowgraph(gr.top_block):
                     "sdr_device_args": self._cfg.sdr_device_args,
                     "sdr_center_freq_hz": self._cfg.sdr_center_freq_hz,
                     "sdr_gain_db": self._cfg.sdr_gain_db,
+                "sdr_gain_amp_db": max(0.0, 59.0 - self._cfg.sdr_gain_db) if self._cfg.sdr_gain_db is not None else None,
                     # Phase 1 diagnostic (2026-06-12): the LIVE SDR center
                     # frequency, read from the source's gr-osmosdr handle
                     # via `_src.get_center_freq(0)`.  If this disagrees

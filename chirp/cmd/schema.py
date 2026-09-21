@@ -301,6 +301,22 @@ class SetSdrGainArgs(_ArgsBase):
         return _check_sdr_gain(v)
 
 
+
+class SetSdrAmpArgs(_ArgsBase):
+    # __CHIRP_INTUITIVE_GAIN__
+    """Intuitive gain: 0 = min amp, 59 = max amp. Higher = more sensitivity.
+
+    Internally converted to IFGR (gain_db = 59 - db) for SoapySDR SDRplay.
+    """
+    db: float
+
+    @field_validator("db")
+    @classmethod
+    def _check_db(cls, v):
+        if not (0.0 <= v <= 59.0):
+            raise ValueError(f"amp db must be 0..59, got {v!r}")
+        return float(v)
+
 class SetVadThresholdArgs(_ArgsBase):
     """SB5 2026-06-09 squelch redesign. Per-channel VAD score threshold.
 
@@ -374,6 +390,7 @@ COMMAND_ARGS: dict[str, type[_ArgsBase]] = {
     "set_gain": SetGainArgs,
     "set_master_gain": SetMasterGainArgs,
     "set_sdr_gain": SetSdrGainArgs,
+    "set_sdr_amp_db": SetSdrAmpArgs,
     "reset": ResetArgs,
     "get_status": GetStatusArgs,
     "subscribe": SubscribeArgs,
