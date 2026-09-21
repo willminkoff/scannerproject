@@ -93,8 +93,19 @@ def build_status(state: State) -> Dict:
     _gnd_snap = _chirp_snap(7401)
     _air_sq = _air_snap.get("global_squelch_dbfs")
     _gnd_sq = _gnd_snap.get("global_squelch_dbfs")
-    _air_gain = _LAST_APPLIED_GAIN.get(7400, _air_snap.get("master_gain_db"))
-    _gnd_gain = _LAST_APPLIED_GAIN.get(7401, _gnd_snap.get("master_gain_db"))
+    # # __SB3_INTUITIVE_GAIN__ — prefer the new intuitive field from chirp
+    _air_amp = None
+    _gnd_amp = None
+    try:
+        _air_amp = (_air_snap.get("source") or {}).get("sdr_gain_amp_db")
+    except Exception:
+        _air_amp = None
+    try:
+        _gnd_amp = (_gnd_snap.get("source") or {}).get("sdr_gain_amp_db")
+    except Exception:
+        _gnd_amp = None
+    _air_gain = _LAST_APPLIED_GAIN.get(7400, _air_amp if _air_amp is not None else _air_snap.get("master_gain_db"))
+    _gnd_gain = _LAST_APPLIED_GAIN.get(7401, _gnd_amp if _gnd_amp is not None else _gnd_snap.get("master_gain_db"))
 
     # Chirp-based liveness override: if chirp-ground/airband cmd port answers
     # AND has channels, consider the role live regardless of legacy profile
@@ -474,9 +485,20 @@ def _apply_via_chirp(band: str, gain: float, squelch: float, cutoff, port: int) 
             s.close()
 
     try:
-        r = _send("set_sdr_gain", {"db": float(gain)})
+        # # __SB3_INTUITIVE_GAIN__
+        # sb3-ui now speaks the SDRangel-style intuitive scale
+        # (0=min amp .. 59=max amp). Chirp will convert to IFGR
+        # internally. Fall back to legacy set_sdr_gain if the
+        # daemon does not yet expose the new command (e.g. it
+        # is running an older build).
+        _amp_val = float(gain)
+        _amp_val = max(0.0, min(59.0, _amp_val))
+        r = _send("set_sdr_amp_db", {"db": _amp_val})
+        if r.get("status") == "rejected" and (r.get("error") or "").startswith("unknown cmd"):
+            # older chirp — send inverted IFGR value
+            r = _send("set_sdr_gain", {"db": 59.0 - _amp_val})
         if not r.get("error"):
-            _LAST_APPLIED_GAIN[int(port)] = float(gain)
+            _LAST_APPLIED_GAIN[int(port)] = _amp_val
         if r.get("error"): errors.append(f"gain: {r['error']}")
     except Exception as exc:
         errors.append(f"gain send failed: {exc!r}")
