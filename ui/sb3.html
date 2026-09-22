@@ -3511,6 +3511,15 @@
                   >
                     Rail
                   </button>
+                  <button
+                    class="action quick-scan-action"
+                    id="btn-bandscan-gmrs"
+                    type="button"
+                    title="Scan GMRS/FRS channels 1-22 (462.550-462.725 MHz)"
+                    onclick="console.log('GMRS clicked'); applyBandScanPresetByKey('gmrs');"
+                  >
+                    GMRS
+                  </button>
                 </div>
                 <div class="band-scan-note">
                   One-tap profile switching by service band.
@@ -3912,7 +3921,7 @@
               </div>
               <span class="service-dot"></span>
             </div>
-            <div class="service-item" data-service="vdl2">
+            <div class="service-item" data-service="vdl2" style="display:none" title="VDL2 disabled — RSPduo cannot run acarsdec Master + dumpvdl2 Slave at compatible rates">
               <div>
                 <div class="service-name">VDL2</div>
                 <div class="service-meta">Status: <span id="service-vdl2">--</span></div>
@@ -4868,6 +4877,22 @@
         activeTitle: 'Rail scan active. Tap again to stop.',
         autoProvision: true,
       },
+      {
+        key: 'gmrs',
+        buttonId: 'btn-bandscan-gmrs',
+        target: 'ground',
+        profileId: 'bandscan_gmrs',
+        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
+        label: 'GMRS',
+        profileLabel: 'Band Scan GMRS',
+        modulation: 'nfm',
+        bandwidth: 12500,
+        // GMRS/FRS channels 1-22 at 12.5 kHz spacing (462.5500-462.7250, 15 channels — fits chirp cap)
+        buildFrequencies: () => buildLinearBandFrequencies(462.5500, 462.7250, 0.0125),
+        inactiveTitle: 'Scan GMRS/FRS channels 1-22 (462.550-462.725 MHz)',
+        activeTitle: 'GMRS scan active. Tap again to stop.',
+        autoProvision: true,
+      },
     ];
     const BAND_SCAN_PRESET_BY_KEY = Object.fromEntries(
       BAND_SCAN_PRESETS.map((preset) => [preset.key, preset])
@@ -5233,6 +5258,7 @@
       btnBandscanCb: document.getElementById('btn-bandscan-cb'),
       btnBandscanMilAir: document.getElementById('btn-bandscan-mil-air'),
       btnBandscanRail: document.getElementById('btn-bandscan-rail'),
+      btnBandscanGmrs: document.getElementById('btn-bandscan-gmrs'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
       favoritesSyncRowAnalog: document.getElementById('favorites-sync-row-analog'),
@@ -8538,7 +8564,7 @@
 
       // Decoder status label
       const active = st.active_decoder;
-      if (els.wxDecoderName) els.wxDecoderName.textContent = active ? ((active === 'acars' ? 'ACARS + VDL2' : active.toUpperCase()) + ' active') : 'Idle';
+      if (els.wxDecoderName) els.wxDecoderName.textContent = active ? ((active === 'acars' ? 'ACARS' : active.toUpperCase()) + ' active') : 'Idle';
       if (els.wxCollectingDot) els.wxCollectingDot.classList.toggle('active', Boolean(st.collecting));
       // Start elapsed timer if decoder is active but timer isn't running (e.g. page refresh)
       if (active && !state.wxSounding.decoderStartedAt) startWxElapsedTimer();
@@ -10988,21 +11014,17 @@
     // GAIN HELPERS
     // ============================================
     
+    // __SB3_INTUITIVE_GAIN__ — slider is now linear 0..59 amp_db;
+    // no more GAIN_STEPS quantization (that was mapped to SDRplay IFGR).
     function gainIndexFromValue(value) {
-      let best = 0;
-      let bestDiff = Infinity;
-      GAIN_STEPS.forEach((g, idx) => {
-        const diff = Math.abs(g - value);
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          best = idx;
-        }
-      });
-      return best;
+      const v = Number(value);
+      if (!Number.isFinite(v)) return 0;
+      return Math.max(0, Math.min(59, Math.round(v)));
     }
     
     function gainValueFromIndex(idx) {
-      return GAIN_STEPS[Math.min(idx, GAIN_STEPS.length - 1)];
+      const i = Math.max(0, Math.min(59, Number(idx) || 0));
+      return i;
     }
     
     // ============================================
@@ -11217,7 +11239,7 @@
       const gainIdx = gainIndexFromValue(t.gain);
       if (!els.gainSlider.classList.contains('dirty')) {
         els.gainSlider.value = gainIdx;
-        els.gainValue.textContent = GAIN_STEPS[gainIdx].toFixed(1);
+        els.gainValue.textContent = gainIdx.toFixed(1);
       }
       
       if (els.dbfsSlider && !els.dbfsSlider.classList.contains('dirty')) {
@@ -15234,6 +15256,10 @@
     async function applyBandScanRail() {
       await applyBandScanPresetByKey('rail');
     }
+
+    async function applyBandScanGmrs() {
+      await applyBandScanPresetByKey('gmrs');
+    }
     
     function reconnectUI() {
       if (state.eventSource) {
@@ -16233,6 +16259,9 @@
       }
       if (els.btnBandscanRail) {
         els.btnBandscanRail.addEventListener('click', applyBandScanRail);
+      }
+      if (els.btnBandscanGmrs) {
+        els.btnBandscanGmrs.addEventListener('click', applyBandScanGmrs);
       }
       updateQuickScanButtons();
       document.getElementById('btn-avoid').addEventListener('click', async function() {

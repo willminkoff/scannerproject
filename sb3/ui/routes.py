@@ -1813,8 +1813,8 @@ def wx_messages(state: State, limit: int = 100) -> Dict:
         limit = 100
     limit = max(1, min(500, limit))
 
-    acars = _wx_tail_jsonl(_wx_newest_jsonl(_WX_ACARS_DIR, 2))
-    vdl2 = _wx_tail_jsonl(_wx_newest_jsonl(_WX_VDL2_DIR, 2))
+    acars = _wx_tail_jsonl(_wx_newest_jsonl(_WX_ACARS_DIR, 48))
+    vdl2 = _wx_tail_jsonl(_wx_newest_jsonl(_WX_VDL2_DIR, 48))
 
     rows = []
     for m in acars:
