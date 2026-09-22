@@ -1942,13 +1942,81 @@ def wx_messages(state: State, limit: int = 100) -> Dict:
     return {"ok": True, "messages": rows[-limit:]}
 
 
+def wx_filter(form: Dict, state: State) -> Dict:
+    """/api/wx/filter — enable/disable spatial cylinder filter on the sounding.
+
+    Body params:
+      enabled=true|false  (required)
+      lat, lon            (decimal degrees; required when enabled=true)
+      radius_nm           (default 100 nm)
+      ceiling_ft          (default 50000 ft)
+    """
+    store = _wx_get_store()
+    if not store:
+        return {"ok": False, "error": "sounding store not initialized"}
+    enabled = str(form.get("enabled", "")).strip().lower() in ("1", "true", "yes", "on")
+    if not enabled:
+        try:
+            store.clear_spatial_filter()
+            return {"ok": True, "enabled": False}
+        except Exception as exc:
+            return {"ok": False, "error": f"clear failed: {exc!r}"}
+    try:
+        lat = float(form.get("lat", ""))
+        lon = float(form.get("lon", ""))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "lat/lon required and must be numeric"}
+    try:
+        radius_nm = float(form.get("radius_nm", 100.0))
+    except (TypeError, ValueError):
+        radius_nm = 100.0
+    try:
+        ceiling_ft = float(form.get("ceiling_ft", 50000.0))
+    except (TypeError, ValueError):
+        ceiling_ft = 50000.0
+    try:
+        store.set_spatial_filter(lat, lon, radius_nm=radius_nm,
+                                 ceiling_ft=ceiling_ft, user_set=True)
+        return {"ok": True, "enabled": True, "lat": lat, "lon": lon,
+                "radius_nm": radius_nm, "ceiling_ft": ceiling_ft}
+    except Exception as exc:
+        return {"ok": False, "error": f"filter set failed: {exc!r}"}
+
+
 def wx_sounding(state: State) -> Dict:
-    """/api/wx/sounding — vertical profile from AMDAR ACARS messages."""
+    """/api/wx/sounding — vertical profile from AMDAR ACARS messages.
+
+    When the store has an active spatial filter, apply it here on retrieval
+    too. MetStore only filters on ingest, but the UI's Apply button also
+    expects the currently-shown list to be narrowed.
+    """
     store = _wx_get_store()
     if not store:
         return {"ok": True, "levels": []}
     try:
-        return {"ok": True, **store.get_sounding_data()}
+        data = store.get_sounding_data()
+        try:
+            if getattr(store, "_filter_enabled", False):
+                from ui.wxdata import haversine_nm as _hav
+                flat = store._filter_lat
+                flon = store._filter_lon
+                fr = store._filter_radius_nm
+                fc = store._filter_ceiling_ft
+                kept = []
+                for lvl in data.get("levels", []):
+                    if lvl.get("altitude_ft", 0) > fc:
+                        continue
+                    d = _hav(flat, flon, lvl.get("lat", 0.0), lvl.get("lon", 0.0))
+                    if d <= fr:
+                        kept.append(lvl)
+                data["levels"] = kept
+                data["observations"] = len(kept)
+                data["spatial_filter"] = True
+                data["filter_center"] = {"lat": flat, "lon": flon,
+                                          "radius_nm": fr, "ceiling_ft": fc}
+        except Exception:
+            pass
+        return {"ok": True, **data}
     except Exception as exc:
         return {"ok": False, "error": f"sounding error: {exc!r}", "levels": []}
 

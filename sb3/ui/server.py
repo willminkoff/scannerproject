@@ -265,6 +265,8 @@ class Handler(BaseHTTPRequestHandler):
                     for k, v in q.items():
                         merged.setdefault(k, v[-1])
                 return self._json(routes.vfo_mute(merged, state))
+            if p == "/api/wx/filter":
+                return self._json(routes.wx_filter(form, state))
             # Ask Claude is not wired into SB3 — answer 200 with a graceful
             # marker the chat panel renders as a message (not a raw HTTP error).
             if p == "/api/ask-claude":
