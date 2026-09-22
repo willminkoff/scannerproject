@@ -796,13 +796,21 @@ def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[M
         lon = -lon
 
     # Parse CSV tail: heading, HHMMSS, altitude(5-digit, first 3 = FL),
-    # wind(5-digit dddss), mach*100, OAT, ETA, next_fix.
+    # wind_dir(5-digit dddNN — first 3 = degrees), wind_spd(2-digit kt),
+    # OAT (signed), ETA, next_fix.
+    # NOTE 2026-09-22: prior version read the 5-digit as dddSS (packing
+    # speed into the same field) and the following 2-digit as mach*100.
+    # Both were wrong for Frontier ARINC 620 label-21. See label-22
+    # counterpart which emits the wind as "24271  34" — direction encoded
+    # in the 5-digit field, speed in a SEPARATE 2-digit field.
     rest = text[m.end():]
     parts = [p.strip() for p in rest.split(",")]
     altitude_ft = 0.0
     temp_c = -9999.0
     wind_dir = 0.0
     wind_spd = 0.0
+    alt_idx = -1
+    wdir_field_idx = -1
     for idx, part in enumerate(parts):
         if not part:
             continue
@@ -811,13 +819,24 @@ def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[M
             fl = int(part[:3])
             if 10 <= fl <= 500:
                 altitude_ft = float(fl) * 100
+                alt_idx = idx
                 continue
-        # Wind: 5-digit dddss (after altitude is set to avoid swallowing it)
-        if altitude_ft > 0 and wind_spd == 0 and part.isdigit() and len(part) == 5:
+        # Wind direction: 5-digit dddNN encoding the direction only.
+        # Take first 3 digits as degrees. Position must follow altitude.
+        if (altitude_ft > 0 and wind_dir == 0 and wdir_field_idx < 0
+                and part.isdigit() and len(part) == 5):
             wd = int(part[:3])
-            ws = int(part[3:])
-            if 0 <= wd <= 360 and ws < 300:
+            if 0 <= wd <= 360:
                 wind_dir = float(wd)
+                wdir_field_idx = idx
+                continue
+        # Wind speed: 2-digit unsigned integer in the field immediately
+        # following the direction field.
+        if (wdir_field_idx > 0 and wind_spd == 0
+                and idx == wdir_field_idx + 1
+                and part.isdigit() and 1 <= len(part) <= 3):
+            ws = int(part)
+            if 0 <= ws <= 300:
                 wind_spd = float(ws)
                 continue
         # Signed temp: -47, +20, M45, P20 (length bound prevents grabbing timestamps)
@@ -825,6 +844,15 @@ def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[M
             parsed = _parse_m_temp(part)
             if parsed is not None and -80 <= parsed <= 50:
                 temp_c = parsed
+    # Fallback: if we found a direction but no separate speed field followed,
+    # accept the legacy dddSS interpretation so older/other-carrier variants
+    # still decode something rather than silently returning zero wind.
+    if wind_dir > 0 and wind_spd == 0 and wdir_field_idx >= 0:
+        raw = parts[wdir_field_idx]
+        if len(raw) == 5 and raw.isdigit():
+            ws = int(raw[3:])
+            if 1 <= ws <= 250:
+                wind_spd = float(ws)
 
     if altitude_ft <= 0:
         return None
@@ -985,16 +1013,25 @@ def _try_parse_label22(text: str, ts: float, flight: str, reg: str) -> Optional[
             if parsed is not None and -80 <= parsed <= 50:
                 temp_c = parsed
                 continue
-        # Wind: 5-digit compact (dddss) like 24940 → 249° at 40kt
-        # May have trailing text after space (e.g. "24940 21")
-        wind_token = part.split()[0] if part else ""
-        if wind_token.isdigit() and len(wind_token) == 5:
-            wd = int(wind_token[:3])
-            ws = int(wind_token[3:])
-            if 0 <= wd <= 360 and ws < 300:
-                wind_dir = float(wd)
-                wind_spd = float(ws)
-                continue
+        # Wind: 5-digit direction encoding followed by 2-digit knots speed,
+        # e.g. "24271  34" → dir=242°, spd=34 kt.
+        # NOTE 2026-09-22: label-22 packs both tokens into one CSV field
+        # separated by whitespace. Prior parser only read the first token
+        # and misinterpreted it as dddss.
+        toks = part.split() if part else []
+        if len(toks) >= 1 and toks[0].isdigit() and len(toks[0]) == 5:
+            wd = int(toks[0][:3])
+            if 0 <= wd <= 360:
+                ws_val = None
+                if len(toks) >= 2 and toks[1].isdigit() and 1 <= len(toks[1]) <= 3:
+                    ws_val = int(toks[1])
+                else:
+                    # Fallback: legacy dddss interpretation
+                    ws_val = int(toks[0][3:])
+                if ws_val is not None and 0 <= ws_val <= 300:
+                    wind_dir = float(wd)
+                    wind_spd = float(ws_val)
+                    continue
 
     if altitude_ft <= 0:
         return None
