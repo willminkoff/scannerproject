@@ -782,11 +782,17 @@ def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[M
         return None
 
     lat = float(m.group(1))
-    if m.group(2) in ("S", "W"):
+    _hemi21 = m.group(2)
+    # Bugfix 2026-09-22: middle char in "POSN 36.967W 86.849" is the LON
+    # hemisphere, not lat. Only "S" flips latitude.
+    if _hemi21 == "S":
         lat = -lat
     lon = float(m.group(3))
-    # In CONUS, lon is always West
-    if lon > 0:
+    if _hemi21 == "W" and lon > 0:
+        lon = -lon
+    elif _hemi21 == "E":
+        pass
+    elif lon > 0:
         lon = -lon
 
     # Parse CSV tail: heading, HHMMSS, altitude(5-digit, first 3 = FL),

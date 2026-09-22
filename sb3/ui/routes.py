@@ -1779,6 +1779,94 @@ def _wx_msg_is_met(obj: dict) -> bool:
     return "AMDAR" in text or "BUFR" in text
 
 
+# __WX_SOUNDING_WIRED__ 2026-09-22
+# Wire ui/wxdata.py MetStore + acars_reader_worker into sb3-ui so
+# /api/wx/sounding returns real AMDAR-derived vertical profiles.
+_MET_STORE = None
+_MET_READER_THREAD = None
+_MET_STOP_EVENT = None
+
+
+def _wx_get_store():
+    """Lazy-init MetStore + reader thread on first call. False on failure."""
+    global _MET_STORE, _MET_READER_THREAD, _MET_STOP_EVENT
+    if _MET_STORE is not None:
+        return _MET_STORE if _MET_STORE is not False else None
+    try:
+        _PATH = "/Users/willminkoff/Library/Logs/acars/acars.jsonl"
+        import sys as _sys
+        _pp = "/Users/willminkoff/scannerproject"
+        if _pp not in _sys.path:
+            _sys.path.insert(0, _pp)
+        # Overwrite the constant AFTER import to defeat env-var timing races.
+        from ui import config as _uicfg
+        _uicfg.ACARS_OUTPUT_PATH = _PATH
+        from ui import wxdata as _wx
+        _wx.ACARS_OUTPUT_PATH = _PATH  # wxdata copied it at import time
+        import threading as _th
+
+        _MET_STORE = _wx.MetStore(max_messages=2000, max_met=500)
+        _MET_STORE.collecting = True
+        _MET_STORE.active_decoder = "acars"
+
+        # __WX_STORE_PRIME__ — seed the store with observations from the
+        # existing acars.jsonl so the sidecar has data immediately rather
+        # than waiting 30 min for the tail-from-end reader to catch a rare
+        # AMDAR match. Parser hit-rate on real Nashville traffic is around
+        # 5-10 percent, so this typically primes 20-50 observations from
+        # a day of decoded messages.
+        try:
+            import json as _json
+            import os as _osp
+            _prime_count = 0
+            _prime_msgs = 0
+            if _osp.path.exists(_PATH):
+                with open(_PATH, "r", encoding="utf-8", errors="ignore") as _fh:
+                    _lines = _fh.readlines()
+                # Prime from the last N lines to avoid multi-MB replays.
+                for _ln in _lines[-2000:]:
+                    _ln = _ln.strip()
+                    if not _ln:
+                        continue
+                    try:
+                        _msg = _json.loads(_ln)
+                    except Exception:
+                        continue
+                    try:
+                        _raw, _obs_list = _wx.parse_acars_message(_msg)
+                    except Exception:
+                        continue
+                    _MET_STORE.add_message(_raw)
+                    _prime_msgs += 1
+                    for _o in _obs_list:
+                        if _MET_STORE.add_observation(_o):
+                            _prime_count += 1
+            import sys as _sysp
+            print(
+                f"[wx] primed store: {_prime_msgs} msgs, {_prime_count} obs "
+                f"from {_PATH}",
+                file=_sysp.stderr,
+            )
+        except Exception as _pe:
+            import traceback as _tbp
+            _tbp.print_exc()
+
+        _MET_STOP_EVENT = _th.Event()
+        _MET_READER_THREAD = _th.Thread(
+            target=_wx.acars_reader_worker,
+            args=(_MET_STORE, _MET_STOP_EVENT),
+            daemon=True,
+            name="wx-acars-reader",
+        )
+        _MET_READER_THREAD.start()
+        return _MET_STORE
+    except Exception as _exc:
+        import traceback as _tb
+        _tb.print_exc()
+        _MET_STORE = False
+        return None
+
+
 def wx_status(state: State) -> Dict:
     """/api/wx/status — daemon health + running message counts."""
     acars_up = _wx_is_daemon_running("acarsdec")
@@ -1855,12 +1943,14 @@ def wx_messages(state: State, limit: int = 100) -> Dict:
 
 
 def wx_sounding(state: State) -> Dict:
-    """/api/wx/sounding — parsed vertical profile.
-
-    Full AMDAR/BUFR extraction TBD. For now expose an empty levels list so
-    the sidecar renders 'No observations collected.' instead of erroring.
-    """
-    return {"ok": True, "levels": []}
+    """/api/wx/sounding — vertical profile from AMDAR ACARS messages."""
+    store = _wx_get_store()
+    if not store:
+        return {"ok": True, "levels": []}
+    try:
+        return {"ok": True, **store.get_sounding_data()}
+    except Exception as exc:
+        return {"ok": False, "error": f"sounding error: {exc!r}", "levels": []}
 
 
 def wx_decoder(form: Dict, state: State) -> Dict:
