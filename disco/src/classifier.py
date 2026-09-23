@@ -928,6 +928,31 @@ def classifier_loop(cfg, conn):
                     uls_dist = cdbs_match.get("distance_km")
                     uls_src = cdbs_match.get("source") or "cdbs"
 
+                # # __RAILROAD_LICENSEE_OVERRIDE__
+                # AAR railroad channels overlap the marine VHF band
+                # (160.215-161.565 MHz). If licensee ULS/HPDB says
+                # railroad, override the marine tag to railroad.
+                try:
+                    _rail_tokens = (
+                        "RAILROAD", "RAILWAY", "RAILRD",
+                        "CSX TRANS", "NORFOLK SOUTHERN", "UNION PACIFIC",
+                        "BNSF", "KANSAS CITY SOUTHERN",
+                        "CANADIAN NATIONAL", "CANADIAN PACIFIC",
+                        "AMTRAK", "NATIONAL RAILROAD PASSENGER",
+                        "METRA", "METRO-NORTH", "LONG ISLAND RAIL",
+                        "NEW JERSEY TRANSIT RAIL", "SEPTA", "METROLINK",
+                    )
+                    _override_tags = (
+                        "MARINE_VHF", "MARINE_VHF_HIGH",
+                        "VHF_LMR_MID", "VHF_LMR_LAST",
+                    )
+                    if (uls_name and tag in _override_tags):
+                        _n_upper = str(uls_name).upper()
+                        if any(tok in _n_upper for tok in _rail_tokens):
+                            tag = "RAILROAD_VOICE"
+                except Exception:
+                    pass
+
                 # Serialize id_evidence_json — small enough at ~1 KB per row to
                 # keep inline rather than spinning up a sidecar table.
                 _id_service = _id_confidence = _id_source = _id_band = None
