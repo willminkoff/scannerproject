@@ -81,6 +81,7 @@ from chirp.dsp.lo_scheduler import (
     LoScheduler,
 )
 from chirp.dsp.mixer import AudioMixer
+from chirp.dsp.output_compressor import OutputCompressor  # __OUT_COMPRESSOR_WIRED__
 from chirp.dsp.priority_gate import PriorityGate
 from chirp.dsp.source_file import FileIQSource
 from chirp.dsp.source_sdr import SdrIQSource, SdrSourceConfig
@@ -213,6 +214,15 @@ class DaemonConfig:
     # Optional ffmpeg audio filter chain (presence-boost EQ etc.). Non-empty
     # routes the encoder through ffmpeg (EQ-only if denoise off). Empty = lame.
     audio_eq: str = ""
+    # Output compressor: voice-leveling + peak limiter, post-mixer.
+    out_compressor_enabled: bool = False
+    out_compressor_threshold_db: float = -30.0
+    out_compressor_ratio: float = 5.0
+    out_compressor_attack_ms: float = 5.0
+    out_compressor_release_ms: float = 80.0
+    out_compressor_knee_db: float = 6.0
+    out_compressor_makeup_db: float = 12.0
+    out_compressor_ceiling_db: float = -3.0
     max_channels: int = DEFAULT_MAX_CHANNELS
     event_sink: Optional[tuple[str, int]] = None
     log_level: str = "INFO"
@@ -473,6 +483,14 @@ def load_config(defaults_path: Optional[Path] = None) -> DaemonConfig:
         denoise=_resolve("CHIRP_DENOISE", raw, "denoise", _DC_DEFAULTS.denoise, _as_bool),
         denoise_model=_resolve("CHIRP_DENOISE_MODEL", raw, "denoise_model", _DC_DEFAULTS.denoise_model, str),
         denoise_gain_db=_resolve("CHIRP_DENOISE_GAIN_DB", raw, "denoise_gain_db", _DC_DEFAULTS.denoise_gain_db, float),
+        out_compressor_enabled=_resolve("CHIRP_OUT_COMPRESSOR_ENABLED", raw, "out_compressor_enabled", _DC_DEFAULTS.out_compressor_enabled, _as_bool),
+        out_compressor_threshold_db=_resolve("CHIRP_OUT_COMPRESSOR_THRESHOLD_DB", raw, "out_compressor_threshold_db", _DC_DEFAULTS.out_compressor_threshold_db, float),
+        out_compressor_ratio=_resolve("CHIRP_OUT_COMPRESSOR_RATIO", raw, "out_compressor_ratio", _DC_DEFAULTS.out_compressor_ratio, float),
+        out_compressor_attack_ms=_resolve("CHIRP_OUT_COMPRESSOR_ATTACK_MS", raw, "out_compressor_attack_ms", _DC_DEFAULTS.out_compressor_attack_ms, float),
+        out_compressor_release_ms=_resolve("CHIRP_OUT_COMPRESSOR_RELEASE_MS", raw, "out_compressor_release_ms", _DC_DEFAULTS.out_compressor_release_ms, float),
+        out_compressor_knee_db=_resolve("CHIRP_OUT_COMPRESSOR_KNEE_DB", raw, "out_compressor_knee_db", _DC_DEFAULTS.out_compressor_knee_db, float),
+        out_compressor_makeup_db=_resolve("CHIRP_OUT_COMPRESSOR_MAKEUP_DB", raw, "out_compressor_makeup_db", _DC_DEFAULTS.out_compressor_makeup_db, float),
+        out_compressor_ceiling_db=_resolve("CHIRP_OUT_COMPRESSOR_CEILING_DB", raw, "out_compressor_ceiling_db", _DC_DEFAULTS.out_compressor_ceiling_db, float),
         audio_eq=_resolve("CHIRP_AUDIO_EQ", raw, "audio_eq", _DC_DEFAULTS.audio_eq, str),
         max_channels=_resolve("CHIRP_MAX_CHANNELS", raw, "max_channels", _DC_DEFAULTS.max_channels, int),
         event_sink=_parse_event_sink(os.environ.get("CHIRP_EVENT_SINK", raw.get("event_sink"))),
@@ -731,7 +749,23 @@ class ChirpFlowgraph(gr.top_block):
             self.audio_sink = blocks.file_sink(gr.sizeof_float, str(audio_path), False)
             self.audio_sink.set_unbuffered(True)
 
-        self.connect(self.mixer, self.audio_sink)
+        # # __OUT_COMPRESSOR_WIRED__
+        # Insert voice-leveling compressor between mixer and sink.
+        # When disabled the block is pure bypass (copies input to
+        # output verbatim) so we can leave it in the flowgraph.
+        self.output_compressor = OutputCompressor(
+            sample_rate=float(cfg.audio_rate),
+            threshold_db=float(cfg.out_compressor_threshold_db),
+            ratio=float(cfg.out_compressor_ratio),
+            attack_ms=float(cfg.out_compressor_attack_ms),
+            release_ms=float(cfg.out_compressor_release_ms),
+            knee_db=float(cfg.out_compressor_knee_db),
+            makeup_db=float(cfg.out_compressor_makeup_db),
+            ceiling_db=float(cfg.out_compressor_ceiling_db),
+            enabled=bool(cfg.out_compressor_enabled),
+        )
+        self.connect(self.mixer, self.output_compressor)
+        self.connect(self.output_compressor, self.audio_sink)
 
         for i in range(cfg.max_channels):
             channel = Channel(
