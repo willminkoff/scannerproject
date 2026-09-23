@@ -1986,15 +1986,30 @@ def wx_filter(form: Dict, state: State) -> Dict:
 def wx_sounding(state: State) -> Dict:
     """/api/wx/sounding — vertical profile from AMDAR ACARS messages.
 
-    When the store has an active spatial filter, apply it here on retrieval
-    too. MetStore only filters on ingest, but the UI's Apply button also
-    expects the currently-shown list to be narrowed.
+    Applies (a) an age cutoff so only recent observations show up (upper-
+    level winds change hour-by-hour, so old data is misleading) and
+    (b) the spatial filter if the operator has one enabled.
     """
     store = _wx_get_store()
     if not store:
         return {"ok": True, "levels": []}
     try:
+        import os as _os_age, time as _t_age
+        try:
+            _max_age_h = float(_os_age.environ.get("WX_SOUNDING_MAX_AGE_HOURS", "3"))
+        except (TypeError, ValueError):
+            _max_age_h = 3.0
+        _cutoff_ts = _t_age.time() - (_max_age_h * 3600.0)
         data = store.get_sounding_data()
+        # Age filter first
+        _pre = len(data.get("levels", []))
+        data["levels"] = [
+            lvl for lvl in data.get("levels", [])
+            if lvl.get("timestamp", 0) >= _cutoff_ts
+        ]
+        data["observations"] = len(data["levels"])
+        data["max_age_hours"] = _max_age_h
+        data["filtered_by_age"] = _pre - data["observations"]
         try:
             if getattr(store, "_filter_enabled", False):
                 from ui.wxdata import haversine_nm as _hav
