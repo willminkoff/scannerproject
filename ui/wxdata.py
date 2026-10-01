@@ -1752,6 +1752,183 @@ def acars_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
     logger.info("ACARS reader thread stopped")
 
 
+
+# __RADIOSONDE_READER__
+# Default path auto_rx writes per-sonde CSVs to:
+#   /Users/willminkoff/scannerproject/tools/auto_rx/repo/auto_rx/log/*_sonde.log
+RADIOSONDE_LOG_DIR = os.environ.get(
+    "RADIOSONDE_LOG_DIR",
+    "/Users/willminkoff/scannerproject/tools/auto_rx/repo/auto_rx/log",
+)
+
+
+def _parse_radiosonde_csv_row(row: list, header: list) -> Optional[MetObservation]:
+    """Parse one CSV telemetry row into a MetObservation. None if invalid."""
+    try:
+        d = dict(zip(header, row))
+        # Required fields
+        ts_str = d.get("timestamp", "").strip()
+        if not ts_str:
+            return None
+        # timestamp like "2026-10-01T00:12:34.567Z"
+        import datetime as _dt
+        try:
+            if ts_str.endswith("Z"):
+                _ts = _dt.datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+            else:
+                _ts = _dt.datetime.fromisoformat(ts_str.rstrip("Z"))
+            _ts = _ts.replace(tzinfo=_dt.timezone.utc)
+            ts = _ts.timestamp()
+        except Exception:
+            ts = time.time()
+        lat = float(d.get("lat", "") or 0.0)
+        lon = float(d.get("lon", "") or 0.0)
+        alt_m = float(d.get("alt", "") or 0.0)
+        altitude_ft = alt_m * 3.28084
+        temp_c = float(d.get("temp", "") or -9999.0)
+        humidity = d.get("humidity", "")
+        humidity_pct = None
+        if humidity not in ("", "-"):
+            try:
+                humidity_pct = float(humidity)
+            except (TypeError, ValueError):
+                humidity_pct = None
+        pressure = d.get("pressure", "")
+        if pressure in ("", "-"):
+            pressure_hpa = altitude_to_pressure(altitude_ft)
+        else:
+            try:
+                pressure_hpa = float(pressure)
+            except (TypeError, ValueError):
+                pressure_hpa = altitude_to_pressure(altitude_ft)
+        # Wind: heading = direction aircraft (balloon) is moving = wind FROM direction + 180.
+        # For a free-floating balloon, ground track = wind vector.
+        # Convention: wind reports direction wind is FROM (met convention).
+        heading = d.get("heading", "")
+        wind_dir_deg = 0.0
+        if heading not in ("", "-"):
+            try:
+                hd = float(heading) % 360.0
+                wind_dir_deg = (hd + 180.0) % 360.0
+            except (TypeError, ValueError):
+                wind_dir_deg = 0.0
+        vel_h = d.get("vel_h", "")
+        wind_speed_kt = 0.0
+        if vel_h not in ("", "-"):
+            try:
+                # vel_h is m/s; 1 m/s = 1.94384 kt
+                wind_speed_kt = float(vel_h) * 1.94384
+            except (TypeError, ValueError):
+                wind_speed_kt = 0.0
+        sonde_type = d.get("type", "") or "radiosonde"
+        serial = d.get("serial", "") or "?"
+        return MetObservation(
+            timestamp=ts,
+            source="radiosonde",
+            source_id=f"{sonde_type}-{serial}",
+            lat=lat, lon=lon,
+            altitude_ft=altitude_ft,
+            pressure_hpa=round(pressure_hpa, 1),
+            temp_c=temp_c,
+            dewpoint_c=-9999.0,
+            wind_dir_deg=wind_dir_deg,
+            wind_speed_kt=wind_speed_kt,
+            humidity_pct=humidity_pct,
+        )
+    except Exception:
+        return None
+
+
+def _newest_sonde_log(log_dir: str) -> Optional[str]:
+    """Return the most-recently-modified *_sonde.log in log_dir, or None."""
+    try:
+        import glob as _gl
+        files = _gl.glob(os.path.join(log_dir, "*_sonde.log"))
+        if not files:
+            return None
+        return max(files, key=lambda f: os.path.getmtime(f))
+    except Exception:
+        return None
+
+
+def radiosonde_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
+    """Tail the newest auto_rx per-sonde CSV log and feed MetStore.
+
+    Watches RADIOSONDE_LOG_DIR for a *_sonde.log file. When a new one
+    appears or the current one grows, parses CSV rows and emits
+    MetObservation entries with source="radiosonde".
+    """
+    logger.info("Radiosonde reader thread started")
+    log_dir = RADIOSONDE_LOG_DIR
+    current_path: Optional[str] = None
+    f = None
+    header: list = []
+
+    while not stop_event.is_set():
+        try:
+            newest = _newest_sonde_log(log_dir)
+            # No log yet — poll
+            if newest is None:
+                stop_event.wait(5)
+                continue
+            # Switch files if a newer one appeared
+            if newest != current_path:
+                if f is not None:
+                    try:
+                        f.close()
+                    except Exception:
+                        pass
+                current_path = newest
+                f = open(current_path, "r", encoding="utf-8", errors="ignore")
+                header_line = f.readline().strip()
+                header = [h.strip() for h in header_line.split(",")]
+                logger.info("Radiosonde: tailing %s (%d header fields)",
+                            current_path, len(header))
+                # Prime: parse ALL existing rows so the sidecar is immediately
+                # populated for an in-progress flight that started before the
+                # reader started.
+                _primed = 0
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    row = [c.strip() for c in line.split(",")]
+                    obs = _parse_radiosonde_csv_row(row, header)
+                    if obs is not None:
+                        store.add_observation(obs)
+                        _primed += 1
+                logger.info("Radiosonde: primed %d obs from %s",
+                            _primed, os.path.basename(current_path))
+
+            # Tail for new rows
+            while not stop_event.is_set():
+                # Check if a newer file appeared
+                _newest_check = _newest_sonde_log(log_dir)
+                if _newest_check is not None and _newest_check != current_path:
+                    break
+                line = f.readline()
+                if not line:
+                    stop_event.wait(1.0)
+                    continue
+                line = line.strip()
+                if not line:
+                    continue
+                row = [c.strip() for c in line.split(",")]
+                obs = _parse_radiosonde_csv_row(row, header)
+                if obs is not None:
+                    store.add_observation(obs)
+        except Exception:
+            logger.exception("Radiosonde reader error")
+            stop_event.wait(3)
+
+    try:
+        if f is not None:
+            f.close()
+    except Exception:
+        pass
+    logger.info("Radiosonde reader thread stopped")
+
+
 def _extract_acars_from_vdl2(frame: dict) -> Optional[dict]:
     """Extract ACARS message fields from a dumpvdl2 JSON frame.
 

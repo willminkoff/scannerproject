@@ -1859,6 +1859,10 @@ def _wx_get_store():
             name="wx-acars-reader",
         )
         _MET_READER_THREAD.start()
+        # Radiosonde reader runs alongside; tails auto_rx per-sonde CSV log.
+        _th.Thread(target=_wx.radiosonde_reader_worker,
+                   args=(_MET_STORE, _MET_STOP_EVENT), daemon=True,
+                   name="wx-radiosonde-reader").start()
         return _MET_STORE
     except Exception as _exc:
         import traceback as _tb
@@ -1878,14 +1882,21 @@ def wx_status(state: State) -> Dict:
     met = sum(1 for m in acars_msgs if _wx_msg_is_met(m)) + sum(
         1 for m in vdl2_msgs if _wx_msg_is_met(m)
     )
-    # active_decoder is presentational: acars if either daemon is up.
-    active = "acars" if (acars_up or vdl2_up) else None
+    # Resolve active decoder from launchctl, not just acarsdec. Radiosonde
+    # takes over the shared RSPduo when loaded, so if the sonde label is
+    # present, acars is NOT running and vice versa.
+    try:
+        _active_dec = _wx_decoder_active()  # noqa: F821 defined later in file
+    except Exception:
+        _active_dec = "acars" if (acars_up or vdl2_up) else "none"
+    radiosonde_up = _active_dec == "radiosonde"
     return {
         "ok": True,
-        "active_decoder": active,
-        "collecting": bool(acars_up or vdl2_up),
+        "active_decoder": _active_dec if _active_dec != "none" else None,
+        "collecting": bool(acars_up or vdl2_up or radiosonde_up),
         "acars_running": acars_up,
         "vdl2_running": vdl2_up,
+        "radiosonde_running": radiosonde_up,
         "message_count": total,
         "met_count": met,
         "filtered_count": 0,
@@ -2036,16 +2047,123 @@ def wx_sounding(state: State) -> Dict:
         return {"ok": False, "error": f"sounding error: {exc!r}", "levels": []}
 
 
-def wx_decoder(form: Dict, state: State) -> Dict:
-    """/api/wx/decoder — start/stop is a no-op in the current stack.
+# __WX_DECODER_HANDOFF__ 2026-10-01
+# acars and radiosonde share one RSPduo tuner — handoff via launchd.
+_WX_DECODER_LABELS = {
+    "acars": "com.scannerproject.acarsdec",
+    "radiosonde": "com.scannerproject.radiosonde",
+}
 
-    acarsdec + dumpvdl2 are launchd-managed and always running; the button
-    exists only to open the sidecar. Report the same status wx_status does.
+
+def _wx_decoder_launchctl_list(label: str) -> bool:
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["/bin/launchctl", "list"],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in r.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 3 and parts[-1] == label:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _wx_decoder_active() -> str:
+    """Which decoder (acars/radiosonde) is currently loaded, if any."""
+    if _wx_decoder_launchctl_list(_WX_DECODER_LABELS["radiosonde"]):
+        return "radiosonde"
+    if _wx_decoder_launchctl_list(_WX_DECODER_LABELS["acars"]):
+        return "acars"
+    return "none"
+
+
+def _wx_decoder_switch(target: str) -> dict:
+    """Hand off the RSPduo from whatever's running to the target label.
+
+    Three-step dance (recovery sequence documented in
+    reference_sdrplay_restart_op25.md):
+      1. bootout the active decoder
+      2. kick system/com.sdrplay.service (releases wedged device state)
+      3. bootstrap the target decoder
+    """
+    import os as _os
+    import subprocess as _sp
+    import time as _tm
+    label = _WX_DECODER_LABELS.get(target)
+    if not label:
+        return {"ok": False, "error": f"unknown target: {target}"}
+    uid = _os.getuid()
+    other_target = "radiosonde" if target == "acars" else "acars"
+    other_label = _WX_DECODER_LABELS[other_target]
+
+    steps = []
+    if _wx_decoder_launchctl_list(label):
+        steps.append(f"{target} already loaded")
+        return {"ok": True, "target": target, "steps": steps,
+                "active_decoder": target}
+
+    # 1. bootout the other one if loaded
+    if _wx_decoder_launchctl_list(other_label):
+        try:
+            _sp.run(["/bin/launchctl", "bootout", f"gui/{uid}/{other_label}"],
+                    capture_output=True, timeout=10)
+            steps.append(f"bootout {other_target}")
+            _tm.sleep(2)
+        except Exception as exc:
+            return {"ok": False, "error": f"bootout {other_target} failed: {exc!r}",
+                    "steps": steps}
+
+    # 2. kick sdrplay_apiService so RSPduo state resets
+    try:
+        _sp.run(["/usr/bin/sudo", "-n", "/bin/launchctl",
+                 "kickstart", "-k", "system/com.sdrplay.service"],
+                capture_output=True, timeout=10)
+        steps.append("kickstart sdrplay")
+        _tm.sleep(4)
+    except Exception as exc:
+        steps.append(f"sdrplay kick FAILED: {exc!r}")
+        # Not fatal — the target may still succeed if device is already clean.
+
+    # 3. bootstrap target
+    plist = f"{_os.path.expanduser('~')}/Library/LaunchAgents/{label}.plist"
+    if not _os.path.exists(plist):
+        return {"ok": False, "error": f"plist missing: {plist}", "steps": steps}
+    try:
+        _sp.run(["/bin/launchctl", "bootstrap", f"gui/{uid}", plist],
+                capture_output=True, timeout=10)
+        steps.append(f"bootstrap {target}")
+        _tm.sleep(3)
+    except Exception as exc:
+        return {"ok": False, "error": f"bootstrap {target} failed: {exc!r}",
+                "steps": steps}
+
+    active = _wx_decoder_active()
+    return {"ok": active == target, "target": target, "steps": steps,
+            "active_decoder": active}
+
+
+def wx_decoder(form: Dict, state: State) -> Dict:
+    """/api/wx/decoder — switch between acars and radiosonde on the shared RSPduo.
+
+    body: action=acars | radiosonde
     """
     action = str((form or {}).get("action", "")).lower()
+    if action not in ("acars", "radiosonde", "", "start", "stop"):
+        return {"ok": False, "error": f"bad action: {action!r}"}
+    # Legacy stubs: "" / "start" / "stop" just return status.
+    if action in ("", "start", "stop"):
+        st = wx_status(state)
+        st["accepted"] = True
+        st["active_decoder"] = _wx_decoder_active()
+        st["note"] = "pass action=acars or action=radiosonde to switch"
+        return st
+    result = _wx_decoder_switch(action)
     st = wx_status(state)
-    st["accepted"] = action in ("start", "stop", "")
-    st["note"] = "acarsdec + dumpvdl2 are always-on launchd services; no start/stop needed"
+    st.update(result)
+    st["accepted"] = True
     return st
 
 # ---------------------------------------------------------------------------
