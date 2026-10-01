@@ -102,3 +102,6 @@ config/reconciler.json
 # Scratch dirs for op25 host runtime files and ad-hoc audio dumps.
 /op25-runtime/
 /outputs/
+
+# auto_rx + rx_tools build/venv artifacts (49 MB; auto-rebuilt from scripts)
+tools/
