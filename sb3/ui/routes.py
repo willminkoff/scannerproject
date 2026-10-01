@@ -2148,19 +2148,28 @@ def _wx_decoder_switch(target: str) -> dict:
 def wx_decoder(form: Dict, state: State) -> Dict:
     """/api/wx/decoder — switch between acars and radiosonde on the shared RSPduo.
 
-    body: action=acars | radiosonde
+    Accepts two shapes:
+      action=acars | radiosonde            (new, direct)
+      action=start, decoder=acars|radiosonde (legacy, from sb3.html button)
+      action=stop                          (returns status only; nothing to stop)
     """
-    action = str((form or {}).get("action", "")).lower()
-    if action not in ("acars", "radiosonde", "", "start", "stop"):
-        return {"ok": False, "error": f"bad action: {action!r}"}
-    # Legacy stubs: "" / "start" / "stop" just return status.
-    if action in ("", "start", "stop"):
+    form = form or {}
+    action = str(form.get("action", "")).lower()
+    decoder_hint = str(form.get("decoder", "")).lower()
+    # UI compat: translate action=start+decoder=X -> target X
+    if action == "start" and decoder_hint in ("acars", "radiosonde"):
+        target = decoder_hint
+    elif action in ("acars", "radiosonde"):
+        target = action
+    elif action in ("", "stop"):
         st = wx_status(state)
         st["accepted"] = True
         st["active_decoder"] = _wx_decoder_active()
-        st["note"] = "pass action=acars or action=radiosonde to switch"
+        st["note"] = "pass action=acars|radiosonde or action=start&decoder=... to switch"
         return st
-    result = _wx_decoder_switch(action)
+    else:
+        return {"ok": False, "error": f"bad action/decoder: action={action!r} decoder={decoder_hint!r}"}
+    result = _wx_decoder_switch(target)
     st = wx_status(state)
     st.update(result)
     st["accepted"] = True
