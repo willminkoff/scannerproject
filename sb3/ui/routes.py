@@ -1321,21 +1321,41 @@ _HP_SYNC_DEFAULT_RANGE_MI = 50.0
 
 
 def _op25_sites_per_system() -> int:
-    """How many sites' control channels op25 gets per system.
+    """How many candidate sites per system we hand the op25 site selector.
 
-    Default is **1**, and that is a correctness requirement rather than a
-    tuning knob: a P25 trunking receiver follows one site's control channel and
-    latches that site's NAC.  Hand it several sites' control channels and it
-    locks one site, learns its NAC, then lands on another site's frequency and
-    rejects every frame with ``NAC check fail: received=X, expected=Y`` — the
-    decoder looks healthy, the control channel looks locked, and no audio is
-    ever produced.
+    These are *candidates to survey*, not channels to scan simultaneously.
+    ui.op25_adapter's selector keeps exactly one site active at a time and
+    restarts op25 when it switches, which is what preserves NAC coherence:
+    merging several sites' control channels into one flat list is what makes
+    op25 lock one site, latch its NAC, then reject every frame from another
+    with ``NAC check fail: received=X, expected=Y``.
+
+    More candidates means a longer initial survey but a better chance of
+    landing on a site that can actually be received.
     """
-    raw = os.environ.get("SB3_OP25_SITES_PER_SYSTEM", "1")
+    raw = os.environ.get("SB3_OP25_SITES_PER_SYSTEM", "4")
     try:
         return max(1, int(str(raw).strip()))
     except Exception:
-        return 1
+        return 4
+
+
+def _hpdb_path(explicit=None) -> str:
+    if explicit:
+        return str(explicit)
+    try:
+        from ui.config import HPDB_DB_PATH
+        return str(HPDB_DB_PATH)
+    except Exception:
+        return ""
+
+
+def _haversine_miles(lat1, lon1, lat2, lon2) -> float:
+    import math
+    r_lat, r_lon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
+    a = (math.sin(r_lat / 2) ** 2
+         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(r_lon / 2) ** 2)
+    return 3958.8 * 2 * math.asin(min(1.0, math.sqrt(a)))
 
 
 def _hp_sync_center(state_obj):
@@ -1367,29 +1387,23 @@ def _hp_sync_center(state_obj):
 
 
 def _resolve_site_controls(system_ids, state_obj, db_path=None):
-    """Resolve ``{system_id: site}`` from HPDB for the CURRENT location.
+    """Resolve ``{system_id: [site, ...]}`` from HPDB for the CURRENT location.
 
-    Reuses the site gate ui.scan_mode_controller already implements: every
-    candidate site must contain the box inside *its own* advertised radius,
-    so a far-away site never matches just because it is the closest one.
+    Returns *candidate sites* for ui.op25_adapter's site selector to survey.
+    The selector keeps one site active at a time, scores it on whether the
+    control channel actually locks and decodes (``control_locked``,
+    ``last_tsbk_age_sec``, ``recent_monitored_tg_hits``), and demotes a site
+    that goes stale — which is the only way to tell a receivable site from a
+    merely nearby one.  We therefore supply geography and let measurement
+    decide, rather than picking a winner from the database alone.
 
-    One deliberate difference: that gate ranks widest-radius-first, which is
-    right for building a browsable scan pool and wrong here.  We re-rank by
-    **frequency count, then distance**, which is what actually identifies a
-    system's main simulcast cell.  Checked against the three systems whose
-    correct control channels were previously hardcoded:
-
-        MTRTRS  Davidson County Simulcast  23 freqs  2.3 mi   <- correct
-                Davidson County Services   10 freqs  2.1 mi   (nearer, wrong)
-        TACN    Tennessee Tower            12 freqs  0.3 mi   <- correct
-        NJICS   Cape May County Simulcast  14 freqs  6.6 mi   <- correct
-                STR I Trailer               4 freqs 68.4 mi   (r=85, wrong)
-
-    Ranking by distance alone picks the wrong site for MTRTRS; ranking by
-    radius alone picks the wrong site for NJICS.  Frequency count separates a
-    main simulcast cell from a small services cell or a deployable trailer.
-
-    Returns ``{}`` on any failure.
+    Why candidacy is NOT gated on the site's own advertised radius, unlike
+    ui.scan_mode_controller's scan-pool gate: at Sea Isle City the site that
+    actually decodes is Atlantic City Simulcast, 20.4 mi away with a 10 mi
+    advertised radius, while the database-ideal Cape May County Simulcast
+    (6.6 mi, 17 mi radius) never locked at all.  A strict radius gate excludes
+    the one site that works.  HPDB radii are advertised coverage, not what
+    reaches this antenna.
     """
     wanted = sorted({int(s) for s in (system_ids or []) if int(s) > 0})
     if not wanted:
@@ -1397,50 +1411,118 @@ def _resolve_site_controls(system_ids, state_obj, db_path=None):
     center = _hp_sync_center(state_obj)
     if not center:
         return {}
+    lat0, lon0 = float(center[0]), float(center[1])
 
     try:
-        range_miles = float((state_obj or {}).get("range_miles") or 0) or _HP_SYNC_DEFAULT_RANGE_MI
+        range_miles = float((state_obj or {}).get("range_miles") or 0)
     except (TypeError, ValueError):
-        range_miles = _HP_SYNC_DEFAULT_RANGE_MI
+        range_miles = 0.0
+    # The scan-pool range is about which favorites to show, and is often small
+    # (15 mi).  A control channel carries much further, so never survey less
+    # than the default.
+    range_miles = max(range_miles, _HP_SYNC_DEFAULT_RANGE_MI)
 
-    try:
-        from ui.scan_mode_controller import ScanModeController
-        controller = ScanModeController(db_path) if db_path else ScanModeController()
-        found = controller._favorite_nearest_controls_by_system(
-            system_ids=wanted,
-            center_lat=float(center[0]),
-            center_lon=float(center[1]),
-            range_miles=range_miles,
-            include_nationwide=bool((state_obj or {}).get("nationwide_systems", True)),
-            strict_location=bool((state_obj or {}).get("strict_location", False)),
-        ) or {}
-    except Exception:
+    db = _hpdb_path(db_path)
+    if not db:
         return {}
 
-    limit = _op25_sites_per_system()
+    import sqlite3
     out = {}
-    for system_id, candidates in found.items():
-        usable = [c for c in (candidates or []) if c.get("controls")]
-        if not usable:
-            continue
-        nearest = sorted(
-            usable,
-            key=lambda c: (-len(c.get("controls") or []), float(c.get("distance_miles") or 1e9)),
-        )[:limit]
-        controls = []
-        for site in nearest:
-            for mhz in site.get("controls") or []:
-                if mhz not in controls:
-                    controls.append(mhz)
-        if not controls:
-            continue
-        out[int(system_id)] = {
-            "controls": controls,
-            "site_id": nearest[0].get("site_id"),
-            "site_name": nearest[0].get("site_name") or "",
-            "distance_miles": nearest[0].get("distance_miles"),
-            "site_count": len(nearest),
-        }
+    conn = None
+    try:
+        conn = sqlite3.connect(db)
+        conn.row_factory = sqlite3.Row
+        placeholders = ",".join("?" for _ in wanted)
+        rows = conn.execute(
+            f"""
+            SELECT ts.trunk_id, ts.site_id, ts.site_name, ts.latitude, ts.longitude,
+                   ts.radius, COUNT(tf.id) AS n_freqs
+            FROM trunk_sites ts
+            JOIN trunk_freqs tf ON tf.site_id = ts.site_id AND tf.freq_hz IS NOT NULL
+            WHERE ts.trunk_id IN ({placeholders})
+              AND ts.latitude IS NOT NULL AND ts.longitude IS NOT NULL
+            GROUP BY ts.site_id
+            """,
+            wanted,
+        ).fetchall()
+
+        by_system = {}
+        for row in rows:
+            try:
+                dist = _haversine_miles(lat0, lon0, float(row["latitude"]), float(row["longitude"]))
+            except (TypeError, ValueError):
+                continue
+            try:
+                radius = float(row["radius"] or 0)
+            except (TypeError, ValueError):
+                radius = 0.0
+            # Survey a site when it is within our search range OR when the box
+            # sits inside its own advertised radius.
+            if dist > range_miles and not (radius > 0 and dist <= radius):
+                continue
+            by_system.setdefault(int(row["trunk_id"]), []).append({
+                "site_id": int(row["site_id"]),
+                "site_name": str(row["site_name"] or "").strip() or f"Site {row['site_id']}",
+                "latitude": float(row["latitude"]),
+                "longitude": float(row["longitude"]),
+                "radius": radius or None,
+                "distance_miles": round(dist, 2),
+                "n_freqs": int(row["n_freqs"] or 0),
+                "inside_radius": bool(radius > 0 and dist <= radius),
+            })
+
+        if not by_system:
+            return {}
+
+        site_ids = [s["site_id"] for sites in by_system.values() for s in sites]
+        freq_by_site = {}
+        if site_ids:
+            ph = ",".join("?" for _ in site_ids)
+            for frow in conn.execute(
+                f"SELECT site_id, freq_hz FROM trunk_freqs "
+                f"WHERE site_id IN ({ph}) AND freq_hz IS NOT NULL ORDER BY site_id, freq_hz",
+                site_ids,
+            ):
+                freq_by_site.setdefault(int(frow["site_id"]), []).append(
+                    round(float(frow["freq_hz"]) / 1_000_000.0, 6))
+
+        limit = _op25_sites_per_system()
+        for system_id, sites in by_system.items():
+            for site in sites:
+                site["controls"] = freq_by_site.get(site["site_id"]) or []
+            usable = [s for s in sites if s["controls"]]
+            if not usable:
+                continue
+            # Survey order only — the selector re-ranks and, once it has
+            # measurements, promotes whatever actually decodes.
+            #
+            # Inside its own radius first, since that is the strongest
+            # coverage hint HPDB offers.  Among those, the bigger cell wins:
+            # a main simulcast carries more channels than a services cell, and
+            # at Nashville that is the difference between Davidson County
+            # Simulcast (23 ch, 2.3 mi) and Davidson County Services
+            # (10 ch, 2.1 mi) — the nearer one is the wrong answer.
+            #
+            # Outside the advertised radius, rank by distance instead.  Channel
+            # count stops being a reachability hint out there, and preferring
+            # it drops the site that actually decodes at Sea Isle City:
+            # Atlantic City Simulcast (6 ch, 20.4 mi) would lose to Cumberland
+            # County Simulcast (14 ch, 26.5 mi) and fall off the end of the
+            # candidate list.
+            usable.sort(key=lambda s: (
+                not s["inside_radius"],
+                -s["n_freqs"] if s["inside_radius"] else 0,
+                s["distance_miles"],
+            ))
+            out[int(system_id)] = usable[:limit]
+    except Exception:
+        return {}
+    finally:
+        try:
+            if conn is not None:
+                conn.close()
+        except Exception:
+            pass
     return out
 
 
@@ -1553,34 +1635,56 @@ def _hp_push_op25(digital_by_system, state_obj=None):
         sysname = (info.get("name") or f"sys-{sid}").strip() or f"sys-{sid}"
         hit = resolved.get(int(sid)) if str(sid).lstrip("-").isdigit() else None
         if hit:
-            ccs = hit["controls"]
-            sites_used[sysname] = {
-                "site_id": hit.get("site_id"),
-                "site_name": hit.get("site_name"),
-                "distance_miles": hit.get("distance_miles"),
-                "sites": hit.get("site_count"),
-                "control_channels": len(ccs),
-            }
+            # Hand the selector every candidate.  It keeps one active, scores
+            # it on real decode, and demotes it if it never syncs.
+            sites = [{
+                "site_id": str(c["site_id"]),
+                "site_name": c["site_name"],
+                "control_channels_mhz": c["controls"],
+                "latitude": c["latitude"],
+                "longitude": c["longitude"],
+                "radius": c["radius"],
+                "distance_miles": c["distance_miles"],
+                "enabled": True,
+            } for c in hit]
+            # Both keys are required, for two different consumers:
+            #   sites                -> ui.op25_adapter's selector (candidates)
+            #   control_channels_mhz -> op25-log-server, which writes
+            #                           control_channels.txt from this key
+            #                           alone; omit it and that file is empty.
+            # The flat list is the TOP candidate's channels only, never a
+            # merge across sites: merging is precisely what makes op25 lock
+            # one site, latch its NAC and reject every frame from another.
+            blob["systems"].append({
+                "name": sysname,
+                "sites": sites,
+                "control_channels_mhz": hit[0]["controls"],
+            })
+            sites_used[sysname] = [
+                {"site_id": c["site_id"], "site_name": c["site_name"],
+                 "distance_miles": c["distance_miles"],
+                 "control_channels": len(c["controls"]),
+                 "inside_radius": c["inside_radius"]}
+                for c in hit
+            ]
         elif not located:
             # We don't know where the box is, so we have no basis to choose a
             # site.  Use what the favorite carried rather than going silent.
             ccs = info.get("ccs") or []
-            if ccs:
-                fell_back.append({"system": sysname, "control_channels": len(ccs)})
+            if not ccs:
+                continue
+            blob["systems"].append({"name": sysname, "control_channels_mhz": ccs})
+            fell_back.append({"system": sysname, "control_channels": len(ccs)})
         else:
-            # We DO know where we are and no site of this system covers us, so
-            # the system is not receivable from here.  Skip it.  Pushing the
-            # favorite's stored list instead is what produced the original
-            # fault: a system-wide list lets op25 lock a distant site, latch
-            # its NAC, then reject every frame from the site it can actually
-            # hear.  Silence with a reason beats a decoder spinning on
-            # "NAC check fail".
+            # We DO know where we are and no site of this system is anywhere
+            # near, so it is not receivable here.  Skip it.  Pushing the
+            # favorite's stored system-wide list instead is what produced the
+            # original fault: it lets op25 lock a distant site, latch its NAC,
+            # then reject every frame from the site it can actually hear.
             out_of_range.append({
                 "system": sysname,
                 "stored_control_channels": len(info.get("ccs") or []),
             })
-            continue
-        if not ccs:
             continue
         # Tuner assignment: ask the allocator, which knows the real hardware,
         # before falling back to a fixed serial.
@@ -1592,7 +1696,6 @@ def _hp_push_op25(digital_by_system, state_obj=None):
             tuner = ""
         if not tuner:
             tuner = _HP_SYNC_FALLBACK_TUNER
-        blob["systems"].append({"name": sysname, "control_channels_mhz": ccs})
         blob["op25_overrides"][sysname] = {"gains": "IFGR:20,RFGR:0"}
         if tuner:
             blob["dongle_assignments"].append({"system_name": sysname, "preferred_tuner_serial": tuner})
