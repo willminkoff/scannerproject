@@ -833,8 +833,11 @@ def _apply_hp_state_form(
             field="strict_location",
         )
 
+    zip_changed = False
     if "zip" in form or "postal_code" in form:
-        state.zip = str(form.get("zip") or form.get("postal_code") or "").strip()
+        incoming_zip = str(form.get("zip") or form.get("postal_code") or "").strip()
+        zip_changed = incoming_zip != str(state.zip or "").strip()
+        state.zip = incoming_zip
 
     if "lat" in form:
         state.lat = _parse_float_value(form.get("lat"), field="lat")
@@ -852,6 +855,28 @@ def _apply_hp_state_form(
                 raise ValueError("unable to resolve zip")
             state.lat = float(resolved[0])
             state.lon = float(resolved[1])
+
+    # A changed ZIP with no coordinates alongside it means the operator moved.
+    # Without this, lat/lon keeps pointing at the previous city while the ZIP
+    # reads the new one — and every location gate downstream (trunk-site
+    # selection, range filtering) reads lat/lon, never the ZIP, so the box
+    # silently keeps scanning the old town.  Best-effort: a lookup failure
+    # leaves the coordinates alone rather than failing the save, which is why
+    # this does not reuse the raising path above.
+    if (
+        zip_changed
+        and "lat" not in form
+        and "lon" not in form
+        and "resolve_zip" not in form
+        and str(state.zip or "").strip()
+    ):
+        try:
+            moved = resolve_postal_lookup(str(state.zip), "US")
+        except Exception:
+            moved = None
+        if moved:
+            state.lat = float(moved[0])
+            state.lon = float(moved[1])
 
     if "range_miles" in form:
         state.range_miles = max(

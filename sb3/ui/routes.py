@@ -1302,14 +1302,146 @@ def hp_scan_state_get():
 
 
 # Constants for the HP -> chirp/op25 sync.
-_HP_SYNC_MTRTRS_CCS = [856.4875, 856.7125, 857.0375, 857.4875]
-_HP_SYNC_TACN_CCS = [852.9875, 853.7375]
-_HP_SYNC_KNOWN_TRUNKED = {
-    "7078": {"name": "MTRTRS", "ccs": _HP_SYNC_MTRTRS_CCS,
-             "tuner": "RSPduo Tuner 1 SER#1809063632"},
-    "6355": {"name": "TACN",   "ccs": _HP_SYNC_TACN_CCS,
-             "tuner": "RSPduo Tuner 2 SER#1809063632"},
-}
+#
+# Control channels are NOT listed here, and are deliberately not read from the
+# saved favorite either.  A control-channel list is a fact about *where the box
+# is*, not about the system, so freezing one into a saved favorite means the
+# favorite is wrong the moment you drive somewhere else.  They are resolved at
+# push time from HPDB against the current location — see _resolve_site_controls.
+
+#: Last-resort tuner when the allocator has no opinion.  Systems are matched to
+#: tuners by ui.dongle_allocator first; this only keeps a single-RSPduo box
+#: working when no allocator state has been written yet.
+_HP_SYNC_FALLBACK_TUNER = os.environ.get(
+    "SB3_OP25_FALLBACK_TUNER", "RSPduo Tuner 1 SER#1809063632"
+)
+
+#: Default search radius (miles) when the saved state carries no range.
+_HP_SYNC_DEFAULT_RANGE_MI = 50.0
+
+
+def _op25_sites_per_system() -> int:
+    """How many sites' control channels op25 gets per system.
+
+    Default is **1**, and that is a correctness requirement rather than a
+    tuning knob: a P25 trunking receiver follows one site's control channel and
+    latches that site's NAC.  Hand it several sites' control channels and it
+    locks one site, learns its NAC, then lands on another site's frequency and
+    rejects every frame with ``NAC check fail: received=X, expected=Y`` — the
+    decoder looks healthy, the control channel looks locked, and no audio is
+    ever produced.
+    """
+    raw = os.environ.get("SB3_OP25_SITES_PER_SYSTEM", "1")
+    try:
+        return max(1, int(str(raw).strip()))
+    except Exception:
+        return 1
+
+
+def _hp_sync_center(state_obj):
+    """(lat, lon) for the box right now, or None.
+
+    Prefers explicit coordinates; falls back to resolving the saved ZIP so a
+    box whose coordinates were never updated still lands in the right place.
+    """
+    def _f(value):
+        try:
+            out = float(value)
+        except (TypeError, ValueError):
+            return None
+        return out if out == out else None  # reject NaN
+
+    lat = _f((state_obj or {}).get("lat"))
+    lon = _f((state_obj or {}).get("lon"))
+    if lat is not None and lon is not None and (abs(lat) > 1e-6 or abs(lon) > 1e-6):
+        return (lat, lon)
+
+    postal = str((state_obj or {}).get("zip") or "").strip()
+    if not postal:
+        return None
+    try:
+        from ui.zip_lookup import resolve_postal_to_lat_lon
+        return resolve_postal_to_lat_lon(postal)
+    except Exception:
+        return None
+
+
+def _resolve_site_controls(system_ids, state_obj, db_path=None):
+    """Resolve ``{system_id: site}`` from HPDB for the CURRENT location.
+
+    Reuses the site gate ui.scan_mode_controller already implements: every
+    candidate site must contain the box inside *its own* advertised radius,
+    so a far-away site never matches just because it is the closest one.
+
+    One deliberate difference: that gate ranks widest-radius-first, which is
+    right for building a browsable scan pool and wrong here.  We re-rank by
+    **frequency count, then distance**, which is what actually identifies a
+    system's main simulcast cell.  Checked against the three systems whose
+    correct control channels were previously hardcoded:
+
+        MTRTRS  Davidson County Simulcast  23 freqs  2.3 mi   <- correct
+                Davidson County Services   10 freqs  2.1 mi   (nearer, wrong)
+        TACN    Tennessee Tower            12 freqs  0.3 mi   <- correct
+        NJICS   Cape May County Simulcast  14 freqs  6.6 mi   <- correct
+                STR I Trailer               4 freqs 68.4 mi   (r=85, wrong)
+
+    Ranking by distance alone picks the wrong site for MTRTRS; ranking by
+    radius alone picks the wrong site for NJICS.  Frequency count separates a
+    main simulcast cell from a small services cell or a deployable trailer.
+
+    Returns ``{}`` on any failure.
+    """
+    wanted = sorted({int(s) for s in (system_ids or []) if int(s) > 0})
+    if not wanted:
+        return {}
+    center = _hp_sync_center(state_obj)
+    if not center:
+        return {}
+
+    try:
+        range_miles = float((state_obj or {}).get("range_miles") or 0) or _HP_SYNC_DEFAULT_RANGE_MI
+    except (TypeError, ValueError):
+        range_miles = _HP_SYNC_DEFAULT_RANGE_MI
+
+    try:
+        from ui.scan_mode_controller import ScanModeController
+        controller = ScanModeController(db_path) if db_path else ScanModeController()
+        found = controller._favorite_nearest_controls_by_system(
+            system_ids=wanted,
+            center_lat=float(center[0]),
+            center_lon=float(center[1]),
+            range_miles=range_miles,
+            include_nationwide=bool((state_obj or {}).get("nationwide_systems", True)),
+            strict_location=bool((state_obj or {}).get("strict_location", False)),
+        ) or {}
+    except Exception:
+        return {}
+
+    limit = _op25_sites_per_system()
+    out = {}
+    for system_id, candidates in found.items():
+        usable = [c for c in (candidates or []) if c.get("controls")]
+        if not usable:
+            continue
+        nearest = sorted(
+            usable,
+            key=lambda c: (-len(c.get("controls") or []), float(c.get("distance_miles") or 1e9)),
+        )[:limit]
+        controls = []
+        for site in nearest:
+            for mhz in site.get("controls") or []:
+                if mhz not in controls:
+                    controls.append(mhz)
+        if not controls:
+            continue
+        out[int(system_id)] = {
+            "controls": controls,
+            "site_id": nearest[0].get("site_id"),
+            "site_name": nearest[0].get("site_name") or "",
+            "distance_miles": nearest[0].get("distance_miles"),
+            "site_count": len(nearest),
+        }
+    return out
 
 
 def _hp_extract_pool(state_obj):
@@ -1399,28 +1531,67 @@ def _hp_push_chirp(port, freqs, mode):
     return {"ok": r.get("status") == "ok", "removed": removed, "added": len(ch_list), "chirp": r}
 
 
-def _hp_push_op25(digital_by_system):
-    """POST a digital profile blob to Venus op25-log-server /apply-profile."""
+def _hp_push_op25(digital_by_system, state_obj=None):
+    """POST a digital profile blob to Venus op25-log-server /apply-profile.
+
+    Control channels come from _resolve_site_controls — i.e. from HPDB and the
+    box's current location — not from whatever was frozen into the favorite
+    when it was built.  Anything the resolver cannot place falls back to the
+    favorite's stored list so this never does worse than it used to, and the
+    return value records which systems took which path.
+    """
     import json as _j, urllib.request as _ur, os as _os
     blob = {"name": "hp-auto", "systems": [], "talkgroups": [], "op25_overrides": {},
             "dongle_assignments": [], "activate": True}
+
+    resolved = _resolve_site_controls(list((digital_by_system or {}).keys()), state_obj)
+    # Whether we know where we are decides what "no site" means below.
+    located = _hp_sync_center(state_obj) is not None
+    sites_used, fell_back, out_of_range = {}, [], []
+
     for sid, info in (digital_by_system or {}).items():
-        known = _HP_SYNC_KNOWN_TRUNKED.get(sid)
-        if known:
-            sysname = known["name"]
-            ccs = known["ccs"]
-            tuner = known.get("tuner")
-        else:
-            sysname = (info.get("name") or f"sys-{sid}").strip() or f"sys-{sid}"
+        sysname = (info.get("name") or f"sys-{sid}").strip() or f"sys-{sid}"
+        hit = resolved.get(int(sid)) if str(sid).lstrip("-").isdigit() else None
+        if hit:
+            ccs = hit["controls"]
+            sites_used[sysname] = {
+                "site_id": hit.get("site_id"),
+                "site_name": hit.get("site_name"),
+                "distance_miles": hit.get("distance_miles"),
+                "sites": hit.get("site_count"),
+                "control_channels": len(ccs),
+            }
+        elif not located:
+            # We don't know where the box is, so we have no basis to choose a
+            # site.  Use what the favorite carried rather than going silent.
             ccs = info.get("ccs") or []
-            # Default the tuner for unknown systems to Tuner 1 of the digital
-            # RSPduo (same tuner MTRTRS uses when home). Op25 process planner
-            # requires every system to have a dongle assignment.
-            tuner = "RSPduo Tuner 1 SER#1809063632"
-            if not ccs:
-                # No control channels available for this unknown system;
-                # can't build a P25 profile entry for it, skip.
-                continue
+            if ccs:
+                fell_back.append({"system": sysname, "control_channels": len(ccs)})
+        else:
+            # We DO know where we are and no site of this system covers us, so
+            # the system is not receivable from here.  Skip it.  Pushing the
+            # favorite's stored list instead is what produced the original
+            # fault: a system-wide list lets op25 lock a distant site, latch
+            # its NAC, then reject every frame from the site it can actually
+            # hear.  Silence with a reason beats a decoder spinning on
+            # "NAC check fail".
+            out_of_range.append({
+                "system": sysname,
+                "stored_control_channels": len(info.get("ccs") or []),
+            })
+            continue
+        if not ccs:
+            continue
+        # Tuner assignment: ask the allocator, which knows the real hardware,
+        # before falling back to a fixed serial.
+        tuner = ""
+        try:
+            from ui.dongle_allocator import preferred_tuner_for_system
+            tuner = preferred_tuner_for_system(sysname) or ""
+        except Exception:
+            tuner = ""
+        if not tuner:
+            tuner = _HP_SYNC_FALLBACK_TUNER
         blob["systems"].append({"name": sysname, "control_channels_mhz": ccs})
         blob["op25_overrides"][sysname] = {"gains": "IFGR:20,RFGR:0"}
         if tuner:
@@ -1430,16 +1601,32 @@ def _hp_push_op25(digital_by_system):
                 "dec": tg["dec"], "hex": format(tg["dec"], "X"), "mode": "D",
                 "alpha": tg["alpha"], "description": tg["description"],
             })
+    # Which site each system landed on, so a wrong-site lock is visible in the
+    # sync result instead of only in op25's NAC-failure spam.
+    diag = {}
+    if sites_used:
+        diag["sites"] = sites_used
+    if fell_back:
+        diag["unlocated_used_stored_controls"] = fell_back
+    if out_of_range:
+        diag["skipped_no_site_in_range"] = out_of_range
+
     if not blob["systems"]:
-        return {"ok": True, "skipped": "no known digital systems in favorites"}
+        out = {"ok": True, "skipped": "no digital systems with control channels"}
+        out.update(diag)
+        return out
     target = _os.environ.get("SB3_OP25_APPLY_URL", "http://100.114.219.115:9200").rstrip("/")
     req = _ur.Request(target + "/apply-profile", data=_j.dumps(blob).encode(),
                       method="POST", headers={"Content-Type": "application/json"})
     try:
         with _ur.urlopen(req, timeout=45) as resp:
-            return _j.loads(resp.read().decode("utf-8"))
+            out = _j.loads(resp.read().decode("utf-8"))
+        if isinstance(out, dict):
+            out.update(diag)
+            return out
+        return {"ok": True, "response": out, **diag}
     except Exception as exc:
-        return {"ok": False, "error": "op25 push failed: %r" % (exc,)}
+        return {"ok": False, "error": "op25 push failed: %r" % (exc,), **diag}
 
 
 def _hp_auto_sync(state_obj):
@@ -1448,7 +1635,7 @@ def _hp_auto_sync(state_obj):
     return {
         "airband": _hp_push_chirp(7400, airs, "am"),
         "ground":  _hp_push_chirp(7401, grounds, "nfm"),
-        "digital": _hp_push_op25(digital),
+        "digital": _hp_push_op25(digital, state_obj),
     }
 
 
