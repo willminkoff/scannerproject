@@ -14,9 +14,9 @@
   "log_level": "INFO",
   "lo_dwell_sec": 3.0,
   "sdr": {
-    "_comment": "SDR source defaults for ground. Revision 4.0 (arrangement C, M1, macOS, 2026-07-08): ground NFM runs on its dedicated RTL-SDR (serial 61108285) \u2014 the proven 2026-06-18 fix, UNCHANGED. (Revision 3.0 briefly moved ground onto an RSP tuner; C reverts that \u2014 the RSP is digital-only now, so ground stays on the RTL where it has always been most reliable.) gr-osmosdr addresses the RTL by its native 'rtl=<serial>' source type, not soapy=driver=rtlsdr. No bandwidth_hz needed for RTL (0 = driver default). center_freq_hz set to 138.05 MHz (177th Fighter Wing \u2014 the busiest ground channel by far in rtl-airband's stats).",
-    "device_args": "rtl=61108285",
-    "center_freq_hz": 138050000.0,
+    "_comment": "SDR source defaults for ground. Revision 5.0 (Neptune, 2026-10-12): ground NFM runs on RSP1B serial 240526DE60 via SoapySDR, NOT the RTL. Revision 4.0 said RTL 61108285 and that is now wrong twice over -- no RTL is attached to Neptune at all (ioreg shows only the two SDRplay serials 240526DE60 and 180903EF32), and the deployed service does not read this value anyway: ~/.config/sb3/chirp-ground.env sets CHIRP_SDR_DEVICE_ARGS, which overrides the config exactly as chirp-airband.env does on scannerbox-1. This key is kept correct so it is not actively misleading. TWO THINGS MUST BE TRUE or chirp hangs in source-open and never binds its command port, looking like a crash loop with no traceback: (1) SOAPY_SDR_PLUGIN_PATH must point at the SoapySDR module dir (/opt/homebrew/lib/SoapySDR/modules0.8) -- without it SoapySDR loads no sdrplay module and finds zero devices even though libsdrPlaySupport.so is on disk; (2) the SDRplay API service must not be wedged -- when it is, SoapySDRUtil --find hangs forever and so does chirp. 'sudo launchctl kickstart -k system/com.sdrplay.service' clears it. center_freq_hz 162.475 MHz is the marine/WX band; the LO scheduler retunes per cluster.",
+    "device_args": "soapy=,driver=sdrplay,serial=240526DE60",
+    "center_freq_hz": 162475000.0,
     "gain_db": 32.0,
     "gain_mode_auto": false,
     "bandwidth_hz": 0.0,
