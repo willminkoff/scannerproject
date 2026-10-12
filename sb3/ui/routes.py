@@ -2719,7 +2719,13 @@ def bandscan_apply(form, state):
             continue
     if not freqs:
         return {"ok": False, "error": "no frequencies parsed from freqs_text"}
-    freqs = freqs[:15]  # chirp caps channels at 16; leave one slot for VFO
+    # NOTE: the batch is trimmed AFTER get_status, against the pool's real free
+    # capacity -- see below.  It used to be trimmed here to a hardcoded 15,
+    # which is ground's pool minus its VFO.  Airband's pool is 12, so an
+    # airband band-scan asked for more slots than exist; chirp rejects an
+    # oversized add_channel IN FULL, and since the existing channels have
+    # already been removed by then the band is left with nothing at all.
+    requested_total = len(freqs)
 
     def _send(cmd, args, timeout=3.0):
         sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM)
@@ -2755,6 +2761,20 @@ def bandscan_apply(form, state):
         except Exception:
             pass
 
+    data = st.get("data", {}) or {}
+    try:
+        free = int(data.get("pool_free"))
+    except (TypeError, ValueError):
+        free = -1
+    if free < 0:
+        try:
+            free = max(0, int(data.get("max_channels")) - 1)
+        except (TypeError, ValueError):
+            free = 11
+    capacity = max(0, free + removed)
+    freqs = freqs[:capacity]
+    dropped = max(0, requested_total - len(freqs))
+
     safe_label = "".join(c for c in preset_id if c.isalnum() or c == "-")[:20] or "bs"
     ch_list = []
     for i, f in enumerate(freqs):
@@ -2769,13 +2789,20 @@ def bandscan_apply(form, state):
         r = _send("add_channel", {"channels": ch_list})
     except Exception as exc:
         return {"ok": False, "error": f"add_channel failed: {exc!r}", "removed": removed}
-    return {
+    out = {
         "ok": r.get("status") == "ok",
         "target": target,
         "added": len(ch_list),
         "removed": removed,
+        "capacity": capacity,
         "chirp": r,
     }
+    if dropped:
+        # A "band scan" that silently loads a fraction of the band is worse
+        # than one that says how much it dropped.
+        out["dropped_over_capacity"] = dropped
+        out["requested"] = requested_total
+    return out
 
 
 def profile_create_stub(form, state):

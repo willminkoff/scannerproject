@@ -3473,14 +3473,6 @@
                   </button>
                   <button
                     class="action quick-scan-action"
-                    id="btn-bandscan-airband"
-                    type="button"
-                    title="Scan Civil Airband (118.000-136.975 MHz)"
-                  >
-                    Airband
-                  </button>
-                  <button
-                    class="action quick-scan-action"
                     id="btn-bandscan-marine"
                     type="button"
                     title="Scan Marine VHF band (156-162 MHz)"
@@ -3494,14 +3486,6 @@
                     title="Scan CB channels (26.965-27.405 MHz)"
                   >
                     CB
-                  </button>
-                  <button
-                    class="action quick-scan-action"
-                    id="btn-bandscan-mil-air"
-                    type="button"
-                    title="Scan Military Air bands (225-328.6 and 335.4-399.9 MHz)"
-                  >
-                    Mil Air
                   </button>
                   <button
                     class="action quick-scan-action"
@@ -4791,22 +4775,6 @@
         autoProvision: false,
       },
       {
-        key: 'airband',
-        buttonId: 'btn-bandscan-airband',
-        target: 'airband',
-        profileId: 'bandscan_airband',
-        stopProfileId: QUICK_AIRBAND_OFF_PROFILE_ID,
-        label: 'Airband',
-        profileLabel: 'Band Scan Airband',
-        modulation: 'am',
-        bandwidth: 12000,
-        // FCC table ref: page 21/US26 (aeronautical VHF communications).
-        buildFrequencies: () => buildLinearBandFrequencies(118.0000, 136.9750, 0.0250),
-        inactiveTitle: 'Scan Civil Airband (118.000-136.975 MHz)',
-        activeTitle: 'Airband scan active. Tap again to stop.',
-        autoProvision: true,
-      },
-      {
         key: 'marine',
         buttonId: 'btn-bandscan-marine',
         target: 'ground',
@@ -4841,25 +4809,6 @@
         buildFrequencies: () => CB_40_CHANNELS_MHZ.slice(),
         inactiveTitle: 'Scan CB channels (26.965-27.405 MHz)',
         activeTitle: 'CB scan active. Tap again to stop.',
-        autoProvision: true,
-      },
-      {
-        key: 'mil_air',
-        buttonId: 'btn-bandscan-mil-air',
-        target: 'ground',
-        profileId: 'bandscan_mil_air',
-        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
-        label: 'Mil Air',
-        profileLabel: 'Band Scan Mil Air',
-        modulation: 'am',
-        bandwidth: 12000,
-        // FCC table ref: G27 military allocations.
-        buildFrequencies: () => [
-          ...buildLinearBandFrequencies(225.0000, 328.6000, 0.0250),
-          ...buildLinearBandFrequencies(335.4000, 399.9000, 0.0250),
-        ],
-        inactiveTitle: 'Scan Military Air bands (225-328.6 and 335.4-399.9 MHz)',
-        activeTitle: 'Mil Air scan active. Tap again to stop.',
         autoProvision: true,
       },
       {
@@ -5253,10 +5202,8 @@
       bandScanBody: document.getElementById('band-scan-body'),
       bandScanToggle: document.getElementById('band-scan-toggle'),
       btnGroundWx: document.getElementById('btn-ground-wx'),
-      btnBandscanAirband: document.getElementById('btn-bandscan-airband'),
       btnBandscanMarine: document.getElementById('btn-bandscan-marine'),
       btnBandscanCb: document.getElementById('btn-bandscan-cb'),
-      btnBandscanMilAir: document.getElementById('btn-bandscan-mil-air'),
       btnBandscanRail: document.getElementById('btn-bandscan-rail'),
       btnBandscanGmrs: document.getElementById('btn-bandscan-gmrs'),
       profilesList: document.getElementById('profiles-list'),
@@ -15237,20 +15184,12 @@
       await applyBandScanPresetByKey('wx');
     }
 
-    async function applyBandScanAirband() {
-      await applyBandScanPresetByKey('airband');
-    }
-
     async function applyBandScanMarine() {
       await applyBandScanPresetByKey('marine');
     }
 
     async function applyBandScanCb() {
       await applyBandScanPresetByKey('cb');
-    }
-
-    async function applyBandScanMilAir() {
-      await applyBandScanPresetByKey('mil_air');
     }
 
     async function applyBandScanRail() {
@@ -16245,17 +16184,11 @@
       if (els.btnGroundWx) {
         els.btnGroundWx.addEventListener('click', applyGroundQuickWx);
       }
-      if (els.btnBandscanAirband) {
-        els.btnBandscanAirband.addEventListener('click', applyBandScanAirband);
-      }
       if (els.btnBandscanMarine) {
         els.btnBandscanMarine.addEventListener('click', applyBandScanMarine);
       }
       if (els.btnBandscanCb) {
         els.btnBandscanCb.addEventListener('click', applyBandScanCb);
-      }
-      if (els.btnBandscanMilAir) {
-        els.btnBandscanMilAir.addEventListener('click', applyBandScanMilAir);
       }
       if (els.btnBandscanRail) {
         els.btnBandscanRail.addEventListener('click', applyBandScanRail);
