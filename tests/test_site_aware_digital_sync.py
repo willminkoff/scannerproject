@@ -307,3 +307,70 @@ class TestPushEmitsSites(_DBCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestChirpCapacityTrim(unittest.TestCase):
+    """Chirp rejects an oversized add_channel batch in full, not partially.
+
+    The trim was hardcoded to 15 -- ground's capacity -- while airband runs
+    max_channels=12 with a keepalive permanently holding one slot. An airband
+    push therefore asked for 12 slots when 11 existed and chirp answered
+    "channel pool exhausted: need 12, have 11", rejecting the whole batch and
+    leaving the band with nothing but its keepalive.
+    """
+
+    def _run(self, n_freqs, pool_free, max_channels, removed_ids=()):
+        import socket as _socket
+        sent = []
+        status = {"data": {"pool_free": pool_free, "max_channels": max_channels,
+                           "channels": [{"id": i} for i in removed_ids]}}
+
+        class _FakeSock:
+            def __init__(self, *a, **kw): pass
+            def settimeout(self, *a): pass
+            def close(self): pass
+            def sendto(self, payload, addr): sent.append(json.loads(payload.decode()))
+            def recvfrom(self, _n):
+                cmd = sent[-1]["cmd"]
+                if cmd == "get_status":
+                    return (json.dumps(status).encode(), addr_stub)
+                return (json.dumps({"status": "ok"}).encode(), addr_stub)
+
+        addr_stub = ("127.0.0.1", 7400)
+        real = _socket.socket
+        _socket.socket = _FakeSock
+        try:
+            freqs = [{"freq_mhz": 118.0 + i / 100.0, "label": f"ch{i}"} for i in range(n_freqs)]
+            out = routes._hp_push_chirp(7400, freqs, "am")
+        finally:
+            _socket.socket = real
+        adds = [m for m in sent if m["cmd"] == "add_channel"]
+        return out, (adds[0]["args"]["channels"] if adds else [])
+
+    def test_airband_batch_fits_the_real_pool(self):
+        out, batch = self._run(n_freqs=16, pool_free=11, max_channels=12)
+        self.assertEqual(len(batch), 11)
+        self.assertEqual(out["capacity"], 11)
+        self.assertEqual(out["dropped_over_capacity"], 5)
+
+    def test_removed_slots_count_as_free(self):
+        """Channels we just removed free their slots for the new batch."""
+        out, batch = self._run(n_freqs=16, pool_free=0, max_channels=12,
+                               removed_ids=("n4-0-a", "n4-1-b", "n4-2-c"))
+        self.assertEqual(out["removed"], 3)
+        self.assertEqual(len(batch), 3)
+
+    def test_keepalive_is_never_removed(self):
+        out, _ = self._run(n_freqs=2, pool_free=11, max_channels=12,
+                           removed_ids=("keepalive-analog", "vfo", "n4-0-a"))
+        self.assertEqual(out["removed"], 1)
+
+    def test_under_capacity_is_untouched(self):
+        out, batch = self._run(n_freqs=4, pool_free=11, max_channels=12)
+        self.assertEqual(len(batch), 4)
+        self.assertNotIn("dropped_over_capacity", out)
+
+    def test_no_free_slots_reports_instead_of_pushing(self):
+        out, batch = self._run(n_freqs=4, pool_free=0, max_channels=12)
+        self.assertFalse(out["ok"])
+        self.assertEqual(batch, [])

@@ -1606,11 +1606,39 @@ def _hp_push_chirp(port, freqs, mode):
             "squelch_dbfs": -40.0 if mode == "am" else -55.0,
             "gain_db": 3.0,
         })
-    # Chirp ground caps at max_channels=16 (minus 1 for vfo/keepalive), so any
-    # add_channel batch beyond that is a silent drop. Trim to fit.
-    ch_list = ch_list[:15]
+    # Trim to the pool's ACTUAL free capacity, which differs per band and is
+    # not knowable in advance: airband runs max_channels=12 while ground runs
+    # 16, and a keepalive/vfo channel permanently occupies one slot.  This was
+    # hardcoded to 15 (ground's capacity), so an airband push asked for more
+    # slots than exist and chirp rejected the ENTIRE batch --
+    # "channel pool exhausted: need 12, have 11" -- leaving the band with just
+    # its keepalive.  Rejection is all-or-nothing, so asking for one too many
+    # costs every channel, not the overflow.
+    data = st.get("data", {}) or {}
+    try:
+        free = int(data.get("pool_free"))
+    except (TypeError, ValueError):
+        free = -1
+    if free < 0:
+        try:
+            free = max(0, int(data.get("max_channels")) - 1)
+        except (TypeError, ValueError):
+            free = 11
+    # We just removed the non-keepalive channels, so those slots are free too.
+    capacity = max(0, free + removed)
+    dropped = max(0, len(ch_list) - capacity)
+    ch_list = ch_list[:capacity]
+    if not ch_list:
+        return {"ok": False, "removed": removed, "added": 0,
+                "error": "no free channel slots (capacity=%d)" % capacity}
     r = send("add_channel", {"channels": ch_list})
-    return {"ok": r.get("status") == "ok", "removed": removed, "added": len(ch_list), "chirp": r}
+    out = {"ok": r.get("status") == "ok", "removed": removed,
+           "added": len(ch_list), "capacity": capacity, "chirp": r}
+    if dropped:
+        # Say so: silently scanning fewer channels than the favorites list
+        # shows is worse than saying which ones did not fit.
+        out["dropped_over_capacity"] = dropped
+    return out
 
 
 def _hp_push_op25(digital_by_system, state_obj=None):
