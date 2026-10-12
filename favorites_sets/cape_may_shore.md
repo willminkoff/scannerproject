@@ -7,12 +7,13 @@ on arrival.
 
 - File: `favorites_sets/cape_may_shore.json`
 - Profile id in HPState: `fav-cape-may-shore`
-- Total entries: **42** (36 conventional + 6 trunked)
+- Total entries: **53** (47 conventional + 6 trunked)
+- Revised **2026-10-11**: ARTCC block rebuilt from HPDB (see below)
 - Active profile when registered: **DC_Aviation_LE** (left untouched)
 
 ## What's in it
 
-### Aviation (11 conventional, VHF AM, `service_tag` 15)
+### Aviation (22 conventional, VHF AM, `service_tag` 15)
 
 | Facility | Channels (MHz) |
 |---|---|
@@ -21,8 +22,69 @@ on arrival.
 | Cape May County Airport (KWWD) | CTAF / UNICOM 122.7 |
 | Ocean City Municipal (KOXB) | CTAF / UNICOM 122.7 |
 | McGuire AFB (KWRI) | Tower 126.05 |
-| Washington / NY ARTCC (ZNY) | 124.85, 125.25, 132.45 (low coastal NJ sectors) |
+| NY / Washington Center (ZNY + ZDC) | 14 channels — see the ARTCC section below |
 | Common | Guard 121.50 |
+
+### ARTCC — New York (ZNY) + Washington (ZDC) Center (14 conventional, VHF AM)
+
+Sea Isle City sits on the **ZNY/ZDC boundary**, so both centers are in play —
+and ZDC operates an RCAG site named *Sea Isle* about **7 miles** away.
+
+Sourced from HPDB `AgencyId:2246` (ZNY) and `AgencyId:2247` (ZDC), filtered to
+RCAG sites whose own advertised radius covers **39.1534, -74.6927**. Sorted by
+distance from Sea Isle City.
+
+| Dist | Freq (MHz) | Center | RCAG site | Sector |
+|---:|---|---|---|---|
+| 7 mi | **127.700** | ZDC | Sea Isle, NJ | Sector 51 CASINO-Low |
+| 22 mi | **133.125** | ZDC | Atlantic City, NJ | Sector 59 Sea Isle High |
+| 26 mi | **134.325** | ZNY | Millville, NJ | Sector 09 Westminister High |
+| 30 mi | 125.450 | ZDC | Millville, NJ | Sector 19 Woodstown |
+| 30 mi | 134.025 | ZDC | Cedar Lake, NJ | ZDC 18/19/51/53/58/59 spare |
+| 44 mi | 133.500 | ZNY | Barnegat, NJ | Sector 86 Atlantic Oceanic |
+| 44 mi | 132.050 | ZDC | Kenton, DE | Sector 53 Kenton-Low |
+| 47 mi | 128.300 | ZNY | Ship Bottom, NJ | Sector 66 MANTA-Low |
+| 47 mi | 121.025 | ZDC | Ship Bottom, NJ | Sector 58 Coyle |
+| 87 mi | 132.550 | ZDC | Snow Hill, MD | Sector 23 Cape Charles Low |
+| 88 mi | 127.175 | ZNY | Matawan, NJ | Sector 42 East Texas High |
+| 88 mi | 125.325 | ZNY | Matawan, NJ | Sector 56 Kennedy High |
+| 122 mi | 121.125 | ZNY | Douglaston, NY | Sector 85 Atlantic Oceanic |
+| 122 mi | 128.675 | ZNY | Douglaston, NY | Spare for Area B |
+
+**Three bogus entries removed.** The previous revision carried
+`124.85 / 125.25 / 132.45` labelled "ZNY low coastal NJ sector". Those three
+frequencies appear **nowhere** in HPDB's ZNY or ZDC tables — they were guesses,
+not data. Replaced by the table above.
+
+**VHF only.** Every sector above also has a UHF milair counterpart in HPDB
+(e.g. Sea Isle Sector 51 is 127.700 / **285.400**). They are omitted because
+the airband chain tunes VHF; add them if the receiver is retuned to 225-400.
+
+#### Why these never showed up in the Systems picker
+
+HPDB files all 19 ARTCCs under the `_MultipleStates` pseudo-state
+(`state_id = 0`), not under New Jersey. `get_analog_systems` in
+`ui/hp_favorites_wizard.py` filtered on `state_id = ?` alone, so **Nationwide
+scope returned an empty list for every state** — the ARTCCs were unreachable
+from the UI. The digital query already allowed `ts.state_id = 0`; the analog
+one now does too. Guarded by `tests/test_hp_wizard_nationwide_analog.py`.
+
+#### Receiver window caveat
+
+These 14 channels span **121.025-134.325 MHz = 13.3 MHz**. The airband profiles
+use one center with a +/-1.024 MHz baseband window at 2.048 Msps, and the
+validator (`sb3/profile.py`, `profile-channel-outside-baseband`) rejects
+channels outside it. Single-window coverage:
+
+| Rate | Window | Center | Covers |
+|---|---|---|---|
+| 2.048 Msps (current) | +/-1.024 MHz | 133.038 | 5 of 14 — 132.050, 132.550, 133.125, 133.500, 134.025 |
+| 8.0 Msps (RSP1B) | +/-4.0 MHz | 130.750 | 10 of 14 — adds 127.175, **127.700**, 128.300, 128.675, 134.325 |
+
+The 8 Msps option is the only one that reaches **127.700 (Sea Isle, 7 mi)** and
+**133.125 (Sea Isle High)** in the same window. Note the deliberate 2.048 Msps
+choice recorded in `profiles/air-airband-nashville-rsp1b.json`: it protects CPU
+headroom for SDRTrunk P25 on the RSPduo. Raising the rate trades that headroom.
 
 ### Marine / USCG (3 conventional, `service_tag` 11)
 
