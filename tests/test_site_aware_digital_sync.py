@@ -361,9 +361,29 @@ class TestChirpCapacityTrim(unittest.TestCase):
         self.assertEqual(len(batch), 3)
 
     def test_keepalive_is_never_removed(self):
+        """Keepalive holds the icecast mount up during quiet — it stays."""
         out, _ = self._run(n_freqs=2, pool_free=11, max_channels=12,
-                           removed_ids=("keepalive-analog", "vfo", "n4-0-a"))
+                           removed_ids=("keepalive-analog", "n4-0-a"))
         self.assertEqual(out["removed"], 1)
+
+    def test_stale_vfo_is_removed(self):
+        """A 'vfo' is the artifact of a past manual Tune, not a fixture.
+
+        Preserving it meant one Tune press left a channel riding along in
+        every later push forever: it cost a pool slot and dragged a distant
+        frequency into the LO plan. A stale 155.000 vfo forced marine's
+        1.125 MHz span into two clusters, halving the dwell on every channel.
+        _tune_chirp_band still preserves its own vfo so Tune can retune it.
+        """
+        out, _ = self._run(n_freqs=2, pool_free=11, max_channels=12,
+                           removed_ids=("vfo", "n4-0-a"))
+        self.assertEqual(out["removed"], 2)
+
+    def test_removing_the_vfo_frees_its_slot(self):
+        out, batch = self._run(n_freqs=16, pool_free=0, max_channels=16,
+                               removed_ids=("vfo", "keepalive-x"))
+        self.assertEqual(out["removed"], 1)
+        self.assertEqual(out["capacity"], 1)
 
     def test_under_capacity_is_untouched(self):
         out, batch = self._run(n_freqs=4, pool_free=11, max_channels=12)

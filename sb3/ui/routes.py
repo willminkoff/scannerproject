@@ -1587,7 +1587,16 @@ def _hp_push_chirp(port, freqs, mode):
     removed = 0
     for cid in cur_ids:
         cid_str = str(cid or "")
-        if "keepalive" in cid_str.lower() or cid_str == "vfo":
+        # Keepalive stays -- it holds the icecast mount up during quiet.
+        # A 'vfo' channel does NOT: it is the artifact of a past manual Tune
+        # (see _tune_chirp_band), and preserving it here meant one button
+        # press left a channel riding along in every later favorites push,
+        # permanently costing a pool slot and -- worse -- dragging a distant
+        # frequency into the LO plan. A stale 155.000 vfo forced marine's
+        # 1.125 MHz span into two clusters and halved the dwell on every
+        # channel. We are replacing the whole channel set here, so a leftover
+        # tune has no claim on it. Tune re-creates the vfo on demand.
+        if "keepalive" in cid_str.lower():
             continue
         try:
             send("remove_channel", {"id": cid_str})
@@ -2753,7 +2762,9 @@ def bandscan_apply(form, state):
         cid_s = str(cid or "")
         if not cid_s:
             continue
-        if "keepalive" in cid_s.lower() or cid_s.lower() == "vfo":
+        # Same rule as _hp_push_chirp: keepalive holds the mount, a stale
+        # 'vfo' is a leftover manual tune and must not survive a band scan.
+        if "keepalive" in cid_s.lower():
             continue
         try:
             _send("remove_channel", {"id": cid_s})
