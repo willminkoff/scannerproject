@@ -419,6 +419,36 @@ def api_hidden_clear():
         c.close()
 
 
+@app.post("/api/digest/clear-attributions")
+def api_digest_clear_attributions():
+    """Drop licensee attributions so they are re-derived at the current location.
+
+    Identification is resolved at classification time against wherever Disco
+    believes it is, and the answer is then stored on the detection row. If
+    that belief was wrong -- Disco reading a location it could not reach and
+    falling back to the Nashville home default while the box sat in New
+    Jersey -- every row is confidently labelled with agencies from the wrong
+    state, and nothing re-derives them.
+
+    This clears only the uls_* columns. Detections, modulation classes and
+    hit counts are untouched: the signals were real, only the "who" was
+    wrong. Rows re-attribute as the classifier revisits them, and new
+    detections are correct immediately.
+    """
+    c = _conn()
+    try:
+        cur = c.execute(
+            "UPDATE detections SET uls_callsign=NULL, uls_entity_name=NULL, "
+            "uls_emission_designator=NULL, uls_station_class=NULL, "
+            "uls_distance_km=NULL, uls_source=NULL, uls_lookup_ts=NULL "
+            "WHERE uls_lookup_ts IS NOT NULL"
+        )
+        c.commit()
+        return {"status": "cleared", "n": cur.rowcount}
+    finally:
+        c.close()
+
+
 @app.get("/api/detections")
 def api_detections(since_seconds: float = 60.0, limit: int = 1000):
     cutoff = time.time() - since_seconds
@@ -2831,6 +2861,7 @@ tr:hover td{background:#212530}
     </select>
   </label>
   <button class=\"reload\" id=\"picker-reload\">Reload</button>
+  <button id=\"picker-clear-attr\" title=\"Drop licensee attributions so they re-derive at the current location. Use after moving.\">Clear attributions</button>
   <span id=\"picker-generated\" style=\"color:#8892a4;font-size:0.85rem;margin-left:auto\"></span>
 </div>
 
@@ -3005,6 +3036,24 @@ function renderAll(query){
 }
 
 document.getElementById('picker-reload').addEventListener('click', loadDigest);
+document.getElementById('picker-clear-attr').addEventListener('click', async (e) => {
+  const btn = e.target;
+  if (!confirm('Clear licensee attributions?\\n\\nDetections and hit counts are kept. Only the licensee lookups are dropped, so they re-derive at the current location. Use this after moving.')) return;
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Clearing...';
+  try {
+    const r = await fetch('/api/digest/clear-attributions', {method: 'POST'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    btn.textContent = 'Cleared ' + j.n;
+    await loadDigest();
+  } catch (err) {
+    btn.textContent = 'Failed';
+    alert('Clear failed: ' + err.message);
+  } finally {
+    setTimeout(() => { btn.disabled = false; btn.textContent = label; }, 2500);
+  }
+});
 document.getElementById('picker-hours').addEventListener('change', loadDigest);
 document.getElementById('all-search').addEventListener('input', e => renderAll(e.target.value));
 
