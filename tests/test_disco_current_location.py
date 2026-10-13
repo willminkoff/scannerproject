@@ -58,6 +58,11 @@ class CurrentLocationTests(unittest.TestCase):
         self._env_patcher = mock.patch.dict(os.environ, {
             "DISCO_HP_STATE_PATH": self.state_path,
             "DISCO_LOCATION_CACHE_TTL_SEC": "0",
+            # These cases exercise the FILE source, so the HTTP source
+            # is disabled. Without this they reach the real SB3 host:
+            # the suite slows to a crawl on timeouts and silently tests
+            # whatever that box reports instead of the seeded fixture.
+            "DISCO_SB3_STATE_URL": "",
         })
         self._env_patcher.start()
         self.addCleanup(self._env_patcher.stop)
@@ -161,6 +166,9 @@ class CurrentLocationCacheTests(unittest.TestCase):
         self._env_patcher = mock.patch.dict(os.environ, {
             "DISCO_HP_STATE_PATH": self.state_path,
             "DISCO_LOCATION_CACHE_TTL_SEC": "60",
+            # File-source cases: disable the HTTP source so these count disk
+            # reads rather than silently short-circuiting on a live SB3 host.
+            "DISCO_SB3_STATE_URL": "",
         })
         self._env_patcher.start()
         self.addCleanup(self._env_patcher.stop)
@@ -222,6 +230,11 @@ class TravelModeEndToEndTests(unittest.TestCase):
         self._env_patcher = mock.patch.dict(os.environ, {
             "DISCO_HP_STATE_PATH": self.state_path,
             "DISCO_LOCATION_CACHE_TTL_SEC": "0",
+            # These cases exercise the FILE source, so the HTTP source
+            # is disabled. Without this they reach the real SB3 host:
+            # the suite slows to a crawl on timeouts and silently tests
+            # whatever that box reports instead of the seeded fixture.
+            "DISCO_SB3_STATE_URL": "",
         })
         self._env_patcher.start()
         self.addCleanup(self._env_patcher.stop)
@@ -244,3 +257,88 @@ class TravelModeEndToEndTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SB3HttpSourceTests(unittest.TestCase):
+    """Location now comes from SB3 over HTTP, not a shared filesystem.
+
+    Disco and SB3 used to run on the same box, so reading SB3's hp_state.json
+    directly was the cheap option. They no longer do: SB3 is on Neptune and
+    Disco on scannerbox-1, where that path does not exist. Every lookup fell
+    through to the Nashville home tuple, silently, and Disco spent a New
+    Jersey deployment classifying signals against Tennessee licensees.
+    """
+
+    SB3_PAYLOAD = {"ok": True, "state": {"zip": "08243", "lat": 39.154, "lon": -74.7005}}
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.state_path = os.path.join(self._tmp.name, "hp_state.json")
+        self._env = mock.patch.dict(os.environ, {
+            "DISCO_HP_STATE_PATH": self.state_path,
+            "DISCO_LOCATION_CACHE_TTL_SEC": "0",
+            "DISCO_SB3_STATE_URL": "http://sb3.test/api/scan/state",
+        })
+        self._env.start()
+        self.addCleanup(self._env.stop)
+        current_location.reset_cache_for_tests()
+
+    def _http(self, payload=None, raises=False):
+        """Stub urlopen; payload=None with raises=False yields a bad body."""
+        class _Resp:
+            def __init__(self, body): self._b = body
+            def read(self): return self._b
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        def _open(url, timeout=0):
+            if raises:
+                raise OSError("unreachable")
+            body = json.dumps(payload).encode() if payload is not None else b"not json"
+            return _Resp(body)
+        return mock.patch.object(current_location.urllib.request, "urlopen", _open)
+
+    def test_http_is_the_source_of_truth(self):
+        with self._http(self.SB3_PAYLOAD):
+            loc = current_location.get_current_location()
+        self.assertEqual("08243", loc.zip)
+        self.assertAlmostEqual(39.154, loc.lat)
+
+    def test_http_wins_over_a_stale_local_file(self):
+        """A leftover file must not override where SB3 says we are."""
+        _seed_state(self.state_path, zip="37221", lat=36.0662, lon=-86.9639)
+        with self._http(self.SB3_PAYLOAD):
+            loc = current_location.get_current_location()
+        self.assertEqual("08243", loc.zip)
+
+    def test_falls_back_to_file_when_sb3_is_unreachable(self):
+        _seed_state(self.state_path, zip="10001", lat=40.7128, lon=-74.0060)
+        with self._http(raises=True):
+            loc = current_location.get_current_location()
+        self.assertEqual("10001", loc.zip)
+
+    def test_falls_back_to_file_on_garbage_response(self):
+        _seed_state(self.state_path, zip="10001", lat=40.7128, lon=-74.0060)
+        with self._http(payload=None):
+            loc = current_location.get_current_location()
+        self.assertEqual("10001", loc.zip)
+
+    def test_home_fallback_is_logged_not_silent(self):
+        """The silence is what let this run unnoticed for a whole trip."""
+        with self._http(raises=True):
+            with self.assertLogs(current_location.logger, level="WARNING") as cm:
+                loc = current_location.get_current_location()
+        self.assertEqual(current_location.HOME_ZIP, loc.zip)
+        self.assertTrue(any("falling back to home" in m for m in cm.output))
+
+    def test_empty_url_disables_http(self):
+        _seed_state(self.state_path, zip="10001", lat=40.7128, lon=-74.0060)
+        with mock.patch.dict(os.environ, {"DISCO_SB3_STATE_URL": ""}):
+            loc = current_location.get_current_location()
+        self.assertEqual("10001", loc.zip)
+
+    def test_south_jersey_zips_get_real_labels(self):
+        with self._http(self.SB3_PAYLOAD):
+            loc = current_location.get_current_location()
+        self.assertEqual("Cape May County, NJ", loc.label)

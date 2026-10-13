@@ -15,14 +15,27 @@ scenario where SB3 isn't there or the state file is briefly inconsistent.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
+import urllib.request
 from typing import NamedTuple
+
+logger = logging.getLogger(__name__)
 
 
 _DEFAULT_HP_STATE_PATH = "/home/willminkoff/scannerproject/data/hp_state.json"
 _DEFAULT_CACHE_TTL_SEC = 60.0
+
+#: SB3's scan-state endpoint. Disco and SB3 used to share a host, so reading
+#: SB3's state file directly was the cheap option. They no longer do: SB3 runs
+#: on Neptune and Disco on scannerbox-1, where _DEFAULT_HP_STATE_PATH does not
+#: exist -- so every lookup fell through to the Nashville home tuple and Disco
+#: classified a New Jersey deployment against Tennessee licensees. HTTP is now
+#: the primary source; the file is kept as a fallback for a shared-host setup.
+_DEFAULT_SB3_STATE_URL = "http://100.83.241.34:5050/api/scan/state"
+_DEFAULT_HTTP_TIMEOUT_SEC = 2.5
 
 # Home fallback. Used when the HPState file is missing, malformed, or has
 # blank/invalid values for zip/lat/lon. Matches SB3's ui/config.py HOME_*.
@@ -56,6 +69,17 @@ _ZIP_PREFIX_LABELS = {
     "021": "Boston, MA",
     "022": "Boston, MA",
     "331": "Miami, FL",
+    # South Jersey shore — the 2026-10 deployment.
+    "080": "Camden County, NJ",
+    "081": "Camden County, NJ",
+    "082": "Cape May County, NJ",
+    "083": "Atlantic County, NJ",
+    "084": "Atlantic City, NJ",
+    "085": "Trenton, NJ",
+    "086": "Trenton, NJ",
+    "087": "Trenton, NJ",
+    "088": "New Brunswick, NJ",
+    "089": "New Brunswick, NJ",
 }
 
 
@@ -141,11 +165,41 @@ def _location_from_hp_state(payload: dict) -> Location:
     return Location(z, lat, lon, _label_for_zip(z))
 
 
+def _read_sb3_state_http(url: str) -> dict | None:
+    """Fetch SB3's scan state over HTTP. Returns the inner state dict or None.
+
+    Kept deliberately forgiving: any failure returns None so the caller falls
+    through to the file, then to home. Disco must keep classifying when SB3
+    is down.
+    """
+    if not url:
+        return None
+    try:
+        timeout = float(os.getenv("DISCO_SB3_STATE_TIMEOUT_SEC",
+                                  _DEFAULT_HTTP_TIMEOUT_SEC))
+    except (TypeError, ValueError):
+        timeout = _DEFAULT_HTTP_TIMEOUT_SEC
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8", errors="ignore"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    state = payload.get("state")
+    return state if isinstance(state, dict) else None
+
+
 def get_current_location(*, force_refresh: bool = False) -> Location:
     """Return the current scanner location, cached for DISCO_LOCATION_CACHE_TTL_SEC.
 
-    Source of truth: SB3's hp_state.json (path overridable via env var
-    `DISCO_HP_STATE_PATH`). Failures fall back to the Nashville home tuple.
+    Sources, in order: SB3's scan-state endpoint (`DISCO_SB3_STATE_URL`), then
+    SB3's state file (`DISCO_HP_STATE_PATH`) for a shared-host setup, then the
+    Nashville home tuple.
+
+    Falling through to home is logged rather than silent. It used to be quiet,
+    which is how Disco spent a New Jersey deployment classifying against
+    Tennessee without anything saying so.
     """
     ttl = _cache_ttl()
     now = time.monotonic()
@@ -153,10 +207,22 @@ def get_current_location(*, force_refresh: bool = False) -> Location:
         if not force_refresh and (now - _CACHE["ts"]) < ttl:
             return _CACHE["location"]
 
-    path = os.getenv("DISCO_HP_STATE_PATH", _DEFAULT_HP_STATE_PATH)
-    payload = _read_hp_state(path)
+    url = os.getenv("DISCO_SB3_STATE_URL", _DEFAULT_SB3_STATE_URL)
+    payload = _read_sb3_state_http(url)
+    source = "sb3-http"
+    if payload is None:
+        path = os.getenv("DISCO_HP_STATE_PATH", _DEFAULT_HP_STATE_PATH)
+        payload = _read_hp_state(path)
+        source = "hp-state-file"
+
     if payload is None:
         new_location = _HOME_LOCATION
+        logger.warning(
+            "location: no SB3 state from %s or %s -- falling back to home %s. "
+            "Classification will use the home region, not where the box is.",
+            url, os.getenv("DISCO_HP_STATE_PATH", _DEFAULT_HP_STATE_PATH),
+            _HOME_LOCATION.label,
+        )
     else:
         new_location = _location_from_hp_state(payload)
 
