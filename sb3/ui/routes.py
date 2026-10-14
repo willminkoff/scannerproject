@@ -1557,7 +1557,21 @@ def _hp_extract_pool(state_obj):
             except Exception:
                 continue
             label = cf.get("alpha_tag", "")
-            if 108 <= freq_mhz <= 137:
+            # UHF milair (225-400) rides the airband chirp, not ground:
+            # it is AM like civilian airband, ground is pushed as nfm, and
+            # the airband RSP1B tunes well past 400 MHz. Before this branch
+            # existed, 225-400 matched neither arm and favorites in that
+            # range were dropped here silently -- _hp_auto_sync is
+            # best-effort, so the save still reported success.
+            #
+            # Cost warning: milair channels are spread over ~175 MHz and the
+            # LO planner's window is iq_bw_hz (2 MHz), so they almost never
+            # share a cluster -- budget roughly one cluster per channel
+            # against lo_scheduler.max_clusters. Mixing a full civilian
+            # airband list with milair will exceed it, and chirp rejects an
+            # oversized add_channel batch in full. Raise CHIRP_LO_MAX_CLUSTERS
+            # or keep the two as separate profiles.
+            if 108 <= freq_mhz <= 137 or 225 <= freq_mhz < 400:
                 airs.append({"freq_mhz": freq_mhz, "label": label})
             elif 137 < freq_mhz <= 175 or 400 <= freq_mhz <= 470:
                 grounds.append({"freq_mhz": freq_mhz, "label": label})
