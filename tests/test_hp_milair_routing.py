@@ -16,7 +16,7 @@ _REPO = Path(__file__).resolve().parents[1]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from sb3.ui.routes import _hp_extract_pool  # noqa: E402
+from sb3.ui.routes import _cluster_count, _hp_extract_pool  # noqa: E402
 
 
 def _state(*freqs_mhz):
@@ -77,6 +77,76 @@ class BandSplitTests(unittest.TestCase):
         airs, grounds, _ = _split("not-a-number", 285.4)
         self.assertEqual(airs, [285.4])
         self.assertEqual(grounds, [])
+
+
+class ClusterCountTests(unittest.TestCase):
+    """_cluster_count is a local copy of chirp's greedy packer, used to trim a
+    push to the LO budget before chirp can reject the batch outright. If it
+    disagrees with the real planner the guard is worthless, so these pin the
+    algorithm -- and test_matches_real_planner checks the two for real."""
+
+    IQ = 2.0e6
+
+    def _count(self, *freqs_mhz):
+        return _cluster_count([{"freq_mhz": f} for f in freqs_mhz], self.IQ)
+
+    def test_empty(self):
+        self.assertEqual(_cluster_count([], self.IQ), 0)
+
+    def test_civilian_airband_packs_tightly(self):
+        """12 channels inside 118-137: this is why airband never hit the cap."""
+        self.assertLessEqual(
+            self._count(118.65, 121.025, 121.7, 122.525, 125.45, 126.475,
+                        127.7, 128.3, 133.125, 133.15, 133.5, 134.325),
+            6,
+        )
+
+    def test_milair_costs_about_one_cluster_each(self):
+        self.assertEqual(self._count(255.0, 285.4, 363.8, 382.2, 388.2), 5)
+
+    def test_span_exactly_iq_bw_shares_a_cluster(self):
+        """Boundary is <=, matching plan_clusters."""
+        self.assertEqual(self._count(300.0, 302.0), 1)
+        self.assertEqual(self._count(300.0, 302.000001), 2)
+
+    def test_greedy_anchors_on_group_start_not_previous_channel(self):
+        """A chain 1.5 MHz apart must not collapse into one cluster: the span
+        is measured from the group's first channel, not its last."""
+        self.assertEqual(self._count(300.0, 301.5, 303.0, 304.5), 2)
+
+    def test_sic_milair_profile_fits_the_default_budget(self):
+        """The shipped profile is built to land at exactly 6."""
+        self.assertEqual(
+            self._count(255.0, 255.8, 260.9, 261.0, 281.45, 283.1,
+                        285.4, 286.2, 298.6, 298.875, 327.125),
+            6,
+        )
+
+    def test_mixed_civilian_plus_milair_blows_the_budget(self):
+        """The regression that took airband to zero: 12 civilian + 5 milair."""
+        self.assertGreater(
+            self._count(118.65, 126.475, 363.8, 388.2, 255.0, 285.4, 382.2,
+                        121.7, 122.525, 133.5, 134.325, 128.3),
+            6,
+        )
+
+    def test_matches_real_planner(self):
+        """Equivalence against chirp's planner over randomized inputs."""
+        import random
+        try:
+            from chirp.dsp.cluster_planner import PlanChannel, plan_clusters
+        except ImportError:  # pragma: no cover
+            self.skipTest("chirp.dsp.cluster_planner unavailable")
+        random.seed(7)
+        for _ in range(500):
+            freqs = sorted({round(random.uniform(108.0, 400.0), 4)
+                            for _ in range(random.randint(1, 18))})
+            mine = _cluster_count([{"freq_mhz": f} for f in freqs], self.IQ)
+            real = len(plan_clusters(
+                [PlanChannel(id="c%d" % i, freq_hz=f * 1e6)
+                 for i, f in enumerate(freqs)],
+                iq_bw_hz=self.IQ, max_clusters=10**6))
+            self.assertEqual(mine, real, freqs)
 
 
 if __name__ == "__main__":

@@ -1578,6 +1578,26 @@ def _hp_extract_pool(state_obj):
     return airs, grounds, digital_by_system
 
 
+def _cluster_count(ch_list, iq_bw_hz):
+    """How many LO clusters chirp will need for these channels.
+
+    Mirrors chirp/dsp/cluster_planner.plan_clusters: sort by frequency, then
+    greedily start a new cluster whenever adding the next channel would push
+    the group's span past one iq_bw_hz window. Kept as a local copy rather
+    than an import because sb3 and chirp run on different hosts; the two must
+    stay in step, so change them together.
+    """
+    freqs = sorted(float(c["freq_mhz"]) * 1e6 for c in ch_list)
+    if not freqs:
+        return 0
+    n, lo = 1, freqs[0]
+    for f in freqs[1:]:
+        if f - lo > iq_bw_hz:
+            n += 1
+            lo = f
+    return n
+
+
 def _hp_push_chirp(port, freqs, mode):
     """Remove all non-keepalive/vfo channels then add fresh N4-derived ones."""
     import socket as _s, json as _j
@@ -1654,6 +1674,37 @@ def _hp_push_chirp(port, freqs, mode):
     if not ch_list:
         return {"ok": False, "removed": removed, "added": 0,
                 "error": "no free channel slots (capacity=%d)" % capacity}
+
+    # Second cap: the LO cluster budget. Fitting the channel pool is not
+    # enough -- chirp also has to fit every channel into at most
+    # lo_scheduler.max_clusters tuning windows of iq_bw_hz each, and
+    # plan_clusters() raises ClusterPlanError when it cannot. That rejection
+    # is all-or-nothing just like pool exhaustion, so one cluster too many
+    # costs the whole band.
+    #
+    # Civilian airband never hit this: 12 channels inside 118-137 pack into
+    # ~5 clusters. UHF milair does immediately -- those channels are spread
+    # over ~175 MHz and almost never share a 2 MHz window, so they cost
+    # roughly one cluster each. A mixed profile needs ~9 and silently took
+    # airband down to nothing.
+    #
+    # Trim to fit and say what did not make it, which is the same bargain the
+    # capacity trim above already strikes.
+    lo_cfg = data.get("lo_scheduler") or {}
+    try:
+        max_clusters = int(lo_cfg.get("max_clusters"))
+    except (TypeError, ValueError):
+        max_clusters = 6
+    try:
+        iq_bw_hz = float(lo_cfg.get("iq_bw_hz"))
+    except (TypeError, ValueError):
+        iq_bw_hz = 2.0e6
+    dropped_clusters = 0
+    if max_clusters > 0 and iq_bw_hz > 0:
+        while len(ch_list) > 1 and _cluster_count(ch_list, iq_bw_hz) > max_clusters:
+            ch_list.pop()
+            dropped_clusters += 1
+
     r = send("add_channel", {"channels": ch_list})
     out = {"ok": r.get("status") == "ok", "removed": removed,
            "added": len(ch_list), "capacity": capacity, "chirp": r}
@@ -1661,6 +1712,9 @@ def _hp_push_chirp(port, freqs, mode):
         # Say so: silently scanning fewer channels than the favorites list
         # shows is worse than saying which ones did not fit.
         out["dropped_over_capacity"] = dropped
+    if dropped_clusters:
+        out["dropped_over_clusters"] = dropped_clusters
+        out["max_clusters"] = max_clusters
     return out
 
 
