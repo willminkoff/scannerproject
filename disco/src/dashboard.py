@@ -2650,13 +2650,32 @@ DIGEST_TOP_LIMIT = 25
 DIGEST_ALL_LIMIT = 500
 DIGEST_MIN_CLASSIFIED_CONF = 0.6
 
+# Band scope for the digest. When the sweep is dedicated to one cut, the DB
+# still carries a tail of whatever it swept before (retention is 24 h), and
+# a handful of broadcast/LTE bins out-rank the band you care about in every
+# "top N by hits" section. Scoping the whole report keeps those out.
+#
+# "milair" is the UHF military aviation band, 225-400 MHz AM -- the same cut
+# the sweep's band_start_hz/band_end_hz are set to when disco is milair-only.
+# Add a scope here and it shows up in the digest page's band picker.
+DIGEST_BAND_SCOPES = {
+    "milair": (225_000_000.0, 400_000_000.0),
+    "all": (0.0, 1e12),
+}
+DIGEST_BAND_LABELS = {"milair": "MILAIR 225-400", "all": "All bands"}
+DIGEST_DEFAULT_BAND = "milair"
+
 
 @app.get("/api/digest")
-def api_digest(hours: float = 24.0, tuner_id: str = ""):
+def api_digest(hours: float = 24.0, tuner_id: str = "", band: str = DIGEST_DEFAULT_BAND):
     """Return an aggregated report over the last `hours` hours.
 
     If tuner_id is empty the aggregation spans every tuner. Otherwise it
     restricts to a single tuner.
+
+    `band` names a DIGEST_BAND_SCOPES key; every section is restricted to
+    that frequency range. An unknown name falls back to the default rather
+    than erroring, so a stale bookmark still renders.
     """
     import time as _t
     cutoff = _t.time() - hours * 3600.0
@@ -2666,6 +2685,14 @@ def api_digest(hours: float = 24.0, tuner_id: str = ""):
     if tuner_id:
         where_tid = " AND tuner_id = ?"
         params_tid = (tuner_id,)
+    if band not in DIGEST_BAND_SCOPES:
+        band = DIGEST_DEFAULT_BAND
+    band_lo, band_hi = DIGEST_BAND_SCOPES[band]
+    # Appended to every outer WHERE. The correlated d2 subqueries below are
+    # already pinned to the outer row's 25 kHz bin, so they inherit the scope
+    # and don't need their own copy.
+    where_band = " AND freq_hz >= ? AND freq_hz < ?"
+    params_band = (band_lo, band_hi)
 
     # Totals
     row = c.execute(
@@ -2675,8 +2702,8 @@ def api_digest(hours: float = 24.0, tuner_id: str = ""):
         f"COUNT(CASE WHEN modulation_class IS NOT NULL THEN 1 END) as classified_dets, "
         f"COUNT(DISTINCT CASE WHEN modulation_class IS NOT NULL "
         f"                    THEN CAST(freq_hz/25000 AS INTEGER) END) as classified_bins "
-        f"FROM detections WHERE ts >= ?{where_tid}",
-        (cutoff,) + params_tid,
+        f"FROM detections WHERE ts >= ?{where_tid}{where_band}",
+        (cutoff,) + params_tid + params_band,
     ).fetchone()
     totals = {
         "detections": row["det"],
@@ -2692,9 +2719,9 @@ def api_digest(hours: float = 24.0, tuner_id: str = ""):
         f"ROUND(AVG(modulation_confidence), 2) as avg_conf, "
         f"MAX(modulation_confidence) as max_conf "
         f"FROM detections "
-        f"WHERE ts >= ? AND modulation_class IS NOT NULL{where_tid} "
+        f"WHERE ts >= ? AND modulation_class IS NOT NULL{where_tid}{where_band} "
         f"GROUP BY modulation_class ORDER BY n DESC",
-        (cutoff,) + params_tid,
+        (cutoff,) + params_tid + params_band,
     ).fetchall()
     classifier = [
         {"class": r["cls"], "count": r["n"], "avg_conf": r["avg_conf"], "max_conf": r["max_conf"]}
@@ -2715,10 +2742,11 @@ def api_digest(hours: float = 24.0, tuner_id: str = ""):
         f"  ORDER BY d2.modulation_confidence DESC LIMIT 1 ) as modulation_confidence, "
         f"MIN(ts) as first_seen, MAX(ts) as last_seen, "
         f"MAX(uls_entity_name) as licensee, MAX(uls_callsign) as callsign "
-        f"FROM detections WHERE ts >= ?{where_tid} "
+        f"FROM detections WHERE ts >= ?{where_tid}{where_band} "
         f"GROUP BY CAST(freq_hz/25000 AS INTEGER) "
         f"ORDER BY hits DESC LIMIT ?",
-        (cutoff,) + params_tid + (cutoff,) + params_tid + (cutoff,) + params_tid + (DIGEST_TOP_LIMIT,),
+        (cutoff,) + params_tid + (cutoff,) + params_tid
+        + (cutoff,) + params_tid + params_band + (DIGEST_TOP_LIMIT,),
     ).fetchall()
     most_active = [dict(r) for r in active_rows]
 
@@ -2730,13 +2758,13 @@ def api_digest(hours: float = 24.0, tuner_id: str = ""):
         f"MAX(modulation_confidence) as modulation_confidence, "
         f"MIN(ts) as first_seen, MAX(ts) as last_seen, "
         f"MAX(uls_entity_name) as licensee, MAX(uls_callsign) as callsign "
-        f"FROM detections WHERE ts >= ?{where_tid} "
+        f"FROM detections WHERE ts >= ?{where_tid}{where_band} "
         f"  AND CAST(freq_hz/25000 AS INTEGER) NOT IN ("
         f"    SELECT DISTINCT CAST(freq_hz/25000 AS INTEGER) FROM detections WHERE ts < ?"
         f"  ) "
         f"GROUP BY CAST(freq_hz/25000 AS INTEGER) "
         f"ORDER BY peak_snr DESC LIMIT ?",
-        (cutoff,) + params_tid + (cutoff, DIGEST_TOP_LIMIT),
+        (cutoff,) + params_tid + params_band + (cutoff, DIGEST_TOP_LIMIT),
     ).fetchall()
     new_bins = [dict(r) for r in new_rows]
 
@@ -2752,11 +2780,12 @@ def api_digest(hours: float = 24.0, tuner_id: str = ""):
         f"MIN(ts) as first_seen, MAX(ts) as last_seen, "
         f"MAX(uls_entity_name) as licensee, MAX(uls_callsign) as callsign, "
         f"MAX(interpretation) as interpretation "
-        f"FROM detections WHERE ts >= ?{where_tid} "
+        f"FROM detections WHERE ts >= ?{where_tid}{where_band} "
         f"  AND modulation_confidence >= ? "
         f"GROUP BY CAST(freq_hz/25000 AS INTEGER) "
         f"ORDER BY MAX(modulation_confidence) DESC, hits DESC LIMIT ?",
-        (cutoff,) + params_tid + (cutoff,) + params_tid + (DIGEST_MIN_CLASSIFIED_CONF, DIGEST_TOP_LIMIT),
+        (cutoff,) + params_tid + (cutoff,) + params_tid + params_band
+        + (DIGEST_MIN_CLASSIFIED_CONF, DIGEST_TOP_LIMIT),
     ).fetchall()
     notable_classified = [dict(r) for r in classified_rows]
 
@@ -2768,10 +2797,10 @@ def api_digest(hours: float = 24.0, tuner_id: str = ""):
         f"MAX(modulation_confidence) as modulation_confidence, "
         f"MIN(ts) as first_seen, MAX(ts) as last_seen, "
         f"MAX(uls_entity_name) as licensee, MAX(uls_callsign) as callsign "
-        f"FROM detections WHERE ts >= ?{where_tid} "
+        f"FROM detections WHERE ts >= ?{where_tid}{where_band} "
         f"GROUP BY CAST(freq_hz/25000 AS INTEGER) "
         f"ORDER BY hits DESC LIMIT ?",
-        (cutoff,) + params_tid + (DIGEST_ALL_LIMIT,),
+        (cutoff,) + params_tid + params_band + (DIGEST_ALL_LIMIT,),
     ).fetchall()
     all_bins = [dict(r) for r in all_rows]
 
@@ -2781,6 +2810,9 @@ def api_digest(hours: float = 24.0, tuner_id: str = ""):
         "hours": hours,
         "generated_at": _t2.time(),
         "cutoff_ts": cutoff,
+        "band": band,
+        "band_label": DIGEST_BAND_LABELS.get(band, band),
+        "band_range_mhz": [band_lo / 1e6, band_hi / 1e6],
         "totals": totals,
         "classifier": classifier,
         "most_active": most_active,
@@ -2848,8 +2880,14 @@ tr:hover td{background:#212530}
 </style>
 </head><body>
 <div class=\"crumbs\">← <a href=\"/\">Disco live</a> · Digest</div>
-<h1>Disco Digest</h1>
+<h1>Disco Digest <span id=\"band-badge\" style=\"font-size:0.8rem;font-weight:500;color:#e0af68;border:1px solid #3a3426;background:#211d14;padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:6px\"></span></h1>
 <div class=\"picker\">
+  <label>band
+    <select id=\"picker-band\">
+      <option value=\"milair\" selected>MILAIR 225-400</option>
+      <option value=\"all\">All bands</option>
+    </select>
+  </label>
   <label>window
     <select id=\"picker-hours\">
       <option value=\"1\">1h</option>
@@ -2934,10 +2972,13 @@ let ALL_ROWS = [];
 
 async function loadDigest(){
   const hours = document.getElementById('picker-hours').value;
+  const band = document.getElementById('picker-band').value;
   document.getElementById('picker-generated').textContent = 'loading…';
   try {
-    const r = await fetch('/api/digest?hours=' + hours);
+    const r = await fetch('/api/digest?hours=' + encodeURIComponent(hours) +
+                          '&band=' + encodeURIComponent(band));
     const d = await r.json();
+    renderBand(d);
     renderTotals(d.totals);
     renderClassifier(d.classifier);
     renderTable('active-body', d.most_active, ['active','mod','conf','first_seen','last_seen','licensee']);
@@ -2954,6 +2995,19 @@ async function loadDigest(){
   } catch (e) {
     document.getElementById('picker-generated').textContent = 'error: ' + e;
   }
+}
+
+// Every section is band-scoped server-side, so say which scope is in force
+// right next to the title -- an empty digest should read as "nothing in this
+// band", never as "disco is dead".
+function renderBand(d){
+  const el = document.getElementById('band-badge');
+  if(!el) return;
+  if(d.band === 'all'){ el.textContent = 'all bands'; el.style.display = ''; return; }
+  const r = d.band_range_mhz || [];
+  el.textContent = (d.band_label || d.band) +
+    (r.length === 2 ? ' · ' + r[0] + '-' + r[1] + ' MHz only' : '');
+  el.style.display = '';
 }
 
 function renderTotals(t){
@@ -3055,6 +3109,7 @@ document.getElementById('picker-clear-attr').addEventListener('click', async (e)
   }
 });
 document.getElementById('picker-hours').addEventListener('change', loadDigest);
+document.getElementById('picker-band').addEventListener('change', loadDigest);
 document.getElementById('all-search').addEventListener('input', e => renderAll(e.target.value));
 
 loadDigest();
