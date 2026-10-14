@@ -16,20 +16,26 @@ _REPO = Path(__file__).resolve().parents[1]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from sb3.ui.routes import _cluster_count, _hp_extract_pool  # noqa: E402
+from sb3.ui.routes import (  # noqa: E402
+    _cluster_count,
+    _hp_extract_pool,
+    _hp_mode_hint,
+)
 
 
-def _state(*freqs_mhz):
+def _state(*freqs_mhz, mode=None):
+    fav = {"kind": "conventional", "alpha_tag": "ch"}
+    if mode is not None:
+        fav["mode"] = mode
     return {
         "custom_favorites": [
-            {"kind": "conventional", "frequency": f, "alpha_tag": "ch-%s" % f}
-            for f in freqs_mhz
+            dict(fav, frequency=f, alpha_tag="ch-%s" % f) for f in freqs_mhz
         ]
     }
 
 
-def _split(*freqs_mhz):
-    airs, grounds, digital = _hp_extract_pool(_state(*freqs_mhz))
+def _split(*freqs_mhz, mode=None):
+    airs, grounds, digital = _hp_extract_pool(_state(*freqs_mhz, mode=mode))
     return (
         [a["freq_mhz"] for a in airs],
         [g["freq_mhz"] for g in grounds],
@@ -77,6 +83,50 @@ class BandSplitTests(unittest.TestCase):
         airs, grounds, _ = _split("not-a-number", 285.4)
         self.assertEqual(airs, [285.4])
         self.assertEqual(grounds, [])
+
+
+class ModeHintTests(unittest.TestCase):
+    """chirp's demod mode belongs to the daemon, not the channel -- a channel
+    whose mode != pool_mode is rejected outright. So a favorite's declared mode
+    has to choose the DESTINATION, and these pin that mapping."""
+
+    def test_normalises_known_aliases(self):
+        for raw, want in [("AM", "am"), ("am", "am"), ("FM", "nfm"),
+                          ("nfm", "nfm"), ("FMN", "nfm"), ("Narrow", "nfm"),
+                          (" am ", "am")]:
+            self.assertEqual(_hp_mode_hint({"mode": raw}), want, raw)
+
+    def test_digital_and_blank_modes_do_not_pick_a_demod(self):
+        """P25/DMR are not chirp demods -- fall through to the band split."""
+        for raw in ["P25", "DMR", "NXDN", "", None, "   ", "p25e"]:
+            self.assertIsNone(_hp_mode_hint({"mode": raw}), repr(raw))
+        self.assertIsNone(_hp_mode_hint({}))
+        self.assertIsNone(_hp_mode_hint(None))
+
+    def test_vhf_milair_tagged_am_goes_to_airband(self):
+        """The 177 FW / 119 FS entries: AM traffic that lands on ground by
+        band and comes out as garbled NFM."""
+        airs, grounds, _ = _split(138.05, 138.875, 139.15, 140.1, 140.7,
+                                  mode="AM")
+        self.assertEqual(airs, [138.05, 138.875, 139.15, 140.1, 140.7])
+        self.assertEqual(grounds, [])
+
+    def test_same_frequencies_untagged_still_go_to_ground(self):
+        """Untagged behaviour is unchanged -- 138-144 also carries FM federal
+        traffic, so the band alone must not assume AM."""
+        airs, grounds, _ = _split(138.05, 138.875, 139.15, 140.1, 140.7)
+        self.assertEqual(airs, [])
+        self.assertEqual(grounds, [138.05, 138.875, 139.15, 140.1, 140.7])
+
+    def test_nfm_hint_overrides_an_airband_frequency(self):
+        airs, grounds, _ = _split(133.125, mode="nfm")
+        self.assertEqual(airs, [])
+        self.assertEqual(grounds, [133.125])
+
+    def test_unknown_mode_falls_back_to_band(self):
+        airs, grounds, _ = _split(133.125, 462.675, mode="P25")
+        self.assertEqual(airs, [133.125])
+        self.assertEqual(grounds, [462.675])
 
 
 class ClusterCountTests(unittest.TestCase):

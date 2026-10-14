@@ -1526,6 +1526,24 @@ def _resolve_site_controls(system_ids, state_obj, db_path=None):
     return out
 
 
+_MODE_ALIASES = {
+    "am": "am",
+    "nfm": "nfm", "fm": "nfm", "fmn": "nfm", "narrow": "nfm",
+}
+
+
+def _hp_mode_hint(cf):
+    """Normalise a favorite's declared mode to "am" / "nfm", else None.
+
+    HPDB's conventional_freqs carries a mode column, and hand-built favorites
+    can set one. Anything we don't recognise (P25, DMR, NXDN, blank) returns
+    None so the caller falls back to deciding by band -- a digital mode is not
+    a chirp demod and must not be coerced into one.
+    """
+    raw = str((cf or {}).get("mode") or "").strip().lower()
+    return _MODE_ALIASES.get(raw)
+
+
 def _hp_extract_pool(state_obj):
     """Split HPState custom_favorites into airband / ground / digital groups."""
     airs, grounds = [], []
@@ -1557,6 +1575,25 @@ def _hp_extract_pool(state_obj):
             except Exception:
                 continue
             label = cf.get("alpha_tag", "")
+            # An explicit mode on the favorite picks the destination outright.
+            # chirp's demod mode is a property of the DAEMON, not the channel
+            # -- _cmd_add_channel rejects anything whose mode != pool_mode
+            # ("channel mode mismatch", chirp/daemon.py) -- so "push it as AM"
+            # is not a thing we can ask ground to do. Choosing the AM-mode
+            # daemon is the only way to demodulate an AM signal.
+            #
+            # This matters for VHF milair: 138-144 carries military air-to-air
+            # AM right alongside FM federal traffic, so the band alone cannot
+            # decide. 177 FW / 119 FS favorites at 138.050-140.700 land on
+            # ground today and come out as garbled NFM. Tag them mode "am" and
+            # they route to airband instead.
+            mode_hint = _hp_mode_hint(cf)
+            if mode_hint == "am":
+                airs.append({"freq_mhz": freq_mhz, "label": label})
+                continue
+            if mode_hint == "nfm":
+                grounds.append({"freq_mhz": freq_mhz, "label": label})
+                continue
             # UHF milair (225-400) rides the airband chirp, not ground:
             # it is AM like civilian airband, ground is pushed as nfm, and
             # the airband RSP1B tunes well past 400 MHz. Before this branch
