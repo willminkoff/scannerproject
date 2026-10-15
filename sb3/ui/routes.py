@@ -79,12 +79,11 @@ def build_status(state: State) -> Dict:
 
     # Fetch live chirp squelch/gain from cmd ports (best-effort, 0.5s timeout).
     # Per-port chirp host mapping: airband lives on Venus, ground on Neptune.
-    _CHIRP_HOSTS = {7400: "100.114.219.115", 7401: "127.0.0.1"}
     def _chirp_snap(port):
         import socket as _s, json as _j
         try:
             sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM); sk.settimeout(0.5)
-            sk.sendto((_j.dumps({"v":1,"id":"p","cmd":"get_status","args":{}}) + chr(10)).encode(), (_CHIRP_HOSTS.get(port, "127.0.0.1"), port))
+            sk.sendto((_j.dumps({"v":1,"id":"p","cmd":"get_status","args":{}}) + chr(10)).encode(), (_chirp_host(port), port))
             data, _ = sk.recvfrom(65535); sk.close()
             return _j.loads(data.decode("utf-8", errors="ignore")).get("data", {}) or {}
         except Exception:
@@ -1638,8 +1637,23 @@ def _cluster_count(ch_list, iq_bw_hz):
 def _hp_push_chirp(port, freqs, mode):
     """Remove all non-keepalive/vfo channels then add fresh N4-derived ones."""
     import socket as _s, json as _j
-    _hosts = {7400: "100.114.219.115", 7401: "127.0.0.1"}
-    _host = _hosts.get(port, "127.0.0.1")
+    # Nothing for this band -> leave it exactly as it is, and do not even open
+    # a socket. The removal loop below used to run first and the "no freqs"
+    # check came after it, so activating a profile with no channels for this
+    # band stripped every channel from a working role. On 2026-10-14 a
+    # milair-only profile (11 airband channels, 0 ground) did that to ground:
+    # the band went silent, its icecast mount 404'd, and chirp-mount-watchdog
+    # then kickstarted the daemon every 2 minutes forever because a mount it
+    # could never satisfy stayed 404.
+    #
+    # Carrying the previous profile's channels is the lesser evil. Stale
+    # channels are visible and harmless; a dead role plus a kickstart loop is
+    # neither -- and on an SDRplay box the restart churn wedges the shared API
+    # out from under every other receiver on it.
+    if not freqs:
+        return {"ok": True, "removed": 0, "added": 0,
+                "skipped": "no channels for this band; left as-is"}
+    _host = _chirp_host(port)
     def send(cmd, args, timeout=3.0):
         sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM); sk.settimeout(timeout)
         try:
@@ -1674,8 +1688,6 @@ def _hp_push_chirp(port, freqs, mode):
             removed += 1
         except Exception:
             pass
-    if not freqs:
-        return {"ok": True, "removed": removed, "added": 0}
     ch_list = []
     for i, f in enumerate(freqs):
         safe = str(f.get("label", "")).lower().replace(" ", "-").replace("/", "-")[:30]
@@ -2806,17 +2818,13 @@ def bandscan_apply(form, state):
 
     target_raw = str((form or {}).get("target", "")).strip().lower()
     if target_raw in ("air", "airband"):
-        target = "airband"
-        port = 7400
-        host = "100.114.219.115"  # venus (chirp-airband lives here now)
-        default_mode = "am"
+        target, default_mode = "airband", "am"
     elif target_raw == "ground":
-        target = "ground"
-        port = 7401
-        host = "127.0.0.1"
-        default_mode = "nfm"
+        target, default_mode = "ground", "nfm"
     else:
         return {"ok": False, "error": f"unknown target: {target_raw!r}"}
+    port = _CHIRP_PORT_BY_BAND[target]
+    host = _chirp_host(port)
 
     mode = str((form or {}).get("modulation", default_mode)).strip().lower() or default_mode
     preset_id = str((form or {}).get("preset_id", "bandscan")).strip() or "bandscan"
@@ -2856,6 +2864,28 @@ def bandscan_apply(form, state):
         st = _send("get_status", {})
     except Exception as exc:
         return {"ok": False, "error": f"chirp {host}:{port} unreachable: {exc!r}"}
+
+    # chirp's demod mode belongs to the daemon, not the channel: add_channel
+    # rejects the WHOLE batch if any channel's mode != pool_mode. Check before
+    # touching anything, because the removal loop below runs first and a late
+    # rejection leaves the band with nothing at all.
+    #
+    # The CB preset trips this by construction -- it posts modulation "am" at
+    # target "ground", and ground runs pool_mode "nfm". Pressing CB wiped the
+    # ground band and loaded zero channels every time. CB is AM at 27 MHz and
+    # needs an AM-mode daemon; refusing with a readable error beats silently
+    # taking the band down.
+    pool_mode = str((st.get("data") or {}).get("pool_mode") or "").strip().lower()
+    if pool_mode and mode != pool_mode:
+        return {
+            "ok": False,
+            "error": (f"{target} chirp demodulates {pool_mode}, not {mode}; "
+                      f"refusing to clear the band for a batch it would reject"),
+            "target": target,
+            "requested_mode": mode,
+            "pool_mode": pool_mode,
+            "removed": 0,
+        }
 
     chans = st.get("data", {}).get("channels", [])
     if isinstance(chans, dict):
@@ -2901,6 +2931,26 @@ def bandscan_apply(form, state):
             "squelch_dbfs": -55.0 if mode == "am" else -75.0,
             "gain_db": 3.0,
         })
+
+    # Second cap, same as _hp_push_chirp: the channels must also fit into
+    # lo_scheduler.max_clusters windows of iq_bw_hz, and that rejection is
+    # all-or-nothing too. A band scan spanning more than the budget (Marine
+    # reaches across 156-162 MHz) would clear the band and load nothing.
+    lo_cfg = data.get("lo_scheduler") or {}
+    try:
+        max_clusters = int(lo_cfg.get("max_clusters"))
+    except (TypeError, ValueError):
+        max_clusters = 6
+    try:
+        iq_bw_hz = float(lo_cfg.get("iq_bw_hz"))
+    except (TypeError, ValueError):
+        iq_bw_hz = 2.0e6
+    dropped_clusters = 0
+    if max_clusters > 0 and iq_bw_hz > 0:
+        while len(ch_list) > 1 and _cluster_count(ch_list, iq_bw_hz) > max_clusters:
+            ch_list.pop()
+            dropped_clusters += 1
+
     try:
         r = _send("add_channel", {"channels": ch_list})
     except Exception as exc:
@@ -2917,6 +2967,10 @@ def bandscan_apply(form, state):
         # A "band scan" that silently loads a fraction of the band is worse
         # than one that says how much it dropped.
         out["dropped_over_capacity"] = dropped
+        out["requested"] = requested_total
+    if dropped_clusters:
+        out["dropped_over_clusters"] = dropped_clusters
+        out["max_clusters"] = max_clusters
         out["requested"] = requested_total
     return out
 
