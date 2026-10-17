@@ -1,0 +1,42 @@
+site_name,freq_mhz,sector,artcc,lat,lon,distance_miles_from_37221,source,notes
+NASHVILLE,118.875,HIGH,ZME,36.34672,-86.79222,21.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=N
+NASHVILLE,124.125,HIGH,ZME,36.34672,-86.79222,21.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=Y
+NASHVILLE,257.75,HIGH,ZME,36.34672,-86.79222,21.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N
+NASHVILLE,269.425,HIGH,ZME,36.34672,-86.79222,21.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=Y
+CENTERVILLE,124.275,HIGH,ZME,35.84167,-87.43167,30.4,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=Y
+CENTERVILLE,288.35,HIGH,ZME,35.84167,-87.43167,30.4,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=Y
+CENTERVILLE,296.7,HIGH,ZME,35.84167,-87.43167,30.4,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N
+BOWLING GREEN,121.5,LOW/HIGH,ZME,36.96453,-86.41967,69.0,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=VHF; charted=N
+BOWLING GREEN,243,LOW/HIGH,ZME,36.96453,-86.41967,69.0,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=UHF; charted=N
+HUNTSVILLE,126.825,ULTRA-HIGH,ZTL,34.74037,-86.50749,95.1,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=N
+HUNTSVILLE,354.05,ULTRA-HIGH,ZTL,34.74037,-86.50749,95.1,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N
+MUSCLE SHOALS,121.5,LOW/HIGH,ZME,34.74694,-87.6175,98.3,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=VHF; charted=N
+MUSCLE SHOALS,243,LOW/HIGH,ZME,34.74694,-87.6175,98.3,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=UHF; charted=N
+LIVINGSTON,126.925,HIGH,ZID,36.58451,-85.16662,106.3,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=N
+LIVINGSTON,134.675,HIGH,ZID,36.58451,-85.16662,106.3,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=Y
+LIVINGSTON,319.15,HIGH,ZID,36.58451,-85.16662,106.3,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N
+LIVINGSTON,348.625,HIGH,ZID,36.58451,-85.16662,106.3,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=Y
+CHATTANOOGA,124.875,HIGH,ZTL,35.1784,-85.3569,109.1,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=Y
+CHATTANOOGA,126.675,HIGH,ZTL,35.1784,-85.3569,109.1,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=N
+CHATTANOOGA,133.175,HIGH,ZTL,35.1784,-85.3569,109.1,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=N
+CHATTANOOGA,257.675,HIGH,ZTL,35.1784,-85.3569,109.1,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=Y
+CHATTANOOGA,299.2,HIGH,ZTL,35.1784,-85.3569,109.1,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N
+CHATTANOOGA,363.1,HIGH,ZTL,35.1784,-85.3569,109.1,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N
+HINCH MOUNTAIN,125.925,HIGH,ZTL,35.78083,-84.97833,112.8,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=N
+HINCH MOUNTAIN,269.175,HIGH,ZTL,35.78083,-84.97833,112.8,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N
+CROSSVILLE,121.5,LOW/HIGH,ZTL,35.778,-84.97597,113.0,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=VHF; charted=N
+CROSSVILLE,243,LOW/HIGH,ZTL,35.778,-84.97597,113.0,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=UHF; charted=N
+JACKSON TN,121.5,LOW/HIGH,ZME,35.59989,-88.91561,114.0,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=VHF; charted=N
+JACKSON TN,243,LOW/HIGH,ZME,35.59989,-88.91561,114.0,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=UHF; charted=N
+MCKELLAR,126.45,HIGH,ZME,35.46841,-88.90172,116.2,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=Y
+MCKELLAR,354,HIGH,ZME,35.46841,-88.90172,116.2,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=Y
+TROY,127.975,ULTRA-HIGH,ZME,36.36861,-89.09444,120.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=N
+TROY,135.5,HIGH,ZME,36.36861,-89.09444,120.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=Y
+TROY,342.25,ULTRA-HIGH,ZME,36.36861,-89.09444,120.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N
+TROY,354.15,HIGH,ZME,36.36861,-89.09444,120.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=Y
+PADUCAH,121.5,LOW/HIGH,ZME,37.05755,-88.77172,121.5,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=VHF; charted=N
+PADUCAH,243,LOW/HIGH,ZME,37.05755,-88.77172,121.5,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=UHF; charted=N
+DYERSBURG,121.5,LOW/HIGH,ZME,35.99797,-89.40658,136.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=VHF; charted=N
+DYERSBURG,243,LOW/HIGH,ZME,35.99797,-89.40658,136.6,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",LOW/HIGH stratum — serves both low & high (ambiguous per high-only scope); band=UHF; charted=N
+EVANSVILLE,132.525,HIGH,ZID,38.12726,-87.53363,145.8,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=VHF; charted=N; xref=MC CUTCHINVILLE
+EVANSVILLE,377.125,HIGH,ZID,38.12726,-87.53363,145.8,"FAA NASR 28-Day Subscription eff 2026-07-09, AFF.txt (ARTCC Facilities & Communications), AFF3 record",band=UHF; charted=N; xref=MC CUTCHINVILLE

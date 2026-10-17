@@ -298,7 +298,7 @@ class HPFavoritesWizard:
                     county_id,
                     source_file
                 FROM conventional_systems
-                WHERE state_id = ?
+                WHERE (state_id = ? OR state_id = 0)
                   AND lower(system_name) LIKE ?
                 ORDER BY system_name COLLATE NOCASE, system_key
                 """,
