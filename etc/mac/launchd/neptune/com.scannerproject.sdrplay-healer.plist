@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Keeps ground chirp producing audio by recovering its SDRplay radio when the
+  stream stalls (see macos/bin/sdrplay-healer.py). One-shot every 30 s, like
+  chirp-mount-watchdog; launchd never overlaps runs of the same job, and the
+  script also holds a lock, so a minute-long recovery cannot be re-entered.
+
+  Prerequisites on the host:
+    macos/usb-reenumerate/build.sh      (builds the re-enumerate tool)
+    passwordless sudo for launchctl     (to restart system/com.sdrplay.service)
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.sdrplay-healer</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/willminkoff/scannerproject/macos/bin/sdrplay-healer.py</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>30</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/sbin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/willminkoff/Library/Logs/chirp/sdrplay-healer.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/willminkoff/Library/Logs/chirp/sdrplay-healer.log</string>
+</dict>
+</plist>

@@ -6,7 +6,13 @@
 # recurred (see chirp/dsp/icecast_sink.py:756 SB7.3-E rewrite comment).
 # This outer watchdog is defense in depth.
 
-BANDS=('airband:neptune-analog.mp3' 'ground:neptune-ground.mp3')
+# Ground is NOT handled here any more: macos/bin/sdrplay-healer.py owns it.
+# A blind kickstart of chirp-ground can never fix the failure ground actually
+# has -- its SDRplay radio wedging at the USB layer -- because it never
+# releases or re-enumerates the device. Worse, kickstarting every 30 s while
+# the mount stayed 404 churned sdrplay_apiService into a wedge of its own
+# (2026-10-14/15). The healer re-enumerates the radio and is rate-limited.
+BANDS=('airband:neptune-analog.mp3')
 
 for entry in "${BANDS[@]}"; do
   band="${entry%%:*}"

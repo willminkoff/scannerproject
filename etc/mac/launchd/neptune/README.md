@@ -36,3 +36,42 @@ absolute (`/Users/willminkoff/...`) since launchd does not expand `~`.
 `Bootstrap failed: 5: Input/output error` = a half-registration race, not a bad plist.
 Clear it: `launchctl bootout gui/$UID <plist-path>`, `launchctl enable gui/$UID/<label>`,
 then `bootstrap` again. Validate the app itself by running its binary directly first.
+
+## SDRplay healer (ground radio self-recovery)
+- `com.scannerproject.sdrplay-healer` — runs `macos/bin/sdrplay-healer.py` every 30 s.
+
+**The failure it handles.** Ground's RSP1B stops answering at the USB layer — the
+kernel logs `transaction error` / `babble error` on endpoint 0x81, then stalled
+pipes (`0xe0005000`). chirp doesn't crash: the flowgraph just stops getting samples,
+the `neptune-ground.mp3` mount drops, and the daemon sits alive-but-useless. From
+then on the radio stays wedged — restarting chirp or `sdrplay_apiService` gives
+`activateStream() Init() failed: sdrplay_api_Fail` every time. Only re-enumerating
+the USB device clears it.
+
+**What it does.** Watches `chirp_audio_bytes_published_total` on ground's metrics
+endpoint (`:9102`) — it climbs even when every channel is squelched, because chirp
+publishes silence. If it stops for 90 s, the healer runs the recovery that was proven
+by hand: stop chirp-ground (and ACARS/VDL2 if running) → stop `sdrplay_apiService` →
+`usb-reenumerate <serial>` (software unplug/replug) → start the API → start ground →
+restore the others. It leaves ground alone if you unloaded it on purpose, waits 150 s
+for a restarted daemon to come up, backs off 2→5→10→20→30 min after a recovery that
+didn't work, and never does more than 4 recoveries in an hour. Log:
+`~/Library/Logs/chirp/sdrplay-healer.log` (JSON lines, transitions only).
+
+**chirp-mount-watchdog no longer handles ground.** Its blind `kickstart -k` every
+30 s could never re-enumerate a wedged radio, and that churn is what wedged the
+SDRplay API on 2026-10-14/15.
+
+**Root cause is hardware.** Every kernel USB error since 2026-10-12 is on
+`AppleEmbeddedUSBXHCIFL1100` — the Fresco Logic controller behind the M1 mini's two
+**USB-A** ports. The two **USB-C** ports are on Apple's own `AppleT8103USBXHCI`
+controllers and logged zero errors. Put the SDRplay radios on USB-C (directly, or via
+a powered hub on a USB-C port). The healer is defence in depth, not a substitute.
+
+Setup on the host (once):
+```
+~/scannerproject/macos/usb-reenumerate/build.sh
+cp ~/scannerproject/etc/mac/launchd/neptune/com.scannerproject.sdrplay-healer.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.scannerproject.sdrplay-healer.plist
+```
+Needs passwordless `sudo` for `launchctl` (to restart `system/com.sdrplay.service`).
