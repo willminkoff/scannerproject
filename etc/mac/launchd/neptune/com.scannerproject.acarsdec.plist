@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.scannerproject.acarsdec</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>exec /opt/homebrew/bin/acarsdec -o 4 -A -e -l /Users/willminkoff/Library/Logs/acars/acars.jsonl -g 40 -c 131550000 -d driver=sdrplay,serial=180903EF32,mode=MA 131.450 131.550 131.725 131.825 131.850</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/willminkoff/Library/Logs/acars/acarsdec.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/willminkoff/Library/Logs/acars/acarsdec.out.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+</dict>
+</plist>

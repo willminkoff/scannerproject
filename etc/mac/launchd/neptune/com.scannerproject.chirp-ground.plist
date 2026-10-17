@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.scannerproject.chirp-ground</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>eval "$(/opt/homebrew/bin/brew shellenv)"; set -a; source /Users/willminkoff/.config/sb3/chirp-ground.env; set +a; export PYTHONPATH=/Users/willminkoff/scannerproject:$PYTHONPATH; exec /opt/homebrew/bin/python3 -m chirp.daemon</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/willminkoff/Library/Logs/chirp/ground.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/willminkoff/Library/Logs/chirp/ground.out.log</string>
+	<key>ThrottleInterval</key>
+	<integer>120</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/willminkoff/scannerproject</string>
+</dict>
+</plist>

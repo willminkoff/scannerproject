@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.scannerproject.dumpvdl2</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>sleep 8; exec /opt/homebrew/bin/dumpvdl2 --soapysdr driver=sdrplay,serial=180903EF32,mode=SL,tuner=2 --gain 30 --output decoded:json:file:path=/Users/willminkoff/Library/Logs/vdl2/vdl2.jsonl,rotate=hourly --utc --milliseconds 136700000 136750000 136800000 136900000 136975000</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/willminkoff/Library/Logs/vdl2/dumpvdl2.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/willminkoff/Library/Logs/vdl2/dumpvdl2.out.log</string>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+</dict>
+</plist>

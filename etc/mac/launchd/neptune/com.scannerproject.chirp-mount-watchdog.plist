@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.scannerproject.chirp-mount-watchdog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/willminkoff/scannerproject/bin/chirp-mount-watchdog.sh</string>
+  </array>
+  <key>StartInterval</key><integer>30</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/willminkoff/Library/Logs/chirp/mount-watchdog.log</string>
+  <key>StandardErrorPath</key><string>/Users/willminkoff/Library/Logs/chirp/mount-watchdog.log</string>
+</dict>
+</plist>
