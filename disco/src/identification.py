@@ -14,6 +14,8 @@ class kept in the details panel for retrain-set curation.
 Layer order (first hit wins):
   0   rtl_433 device decode (CLASSIC-ISM priority) → high source=rtl_433
        (only when rtl433_priority — classic-ISM sub-ranges, PR #31)
+  0b  multimon-ng page decode (PAGING priority)   → high source=multimon
+       (only for paging-band slices that decoded a page, PR #32)
   A   HPDB exact-freq match           → confidence=high   source=hpdb
   B   CDBS exact-freq match           → confidence=high   source=cdbs
   B2  rtl_433 device decode (ISM fallback) → high source=rtl_433
@@ -56,6 +58,7 @@ _VALID_CONFIDENCE = {
 SOURCE_HPDB = "hpdb"
 SOURCE_CDBS = "cdbs"
 SOURCE_RTL433 = "rtl_433"           # PR #30 — rtl_433 device decode (ISM bands)
+SOURCE_MULTIMON = "multimon"        # PR #32 — multimon-ng page decode (paging)
 SOURCE_ULS = "uls"
 SOURCE_SIGNATURE = "signature"     # reserved for PR B fingerprinter
 SOURCE_BAND_PLAN = "band_plan"
@@ -66,6 +69,7 @@ _VALID_SOURCE = {
     SOURCE_HPDB,
     SOURCE_CDBS,
     SOURCE_RTL433,
+    SOURCE_MULTIMON,
     SOURCE_ULS,
     SOURCE_SIGNATURE,
     SOURCE_BAND_PLAN,
@@ -202,6 +206,7 @@ def build_identification(
     cdbs_match: Optional[dict] = None,
     rtl433_match: Optional[dict] = None,
     rtl433_priority: bool = False,
+    multimon_match: Optional[dict] = None,
     uls_match: Optional[dict] = None,
     signature_match: Optional[dict] = None,
 ) -> IdentificationResult:
@@ -239,6 +244,22 @@ def build_identification(
             service=str(rtl433_match.get("device_name") or "rtl_433 device"),
             confidence=CONFIDENCE_HIGH,
             source=SOURCE_RTL433,
+            band_name=band_name,
+            evidence=evidence,
+        )
+
+    # Step 0b (PR #32): paging priority. In a paging allocation a decoded
+    # POCSAG/FLEX page (capcode + message) is a definitive content-level
+    # identification — strictly better than a licensee lookup. The
+    # classifier only passes multimon_match for paging-band slices, so this
+    # wins ahead of HPDB/CDBS/ULS when multimon-ng decoded a page. Sits just
+    # below the classic-ISM rtl_433 step (the two bands don't overlap).
+    if multimon_match:
+        evidence["multimon_match"] = dict(multimon_match)
+        return IdentificationResult(
+            service=str(multimon_match.get("device_name") or "Paging page"),
+            confidence=CONFIDENCE_HIGH,
+            source=SOURCE_MULTIMON,
             band_name=band_name,
             evidence=evidence,
         )
