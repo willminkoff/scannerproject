@@ -64,12 +64,52 @@ def _interval() -> float:
         return 30.0
 
 
+# After op25 (re)starts, how long to leave it alone before scoring it. A cold
+# decoder reads as "stale" and would trigger a pointless site switch -- the
+# same reason the unit sleeps 60 s before the first evaluation.
+_WARMUP_SEC = 60.0
+
+
+def _op25_ready(unit_active, unit_active_enter_epoch, unit: str) -> tuple[bool, str]:
+    """Is op25 running and warmed up enough to be judged?
+
+    The selector exists to restart an op25 that is running but stuck. It must
+    never act on one that is stopped: preflight() reads a stopped decoder as
+    stale and, after a few windows, restarts it -- which would undo an
+    operator's deliberate `systemctl stop`. BindsTo= on the unit used to
+    prevent that by accident (and killed the selector on every restart it
+    made itself); this check states the intent instead.
+    """
+    try:
+        if not unit_active(unit):
+            return False, f"{unit} is not active (stopped on purpose, or restarting)"
+    except Exception:
+        return True, ""  # can't tell -- evaluate, as before this check existed
+    try:
+        since = unit_active_enter_epoch(unit)
+    except Exception:
+        since = None
+    if since is not None and time.time() - since < _WARMUP_SEC:
+        return False, f"{unit} started {time.time() - since:.0f}s ago; warming up"
+    return True, ""
+
+
+def _sleep_interval(interval: float) -> None:
+    # Sleep in short slices so SIGTERM is honoured promptly.
+    waited = 0.0
+    while waited < interval and not _STOP:
+        time.sleep(min(1.0, interval - waited))
+        waited += 1.0
+
+
 def main() -> int:
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
 
     try:
         from ui.op25_adapter import Op25Adapter
+        from ui.config import OP25_SERVICE_NAME
+        from ui.systemd import unit_active, unit_active_enter_epoch
     except Exception:
         log.exception("cannot import ui.op25_adapter — is this running from the repo root?")
         return 1
@@ -82,8 +122,22 @@ def main() -> int:
     # forever and a per-cycle line would bury the decisions that matter.
     last_seen: dict[str, tuple] = {}
     consecutive_errors = 0
+    skip_reason = ""
 
     while not _STOP:
+        ready, why = _op25_ready(unit_active, unit_active_enter_epoch, OP25_SERVICE_NAME)
+        if not ready:
+            # Log the transition, not every cycle (the warm-up countdown
+            # would otherwise log twice a minute with a new number).
+            if ("not active" in why) != ("not active" in skip_reason) or not skip_reason:
+                log.info("not evaluating: %s", why)
+            skip_reason = why
+            _sleep_interval(interval)
+            continue
+        if skip_reason:
+            log.info("%s ready -- evaluating again", OP25_SERVICE_NAME)
+            skip_reason = ""
+
         try:
             result = adapter.preflight() or {}
             consecutive_errors = 0
@@ -114,11 +168,7 @@ def main() -> int:
             elif consecutive_errors % 60 == 0:
                 log.error("evaluation still failing (%d in a row)", consecutive_errors)
 
-        # Sleep in short slices so SIGTERM is honoured promptly.
-        waited = 0.0
-        while waited < interval and not _STOP:
-            time.sleep(min(1.0, interval - waited))
-            waited += 1.0
+        _sleep_interval(interval)
 
     log.info("stopped")
     return 0

@@ -7,8 +7,12 @@
 Description=OP25 Site Selector (prefer sites that decode, demote ones that do not)
 After=network-online.target scanner-digital-op25.service
 Wants=scanner-digital-op25.service
-# Without op25 there is nothing to score; don't run on our own.
-BindsTo=scanner-digital-op25.service
+# Deliberately NOT BindsTo=scanner-digital-op25.service. Restarting op25 is
+# this unit's own job, and BindsTo made every such restart stop the selector
+# too: it sat blocked in its own `systemctl start` until systemd SIGKILLed it,
+# and nothing brought it back. It died on its first site switch (2026-10-15)
+# and stayed dead for two days. With op25 down the selector just reads stale
+# status, which the adapter already treats as "no data".
 StartLimitIntervalSec=0
 
 [Service]
@@ -21,7 +25,9 @@ Environment=OP25_SELECTOR_INTERVAL_SEC=30
 ExecStartPre=/bin/sleep 60
 WorkingDirectory=/home/willminkoff/scannerproject
 ExecStart=/usr/bin/python3 /home/willminkoff/scannerproject/bin/op25-site-selector.py
-Restart=on-failure
+# always, not on-failure: a supervisor that stops for any reason other than
+# an explicit `systemctl stop` should come back.
+Restart=always
 RestartSec=20
 # Advisory only: this polls and decides, op25 does the work.
 Nice=10
