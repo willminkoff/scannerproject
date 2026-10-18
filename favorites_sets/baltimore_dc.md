@@ -66,13 +66,12 @@ intelligence talkgroups are deliberately left out.
 Encryption status changes. If a precinct goes quiet in the clear, check
 RadioReference for that talkgroup before blaming the radio.
 
-### Prerequisite: op25's tuning window
+### op25's tuning window
 
 Baltimore County's simulcast site spreads its 32 channels over
-854.0125-860.9625 MHz (6.95 MHz). op25's config generator currently opens a
-2.4 MS/s window centered on the selected control channel, so most of those
-channels — control and voice — fall outside it and calls can't be followed.
-The RSPduo in single-tuner mode can open ~8 MHz, which covers the site, but the
-generator has to size the window to the site's span first. Until that change
-lands, the airband and ground halves of this profile work and the digital half
-will not.
+854.0125-860.9625 MHz (6.95 MHz). op25 used to open 2.4 MS/s centred on the
+selected control channel -- a 1.536 MHz IF filter on the RSPduo -- which left
+most of the site outside the window. Since d69f55d the generator centres on the
+site and opens 8 MS/s (8 MHz filter) for it, in single-tuner mode. If the RSPduo
+is ever put in dual-tuner (MA/SL) mode it is capped at 2 MS/s and this site
+won't fit again.
