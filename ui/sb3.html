@@ -16131,9 +16131,14 @@
       js.onerror = () => setMeta('map library failed to load');
       js.onload = () => {
         const map = L.map(mapEl, { zoomControl: true, attributionControl: true });
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        // Esri's dark canvas needs no API key (CARTO's now does).
+        const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+        L.tileLayer(ESRI + 'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
           maxZoom: 13,
-          attribution: '&copy; OpenStreetMap &copy; CARTO | aircraft: adsb.lol',
+          attribution: 'Esri, HERE, Garmin, &copy; OpenStreetMap | aircraft: adsb.lol',
+        }).addTo(map);
+        L.tileLayer(ESRI + 'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom: 13,
         }).addTo(map);
         const planes = L.layerGroup().addTo(map);
         let home = null;
