@@ -16113,6 +16113,95 @@
     // INIT
     // ============================================
 
+    // ADS-B: aircraft from /api/adsb (adsb.lol's API, fetched by the
+    // server) on our own Leaflet map. adsb.lol's own map can't be iframed:
+    // its bot check needs a cookie browsers won't send to an embedded site.
+    function startAdsbPanel() {
+      const mapEl = document.getElementById('adsb-map');
+      const metaEl = document.getElementById('adsb-meta');
+      if (!mapEl) return;
+      const setMeta = (text) => { if (metaEl) metaEl.textContent = text; };
+      const LEAFLET = 'https://unpkg.com/leaflet@1.9.4/dist/';
+      const css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = LEAFLET + 'leaflet.css';
+      document.head.appendChild(css);
+      const js = document.createElement('script');
+      js.src = LEAFLET + 'leaflet.js';
+      js.onerror = () => setMeta('map library failed to load');
+      js.onload = () => {
+        const map = L.map(mapEl, { zoomControl: true, attributionControl: true });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          maxZoom: 13,
+          attribution: '&copy; OpenStreetMap &copy; CARTO | aircraft: adsb.lol',
+        }).addTo(map);
+        const planes = L.layerGroup().addTo(map);
+        let home = null;
+        let centered = null;
+        const planeIcon = (ac) => {
+          const color = ac.emergency && ac.emergency !== 'none' ? '#ff5c5c'
+            : ac.alt_baro === 'ground' ? '#99a0ad'
+            : (Number(ac.alt_baro) || 0) < 10000 ? '#d4a456' : '#7a9bb8';
+          const rot = Number(ac.track) || 0;
+          return L.divIcon({
+            className: 'adsb-plane',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+            html: `<svg width="20" height="20" viewBox="-10 -10 20 20" style="transform:rotate(${rot}deg)">`
+              + `<path d="M0,-9 L2,-2 L9,2 L9,4 L2,2 L1,7 L4,9 L4,10 L0,9 L-4,10 L-4,9 L-1,7 L-2,2 L-9,4 L-9,2 L-2,-2 Z" fill="${color}"/></svg>`,
+          });
+        };
+        const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        const tip = (ac) => {
+          const alt = ac.alt_baro === 'ground' ? 'ground' : (ac.alt_baro != null ? `${Number(ac.alt_baro).toLocaleString()} ft` : '—');
+          return `<div class="adsb-tip"><b>${esc(ac.flight || ac.r || ac.hex)}</b> ${esc(ac.t || '')}<br>`
+            + `${alt} · ${ac.gs != null ? Math.round(ac.gs) + ' kt' : '—'}${ac.squawk ? ' · sq ' + esc(ac.squawk) : ''}</div>`;
+        };
+        async function poll() {
+          if (document.visibilityState === 'hidden') return;
+          let data;
+          try {
+            const resp = await fetch('/api/adsb', { cache: 'no-store' });
+            data = await resp.json();
+          } catch (err) {
+            setMeta('ADS-B unreachable');
+            return;
+          }
+          const c = data.center;
+          if (c && (!centered || centered.lat !== c.lat || centered.lon !== c.lon)) {
+            map.setView([c.lat, c.lon], 9);
+            if (home) home.remove();
+            home = L.circleMarker([c.lat, c.lon], { radius: 5, color: '#7a9bb8', weight: 2, fillOpacity: 0.3 })
+              .bindTooltip('scanner').addTo(map);
+            centered = c;
+          }
+          if (!data.ok) {
+            setMeta(data.error || 'ADS-B unavailable');
+            return;
+          }
+          planes.clearLayers();
+          for (const ac of data.aircraft || []) {
+            L.marker([ac.lat, ac.lon], { icon: planeIcon(ac), keyboard: false })
+              .bindTooltip(tip(ac), { direction: 'top', offset: [0, -8] })
+              .addTo(planes);
+          }
+          const t = new Date((data.fetched_at || Date.now() / 1000) * 1000);
+          setMeta(`${(data.aircraft || []).length} aircraft within ${data.radius_nm} nm · ${t.toLocaleTimeString()}${data.stale ? ' (stale)' : ''}`);
+          if (!state.adsbLoaded) {
+            state.adsbLoaded = true;
+            updateSitrep();
+            logActivity('ADS-B panel linked', 'info', 'adsb');
+          }
+        }
+        poll();
+        setInterval(poll, 5000);
+        document.addEventListener('visibilitychange', poll);
+        // The widget can be collapsed/resized; let Leaflet re-measure.
+        if (window.ResizeObserver) new ResizeObserver(() => map.invalidateSize()).observe(mapEl);
+      };
+      document.head.appendChild(js);
+    }
+
     async function init() {
       loadTheme();
       state.bandScanReturnProfile = loadBandScanReturnProfiles();
@@ -17115,95 +17204,6 @@
     // Runs every 5s and once on load.
     // -------------------------------------------------------------------
     (function () {
-      // ADS-B: aircraft from /api/adsb (adsb.lol's API, fetched by the
-      // server) on our own Leaflet map. adsb.lol's own map can't be iframed:
-      // its bot check needs a cookie browsers won't send to an embedded site.
-      function startAdsbPanel() {
-        const mapEl = document.getElementById('adsb-map');
-        const metaEl = document.getElementById('adsb-meta');
-        if (!mapEl) return;
-        const setMeta = (text) => { if (metaEl) metaEl.textContent = text; };
-        const LEAFLET = 'https://unpkg.com/leaflet@1.9.4/dist/';
-        const css = document.createElement('link');
-        css.rel = 'stylesheet';
-        css.href = LEAFLET + 'leaflet.css';
-        document.head.appendChild(css);
-        const js = document.createElement('script');
-        js.src = LEAFLET + 'leaflet.js';
-        js.onerror = () => setMeta('map library failed to load');
-        js.onload = () => {
-          const map = L.map(mapEl, { zoomControl: true, attributionControl: true });
-          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 13,
-            attribution: '&copy; OpenStreetMap &copy; CARTO | aircraft: adsb.lol',
-          }).addTo(map);
-          const planes = L.layerGroup().addTo(map);
-          let home = null;
-          let centered = null;
-          const planeIcon = (ac) => {
-            const color = ac.emergency && ac.emergency !== 'none' ? '#ff5c5c'
-              : ac.alt_baro === 'ground' ? '#99a0ad'
-              : (Number(ac.alt_baro) || 0) < 10000 ? '#d4a456' : '#7a9bb8';
-            const rot = Number(ac.track) || 0;
-            return L.divIcon({
-              className: 'adsb-plane',
-              iconSize: [20, 20],
-              iconAnchor: [10, 10],
-              html: `<svg width="20" height="20" viewBox="-10 -10 20 20" style="transform:rotate(${rot}deg)">`
-                + `<path d="M0,-9 L2,-2 L9,2 L9,4 L2,2 L1,7 L4,9 L4,10 L0,9 L-4,10 L-4,9 L-1,7 L-2,2 L-9,4 L-9,2 L-2,-2 Z" fill="${color}"/></svg>`,
-            });
-          };
-          const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-          const tip = (ac) => {
-            const alt = ac.alt_baro === 'ground' ? 'ground' : (ac.alt_baro != null ? `${Number(ac.alt_baro).toLocaleString()} ft` : '—');
-            return `<div class="adsb-tip"><b>${esc(ac.flight || ac.r || ac.hex)}</b> ${esc(ac.t || '')}<br>`
-              + `${alt} · ${ac.gs != null ? Math.round(ac.gs) + ' kt' : '—'}${ac.squawk ? ' · sq ' + esc(ac.squawk) : ''}</div>`;
-          };
-          async function poll() {
-            if (document.visibilityState === 'hidden') return;
-            let data;
-            try {
-              const resp = await fetch('/api/adsb', { cache: 'no-store' });
-              data = await resp.json();
-            } catch (err) {
-              setMeta('ADS-B unreachable');
-              return;
-            }
-            const c = data.center;
-            if (c && (!centered || centered.lat !== c.lat || centered.lon !== c.lon)) {
-              map.setView([c.lat, c.lon], 9);
-              if (home) home.remove();
-              home = L.circleMarker([c.lat, c.lon], { radius: 5, color: '#7a9bb8', weight: 2, fillOpacity: 0.3 })
-                .bindTooltip('scanner').addTo(map);
-              centered = c;
-            }
-            if (!data.ok) {
-              setMeta(data.error || 'ADS-B unavailable');
-              return;
-            }
-            planes.clearLayers();
-            for (const ac of data.aircraft || []) {
-              L.marker([ac.lat, ac.lon], { icon: planeIcon(ac), keyboard: false })
-                .bindTooltip(tip(ac), { direction: 'top', offset: [0, -8] })
-                .addTo(planes);
-            }
-            const t = new Date((data.fetched_at || Date.now() / 1000) * 1000);
-            setMeta(`${(data.aircraft || []).length} aircraft within ${data.radius_nm} nm · ${t.toLocaleTimeString()}${data.stale ? ' (stale)' : ''}`);
-            if (!state.adsbLoaded) {
-              state.adsbLoaded = true;
-              updateSitrep();
-              logActivity('ADS-B panel linked', 'info', 'adsb');
-            }
-          }
-          poll();
-          setInterval(poll, 5000);
-          document.addEventListener('visibilitychange', poll);
-          // The widget can be collapsed/resized; let Leaflet re-measure.
-          if (window.ResizeObserver) new ResizeObserver(() => map.invalidateSize()).observe(mapEl);
-        };
-        document.head.appendChild(js);
-      }
-
       const CARDS = ["sb3ui","chirp_airband","chirp_ground","op25","op25_audio","icecast","acars","vdl2","disco","adsb"];
       function paint(name, entry) {
         const el = document.getElementById("service-" + name);
