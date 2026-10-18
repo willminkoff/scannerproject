@@ -2991,22 +2991,25 @@ def profile_editor_analog_save_stub(form, state):
 
 
 
-# ---------------------------------------------------------------------------
-# ADS-B traffic -- adsb.lol's public API, fetched server-side.
-# ---------------------------------------------------------------------------
-# The panel used to iframe adsb.lol's map. That map now sits behind a
-# proof-of-work check whose SameSite=Lax cookie is never sent to a cross-site
-# iframe, so embedded it only ever shows "challenge cookies not found". The
-# API is not behind the check but sends no CORS headers, so the browser can't
-# call it directly either; the page polls /api/adsb and draws its own map.
 
+# ---------------------------------------------------------------------------
+# ADS-B panel -- tar1090 served locally, fed by adsb.lol's public API.
+# ---------------------------------------------------------------------------
+# The panel used to iframe adsb.lol. Its map now sits behind a proof-of-work
+# check whose SameSite=Lax cookie is never sent to a cross-site iframe, so
+# embedded it only showed "challenge cookies not found". adsb.lol's map is
+# tar1090; bin/install-tar1090.sh installs the same UI, SB3 serves it at
+# /adsb/ and answers its data/receiver.json + data/aircraft.json from
+# adsb.lol's API (not behind the check, but no CORS, so it's fetched here).
+
+_TAR1090_HTML = os.environ.get(
+    "SB3_TAR1090_HTML", os.path.expanduser("~/vendor/tar1090/html"))
 _ADSB_URL = "https://api.adsb.lol/v2/point/{lat:.4f}/{lon:.4f}/{radius}"
-_ADSB_RADIUS_NM = 40
-_ADSB_TTL_SEC = 5.0          # several browser tabs share one upstream fetch
+_ADSB_RADIUS_NM = 60
+_ADSB_REFRESH_MS = 2000      # tar1090 polls aircraft.json at this interval
+_ADSB_TTL_SEC = 1.8          # several viewers share one upstream fetch
 _ADSB_CENTER_TTL_SEC = 60.0  # hp_state.json is ~16 MB; don't parse it per poll
 _ADSB_STALE_SEC = 60.0       # serve the last good list through brief outages
-_ADSB_FIELDS = ("hex", "flight", "r", "t", "lat", "lon", "alt_baro", "gs",
-                "track", "squawk", "category", "emergency")
 _adsb_cache = {"ts": 0.0, "center": None, "body": None}
 _adsb_center = {"ts": 0.0, "center": None}
 
@@ -3023,40 +3026,58 @@ def _adsb_center_now():
     return _adsb_center["center"]
 
 
-def _adsb_trim(raw):
-    out = []
-    for ac in (raw or {}).get("ac") or []:
-        if not isinstance(ac, dict) or ac.get("lat") is None or ac.get("lon") is None:
-            continue
-        row = {k: ac.get(k) for k in _ADSB_FIELDS if ac.get(k) is not None}
-        if isinstance(row.get("flight"), str):
-            row["flight"] = row["flight"].strip()
-        out.append(row)
+def adsb_receiver_json():
+    """tar1090's data/receiver.json: plain (non-globe) mode, no history."""
+    out = {"version": "SB3 / adsb.lol", "refresh": _ADSB_REFRESH_MS, "history": 0}
+    center = _adsb_center_now()
+    if center:
+        out["lat"], out["lon"] = round(float(center[0]), 4), round(float(center[1]), 4)
     return out
 
 
-def adsb_traffic():
-    """Aircraft around the scanner's saved location, for the ADS-B panel."""
+def adsb_aircraft_json():
+    """tar1090's data/aircraft.json, from adsb.lol around the scanner."""
     import json as _j, time as _t, urllib.request as _ur
+    now = _t.time()
     center = _adsb_center_now()
     if not center:
-        return {"ok": False, "error": "scanner location not set", "aircraft": []}
+        return {"now": now, "messages": 0, "aircraft": []}
     lat, lon = float(center[0]), float(center[1])
-    now = _t.time()
     cached = _adsb_cache["body"]
-    if cached and _adsb_cache["center"] == (lat, lon) and now - _adsb_cache["ts"] < _ADSB_TTL_SEC:
+    same = _adsb_cache["center"] == (lat, lon)
+    if cached and same and now - _adsb_cache["ts"] < _ADSB_TTL_SEC:
         return cached
     url = _ADSB_URL.format(lat=lat, lon=lon, radius=_ADSB_RADIUS_NM)
     try:
         req = _ur.Request(url, headers={"User-Agent": "SB3-scanner/1.0", "Accept": "application/json"})
         with _ur.urlopen(req, timeout=10) as resp:
             raw = _j.loads(resp.read().decode("utf-8"))
-    except Exception as exc:
-        if cached and _adsb_cache["center"] == (lat, lon) and now - _adsb_cache["ts"] < _ADSB_STALE_SEC:
-            return dict(cached, stale=True)
-        return {"ok": False, "error": "adsb.lol: %s" % (exc,), "aircraft": [],
-                "center": {"lat": lat, "lon": lon}, "radius_nm": _ADSB_RADIUS_NM}
-    body = {"ok": True, "center": {"lat": lat, "lon": lon}, "radius_nm": _ADSB_RADIUS_NM,
-            "fetched_at": now, "aircraft": _adsb_trim(raw)}
+    except Exception:
+        if cached and same and now - _adsb_cache["ts"] < _ADSB_STALE_SEC:
+            return cached
+        return {"now": now, "messages": 0, "aircraft": []}
+    # The API's records are readsb's aircraft.json records already; only the
+    # envelope differs ("ac", and "now" in ms).
+    raw_now = raw.get("now")
+    body = {
+        "now": (float(raw_now) / 1000.0) if raw_now else now,
+        "messages": int(raw.get("total") or 0),
+        "aircraft": [ac for ac in (raw.get("ac") or []) if isinstance(ac, dict)],
+    }
     _adsb_cache.update(ts=now, center=(lat, lon), body=body)
     return body
+
+
+def adsb_static(rel_path):
+    """(bytes, content_type) for a file of the installed tar1090 UI, or None."""
+    import mimetypes
+    root = os.path.realpath(_TAR1090_HTML)
+    rel = (rel_path or "").lstrip("/") or "index.html"
+    full = os.path.realpath(os.path.join(root, rel))
+    if not full.startswith(root + os.sep) or not os.path.isfile(full):
+        return None
+    ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
+    if ctype.startswith("text/") or ctype in ("application/javascript", "application/json"):
+        ctype += "; charset=utf-8"
+    with open(full, "rb") as fh:
+        return fh.read(), ctype

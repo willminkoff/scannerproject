@@ -123,8 +123,28 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.wizard_devices())
         if p == "/api/dongles/power":
             return self._json(routes.dongles_power({"action": "status"}, self._state))
-        if p == "/api/adsb":
-            return self._json(routes.adsb_traffic())
+        # ADS-B panel: tar1090 (adsb.lol's map) fed by adsb.lol's API.
+        if p == "/adsb":
+            self.send_response(301)
+            self.send_header("Location", "/adsb/")
+            self.end_headers()
+            return
+        if p == "/adsb/data/receiver.json":
+            return self._json(routes.adsb_receiver_json())
+        if p == "/adsb/data/aircraft.json":
+            return self._json(routes.adsb_aircraft_json())
+        if p.startswith("/adsb/"):
+            found = routes.adsb_static(urllib.parse.unquote(p[len("/adsb/"):]))
+            if found is None:
+                return self._json({"error": "not found", "path": p}, 404)
+            data, ctype = found
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "max-age=3600")
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if p == "/api/wx/status":
             return self._json(routes.wx_status(self._state))
         if p == "/api/wx/sounding":
