@@ -1,4 +1,4 @@
-# Baltimore-DC — Potomac TRACON, marine, Baltimore County PD
+# Baltimore-DC — Potomac TRACON, marine, Laurel / PG County police
 
 Profile for the Baltimore / Washington area. Built 2026-10-18 for the current
 stack (airband chirp on scannerbox-1, ground chirp on Neptune, op25 on
@@ -7,14 +7,14 @@ scannerbox-1's RSPduo) and sized to its limits — unlike the older
 of 12; law-enforcement control channels entered as conventional 485/853-858 MHz
 frequencies that SB3 silently drops; DC MPD talkgroups that are encrypted).
 
-- File: `favorites_sets/baltimore_dc.json` — 38 entries
+- File: `favorites_sets/baltimore_dc.json` — 31 entries
 - Favorites name / tile: `Baltimore-DC` (`fav-baltimore-dc`), registered disabled
 
 | Band | Contents | Fit |
 |---|---|---|
 | Airband | 12 Potomac TRACON (PCT) sectors | 12/12 channels, 4 of 6 LO clusters → 2.4 s revisit |
 | Ground | 15 common marine channels (same set as SIC) | 15/16 channels, 1 cluster (156.300-157.100) |
-| Digital | Baltimore County PD — 10 precinct dispatch + Sheriff main | 1 trunked system, 11 talkgroups |
+| Digital | Laurel PD + PGPD District 6 (Beltsville) | 1 trunked system, 4 talkgroups |
 
 ## Airband — Potomac TRACON (VHF AM)
 
@@ -45,33 +45,36 @@ The 15 common marine channels from SIC: 06, 07A, 08, 68, 09, 69, 10, 11, 13,
 16, 77, 18A, 19A, 80A, 22A. Chesapeake / Baltimore harbor traffic uses the same
 calling, bridge-to-bridge and USCG channels.
 
-## Digital — Baltimore County PD (HPDB trunk 7117)
+## Digital — Prince George's County (HPDB trunk 6341)
 
 | TG | Alpha |
 |---:|---|
-| 9600-9609 | Wilkens, Woodlawn, Franklin, Pikesville, Towson, Cockeysville, Parkville, White Marsh, Essex, Dundalk — precinct Ops (dispatch) |
-| 9410 | Sheriff Main |
+| 199 | Laurel PD — dispatch |
+| 201 | Laurel PD Tac |
+| 55 | PGPD C — Charlie Sector, District 6 (Beltsville) dispatch |
+| 57 | PGPD C Tac |
 
-**Why Baltimore County.** op25 on this stack follows exactly one trunked system
-(two systems generate two instances on one RSPduo tuner; the second can never
-open it). Most of the region's police are encrypted: a Fairfax County PD
-briefing dated 2026-03-10 lists DC MPD, Montgomery County PD, Baltimore City PD
-and Anne Arundel County PD (plus Virginia State Police and several Northern
-Virginia agencies) as having encrypted all radio traffic, and Fairfax PD's own
-dispatch channels are planned to follow. Baltimore County PD is not on that
-list; RadioReference shows encryption only for some investigative units, and
-Broadcastify streams all 10 precinct dispatch channels. The Tac, ISU, CID and
-intelligence talkgroups are deliberately left out.
+P25 Phase II (TDMA voice; boatbod op25 handles it). From Laurel the resolver
+picks the North Simulcast site (14 channels, 769.28-774.68 MHz, 5.4 MHz → a
+6 MS/s window); NAC 2A0. None of these talkgroups is marked encrypted on
+RadioReference; PG's SWAT/special units are.
 
-Encryption status changes. If a precinct goes quiet in the clear, check
-RadioReference for that talkgroup before blaming the radio.
+op25 follows exactly one trunked system, so this is the system for where the
+box actually is. Set the ZIP to match: the resolver picks sites by distance
+from it and skips systems with no site in range.
 
-### op25's tuning window
+**Why not Baltimore County** (the first version of this profile, 2026-10-18):
+its only site is the Towson-centred simulcast (20.6 mi radius), 27 mi from
+Laurel; op25 never decoded a control message there. Its precinct dispatch
+talkgroups (9600-9609, Sheriff 9410) are in the clear and are the right pick
+when the box is in Baltimore County itself — but its 32 channels span
+854.0125-860.9625 MHz and need the 8 MS/s window.
 
-Baltimore County's simulcast site spreads its 32 channels over
-854.0125-860.9625 MHz (6.95 MHz). op25 used to open 2.4 MS/s centred on the
-selected control channel -- a 1.536 MHz IF filter on the RSPduo -- which left
-most of the site outside the window. Since d69f55d the generator centres on the
-site and opens 8 MS/s (8 MHz filter) for it, in single-tuner mode. If the RSPduo
-is ever put in dual-tuner (MA/SL) mode it is capped at 2 MS/s and this site
-won't fit again.
+**Also clear near Laurel:** Howard County (trunk 10849, Phase I) HCPD North
+10961 / South 10963 dispatch; the rest of HCPD is encrypted. Its site spans
+9.2 MHz — wider than one 8 MHz window — so op25 falls back to a 2.4 MS/s window
+on the selected control channel and misses voice outside it.
+
+Encrypted in the region (Fairfax County PD briefing, 2026-03-10): DC MPD,
+Montgomery County PD, Baltimore City PD, Anne Arundel County PD, Virginia State
+Police and several Northern Virginia agencies.
