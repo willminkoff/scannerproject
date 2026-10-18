@@ -2989,3 +2989,74 @@ def profile_editor_analog_save_stub(form, state):
     """POST /api/profile-editor/analog/save — no-op (see profile_create_stub)."""
     return {"ok": True, "stub": True}
 
+
+
+# ---------------------------------------------------------------------------
+# ADS-B traffic -- adsb.lol's public API, fetched server-side.
+# ---------------------------------------------------------------------------
+# The panel used to iframe adsb.lol's map. That map now sits behind a
+# proof-of-work check whose SameSite=Lax cookie is never sent to a cross-site
+# iframe, so embedded it only ever shows "challenge cookies not found". The
+# API is not behind the check but sends no CORS headers, so the browser can't
+# call it directly either; the page polls /api/adsb and draws its own map.
+
+_ADSB_URL = "https://api.adsb.lol/v2/point/{lat:.4f}/{lon:.4f}/{radius}"
+_ADSB_RADIUS_NM = 40
+_ADSB_TTL_SEC = 5.0          # several browser tabs share one upstream fetch
+_ADSB_CENTER_TTL_SEC = 60.0  # hp_state.json is ~16 MB; don't parse it per poll
+_ADSB_STALE_SEC = 60.0       # serve the last good list through brief outages
+_ADSB_FIELDS = ("hex", "flight", "r", "t", "lat", "lon", "alt_baro", "gs",
+                "track", "squawk", "category", "emergency")
+_adsb_cache = {"ts": 0.0, "center": None, "body": None}
+_adsb_center = {"ts": 0.0, "center": None}
+
+
+def _adsb_center_now():
+    import time as _t
+    now = _t.time()
+    if _adsb_center["center"] is None or now - _adsb_center["ts"] > _ADSB_CENTER_TTL_SEC:
+        try:
+            center = _hp_sync_center(_hp_state_load().to_dict())
+        except Exception:
+            center = None
+        _adsb_center.update(ts=now, center=center)
+    return _adsb_center["center"]
+
+
+def _adsb_trim(raw):
+    out = []
+    for ac in (raw or {}).get("ac") or []:
+        if not isinstance(ac, dict) or ac.get("lat") is None or ac.get("lon") is None:
+            continue
+        row = {k: ac.get(k) for k in _ADSB_FIELDS if ac.get(k) is not None}
+        if isinstance(row.get("flight"), str):
+            row["flight"] = row["flight"].strip()
+        out.append(row)
+    return out
+
+
+def adsb_traffic():
+    """Aircraft around the scanner's saved location, for the ADS-B panel."""
+    import json as _j, time as _t, urllib.request as _ur
+    center = _adsb_center_now()
+    if not center:
+        return {"ok": False, "error": "scanner location not set", "aircraft": []}
+    lat, lon = float(center[0]), float(center[1])
+    now = _t.time()
+    cached = _adsb_cache["body"]
+    if cached and _adsb_cache["center"] == (lat, lon) and now - _adsb_cache["ts"] < _ADSB_TTL_SEC:
+        return cached
+    url = _ADSB_URL.format(lat=lat, lon=lon, radius=_ADSB_RADIUS_NM)
+    try:
+        req = _ur.Request(url, headers={"User-Agent": "SB3-scanner/1.0", "Accept": "application/json"})
+        with _ur.urlopen(req, timeout=10) as resp:
+            raw = _j.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        if cached and _adsb_cache["center"] == (lat, lon) and now - _adsb_cache["ts"] < _ADSB_STALE_SEC:
+            return dict(cached, stale=True)
+        return {"ok": False, "error": "adsb.lol: %s" % (exc,), "aircraft": [],
+                "center": {"lat": lat, "lon": lon}, "radius_nm": _ADSB_RADIUS_NM}
+    body = {"ok": True, "center": {"lat": lat, "lon": lon}, "radius_nm": _ADSB_RADIUS_NM,
+            "fetched_at": now, "aircraft": _adsb_trim(raw)}
+    _adsb_cache.update(ts=now, center=(lat, lon), body=body)
+    return body

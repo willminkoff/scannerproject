@@ -123,6 +123,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(routes.wizard_devices())
         if p == "/api/dongles/power":
             return self._json(routes.dongles_power({"action": "status"}, self._state))
+        if p == "/api/adsb":
+            return self._json(routes.adsb_traffic())
         if p == "/api/wx/status":
             return self._json(routes.wx_status(self._state))
         if p == "/api/wx/sounding":
