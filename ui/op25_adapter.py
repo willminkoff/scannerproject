@@ -134,6 +134,67 @@ def _device_sample_rate_for_args(args: str, default_rate: int) -> int:
     return default_rate
 
 
+# Tuning window: open the device wide enough to hold every frequency of the
+# site, centred on the middle of them, so control-channel hunting and voice
+# grants are relative tunes inside one window.  The old window was centred on
+# one control channel; any grant outside it made multi_rx hard-retune the
+# device to that grant and leave it there, wherever that was.
+#
+# SoapySDRPlay3 picks the IF filter from the sample rate (getBwEnumForRate):
+# below 5 MS/s it is 1.536 MHz however wide the rate, so on an SDRplay the
+# filter -- not the rate -- is the usable window.  These are the wider steps,
+# each the smallest rate that selects that filter.  The RSPduo takes them in
+# single-tuner mode only; MA/SL stay at RSPDUO_DT_SAMPLE_RATE.
+_SDRPLAY_WIDE_WINDOWS = (
+    (5_000_000, 5_000_000),
+    (6_000_000, 6_000_000),
+    (7_000_000, 7_000_000),
+    (8_000_000, 8_000_000),
+)
+# Kept clear inside each edge of the window, on top of the LO offset.
+_WINDOW_EDGE_MARGIN_HZ = 150_000
+# Share of the sample rate an RTL-SDR passes cleanly.
+_RTL_USABLE_FRACTION = 0.8
+
+
+def _usable_window_hz(args: str, rate: int) -> int:
+    if _is_sdrplay_args(args):
+        if rate < 5_000_000:
+            return 1_536_000
+        for wide_rate, filter_hz in reversed(_SDRPLAY_WIDE_WINDOWS):
+            if rate >= wide_rate:
+                return filter_hz
+    return int(rate * _RTL_USABLE_FRACTION)
+
+
+def _device_window(
+    args: str, channels_hz: list, default_rate: int, offset: int
+) -> tuple[int, int]:
+    """Return ``(center_hz, rate)`` for a device following *channels_hz*.
+
+    Centres on the middle of the channels at the narrowest rate whose usable
+    window holds them all.  When nothing the device can do holds them, falls
+    back to the old behaviour: default rate centred on ``channels_hz[0]``
+    (the selected control channel), so control is never outside the window.
+    """
+    primary = int(channels_hz[0])
+    lo, hi = min(int(c) for c in channels_hz), max(int(c) for c in channels_hz)
+    needed = (hi - lo) + 2 * (_WINDOW_EDGE_MARGIN_HZ + abs(int(offset)))
+    base_rate = _device_sample_rate_for_args(args, default_rate)
+    candidates = [base_rate]
+    if _is_sdrplay_args(args) and base_rate != RSPDUO_DT_SAMPLE_RATE:
+        candidates += [r for r, _ in _SDRPLAY_WIDE_WINDOWS if r > base_rate]
+    for rate in candidates:
+        if _usable_window_hz(args, rate) >= needed:
+            return (lo + hi) // 2, rate
+    logger.warning(
+        "op25 window: %.4f-%.4f MHz (%.2f MHz) does not fit one window on %s; "
+        "centring on %.5f MHz at %.1f MS/s",
+        lo / 1e6, hi / 1e6, (hi - lo) / 1e6, args, primary / 1e6, base_rate / 1e6,
+    )
+    return primary, base_rate
+
+
 # RTL-SDR's gr-osmosdr backend exposes a single ``LNA`` gain element
 # (0-49 dB).  SoapySDRPlay3 (used for RSPduo) does NOT expose ``LNA`` —
 # its gain elements are ``IFGR`` (IF gain reduction, 20-59 dB; lower=more
@@ -1363,16 +1424,15 @@ def generate_multi_rx_config(
         sys_over = overrides.get(name) or {}
         modulation = str(sys_over.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
         nac = str(sys_over.get("nac", "0")).strip()
-        center_hz = int(cc_hz[0])
-
         dev_name = f"sdr{idx}"
         dev_args = str(arg_map.get(serial) or f"rtl={serial}")
+        center_hz, dev_rate = _device_window(dev_args, cc_hz, sample_rate, offset)
         dev_gains = _resolve_gains_for_args(dev_args, sys_over.get("gains"))
         dev_gain_mode = _resolve_gain_mode_for_args(dev_args, sys_over.get("gain_mode"))
         devices.append({
             "name": dev_name,
             "args": dev_args,
-            "rate": _device_sample_rate_for_args(dev_args, sample_rate),
+            "rate": dev_rate,
             "frequency": center_hz,
             "offset": offset,
             "ppm": float(sys_over.get("ppm", 0.0) or 0.0),
@@ -1411,18 +1471,20 @@ def generate_multi_rx_config(
     if traffic_dongle_serial:
         target_sys = traffic_system_name or (systems[0]["name"] if systems else "")
         if target_sys:
-            target_cc_hz = 0
+            target_cc_hz: list = []
             target_mod = OP25_DEFAULT_MODULATION
             for sys_def in systems:
                 if sys_def["name"] == target_sys:
-                    if sys_def["control_channels_hz"]:
-                        target_cc_hz = int(sys_def["control_channels_hz"][0])
+                    target_cc_hz = list(sys_def["control_channels_hz"] or [])
                     sys_over = overrides.get(target_sys) or {}
                     target_mod = str(sys_over.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
                     break
             if target_cc_hz:
                 traffic_sys_over = overrides.get(target_sys) or {}
                 traffic_args = str(arg_map.get(traffic_dongle_serial) or f"rtl={traffic_dongle_serial}")
+                traffic_center, traffic_rate = _device_window(
+                    traffic_args, target_cc_hz, sample_rate, offset
+                )
                 traffic_gains = _resolve_gains_for_args(
                     traffic_args, traffic_sys_over.get("gains")
                 )
@@ -1432,8 +1494,8 @@ def generate_multi_rx_config(
                 devices.append({
                     "name": "sdr_traffic",
                     "args": traffic_args,
-                    "rate": _device_sample_rate_for_args(traffic_args, sample_rate),
-                    "frequency": target_cc_hz,
+                    "rate": traffic_rate,
+                    "frequency": traffic_center,
                     "offset": offset,
                     "ppm": float(traffic_sys_over.get("ppm", 0.0) or 0.0),
                     "gains": traffic_gains,
@@ -1464,18 +1526,20 @@ def generate_multi_rx_config(
             systems[1]["name"] if len(systems) > 1 else (systems[0]["name"] if systems else "")
         )
         if target_sys_2:
-            target_cc_hz_2 = 0
+            target_cc_hz_2: list = []
             target_mod_2 = OP25_DEFAULT_MODULATION
             for sys_def in systems:
                 if sys_def["name"] == target_sys_2:
-                    if sys_def["control_channels_hz"]:
-                        target_cc_hz_2 = int(sys_def["control_channels_hz"][0])
+                    target_cc_hz_2 = list(sys_def["control_channels_hz"] or [])
                     sys_over_2 = overrides.get(target_sys_2) or {}
                     target_mod_2 = str(sys_over_2.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
                     break
             if target_cc_hz_2:
                 traffic_sys_over_2 = overrides.get(target_sys_2) or {}
                 traffic2_args = str(arg_map.get(traffic_dongle_serial_2) or f"rtl={traffic_dongle_serial_2}")
+                traffic2_center, traffic2_rate = _device_window(
+                    traffic2_args, target_cc_hz_2, sample_rate, offset
+                )
                 traffic_gains_2 = _resolve_gains_for_args(
                     traffic2_args, traffic_sys_over_2.get("gains")
                 )
@@ -1485,8 +1549,8 @@ def generate_multi_rx_config(
                 devices.append({
                     "name": "sdr_traffic2",
                     "args": traffic2_args,
-                    "rate": _device_sample_rate_for_args(traffic2_args, sample_rate),
-                    "frequency": target_cc_hz_2,
+                    "rate": traffic2_rate,
+                    "frequency": traffic2_center,
                     "offset": offset,
                     "ppm": float(traffic_sys_over_2.get("ppm", 0.0) or 0.0),
                     "gains": traffic_gains_2,

@@ -721,8 +721,9 @@ class RuntimeConfigGenerationTests(unittest.TestCase):
             self.assertIn('"856.93750,857.43750"', trunk)
             self.assertNotIn('"855.91250,856.46250"', trunk)
             self.assertEqual("856.93750,857.43750", config["trunking"]["chans"][0]["control_channel_list"])
-            self.assertEqual(856937500, config["devices"][0]["frequency"])
-            self.assertEqual(856937500, config["devices"][1]["frequency"])
+            # Both windows centre on the selected site, not the other one.
+            self.assertEqual(857187500, config["devices"][0]["frequency"])
+            self.assertEqual(857187500, config["devices"][1]["frequency"])
 
 
 class RestartBatchingTests(unittest.TestCase):
