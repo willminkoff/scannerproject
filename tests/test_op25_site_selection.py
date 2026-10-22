@@ -722,8 +722,10 @@ class RuntimeConfigGenerationTests(unittest.TestCase):
             self.assertNotIn('"855.91250,856.46250"', trunk)
             self.assertEqual("856.93750,857.43750", config["trunking"]["chans"][0]["control_channel_list"])
             # Both windows centre on the selected site, not the other one.
-            self.assertEqual(857187500, config["devices"][0]["frequency"])
-            self.assertEqual(857187500, config["devices"][1]["frequency"])
+            # frequency is the nominal centre; multi_rx tunes to frequency +
+            # OP25_DEFAULT_OFFSET (25 kHz), so it sits 25 kHz below the midpoint.
+            self.assertEqual(857187500 - 25000, config["devices"][0]["frequency"])
+            self.assertEqual(857187500 - 25000, config["devices"][1]["frequency"])
 
 
 class RestartBatchingTests(unittest.TestCase):

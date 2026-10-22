@@ -29,6 +29,7 @@ CAPE_MAY = [  # NJICS Cape May County Simulcast, 5.17 MHz
 ]
 AC_SIMULCAST = [856443750, 855218750, 855718750, 856218750, 857443750]  # 2.23 MHz
 BALTIMORE_COUNTY = [854012500, 855512500, 857962500, 859487500, 860962500]  # 6.95 MHz
+MTRTRS = [851962500, 853962500, 855962500, 857962500, 859762500]  # 7.80 MHz
 
 
 def _get_decim(speed):
@@ -49,7 +50,7 @@ class WindowTests(unittest.TestCase):
     def test_cape_may_opens_6msps_on_its_middle(self):
         center, rate = _device_window(ST, CAPE_MAY, 2_400_000, OFFSET)
         self.assertEqual(rate, 6_000_000)
-        self.assertEqual(center, (769531250 + 774706250) // 2)
+        self.assertEqual(center, (769531250 + 774706250) // 2 - OFFSET)
         self.assertHolds(ST, CAPE_MAY, center, rate)
 
     def test_ac_simulcast_outgrows_the_1536k_filter(self):
@@ -62,14 +63,26 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(rate, 8_000_000)
         self.assertHolds(ST, BALTIMORE_COUNTY, center, rate)
 
+    def test_widest_site_that_still_fits_the_8mhz_filter(self):
+        """7.80 MHz leaves 100 kHz each side of the 8 MHz filter.
+
+        A 150 kHz guard rejected this and fell back to 2.4 MS/s -- a 1.536 MHz
+        filter on an SDRplay -- losing six MHz of site to save skirt.
+        """
+        center, rate = _device_window(ST, MTRTRS, 2_400_000, OFFSET)
+        self.assertEqual(rate, 8_000_000)
+        self.assertEqual(center, (851962500 + 859762500) // 2 - OFFSET)
+        self.assertHolds(ST, MTRTRS, center, rate)
+
     def test_narrow_site_keeps_default_rate(self):
         chans = [851012500, 851512500]
         center, rate = _device_window(ST, chans, 2_400_000, OFFSET)
         self.assertEqual(rate, 2_400_000)
-        self.assertEqual(center, 851262500)
+        self.assertEqual(center, 851262500 - OFFSET)
 
     def test_single_channel_is_unchanged(self):
-        self.assertEqual(_device_window(ST, [851012500], 2_400_000, OFFSET), (851012500, 2_400_000))
+        self.assertEqual(_device_window(ST, [851012500], 2_400_000, OFFSET),
+                         (851012500 - OFFSET, 2_400_000))
 
     def test_center_ignores_which_control_channel_is_selected(self):
         a = _device_window(ST, CAPE_MAY, 2_400_000, OFFSET)
@@ -81,23 +94,27 @@ class WindowTests(unittest.TestCase):
             center, rate = _device_window(args, CAPE_MAY, 2_400_000, OFFSET)
             self.assertEqual(rate, RSPDUO_DT_SAMPLE_RATE)
             # Can't hold the site -> stay on the selected control channel.
-            self.assertEqual(center, CAPE_MAY[0])
+            self.assertEqual(center, CAPE_MAY[0] - OFFSET)
 
     def test_master_centres_a_site_that_fits(self):
         chans = [851012500, 851612500]
-        self.assertEqual(_device_window(MA, chans, 2_400_000, OFFSET), (851312500, RSPDUO_DT_SAMPLE_RATE))
+        self.assertEqual(_device_window(MA, chans, 2_400_000, OFFSET),
+                         (851312500 - OFFSET, RSPDUO_DT_SAMPLE_RATE))
 
     def test_too_wide_for_anything_falls_back_to_selected_cc(self):
         chans = [851000000, 860500000]  # 9.5 MHz
-        self.assertEqual(_device_window(ST, chans, 2_400_000, OFFSET), (851000000, 2_400_000))
+        self.assertEqual(_device_window(ST, chans, 2_400_000, OFFSET),
+                         (851000000 - OFFSET, 2_400_000))
 
     def test_rtl_rate_is_never_raised(self):
-        self.assertEqual(_device_window(RTL, AC_SIMULCAST, 2_400_000, OFFSET), (856443750, 2_400_000))
+        self.assertEqual(_device_window(RTL, AC_SIMULCAST, 2_400_000, OFFSET),
+                         (856443750 - OFFSET, 2_400_000))
         chans = [851012500, 851912500]
-        self.assertEqual(_device_window(RTL, chans, 2_400_000, OFFSET), (851462500, 2_400_000))
+        self.assertEqual(_device_window(RTL, chans, 2_400_000, OFFSET),
+                         (851462500 - OFFSET, 2_400_000))
 
     def test_every_rate_has_an_op25_two_stage_decimator(self):
-        for chans in (CAPE_MAY, AC_SIMULCAST, BALTIMORE_COUNTY, [851012500]):
+        for chans in (CAPE_MAY, AC_SIMULCAST, BALTIMORE_COUNTY, MTRTRS, [851012500]):
             _, rate = _device_window(ST, chans, 2_400_000, OFFSET)
             self.assertTrue(_get_decim(rate), rate)
             self.assertTrue(2_000_000 <= rate <= 10_660_000)  # SoapySDRPlay3 ST range
@@ -115,9 +132,10 @@ class GeneratorTests(unittest.TestCase):
             offset=OFFSET,
         )
         main, follower = config["devices"]
-        self.assertEqual((main["frequency"], main["rate"]), (772118750, 6_000_000))
+        self.assertEqual((main["frequency"], main["rate"]), (772118750 - OFFSET, 6_000_000))
         # RTL follower can't hold 5.17 MHz -> stays on the selected CC at its rate.
-        self.assertEqual((follower["frequency"], follower["rate"]), (CAPE_MAY[0], 2_400_000))
+        self.assertEqual((follower["frequency"], follower["rate"]),
+                         (CAPE_MAY[0] - OFFSET, 2_400_000))
         # Control-channel hunt list is untouched.
         self.assertEqual(
             config["trunking"]["chans"][0]["control_channel_list"].count(","), len(CAPE_MAY) - 1

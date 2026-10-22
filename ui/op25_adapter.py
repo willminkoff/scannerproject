@@ -152,7 +152,12 @@ _SDRPLAY_WIDE_WINDOWS = (
     (8_000_000, 8_000_000),
 )
 # Kept clear inside each edge of the window, on top of the LO offset.
-_WINDOW_EDGE_MARGIN_HZ = 150_000
+# 100 kHz is eight P25 channel widths off the filter skirt -- ample -- and the
+# tighter figure matters: at 150 kHz a 7.8 MHz site (MTRTRS, 851.9625-859.7625)
+# missed the 8 MHz filter by 150 kHz and fell back to a 2.4 MS/s window, which
+# on an SDRplay is a 1.536 MHz filter. Falling back costs six MHz of site to
+# save a tenth of a MHz of skirt.
+_WINDOW_EDGE_MARGIN_HZ = 100_000
 # Share of the sample rate an RTL-SDR passes cleanly.
 _RTL_USABLE_FRACTION = 0.8
 
@@ -176,23 +181,31 @@ def _device_window(
     window holds them all.  When nothing the device can do holds them, falls
     back to the old behaviour: default rate centred on ``channels_hz[0]``
     (the selected control channel), so control is never outside the window.
+
+    The returned centre is the device's nominal ``frequency``; multi_rx tunes
+    the hardware to ``frequency + offset``, so the centre is pre-compensated by
+    ``-offset`` and the passband lands symmetrically on the channels.  Without
+    that the offset eats one edge's margin (at offset=25 kHz a nominally
+    centred 7.8 MHz site gets 75 kHz of skirt below and 125 kHz above), which
+    is enough to push a site that fits onto the fallback path.
     """
     primary = int(channels_hz[0])
+    off = int(offset)
     lo, hi = min(int(c) for c in channels_hz), max(int(c) for c in channels_hz)
-    needed = (hi - lo) + 2 * (_WINDOW_EDGE_MARGIN_HZ + abs(int(offset)))
+    needed = (hi - lo) + 2 * _WINDOW_EDGE_MARGIN_HZ
     base_rate = _device_sample_rate_for_args(args, default_rate)
     candidates = [base_rate]
     if _is_sdrplay_args(args) and base_rate != RSPDUO_DT_SAMPLE_RATE:
         candidates += [r for r, _ in _SDRPLAY_WIDE_WINDOWS if r > base_rate]
     for rate in candidates:
         if _usable_window_hz(args, rate) >= needed:
-            return (lo + hi) // 2, rate
+            return (lo + hi) // 2 - off, rate
     logger.warning(
         "op25 window: %.4f-%.4f MHz (%.2f MHz) does not fit one window on %s; "
         "centring on %.5f MHz at %.1f MS/s",
         lo / 1e6, hi / 1e6, (hi - lo) / 1e6, args, primary / 1e6, base_rate / 1e6,
     )
-    return primary, base_rate
+    return primary - off, base_rate
 
 
 # RTL-SDR's gr-osmosdr backend exposes a single ``LNA`` gain element
