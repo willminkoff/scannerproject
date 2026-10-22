@@ -1,0 +1,122 @@
+{
+  "favorites_name": "Burns MilAir",
+  "custom_favorites": [
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "live voice, 15 dB bursts (disco centre 262.121)",
+      "alpha_tag": "Burns MilAir 262.125",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 262.125,
+      "id": "burns-milair-01"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "live voice, 17 dB bursts",
+      "alpha_tag": "Burns MilAir 262.175",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 262.175,
+      "id": "burns-milair-02"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "live voice, 15 dB bursts (disco 24h centre 262.222)",
+      "alpha_tag": "Burns MilAir 262.225",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 262.225,
+      "id": "burns-milair-03"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "disco centre 286.903, 26 dB voice, intermittent",
+      "alpha_tag": "Burns MilAir 286.900",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 286.9,
+      "id": "burns-milair-04"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "comb +25k",
+      "alpha_tag": "Burns MilAir 286.925",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 286.925,
+      "id": "burns-milair-05"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "disco 24h centre 286.966",
+      "alpha_tag": "Burns MilAir 286.950",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 286.95,
+      "id": "burns-milair-06"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "disco voice; near 303.000 air-to-air common",
+      "alpha_tag": "Burns MilAir 303.025",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 303.025,
+      "id": "burns-milair-07"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "disco voice x17, active 21:15",
+      "alpha_tag": "Burns MilAir 311.700",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 311.7,
+      "id": "burns-milair-08"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "disco voice x10",
+      "alpha_tag": "Burns MilAir 321.975",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 321.975,
+      "id": "burns-milair-09"
+    }
+  ]
+}
