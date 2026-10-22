@@ -4,13 +4,13 @@ UHF milair for Campbell AAF (KHOP) and the Fort Campbell ranges. Built
 2026-10-21 for the Nashville location, sized to the airband pool's limits
 (12 channels / 6 LO clusters of 2 MHz).
 
-- File: `favorites_sets/ft_campbell_uhf.json` — 7 entries
+- File: `favorites_sets/ft_campbell_uhf.json` — 8 entries
 - Favorites name / tile: `Ft Campbell UHF` (`fav-ft-campbell-uhf`)
 - Band: **airband only** (225-400 MHz routes to the AM pool). No ground, no digital.
 
 | Band | Contents | Fit |
 |---|---|---|
-| Airband | 7 Campbell AAF / range UHF channels | 7/12 channels, **6/6 clusters** → 3.6 s revisit |
+| Airband | 8 Campbell AAF / range UHF channels | 8/12 channels, **6/6 clusters** → 3.6 s revisit |
 
 The cluster budget binds before the channel budget: UHF milair is spread over
 ~60 MHz here and each LO window is only 2 MHz wide, so seven channels is what
@@ -27,7 +27,26 @@ within 2 MHz of one already listed.
 | 3 | 278.800 | **Campbell Tower (UHF)** | aircraft on final/departure |
 | 4 | 285.625 | **Eagle Control / Eagle Radio** | aircraft entering R3701/R3702, MOAs, drop zones |
 | 5 | 297.100 | **160th SOAR Operations** | Night Stalker ops |
+| 3 | 280.250 | **Refuel?** — unidentified, locally strong | **aircraft** |
 | 6 | 307.025 | **Campbell Approach/Departure East** | **aircraft at altitude** |
+
+### 280.250 "Refuel?"
+
+Heard on the Uniden at Burns on 2026-10-21 and confirmed on the RSP1B the same
+evening: median -89.1 dBFS with a **17.2 dB burst** to -71.9. Real traffic,
+locally strong. Not identified — the name is a hypothesis from the AR-46V /
+AR-47V Night Stalker tracks running overhead, not a known assignment.
+
+It rides free: 280.250 is 1.45 MHz from 278.800, so the two share one 2 MHz
+window and the channel count goes 7 → 8 with the cluster count unchanged.
+
+**disco never saw it** — zero detections in 279.5-281.0 MHz. Not a coverage
+gap (the sweep is a continuous 225-400) but a duty-cycle limit: 200 ms dwell
+and 1.8 MHz steps means ~97 steps per pass and a revisit near 20-30 s, so any
+one frequency is being watched about 1% of the time. disco finds busy channels
+and misses quiet ones. **An exact frequency off the Uniden's display is worth
+more than disco's estimate** — disco locates to +/-25 kHz at best, the Uniden
+reads the channel exactly.
 
 ## No continuous broadcasts — ever
 

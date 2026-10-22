@@ -56,6 +56,19 @@
     {
       "kind": "conventional",
       "system_id": 0,
+      "system_key": "ftcampbell-uhf:Unidentified",
+      "system_name": "Unidentified",
+      "department_name": "heard on the Uniden; chirp confirms 17 dB burst",
+      "alpha_tag": "Refuel?",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 280.25,
+      "id": "ftcampbell-uhf-05"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
       "system_key": "ftcampbell-uhf:Fort Campbell Range Control",
       "system_name": "Fort Campbell Range Control",
       "department_name": "Eagle Control / Eagle Radio",
@@ -64,7 +77,7 @@
       "talkgroup": "",
       "control_channels": [],
       "frequency": 285.625,
-      "id": "ftcampbell-uhf-05"
+      "id": "ftcampbell-uhf-06"
     },
     {
       "kind": "conventional",
@@ -77,7 +90,7 @@
       "talkgroup": "",
       "control_channels": [],
       "frequency": 297.1,
-      "id": "ftcampbell-uhf-06"
+      "id": "ftcampbell-uhf-07"
     },
     {
       "kind": "conventional",
@@ -90,7 +103,7 @@
       "talkgroup": "",
       "control_channels": [],
       "frequency": 307.025,
-      "id": "ftcampbell-uhf-07"
+      "id": "ftcampbell-uhf-08"
     }
   ]
 }
