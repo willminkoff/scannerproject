@@ -1,0 +1,109 @@
+{
+  "favorites_name": "Ft Campbell UHF",
+  "custom_favorites": [
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "ftcampbell-uhf:Fort Campbell Range Control",
+      "system_name": "Fort Campbell Range Control",
+      "department_name": "Range Control STRIKER",
+      "alpha_tag": "FTC Striker",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 250.2,
+      "id": "ftcampbell-uhf-01"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "ftcampbell-uhf:Campbell AAF (KHOP)",
+      "system_name": "Campbell AAF (KHOP)",
+      "department_name": "Airlift Command Element",
+      "alpha_tag": "KHOP ALCE",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 251.2,
+      "id": "ftcampbell-uhf-02"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "ftcampbell-uhf:Campbell AAF (KHOP)",
+      "system_name": "Campbell AAF (KHOP)",
+      "department_name": "Approach/Departure West",
+      "alpha_tag": "KHOP A/D West",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 269.525,
+      "id": "ftcampbell-uhf-03"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "ftcampbell-uhf:Campbell AAF (KHOP)",
+      "system_name": "Campbell AAF (KHOP)",
+      "department_name": "Campbell Tower (UHF)",
+      "alpha_tag": "KHOP Tower",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 278.8,
+      "id": "ftcampbell-uhf-04"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "ftcampbell-uhf:Fort Campbell Range Control",
+      "system_name": "Fort Campbell Range Control",
+      "department_name": "Eagle Control / Eagle Radio",
+      "alpha_tag": "FTC Eagle Ctrl",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 285.625,
+      "id": "ftcampbell-uhf-05"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "ftcampbell-uhf:Fort Campbell Special Ops",
+      "system_name": "Fort Campbell Special Ops",
+      "department_name": "160th SOAR Operations",
+      "alpha_tag": "160th SOAR Ops",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 297.1,
+      "id": "ftcampbell-uhf-06"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "ftcampbell-uhf:Campbell AAF (KHOP)",
+      "system_name": "Campbell AAF (KHOP)",
+      "department_name": "Approach/Departure East",
+      "alpha_tag": "KHOP A/D East",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 307.025,
+      "id": "ftcampbell-uhf-07"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "ftcampbell-uhf:Campbell AAF (KHOP)",
+      "system_name": "Campbell AAF (KHOP)",
+      "department_name": "Campbell ATIS (UHF)",
+      "alpha_tag": "KHOP ATIS",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 308.4,
+      "id": "ftcampbell-uhf-08"
+    }
+  ]
+}
