@@ -45,13 +45,26 @@
       "system_id": 0,
       "system_key": "burns-milair:UHF milair (observed)",
       "system_name": "Burns TN UHF milair (observed)",
+      "department_name": "heard on the Uniden; chirp confirms 17 dB burst",
+      "alpha_tag": "Burns MilAir 280.250",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 280.25,
+      "id": "burns-milair-04"
+    },
+    {
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "burns-milair:UHF milair (observed)",
+      "system_name": "Burns TN UHF milair (observed)",
       "department_name": "disco centre 286.903, 26 dB voice, intermittent",
       "alpha_tag": "Burns MilAir 286.900",
       "service_tag": 15,
       "talkgroup": "",
       "control_channels": [],
       "frequency": 286.9,
-      "id": "burns-milair-04"
+      "id": "burns-milair-05"
     },
     {
       "kind": "conventional",
@@ -64,7 +77,7 @@
       "talkgroup": "",
       "control_channels": [],
       "frequency": 286.925,
-      "id": "burns-milair-05"
+      "id": "burns-milair-06"
     },
     {
       "kind": "conventional",
@@ -77,7 +90,7 @@
       "talkgroup": "",
       "control_channels": [],
       "frequency": 286.95,
-      "id": "burns-milair-06"
+      "id": "burns-milair-07"
     },
     {
       "kind": "conventional",
@@ -90,7 +103,7 @@
       "talkgroup": "",
       "control_channels": [],
       "frequency": 303.025,
-      "id": "burns-milair-07"
+      "id": "burns-milair-08"
     },
     {
       "kind": "conventional",
@@ -103,7 +116,7 @@
       "talkgroup": "",
       "control_channels": [],
       "frequency": 311.7,
-      "id": "burns-milair-08"
+      "id": "burns-milair-09"
     },
     {
       "kind": "conventional",
@@ -116,7 +129,7 @@
       "talkgroup": "",
       "control_channels": [],
       "frequency": 321.975,
-      "id": "burns-milair-09"
+      "id": "burns-milair-10"
     }
   ]
 }

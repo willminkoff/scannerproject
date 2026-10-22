@@ -5,14 +5,14 @@ here was observed transmitting at 36.047/-87.306 (Burns, ZIP 37029) on the
 evening of 2026-10-21, using disco's 225-400 MHz HackRF sweep cross-checked
 against the chirp RSP1B.
 
-- File: `favorites_sets/burns_milair.json` — 9 entries
+- File: `favorites_sets/burns_milair.json` — 10 entries
 - Favorites name / tile: `Burns MilAir` (`fav-burns-milair`)
 - Band: **airband only** (225-400 routes to the AM pool). No ground, no digital.
 
 | Fit | |
 |---|---|
-| Channels | 9 / 12 |
-| LO clusters | **5 / 6** → 3.0 s revisit |
+| Channels | 10 / 12 |
+| LO clusters | **6 / 6** → 3.6 s revisit |
 | Global squelch | **-80 dBFS** (band floor here is -87 to -90) |
 
 ## Channels
@@ -25,9 +25,10 @@ against the chirp RSP1B.
 | 2 | 286.900 | disco centre 286.903, 26 dB AM voice, still active 21:13 |
 | 2 | 286.925 | comb |
 | 2 | 286.950 | disco 24 h centre 286.966 |
-| 3 | 303.025 | disco voice; sits near the 303.000 air-to-air common |
-| 4 | 311.700 | disco voice x17, active 21:15 |
-| 5 | 321.975 | disco voice x10 |
+| 3 | 280.250 | **confirmed**: heard on the Uniden, chirp shows a 17.2 dB burst to -71.9. disco never saw it at all (see below). |
+| 4 | 303.025 | disco voice; sits near the 303.000 air-to-air common |
+| 5 | 311.700 | disco voice x17, active 21:15 |
+| 6 | 321.975 | disco voice x10 |
 
 ## Why combs instead of single channels
 
@@ -107,6 +108,20 @@ lookup unreliable anyway. 303.025 is the one plausible match — the wiki lists
 303.000 as SODA Control / air-to-air common.
 
 Identification is best done from the audio: catch a callsign and work backwards.
+
+## disco's survey is thin — 280.250 proves it
+
+disco sweeps a continuous 225-400 with **200 ms dwell** and 1.8 MHz steps:
+~97 steps a pass, so it revisits any one frequency every 20-30 s and is
+watching it about **1% of the time**. It also only came back up ~100 minutes
+before this profile was built (it had been dead since Oct 18, and retention is
+24 h). So this list rests on ~100 minutes of 1%-duty sampling.
+
+280.250 is the proof: zero disco detections in 279.5-281.0 across its whole
+run, while the Uniden heard it plainly and chirp measured a 17 dB burst on it.
+disco finds *busy* channels and misses quiet ones. **An exact frequency read
+off the Uniden beats a disco estimate** — disco locates to +/-25 kHz, the
+Uniden reads the channel exactly.
 
 ## Refining it
 
