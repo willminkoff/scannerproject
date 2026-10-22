@@ -4,16 +4,16 @@ UHF milair for Campbell AAF (KHOP) and the Fort Campbell ranges. Built
 2026-10-21 for the Nashville location, sized to the airband pool's limits
 (12 channels / 6 LO clusters of 2 MHz).
 
-- File: `favorites_sets/ft_campbell_uhf.json` — 8 entries
+- File: `favorites_sets/ft_campbell_uhf.json` — 7 entries
 - Favorites name / tile: `Ft Campbell UHF` (`fav-ft-campbell-uhf`)
 - Band: **airband only** (225-400 MHz routes to the AM pool). No ground, no digital.
 
 | Band | Contents | Fit |
 |---|---|---|
-| Airband | 8 Campbell AAF / range UHF channels | 8/12 channels, **6/6 clusters** → 3.6 s revisit |
+| Airband | 7 Campbell AAF / range UHF channels | 7/12 channels, **6/6 clusters** → 3.6 s revisit |
 
 The cluster budget binds before the channel budget: UHF milair is spread over
-~60 MHz here and each LO window is only 2 MHz wide, so eight channels is what
+~60 MHz here and each LO window is only 2 MHz wide, so seven channels is what
 six windows buy. Adding a ninth frequency costs a whole cluster unless it lands
 within 2 MHz of one already listed.
 
@@ -28,11 +28,31 @@ within 2 MHz of one already listed.
 | 4 | 285.625 | **Eagle Control / Eagle Radio** | aircraft entering R3701/R3702, MOAs, drop zones |
 | 5 | 297.100 | **160th SOAR Operations** | Night Stalker ops |
 | 6 | 307.025 | **Campbell Approach/Departure East** | **aircraft at altitude** |
-| 6 | 308.400 | Campbell ATIS (UHF) | continuous ground broadcast |
 
-ATIS rides free in cluster 6 alongside A/D East. It is a continuous carrier, so
-it doubles as a propagation indicator: if ATIS ever opens up, the path to
-Campbell is in, and everything else on this list is worth a listen.
+## No continuous broadcasts — ever
+
+**ATIS 308.400 was in the first version of this profile and was removed.** It is
+a looping broadcast that never stops keying, and under scan-hold that is fatal:
+
+- `CHIRP_SCAN_HOLD_MAX_SEC=30.0` — a hold is force-released after 30 s
+- `CHIRP_LO_DWELL_SEC=0.6` — the other five clusters then take ~3 s to sweep
+- ATIS is still transmitting when the rotation returns, so it holds again
+
+That is **~30 s out of every 33 parked on the weather loop** — about 91% of
+airtime — and the rest of the profile gets the 3 s scraps. There is no escape
+from the operator's side: chirp's command set is `add_channel`,
+`remove_channel`, `set_squelch`, `set_freq`, `set_gain` and friends. **There is
+no skip, avoid or lockout.** The only way out is editing the profile.
+
+So the rule for any chirp pool: **no ATIS, AWOS, ASOS, VOLMET, HIWAS, TIBS,
+weather-voice or any other continuously-keyed channel.** Not even as a
+"propagation indicator" — the diagnostic value is real, but it costs the whole
+scan, and disco answers the propagation question without touching the
+listening pool.
+
+Two older profiles still carry this landmine and predate the rule:
+`cape_may_shore.json` (108.6 KACY ATIS) and `dc_aviation_le.json` (132.05 DCA,
+134.85 IAD, 127.8 BWI ATIS).
 
 ## Range reality — read this before judging the profile
 
@@ -42,7 +62,7 @@ antenna:
 
 | Transmitter | Height | Horizon | Reaches Nashville? |
 |---|---|---|---|
-| Tower, Ground, ATIS, range control | ground level | ~6 nm | **No** |
+| Tower, Ground, range control | ground level | ~6 nm | **No** |
 | Helicopter in the pattern | 500 ft | ~33 nm | No |
 | Helicopter on a low-level | 1,200 ft | ~48 nm | Marginal |
 | Aircraft on approach | 3,000 ft | ~73 nm | Yes |
@@ -59,9 +79,10 @@ rows above get worse, not better.
 
 ## What is deliberately left out
 
-- **VHF Campbell** (120.9 tower, 121.8 ground, 118.1 approach, 125.175 ATIS,
-  138.8 clearance). Same range problem, and they would compete for the same
-  12-channel pool. This profile is UHF per the request.
+- **VHF Campbell** (120.9 tower, 121.8 ground, 118.1 approach, 138.8
+  clearance). Same range problem, and they would compete for the same
+  12-channel pool. This profile is UHF per the request. VHF ATIS 125.175 is
+  excluded for the same reason as its UHF twin — see above.
 - **Campbell ground/range FM** (32.5, 40.15, 48.5, 65.2, 75.25) — low-band,
   ground-to-ground, no chance at 55 mi.
 - **The Fort Campbell trunked system** — a ground-based trunk 55 mi away will
@@ -93,7 +114,7 @@ its **UHF** rows do not match any authoritative source:
 | 275.800 "Campbell Ground UHF" | 266.800 |
 | 246.600 "Campbell Approach/Departure" | 269.525 (West) / 307.025 (East) |
 | 372.200 "Pilot-to-Dispatcher" | 230.100 |
-| 344.600 "Campbell Weather G2A" | 343.300 (PMSV Metro) |
+| 344.600 "Campbell Weather G2A" | 343.300 (PMSV Metro — interactive, not a loop) |
 | 280.900 "Sabre Heliport" | no corroboration found |
 | 367.300 "Eagle Range Radio" | 285.625 (Eagle Control / Eagle Radio) |
 

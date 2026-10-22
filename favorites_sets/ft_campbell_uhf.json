@@ -91,19 +91,6 @@
       "control_channels": [],
       "frequency": 307.025,
       "id": "ftcampbell-uhf-07"
-    },
-    {
-      "kind": "conventional",
-      "system_id": 0,
-      "system_key": "ftcampbell-uhf:Campbell AAF (KHOP)",
-      "system_name": "Campbell AAF (KHOP)",
-      "department_name": "Campbell ATIS (UHF)",
-      "alpha_tag": "KHOP ATIS",
-      "service_tag": 15,
-      "talkgroup": "",
-      "control_channels": [],
-      "frequency": 308.4,
-      "id": "ftcampbell-uhf-08"
     }
   ]
 }
