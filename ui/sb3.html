@@ -1629,6 +1629,57 @@
       opacity: 0.45;
     }
 
+    .band-scan-status {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 8px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      min-height: 16px;
+    }
+
+    .band-scan-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      flex: none;
+    }
+
+    /* Only the scanning state animates: a moving dot is the whole point --
+       it is the proof that the LO is still rotating. */
+    .band-scan-status.is-scanning .band-scan-dot {
+      background: var(--ok, #4ea76a);
+      animation: band-scan-pulse 1.2s ease-in-out infinite;
+    }
+
+    .band-scan-status.is-holding .band-scan-dot {
+      background: var(--warn);
+      animation: none;
+    }
+
+    .band-scan-status.is-dead .band-scan-dot {
+      background: var(--accent);
+      animation: none;
+    }
+
+    @keyframes band-scan-pulse {
+      0%, 100% { opacity: 0.25; }
+      50%      { opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .band-scan-status.is-scanning .band-scan-dot { animation: none; opacity: 1; }
+    }
+
+    .quick-scan-action.is-active {
+      border-color: var(--ok, #4ea76a);
+      color: var(--ok, #4ea76a);
+      font-weight: 700;
+    }
+
     .band-scan-note {
       margin-top: 8px;
       font-size: 11px;
@@ -3504,6 +3555,10 @@
                   >
                     GMRS
                   </button>
+                </div>
+                <div class="band-scan-status" id="band-scan-status">
+                  <span class="band-scan-dot" id="band-scan-dot"></span>
+                  <span id="band-scan-status-text">checking…</span>
                 </div>
                 <div class="band-scan-note">
                   One-tap profile switching by service band.
@@ -14320,6 +14375,9 @@
 
       if (els.playerBoxAnalog) els.playerBoxAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'vfo');
       if (els.controlsGround) els.controlsGround.classList.toggle('hidden', target !== 'ground');
+      // The indicator reports the band in view, so repaint it on a tab change
+      // instead of waiting out the status poll.
+      try { if (typeof renderBandScanStatus === 'function') renderBandScanStatus(); } catch (_) {}
 
       // Keypad belongs to the VFO tab only — Airband is camp mode, where Tune
       // moves the whole deviceset centre and the existing button is correct.
@@ -15217,6 +15275,78 @@
     // DATA REFRESH
     // ============================================
     
+    // --- Band scan: show that it is actually running -------------------
+    // Driven by airband_scan / ground_scan in /api/status, which build_status
+    // reads straight off each chirp daemon. The old button state came from
+    // state[target].currentProfile, which the direct-post shim never sets, and
+    // the refresh hook (updateBandScanButtonStates) was never even defined --
+    // so pressing a preset changed nothing visible. This reads the radio.
+    function currentScanState() {
+      const target = (state.activeTarget === 'ground') ? 'ground' : 'airband';
+      return { target: target, scan: (state[target] || {}).scan || null };
+    }
+
+    function updateBandScanButtonStates() {
+      const { target, scan } = currentScanState();
+      const preset = scan && scan.preset ? String(scan.preset) : '';
+      Object.keys(BAND_SCAN_PRESET_BY_KEY || {}).forEach((key) => {
+        const p = BAND_SCAN_PRESET_BY_KEY[key];
+        const btn = (typeof getBandScanButton === 'function') ? getBandScanButton(p) : null;
+        if (!btn) return;
+        const pTarget = (p.target === 'ground') ? 'ground' : 'airband';
+        btn.classList.toggle('is-active', Boolean(preset) && key === preset && pTarget === target);
+      });
+    }
+
+    function renderBandScanStatus() {
+      const box = document.getElementById('band-scan-status');
+      const txt = document.getElementById('band-scan-status-text');
+      if (!box || !txt) return;
+      const { target, scan } = currentScanState();
+      const bandName = target === 'ground' ? 'Ground' : 'Airband';
+      box.classList.remove('is-scanning', 'is-holding', 'is-dead');
+
+      // {} from chirp_scan_state means the daemon did not answer. That is not
+      // the same as "idle", and saying "idle" would be a lie.
+      if (!scan || typeof scan.channels !== 'number') {
+        box.classList.add('is-dead');
+        txt.textContent = bandName + ': no reply from chirp';
+        updateBandScanButtonStates();
+        return;
+      }
+      if (!scan.channels) {
+        box.classList.add('is-dead');
+        txt.textContent = bandName + ': no channels loaded';
+        updateBandScanButtonStates();
+        return;
+      }
+
+      const presetLabel = scan.preset
+        ? ((BAND_SCAN_PRESET_BY_KEY[scan.preset] || {}).label || scan.preset)
+        : 'Favorites';
+      const bits = [presetLabel, scan.channels + ' ch'];
+      if (scan.hold_state === 'holding') {
+        box.classList.add('is-holding');
+        bits.push('HOLDING');
+      } else if (scan.scanning) {
+        box.classList.add('is-scanning');
+        // Window index/centre change every dwell, so this visibly ticks --
+        // that movement is the evidence the scan is alive.
+        if (Number.isFinite(scan.cluster_index) && Number.isFinite(scan.n_clusters)) {
+          bits.push('window ' + (scan.cluster_index + 1) + '/' + scan.n_clusters);
+        }
+        if (Number.isFinite(scan.cluster_center_mhz)) {
+          bits.push(scan.cluster_center_mhz.toFixed(3) + ' MHz');
+        }
+        if (Number.isFinite(scan.revisit_s)) bits.push(scan.revisit_s + 's');
+      } else {
+        box.classList.add('is-dead');
+        bits.push('parked');
+      }
+      txt.textContent = bits.join(' · ');
+      updateBandScanButtonStates();
+    }
+
     async function refresh(options = {}) {
       if (refreshInFlight) return refreshInFlight;
       const fetchProfiles = options.fetchProfiles !== false;
@@ -15341,6 +15471,9 @@
           state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
           state.airband.filter = pickNumber(data.airband_filter, 3500);
           state.airband.avoids = data.avoids_airband?.sample || [];
+          state.airband.scan = data.airband_scan || null;
+          state.ground.scan = data.ground_scan || null;
+          renderBandScanStatus();
 
           const groundObservedGain = pickNumber(data.ground_gain, 32.8);
           const groundAppliedGain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;

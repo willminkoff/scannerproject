@@ -122,8 +122,16 @@ def build_status(state: State) -> Dict:
         ground_status = "live"
         ground_running = True
 
+    _air_scan = chirp_scan_state(_air_snap)
+    _gnd_scan = chirp_scan_state(_gnd_snap)
+
     return {
         "ok": True,
+        # Live scan state straight off each chirp daemon, so the UI's band-scan
+        # indicator reflects the radio instead of a profile variable the
+        # direct-post shim never sets.
+        "airband_scan": _air_scan,
+        "ground_scan": _gnd_scan,
         "airband_squelch_dbfs": float(_air_sq) if _air_sq is not None else None,
         "airband_applied_squelch_dbfs": float(_air_sq) if _air_sq is not None else None,
         "airband_gain": float(_air_gain) if _air_gain is not None else None,
@@ -2802,6 +2810,79 @@ def _ensure_power_schedule_thread():
 # button snapped back to VFO because ensureBandScanProfile's create/save
 # calls both 501'd, so /api/profile then couldn't find the profile.
 # ---------------------------------------------------------------------------
+
+_BANDSCAN_ID_RE = __import__("re").compile(r"^bs-([a-z0-9-]+?)-(\d+)$", __import__("re").I)
+
+
+def chirp_scan_state(snap):
+    """Summarise a chirp get_status snapshot for the UI's scan indicator.
+
+    The band-scan buttons used to derive "am I active?" from
+    ``state[target].currentProfile``, but the direct-post shim
+    (__BANDSCAN_DIRECT_POST_SHIM__) pushes channels straight to chirp and
+    never touches the profile system, so that variable was always stale --
+    which is why pressing a preset produced no visible change anywhere.
+
+    Ground truth is what the radio is actually holding, so read it back:
+    ``bandscan_apply`` names every channel it creates ``bs-<preset>-<n>``,
+    and the LO scheduler reports which cluster is live right now.
+
+    Returns {} when the daemon did not answer, so a dead chirp shows as
+    "no data" rather than as "not scanning".
+    """
+    if not isinstance(snap, dict) or not snap:
+        return {}
+    chans = snap.get("channels")
+    if isinstance(chans, dict):
+        chans = list(chans.values())
+    if not isinstance(chans, list):
+        chans = []
+
+    presets, scanned = {}, 0
+    for c in chans:
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("id") or "")
+        if "keepalive" in cid.lower():
+            continue
+        scanned += 1
+        m = _BANDSCAN_ID_RE.match(cid)
+        if m:
+            presets[m.group(1).lower()] = presets.get(m.group(1).lower(), 0) + 1
+
+    lo = snap.get("lo_scheduler") or {}
+
+    def _num(v, cast=float):
+        try:
+            return cast(v)
+        except (TypeError, ValueError):
+            return None
+
+    n_clusters = _num(lo.get("n_clusters"), int)
+    dwell = _num(lo.get("dwell_s"))
+    out = {
+        "channels": scanned,
+        "n_clusters": n_clusters,
+        "cluster_index": _num(lo.get("current_cluster_idx"), int),
+        "cluster_center_mhz": _num(lo.get("current_cluster_center_hz")) and
+                              _num(lo.get("current_cluster_center_hz")) / 1e6,
+        "dwell_s": dwell,
+        "revisit_s": round(n_clusters * dwell, 2) if (n_clusters and dwell) else None,
+        "hold_state": str(lo.get("scan_hold_state") or "") or None,
+        "held_channel_id": lo.get("held_channel_id") or None,
+        # Rotating is what the operator means by "it is running": more than one
+        # window to visit and a dwell to visit them on.
+        "scanning": bool(n_clusters and n_clusters > 1 and dwell and dwell > 0),
+    }
+    if presets:
+        # One preset owns the band at a time; if several somehow coexist, the
+        # one holding the most channels is the one being heard.
+        top = max(presets.items(), key=lambda kv: kv[1])
+        out["preset"] = top[0]
+        out["preset_channels"] = top[1]
+        out["presets"] = presets
+    return out
+
 
 def bandscan_apply(form, state):
     """POST /api/bandscan/apply — push a band-scan preset straight to chirp.
