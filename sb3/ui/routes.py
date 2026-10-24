@@ -2870,10 +2870,16 @@ def chirp_scan_state(snap):
         "revisit_s": round(n_clusters * dwell, 2) if (n_clusters and dwell) else None,
         "hold_state": str(lo.get("scan_hold_state") or "") or None,
         "held_channel_id": lo.get("held_channel_id") or None,
-        # Rotating is what the operator means by "it is running": more than one
-        # window to visit and a dwell to visit them on.
-        "scanning": bool(n_clusters and n_clusters > 1 and dwell and dwell > 0),
+        # Two different healthy states, and calling either one "parked" is
+        # wrong.  GMRS is the case that proves it: all 15 channels span
+        # 175 kHz, so they fit a single 2 MHz window and the LO never moves --
+        # yet every one of them is live at once, which is strictly better
+        # coverage than rotating.  Only a lone channel in a lone window is
+        # genuinely parked.
+        "rotating": bool(n_clusters and n_clusters > 1 and dwell and dwell > 0),
+        "all_live": bool(n_clusters == 1 and scanned > 1),
     }
+    out["scanning"] = bool(out["rotating"] or out["all_live"])
     if presets:
         # One preset owns the band at a time; if several somehow coexist, the
         # one holding the most channels is the one being heard.

@@ -1655,6 +1655,11 @@
       animation: band-scan-pulse 1.2s ease-in-out infinite;
     }
 
+    .band-scan-status.is-all-live .band-scan-dot {
+      background: var(--ok, #4ea76a);
+      animation: none;
+    }
+
     .band-scan-status.is-holding .band-scan-dot {
       background: var(--warn);
       animation: none;
@@ -15304,7 +15309,7 @@
       if (!box || !txt) return;
       const { target, scan } = currentScanState();
       const bandName = target === 'ground' ? 'Ground' : 'Airband';
-      box.classList.remove('is-scanning', 'is-holding', 'is-dead');
+      box.classList.remove('is-scanning', 'is-all-live', 'is-holding', 'is-dead');
 
       // {} from chirp_scan_state means the daemon did not answer. That is not
       // the same as "idle", and saying "idle" would be a lie.
@@ -15328,7 +15333,7 @@
       if (scan.hold_state === 'holding') {
         box.classList.add('is-holding');
         bits.push('HOLDING');
-      } else if (scan.scanning) {
+      } else if (scan.rotating) {
         box.classList.add('is-scanning');
         // Window index/centre change every dwell, so this visibly ticks --
         // that movement is the evidence the scan is alive.
@@ -15339,6 +15344,15 @@
           bits.push(scan.cluster_center_mhz.toFixed(3) + ' MHz');
         }
         if (Number.isFinite(scan.revisit_s)) bits.push(scan.revisit_s + 's');
+      } else if (scan.all_live) {
+        // One window wide enough to hold every channel: nothing rotates and
+        // nothing needs to. All of them are being listened to at once, which
+        // beats rotating -- so this is green, just not animated.
+        box.classList.add('is-scanning', 'is-all-live');
+        bits.push('all live');
+        if (Number.isFinite(scan.cluster_center_mhz)) {
+          bits.push(scan.cluster_center_mhz.toFixed(3) + ' MHz');
+        }
       } else {
         box.classList.add('is-dead');
         bits.push('parked');

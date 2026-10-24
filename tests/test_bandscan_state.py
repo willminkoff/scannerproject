@@ -58,15 +58,29 @@ class PresetDetectionTests(unittest.TestCase):
 
 class ScanningFlagTests(unittest.TestCase):
     def test_rotating_counts_as_scanning(self):
-        self.assertTrue(chirp_scan_state(snap([ch("bs-marine-0")]))["scanning"])
+        st = chirp_scan_state(snap([ch("bs-marine-0")]))
+        self.assertTrue(st["scanning"])
+        self.assertTrue(st["rotating"])
 
-    def test_single_cluster_is_not_scanning(self):
-        """One window with nothing to rotate to is parked, not scanning."""
+    def test_one_window_holding_every_channel_is_still_scanning(self):
+        """The live GMRS case: 15 channels inside 175 kHz fit a single 2 MHz
+        window, so the LO never moves -- but all 15 are live at once, which is
+        better coverage than rotating. Calling that "parked" is wrong."""
+        chans = [ch("bs-gmrs-%d" % i, 462.55 + i * 0.0125) for i in range(15)]
+        st = chirp_scan_state(snap(chans, n_clusters=1))
+        self.assertTrue(st["scanning"])
+        self.assertTrue(st["all_live"])
+        self.assertFalse(st["rotating"])
+        self.assertEqual(st["channels"], 15)
+
+    def test_lone_channel_in_lone_window_is_parked(self):
         st = chirp_scan_state(snap([ch("bs-marine-0")], n_clusters=1))
         self.assertFalse(st["scanning"])
+        self.assertFalse(st["all_live"])
+        self.assertFalse(st["rotating"])
 
-    def test_zero_dwell_is_not_scanning(self):
-        self.assertFalse(chirp_scan_state(snap([ch("bs-marine-0")], dwell_s=0))["scanning"])
+    def test_zero_dwell_does_not_rotate(self):
+        self.assertFalse(chirp_scan_state(snap([ch("bs-marine-0")], dwell_s=0))["rotating"])
 
     def test_revisit_is_clusters_times_dwell(self):
         st = chirp_scan_state(snap([ch("bs-marine-0")], n_clusters=6, dwell_s=0.6))
