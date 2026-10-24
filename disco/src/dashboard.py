@@ -2655,15 +2655,16 @@ DIGEST_MIN_CLASSIFIED_CONF = 0.6
 # a handful of broadcast/LTE bins out-rank the band you care about in every
 # "top N by hits" section. Scoping the whole report keeps those out.
 #
-# "milair" is the UHF military aviation band, 225-400 MHz AM -- the same cut
-# the sweep's band_start_hz/band_end_hz are set to when disco is milair-only.
-# Add a scope here and it shows up in the digest page's band picker.
+# "milair" is the UHF military aviation band, 225-400 MHz AM. The scope stays
+# selectable in the band picker, but the default is "all" again: the sweep is
+# back to its full 30-1300 MHz range, so defaulting the report to a 225-400
+# slice would hide most of what the sweep now finds.
 DIGEST_BAND_SCOPES = {
     "milair": (225_000_000.0, 400_000_000.0),
     "all": (0.0, 1e12),
 }
 DIGEST_BAND_LABELS = {"milair": "MILAIR 225-400", "all": "All bands"}
-DIGEST_DEFAULT_BAND = "milair"
+DIGEST_DEFAULT_BAND = "all"
 
 
 @app.get("/api/digest")

@@ -2,14 +2,14 @@
 # The live file is gitignored (it is per-host), so this copy exists so the
 # host's settings are versioned and recoverable. Restore with:
 #   cp disco/configs/sweep.scannerbox-1.yaml disco/configs/sweep.yaml
-# then restart disco-sweep@<serial>. Current scope: UHF milair 225-400 MHz
+# then restart disco-sweep@<serial>. Current scope: full 30-1300 MHz
 # (set 2026-10-14). The full-band setting was 30000000-1300000000.
 
 tuners:
   0000000000000000c66c63dc35742683:
     soapy_args: "driver=hackrf,serial=0000000000000000c66c63dc35742683"
-    band_start_hz: 225000000
-    band_end_hz: 400000000
+    band_start_hz: 30000000
+    band_end_hz: 1300000000
 
 sweep:
   sample_rate_hz: 2000000
