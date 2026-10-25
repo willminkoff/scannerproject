@@ -2884,10 +2884,7 @@ tr:hover td{background:#212530}
 <h1>Disco Digest <span id=\"band-badge\" style=\"font-size:0.8rem;font-weight:500;color:#e0af68;border:1px solid #3a3426;background:#211d14;padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:6px\"></span></h1>
 <div class=\"picker\">
   <label>band
-    <select id=\"picker-band\">
-      <option value=\"milair\" selected>MILAIR 225-400</option>
-      <option value=\"all\">All bands</option>
-    </select>
+    <select id=\"picker-band\">__BAND_OPTIONS__</select>
   </label>
   <label>window
     <select id=\"picker-hours\">
@@ -3120,8 +3117,23 @@ loadDigest();
 
 
 @app.get("/digest", response_class=HTMLResponse)
+def _digest_band_options_html():
+    """<option> list for the digest band picker, built from DIGEST_BAND_SCOPES.
+
+    Hardcoding these is what let the page disagree with the API: the markup
+    carried `selected` on milair, so the picker always asked for 225-400 even
+    after DIGEST_DEFAULT_BAND moved to "all".
+    """
+    parts = []
+    for key in DIGEST_BAND_SCOPES:
+        label = DIGEST_BAND_LABELS.get(key, key)
+        sel = " selected" if key == DIGEST_DEFAULT_BAND else ""
+        parts.append('<option value="%s"%s>%s</option>' % (key, sel, label))
+    return "".join(parts)
+
+
 def digest_page():
-    return DIGEST_HTML
+    return DIGEST_HTML.replace("__BAND_OPTIONS__", _digest_band_options_html())
 
 
 @app.get("/", response_class=HTMLResponse)
