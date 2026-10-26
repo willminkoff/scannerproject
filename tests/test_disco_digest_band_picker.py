@@ -68,36 +68,36 @@ class BandPickerTests(unittest.TestCase):
 
 
 class DigestRouteTests(unittest.TestCase):
-    """Exercise GET /digest, not digest_page().
+    """Check the routing table, not digest_page().
 
-    The 2026-10-25 breakage lived entirely in the routing table: a helper got
-    inserted between @app.get("/digest") and digest_page(), so the decorator
-    bound the helper and the route returned 93 bytes of <option> tags. Every
+    The 2026-10-25 breakage lived entirely in routing: a helper got inserted
+    between @app.get("/digest") and digest_page(), so the decorator bound the
+    helper and /digest returned 93 bytes of <option> tags. Every
     function-level test still passed, because digest_page() was never wrong.
-    Only a request catches it.
+
+    Introspecting app.routes and calling whatever the decorator actually bound
+    catches that, and needs no HTTP client (the box has no httpx).
     """
 
-    @classmethod
-    def setUpClass(cls):
-        from fastapi.testclient import TestClient
-        cls.client = TestClient(dashboard.app)
+    def _digest_route(self):
+        for r in dashboard.app.routes:
+            if getattr(r, "path", None) == "/digest":
+                return r
+        self.fail("no /digest route registered")
 
-    def test_route_returns_the_whole_page(self):
-        r = self.client.get("/digest")
-        self.assertEqual(r.status_code, 200)
-        body = r.text
-        self.assertGreater(len(body), 5000,
-                           "route served %d bytes -- decorator bound to the wrong function?" % len(body))
+    def test_route_is_bound_to_digest_page(self):
+        self.assertEqual(self._digest_route().endpoint.__name__, "digest_page")
+
+    def test_bound_endpoint_returns_the_whole_page(self):
+        body = self._digest_route().endpoint()
+        self.assertGreater(
+            len(body), 5000,
+            "route served %d bytes -- decorator bound to the wrong function?" % len(body))
         self.assertIn("<!doctype html>", body.lower())
         self.assertIn("Disco Digest", body)
 
-    def test_route_is_bound_to_digest_page(self):
-        routes = {r.path: r.endpoint.__name__
-                  for r in dashboard.app.routes if getattr(r, "path", None) == "/digest"}
-        self.assertEqual(routes.get("/digest"), "digest_page")
-
-    def test_route_markup_selects_the_default_band(self):
-        body = self.client.get("/digest").text
+    def test_bound_endpoint_selects_the_default_band(self):
+        body = self._digest_route().endpoint()
         self.assertIn('<option value="%s" selected>' % dashboard.DIGEST_DEFAULT_BAND, body)
         self.assertNotIn("__BAND_OPTIONS__", body)
 
