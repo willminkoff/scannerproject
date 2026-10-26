@@ -2667,6 +2667,28 @@ DIGEST_BAND_LABELS = {"milair": "MILAIR 225-400", "all": "All bands"}
 DIGEST_DEFAULT_BAND = "all"
 
 
+def _digest_band_options_html():
+    """<option> list for the digest band picker, built from DIGEST_BAND_SCOPES.
+
+    Hardcoding these is what let the page disagree with the API: the markup
+    carried `selected` on milair, so the picker always asked for 225-400 even
+    after DIGEST_DEFAULT_BAND moved to "all".
+
+    Defined up here, beside the dicts it reads, and NOT immediately above
+    digest_page(): that slot is occupied by @app.get("/digest"), and a function
+    inserted there silently steals the route. It did exactly that on
+    2026-10-25 -- /digest served 93 bytes of bare <option> tags while
+    digest_page() itself stayed perfectly correct, so calling the function in a
+    test proved nothing.
+    """
+    parts = []
+    for key in DIGEST_BAND_SCOPES:
+        label = DIGEST_BAND_LABELS.get(key, key)
+        sel = " selected" if key == DIGEST_DEFAULT_BAND else ""
+        parts.append('<option value="%s"%s>%s</option>' % (key, sel, label))
+    return "".join(parts)
+
+
 @app.get("/api/digest")
 def api_digest(hours: float = 24.0, tuner_id: str = "", band: str = DIGEST_DEFAULT_BAND):
     """Return an aggregated report over the last `hours` hours.
@@ -3117,21 +3139,6 @@ loadDigest();
 
 
 @app.get("/digest", response_class=HTMLResponse)
-def _digest_band_options_html():
-    """<option> list for the digest band picker, built from DIGEST_BAND_SCOPES.
-
-    Hardcoding these is what let the page disagree with the API: the markup
-    carried `selected` on milair, so the picker always asked for 225-400 even
-    after DIGEST_DEFAULT_BAND moved to "all".
-    """
-    parts = []
-    for key in DIGEST_BAND_SCOPES:
-        label = DIGEST_BAND_LABELS.get(key, key)
-        sel = " selected" if key == DIGEST_DEFAULT_BAND else ""
-        parts.append('<option value="%s"%s>%s</option>' % (key, sel, label))
-    return "".join(parts)
-
-
 def digest_page():
     return DIGEST_HTML.replace("__BAND_OPTIONS__", _digest_band_options_html())
 

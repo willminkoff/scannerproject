@@ -67,6 +67,41 @@ class BandPickerTests(unittest.TestCase):
             dashboard.DIGEST_BAND_SCOPES.pop("unlabelled", None)
 
 
+class DigestRouteTests(unittest.TestCase):
+    """Exercise GET /digest, not digest_page().
+
+    The 2026-10-25 breakage lived entirely in the routing table: a helper got
+    inserted between @app.get("/digest") and digest_page(), so the decorator
+    bound the helper and the route returned 93 bytes of <option> tags. Every
+    function-level test still passed, because digest_page() was never wrong.
+    Only a request catches it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from fastapi.testclient import TestClient
+        cls.client = TestClient(dashboard.app)
+
+    def test_route_returns_the_whole_page(self):
+        r = self.client.get("/digest")
+        self.assertEqual(r.status_code, 200)
+        body = r.text
+        self.assertGreater(len(body), 5000,
+                           "route served %d bytes -- decorator bound to the wrong function?" % len(body))
+        self.assertIn("<!doctype html>", body.lower())
+        self.assertIn("Disco Digest", body)
+
+    def test_route_is_bound_to_digest_page(self):
+        routes = {r.path: r.endpoint.__name__
+                  for r in dashboard.app.routes if getattr(r, "path", None) == "/digest"}
+        self.assertEqual(routes.get("/digest"), "digest_page")
+
+    def test_route_markup_selects_the_default_band(self):
+        body = self.client.get("/digest").text
+        self.assertIn('<option value="%s" selected>' % dashboard.DIGEST_DEFAULT_BAND, body)
+        self.assertNotIn("__BAND_OPTIONS__", body)
+
+
 class DigestPageTests(unittest.TestCase):
     def test_placeholder_is_substituted(self):
         page = dashboard.digest_page()
