@@ -15092,11 +15092,22 @@
     }
 
     function updateQuickScanButtons() {
+      // Single owner of the `active` class on these buttons.
+      //
+      // This used to decide by comparing the profile id the UI believed was
+      // loaded against preset.profileId. The direct-post shim pushes channels
+      // straight to chirp and never touches the profile system -- and the
+      // bandscan_* profiles never existed anyway (/api/profile/create returns
+      // 501) -- so that comparison could only ever be false. It therefore
+      // stripped `active` off a button a live scan had just lit: the light
+      // pulsed for a moment after a click, then went out.
+      //
+      // Decide from the radio instead, the same source the status line uses.
       for (const preset of BAND_SCAN_PRESETS) {
         const target = preset.target === 'ground' ? 'ground' : 'airband';
-        const profileId = String(preset.profileId || '').trim();
-        const currentProfile = String((state[target] || {}).currentProfile || '').trim();
-        const isActive = Boolean(profileId && currentProfile === profileId);
+        const live = (typeof scanStateFor === 'function') ? scanStateFor(target) : null;
+        const isActive = Boolean(live && live.preset
+                                 && String(live.preset) === String(preset.key));
         const btn = getBandScanButton(preset);
         if (!btn) continue;
         btn.classList.toggle('active', isActive);
@@ -15294,19 +15305,12 @@
     }
 
     function updateBandScanButtonStates() {
-      // A preset lights when it is loaded on ITS OWN band, whichever tab you
-      // happen to be viewing: the GMRS button answers "is GMRS scanning?",
-      // and that is true whether or not you are looking at Ground.
-      Object.keys(BAND_SCAN_PRESET_BY_KEY || {}).forEach((key) => {
-        const p = BAND_SCAN_PRESET_BY_KEY[key];
-        const btn = (typeof getBandScanButton === 'function') ? getBandScanButton(p) : null;
-        if (!btn) return;
-        const s = scanStateFor((p.target === 'ground') ? 'ground' : 'airband');
-        // 'active' is the UI's existing class: it lights the ::after dot and
-        // runs the heartbeat animation. The first cut invented 'is-active',
-        // which nothing styled, so the dot never lit.
-        btn.classList.toggle('active', Boolean(s && s.preset && String(s.preset) === key));
-      });
+      // Kept as a name because the direct-post shim calls it. Delegates, so
+      // there is exactly one writer of `active` and the two cannot disagree.
+      // A preset lights when it is loaded on ITS OWN band, whichever tab is
+      // in view: the GMRS button answers "is GMRS scanning?", and that stays
+      // true while you are looking at Airband.
+      updateQuickScanButtons();
     }
 
     function renderBandScanStatus() {
@@ -15437,6 +15441,13 @@
           if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
           if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
           state.icecastActive = data.icecast_active;
+          // Paint the band-scan indicator wherever status lands. It was wired
+          // only into refresh(), which the SSE path never calls, so it was
+          // drawn on load and then left stale while fresh status arrived here
+          // every few seconds.
+          if (state.airband) state.airband.scan = data.airband_scan || null;
+          if (state.ground) state.ground.scan = data.ground_scan || null;
+          try { renderBandScanStatus(); } catch (_) {}
           state.icecastMounts = Array.isArray(data.icecast_mounts) ? data.icecast_mounts : [];
           state.icecastExpectedMounts = Array.isArray(data.icecast_expected_mounts)
             ? data.icecast_expected_mounts
@@ -15743,6 +15754,13 @@
             data.rtl_ground_service_active || data.ground_active
           );
           state.icecastActive = data.icecast_active;
+          // Paint the band-scan indicator wherever status lands. It was wired
+          // only into refresh(), which the SSE path never calls, so it was
+          // drawn on load and then left stale while fresh status arrived here
+          // every few seconds.
+          if (state.airband) state.airband.scan = data.airband_scan || null;
+          if (state.ground) state.ground.scan = data.ground_scan || null;
+          try { renderBandScanStatus(); } catch (_) {}
           // Ground band is now exposed via its own tab + #controls-ground
           // pane (fixed /ANALOG_GROUND.mp3 src). No band-selector gate.
           if (typeof data.ground_unit_active === 'boolean') {

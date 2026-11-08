@@ -53,14 +53,36 @@ class ButtonLightTests(unittest.TestCase):
         """The style the button toggle has to match."""
         self.assertIn(".quick-scan-action.active::after", self.src)
 
-    def test_button_toggle_uses_that_class(self):
+    def test_exactly_one_writer_of_the_active_class(self):
+        """Two writers is how the light "pulsed then stopped".
+
+        updateQuickScanButtons() decided from state[target].currentProfile,
+        which the direct-post shim never sets, so it computed false and
+        stripped `active` off a button a live scan had just lit.
+        """
+        writers = re.findall(r"classList\.toggle\('active'[^)]*\)", self.src)
+        btn_writers = [w for w in writers if "isActive" in w]
+        self.assertEqual(
+            len(btn_writers), 1,
+            "expected one writer of `active` on the scan buttons, found %d: %s"
+            % (len(btn_writers), btn_writers))
+
+    def test_the_writer_decides_from_the_radio_not_the_profile_system(self):
+        m = re.search(r"function updateQuickScanButtons\(\)\s*\{(.*?)\n    \}", self.src, re.S)
+        self.assertIsNotNone(m, "updateQuickScanButtons() missing")
+        body = m.group(1)
+        self.assertIn("scanStateFor(", body,
+                      "must read live scan state off the daemon")
+        self.assertNotIn("currentProfile", body,
+                         "the profile system is bypassed by the shim; it can "
+                         "only ever yield false here")
+        self.assertRegex(body, r"classList\.toggle\('active'")
+
+    def test_delegating_helper_does_not_also_toggle(self):
         m = re.search(r"function updateBandScanButtonStates\(\)\s*\{(.*?)\n    \}", self.src, re.S)
         self.assertIsNotNone(m, "updateBandScanButtonStates() missing")
-        body = m.group(1)
-        self.assertRegex(body, r"classList\.toggle\('active'",
-                         "must toggle 'active' -- the class that lights the dot")
-        self.assertNotRegex(body, r"classList\.toggle\('is-active'",
-                            "'is-active' is styled by nothing")
+        self.assertNotRegex(m.group(1), r"classList\.toggle\(",
+                            "it must delegate, not write the class itself")
 
     def test_no_dead_is_active_rule_remains(self):
         self.assertNotRegex(self.src, r"\.quick-scan-action\.is-active\s*\{")
@@ -78,6 +100,14 @@ class IndicatorWiringTests(unittest.TestCase):
         self.assertGreaterEqual(
             self.src.count("renderBandScanStatus()"), 3,
             "expected the definition plus a status-poll and a tab-change call")
+
+    def test_indicator_is_painted_where_status_actually_arrives(self):
+        """It was wired only into refresh(), which the SSE path never calls,
+        so it went stale the moment the page settled."""
+        sse = re.search(r"es\.addEventListener\('status'.*?\n      \}\);", self.src, re.S)
+        self.assertIsNotNone(sse, "SSE status handler missing")
+        self.assertIn("renderBandScanStatus()", sse.group(0),
+                      "the SSE status handler must repaint the indicator")
 
     def test_status_payload_fields_are_consumed(self):
         for field in ("airband_scan", "ground_scan"):
