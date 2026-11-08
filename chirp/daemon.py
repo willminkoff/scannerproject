@@ -174,9 +174,19 @@ class DaemonConfig:
     audio_out_kind: str = "file"  # Phase 1/2: "file"; Phase 3 adds "icecast"
     audio_out_path: Optional[str] = None
     audio_rate: float = 16000.0
-    # Per-channel post-decimation LPF cutoff (Hz) — the demod bandwidth.
-    # Default 12.5 kHz (full 25 kHz AM channel); airband.json tightens to
-    # 8 kHz for AM-voice SNR (carrier +-~4 kHz fits, less noise admitted).
+    # Per-channel post-decimation LPF cutoff (Hz) — HALF the demod bandwidth.
+    # This value goes straight to firdes.low_pass() as the cutoff (see
+    # chirp/dsp/channel.py), so the passband is +-channel_bw_hz and the filter
+    # is 2x this number wide. Read every value below as "x2".
+    #
+    # The 12500.0 default is a 25 kHz-wide filter. That suits airband's 25 kHz
+    # spacing but is WRONG on any 12.5 kHz grid (GMRS/MURS/NFM business): the
+    # neighbouring channel centre lands at the -6 dB passband edge, so one
+    # key-up opens three channels and the priority gate can latch an off-tune
+    # one (static). Pin it per band instead of inheriting:
+    #   airband.json 6000.0  -> 12 kHz, AM carrier +-~4 kHz fits, less noise
+    #   ground.json  8000.0  -> 16 kHz, wideband NFM (Carson +-8 kHz), and the
+    #                           12.5 kHz neighbour sits deep in the stopband
     channel_bw_hz: float = 12500.0
     # AM AGC ceiling (linear) + attack rate. Caps the old 96 dB / fast-attack
     # AGC that pumped up the noise floor on weak signals. AM-only.

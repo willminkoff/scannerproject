@@ -1,5 +1,5 @@
 {
-  "_comment": "chirp ground (NFM) daemon defaults. Phase 4a defaults + Phase 4b 'sdr' block. Separate UDP port + state path + hit log + icecast fallback from airband so the two daemons can coexist. See chirp/config/README.md.",
+  "_comment": "chirp ground (NFM) daemon defaults. Phase 4a defaults + Phase 4b 'sdr' block. Separate UDP port + state path + hit log + icecast fallback from airband so the two daemons can coexist. See chirp/config/README.md. GMRS 2026-11-08: channel_bw_hz is pinned here. It is NOT a channel width -- it is the one-sided cutoff handed to firdes.low_pass() in chirp/dsp/channel.py, so the demod passband is 2x this number. The inherited default 12500.0 therefore built a 25 kHz-wide filter on the 12.5 kHz GMRS grid: a single key-up on 462.5625 landed at roughly the -6 dB passband edge of both neighbours and opened them too, so one transmission showed up as a run of ~10 hits and the priority gate had a 9-in-10 chance of latching an off-tune channel (audible as static). 8000.0 keeps wideband GMRS intact -- Carson 2*(5 kHz dev + 3 kHz audio) = 16 kHz, i.e. +-8 kHz -- while putting the 12.5 kHz neighbour 4 kHz deep into the stopband. Do not raise this to 'cover the channel'; airband sets 6000.0 for the same reason.",
   "version": 1,
   "band": "ground",
   "pool_mode": "nfm",
@@ -7,6 +7,7 @@
   "cmd_port": 7401,
   "source_samp_rate": 2000000.0,
   "audio_rate": 16000.0,
+  "channel_bw_hz": 8000.0,
   "max_channels": 16,
   "vad_enabled": false,
   "icecast_bitrate_kbps": 32,
