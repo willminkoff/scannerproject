@@ -1140,7 +1140,16 @@ def _pretty_chirp_label(ch, freq_mhz=None):
     return " ".join(words)
 
 
-def _merge_chirp_hit_records(data):
+# An in-flight hit older than this is not in flight -- it is an orphan whose
+# hit_end was never written, because the daemon was restarted or died while the
+# squelch was open. Ground caps a hold at CHIRP_SCAN_HOLD_MAX_SEC=15 s, so a
+# few minutes is already far beyond any real transmission. Without this bound a
+# hit_start stranded by a restart renders as a transmission hours long: the
+# 2026-11-08 deploy left one reading 9323 s.
+_IN_FLIGHT_MAX_S = 300.0
+
+
+def _merge_chirp_hit_records(data, now_s=None, in_flight_max_s=_IN_FLIGHT_MAX_S):
     """Pair chirp's ``hit_start`` / ``hit_end`` records from a raw log tail.
 
     chirp emits TWO records per transmission, carrying different fields
@@ -1166,9 +1175,17 @@ def _merge_chirp_hit_records(data):
     are returned with ``in_flight=True`` so the caller can show live activity
     instead of dropping it.
 
+    An unpaired ``hit_start`` older than ``in_flight_max_s`` is an orphan
+    rather than a live transmission and is dropped, since reporting it would
+    mean inventing an hours-long duration.
+
     Returns ``[((ch, start_ms), record, in_flight), ...]`` sorted by start time.
     """
     import json as _mj
+    import time as _mt
+
+    if now_s is None:
+        now_s = _mt.time()
 
     ends, starts = {}, {}
     for ln in data.splitlines():
@@ -1206,7 +1223,11 @@ def _merge_chirp_hit_records(data):
             starts.setdefault((obj.get("ch") or "", start_ms), obj)
 
     merged = [(k, o, False) for k, o in ends.items()]
-    merged += [(k, o, True) for k, o in starts.items() if k not in ends]
+    merged += [
+        (k, o, True) for k, o in starts.items()
+        if k not in ends
+        and (in_flight_max_s <= 0 or (now_s - k[1] / 1000.0) <= in_flight_max_s)
+    ]
     merged.sort(key=lambda t: t[0][1])
     return merged
 

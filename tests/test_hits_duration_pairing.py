@@ -32,15 +32,29 @@ _ROUTES = Path(__file__).resolve().parents[1] / "sb3" / "ui" / "routes.py"
 _SRC = io.open(_ROUTES, encoding="utf-8").read()
 
 
+_WANT_CONSTS = {"_IN_FLIGHT_MAX_S"}
+
+
 def _load(name):
-    """exec one module-level function out of routes.py (it imports heavy deps)."""
+    """exec one module-level function out of routes.py (it imports heavy deps).
+
+    Module-level constants the function uses as argument defaults are pulled in
+    too -- those are evaluated at def time, so omitting them raises NameError
+    on compile rather than at call time.
+    """
     tree = ast.parse(_SRC)
-    for n in tree.body:
-        if isinstance(n, ast.FunctionDef) and n.name == name:
-            ns = {}
-            exec(compile(ast.Module(body=[n], type_ignores=[]), "<sub>", "exec"), ns)
-            return ns[name]
-    raise AssertionError("%s() not found in routes.py" % name)
+    body = [
+        n for n in tree.body
+        if isinstance(n, ast.Assign)
+        and any(getattr(t, "id", "") in _WANT_CONSTS for t in n.targets)
+    ]
+    fn = next((n for n in tree.body
+               if isinstance(n, ast.FunctionDef) and n.name == name), None)
+    if fn is None:
+        raise AssertionError("%s() not found in routes.py" % name)
+    ns = {}
+    exec(compile(ast.Module(body=body + [fn], type_ignores=[]), "<sub>", "exec"), ns)
+    return ns[name]
 
 
 _merge = _load("_merge_chirp_hit_records")
@@ -95,8 +109,13 @@ class PairingTests(unittest.TestCase):
         self.assertEqual(rec["duration_s"], 0.203)
 
     def test_hit_start_alone_is_in_flight_not_dropped(self):
-        """A transmission still open must still be visible."""
-        merged = _merge(_log(START))
+        """A transmission still open must still be visible.
+
+        now_s is passed explicitly because the fixtures carry real historical
+        timestamps; against the wall clock they would age out as orphans (see
+        OrphanedStartTests).
+        """
+        merged = _merge(_log(START), now_s=START["ts"] + 2.0)
         self.assertEqual(len(merged), 1)
         _, rec, in_flight = merged[0]
         self.assertTrue(in_flight)
@@ -130,6 +149,49 @@ class PairingTests(unittest.TestCase):
         recs = [dict(END, ch="bs-gmrs-%d" % n) for n in range(5)]
         merged = _merge(_log(*recs))
         self.assertEqual(len(merged), 5)
+
+
+class OrphanedStartTests(unittest.TestCase):
+    """A hit_start stranded by a daemon restart is not a live transmission.
+
+    chirp-ground was restarted twice during the 2026-11-08 deploy. A channel
+    that was squelch-open at that moment never got its hit_end, so the first
+    cut of this fix rendered it as in_flight with a duration of 9323 s.
+    """
+
+    NOW = 1794146668.026 + 10_000.0    # 10 ks after GMRS15_START opened
+
+    def test_a_stale_unpaired_start_is_dropped(self):
+        self.assertEqual(_merge(_log(GMRS15_START), now_s=self.NOW), [])
+
+    def test_a_fresh_unpaired_start_is_kept(self):
+        fresh = GMRS15_START["ts"] + 3.0
+        merged = _merge(_log(GMRS15_START), now_s=fresh)
+        self.assertEqual(len(merged), 1)
+        self.assertTrue(merged[0][2], "should still be marked in_flight")
+
+    def test_a_completed_hit_is_never_dropped_by_age(self):
+        """Only UNPAIRED starts are aged out; history must survive."""
+        merged = _merge(_log(GMRS15_START, GMRS15_END), now_s=self.NOW)
+        self.assertEqual(len(merged), 1)
+        self.assertFalse(merged[0][2])
+        self.assertAlmostEqual(merged[0][1]["duration_s"], 9.14, places=2)
+
+    def test_boundary_is_inclusive(self):
+        edge = GMRS15_START["ts"] + 300.0
+        self.assertEqual(len(_merge(_log(GMRS15_START), now_s=edge)), 1)
+        self.assertEqual(len(_merge(_log(GMRS15_START), now_s=edge + 0.5)), 0)
+
+    def test_the_bound_can_be_disabled(self):
+        self.assertEqual(
+            len(_merge(_log(GMRS15_START), now_s=self.NOW, in_flight_max_s=0)), 1)
+
+    def test_default_bound_is_well_past_scan_hold_max(self):
+        """Ground caps a hold at 15 s, so 300 s cannot clip a real hit."""
+        import re
+        m = re.search(r"_IN_FLIGHT_MAX_S = ([0-9.]+)", _SRC)
+        self.assertIsNotNone(m)
+        self.assertGreaterEqual(float(m.group(1)), 60.0)
 
 
 class RobustnessTests(unittest.TestCase):
