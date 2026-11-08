@@ -1061,18 +1061,73 @@ def _fmt_hit_time(ts):
 
 
 
-def _pretty_chirp_label(ch):
+def _build_gmrs_plan():
+    """Frequency (MHz) -> channel name, per the GMRS/FRS plan (47 CFR 95).
+
+    Band-scan presets name their slots ``bs-<preset>-<index>``, where the
+    index is a pool slot and says nothing about the channel. The GMRS preset
+    sweeps 462.5500-462.7250 in 12.5 kHz steps, which does land exactly on the
+    real plan -- but the plan is two INTERLEAVED 25 kHz combs, so slot 0 is
+    channel 15 and slot 1 is channel 1. Reporting the slot made the 2026-11-08
+    bench test unreadable: the operator keyed channel 1 and got a wall of hits
+    labelled "Bs Gmrs 0..10", none of which looked like channel 1.
+
+    The frequency is the ground truth, so label from that instead.
+    """
+    plan = {}
+    for n in range(7):      # 1-7   FRS/GMRS interstitial
+        plan[round(462.5625 + n * 0.025, 4)] = "GMRS %d" % (n + 1)
+    for n in range(8):      # 15-22 GMRS main (repeater outputs)
+        plan[round(462.5500 + n * 0.025, 4)] = "GMRS %d" % (15 + n)
+    for n in range(7):      # 8-14  FRS only
+        plan[round(467.5625 + n * 0.025, 4)] = "FRS %d" % (n + 8)
+    for n in range(8):      # repeater inputs for 15-22
+        plan[round(467.5500 + n * 0.025, 4)] = "GMRS %d in" % (15 + n)
+    return plan
+
+
+_GMRS_PLAN_MHZ = _build_gmrs_plan()
+_PLAN_TOLERANCE_MHZ = 0.001     # 1 kHz; hit log carries 4 decimal places
+
+
+def _channel_plan_label(freq_mhz):
+    """Known channel-plan name for a frequency, or "" if it is not on a plan."""
+    try:
+        f = float(freq_mhz)
+    except (TypeError, ValueError):
+        return ""
+    if f <= 0:
+        return ""
+    name = _GMRS_PLAN_MHZ.get(round(f, 4))
+    if name:
+        return name
+    for plan_f, plan_name in _GMRS_PLAN_MHZ.items():
+        if abs(plan_f - f) <= _PLAN_TOLERANCE_MHZ:
+            return plan_name
+    return ""
+
+
+def _pretty_chirp_label(ch, freq_mhz=None):
     """Turn a chirp channel id into a human label.
 
     Examples:
         n4-0-tower                         -> Tower
         n4-3-mtears-nashville-(davidson-co) -> Mtears Nashville (Davidson Co)
         kbna-tower                         -> Kbna Tower
+        bs-gmrs-0        @ 462.5500        -> GMRS 15
+        bs-gmrs-1        @ 462.5625        -> GMRS 1
+
+    Only auto-generated band-scan ids (``bs-*``) are relabelled from the
+    frequency; a hand-named favourite keeps the name its author gave it.
     """
     import re as _re
     s = str(ch or "").strip()
     if not s:
         return ""
+    if s.lower().startswith("bs-") and freq_mhz is not None:
+        plan = _channel_plan_label(freq_mhz)
+        if plan:
+            return plan
     s = _re.sub(r"^n\d+-\d+-", "", s)
     s = s.replace("-", " ")
     words = []
@@ -1137,7 +1192,7 @@ def hits(state: State) -> Dict:
             fmhz = float(obj.get("freq_mhz") or 0.0)
             _ch = obj.get("ch") or ""
             _dur = float(obj.get("duration_s") or 0.0)
-            _pretty = _pretty_chirp_label(_ch)
+            _pretty = _pretty_chirp_label(_ch, fmhz)
             items.append({
                 "band": band,
                 "source": band,
