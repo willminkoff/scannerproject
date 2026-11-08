@@ -11,6 +11,18 @@ Behaviour (latch):
     recently opened channel does NOT preempt a live selection.
   * When the selection closes (or at start), the **most-recently-opened** of
     the currently-open channels takes over.
+  * Ties are broken by signal level, then by id.  This matters more than it
+    looks: ``update()`` is called once per detector tick with a single ``now``,
+    so every channel that opens in the same tick gets an identical
+    ``_open_since`` and "most-recently-opened" is undefined between them.
+    Before 2026-11-08 the ``max()`` fell through to set-iteration order, i.e.
+    string hash order, and level was never consulted at all.  On the GMRS
+    bench test a close-range handheld overloaded the front end and opened all
+    11 pooled channels in the same tick, so the gate had a 10-in-11 chance of
+    latching an off-tune channel and holding it for the whole transmission —
+    the listener heard static over a perfectly good signal.  Strongest-wins
+    makes the simultaneous case correct, and the id is a final tiebreak so
+    the choice is at least reproducible when levels are absent or equal.
   * When nothing is open, the selection clears → silence (no closed-channel
     noise leaks through).
 
@@ -46,8 +58,24 @@ class PriorityGate:
         self._open_since: dict[str, float] = {}
         self._selected: Optional[str] = None
 
-    def update(self, open_ids: Iterable[str], now: Optional[float] = None) -> Optional[str]:
+    def update(
+        self,
+        open_ids: Iterable[str],
+        now: Optional[float] = None,
+        levels: Optional[dict[str, float]] = None,
+    ) -> Optional[str]:
         """Recompute the selection from the currently squelch-open ids.
+
+        Args:
+            open_ids: the channels that are squelch-open this tick.
+            now: tick timestamp; defaults to the injected clock.
+            levels: optional ``channel id -> signal level dBFS``.  Used ONLY
+                to break ties between channels that opened in the same tick
+                (see the class docstring).  It never preempts a live
+                selection — a latched channel keeps the path even if a
+                stronger one opens, which is the deliberate Uniden-style
+                behaviour.  Omitted/missing ids sort as -inf, so a channel
+                with a known level always beats one without.
 
         Returns the selected channel id (or None if nothing is open).
         """
@@ -65,8 +93,18 @@ class PriorityGate:
         if self._selected is not None and self._selected in open_set:
             pass  # latch: live selection keeps the path until it closes
         elif open_set:
-            # Selection closed (or none yet) → most-recently-opened takes over.
-            self._selected = max(open_set, key=lambda c: self._open_since[c])
+            # Selection closed (or none yet) → most-recently-opened takes over,
+            # strongest-first among those that opened in the same tick, then by
+            # id so the outcome is deterministic rather than hash-ordered.
+            lv = levels or {}
+            self._selected = max(
+                open_set,
+                key=lambda c: (
+                    self._open_since[c],
+                    lv.get(c, float("-inf")),
+                    c,
+                ),
+            )
         else:
             self._selected = None
 

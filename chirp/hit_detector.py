@@ -197,6 +197,12 @@ class HitDetector:
         # loop so exactly one passes audio.
         live_channels: dict[str, Any] = {}
         open_ids: list[str] = []
+        # Signal level per open channel, for the priority gate's tie-break.
+        # Every channel that opens in this tick shares one `now`, so without
+        # levels the gate's "most-recently-opened" rule has nothing to order
+        # them by and falls through to set hash order. We already read `lvl`
+        # below; it just was not being handed over.
+        open_levels: dict[str, float] = {}
         # Audio-path diagnostics counters: tracked DURING walk 1 so they
         # describe the same slot set as live_channels.  Previously a second
         # lock-free walk drove parked_count + muted_count, producing the
@@ -234,6 +240,7 @@ class HitDetector:
                 live_channels[s.user_id] = s.channel
                 if is_open:
                     open_ids.append(s.user_id)
+                    open_levels[s.user_id] = lvl
             prev = self._last_open.get(s.index, False)
             in_warmup = (s.claimed_at is not None and (now - s.claimed_at) < self._warmup_s)
 
@@ -290,7 +297,9 @@ class HitDetector:
         selected: Optional[str] = None
         if self._priority_gate is not None:
             try:
-                selected = self._priority_gate.update(open_ids, now)
+                selected = self._priority_gate.update(
+                    open_ids, now, levels=open_levels
+                )
                 for cid, ch in live_channels.items():
                     ch.set_priority_muted(cid != selected)
             except Exception:

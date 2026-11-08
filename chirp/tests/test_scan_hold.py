@@ -12,9 +12,14 @@ from __future__ import annotations
 
 import pytest
 
+from pathlib import Path
+
 from chirp.dsp.cluster_planner import PlanChannel
 from chirp.dsp.lo_scheduler import LoScheduler
 from chirp.dsp.priority_gate import PriorityGate
+
+# Repo root, for the out-of-process PYTHONHASHSEED tests below.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class FakeClock:
@@ -258,3 +263,125 @@ class TestPriorityGate:
         g.update(["A"], 1.0)
         g.reset()
         assert g.selected is None
+
+
+class TestPriorityGateSimultaneousOpen:
+    """The GMRS bench-test failure (2026-11-08): everything opens in one tick.
+
+    ``HitDetector._tick`` stamps a single ``now`` and calls ``update()`` once,
+    so channels that open in the same tick are indistinguishable by
+    ``_open_since``.  The old ``max(open_set, key=_open_since)`` therefore
+    fell through to set-iteration order and never looked at level.  A
+    close-range handheld overloaded the front end, all 11 pooled GMRS
+    channels opened together, and the gate latched an off-tune one for the
+    whole transmission -> static over a good signal.
+    """
+
+    # 462.5500 + n*12.5 kHz, as the band-scan preset lays them out.
+    POOL = ["bs-gmrs-%d" % n for n in range(11)]
+
+    def test_strongest_wins_when_all_open_in_one_tick(self):
+        g = PriorityGate()
+        levels = {c: -78.0 for c in self.POOL}
+        levels["bs-gmrs-1"] = -5.31          # the channel actually keyed
+        assert g.update(self.POOL, 1.0, levels=levels) == "bs-gmrs-1"
+
+    def test_pick_is_stable_across_hash_seeds(self):
+        """The real nondeterminism was PER PROCESS, not per insertion order.
+
+        Within one interpreter, ``max()`` over an equal-keyed set is stable
+        because the set's iteration order is fixed by the string hashes -- so
+        rotating the input proves nothing. What varied was PYTHONHASHSEED:
+        the old expression returned 6 different channels across 8 seeds, i.e.
+        the daemon latched a different channel on every restart and held that
+        choice for its whole lifetime. That is the "it worked yesterday"
+        signature. Run it out-of-process so the seed can actually differ.
+        """
+        import subprocess, sys, os, json
+        src = (
+            "import sys, json;"
+            "sys.path.insert(0, %r);"
+            "from chirp.dsp.priority_gate import PriorityGate;"
+            "pool=['bs-gmrs-%%d'%%n for n in range(11)];"
+            "lv={c:-70.0 for c in pool}; lv['bs-gmrs-6']=-12.0;"
+            "print(PriorityGate().update(pool, 1.0, levels=lv))"
+        ) % str(_REPO_ROOT)
+        picks = set()
+        for seed in range(8):
+            env = dict(os.environ, PYTHONHASHSEED=str(seed))
+            out = subprocess.run([sys.executable, "-c", src], env=env,
+                                 capture_output=True, text=True, timeout=60)
+            assert out.returncode == 0, out.stderr
+            picks.add(out.stdout.strip())
+        assert picks == {"bs-gmrs-6"}, picks
+
+    def test_old_expression_really_was_seed_dependent(self):
+        """Pins the premise of the fix, so this file documents a real bug.
+
+        If this ever yields one answer for every seed, the rationale above is
+        wrong and the tie-break's justification needs revisiting.
+        """
+        import subprocess, sys, os
+        src = (
+            "pool=['bs-gmrs-%d'%n for n in range(11)];"
+            "since={c:1.0 for c in pool};"
+            "print(max(set(pool), key=lambda c: since[c]))"
+        )
+        picks = set()
+        for seed in range(8):
+            env = dict(os.environ, PYTHONHASHSEED=str(seed))
+            out = subprocess.run([sys.executable, "-c", src], env=env,
+                                 capture_output=True, text=True, timeout=60)
+            assert out.returncode == 0, out.stderr
+            picks.add(out.stdout.strip())
+        assert len(picks) > 1, (
+            "expected the pre-fix expression to vary by hash seed, got %r" % picks)
+
+    def test_latch_is_not_broken_by_a_stronger_later_signal(self):
+        """Deliberate Uniden-style behaviour: no preemption. Levels must not
+        quietly turn the gate into strongest-always-wins."""
+        g = PriorityGate()
+        assert g.update(["A"], 1.0, levels={"A": -70.0}) == "A"
+        assert g.update(["A", "B"], 2.0, levels={"A": -70.0, "B": -3.0}) == "A"
+        assert g.update(["A", "B"], 3.0, levels={"A": -70.0, "B": -3.0}) == "A"
+        # A closes -> B inherits.
+        assert g.update(["B"], 4.0, levels={"B": -3.0}) == "B"
+
+    def test_recency_still_outranks_level(self):
+        """A later open beats a stronger earlier one; level only breaks ties."""
+        g = PriorityGate()
+        g.update(["A"], 1.0, levels={"A": -3.0})      # strong, opened first
+        g.update(["A", "B"], 2.0, levels={"A": -3.0, "B": -70.0})
+        # A closes. B opened later than A, so B takes over despite being weaker.
+        assert g.update(["B"], 3.0, levels={"B": -70.0}) == "B"
+
+    def test_deterministic_without_levels(self):
+        """Callers that pass no levels must still get a seed-stable answer.
+
+        The id is the final tiebreak, so this holds even with no level data --
+        which is what the rotation-only version of this test failed to show.
+        """
+        import subprocess, sys, os
+        src = (
+            "import sys;"
+            "sys.path.insert(0, %r);"
+            "from chirp.dsp.priority_gate import PriorityGate;"
+            "pool=['bs-gmrs-%%d'%%n for n in range(11)];"
+            "print(PriorityGate().update(pool, 1.0))"
+        ) % str(_REPO_ROOT)
+        picks = set()
+        for seed in range(6):
+            env = dict(os.environ, PYTHONHASHSEED=str(seed))
+            out = subprocess.run([sys.executable, "-c", src], env=env,
+                                 capture_output=True, text=True, timeout=60)
+            assert out.returncode == 0, out.stderr
+            picks.add(out.stdout.strip())
+        assert len(picks) == 1, picks
+
+    def test_a_known_level_beats_an_unknown_one(self):
+        g = PriorityGate()
+        assert g.update(["A", "B"], 1.0, levels={"B": -90.0}) == "B"
+
+    def test_empty_levels_dict_is_harmless(self):
+        g = PriorityGate()
+        assert g.update(["A"], 1.0, levels={}) == "A"
