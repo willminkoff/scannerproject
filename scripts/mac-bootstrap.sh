@@ -197,7 +197,23 @@ if [ ! -f "$PREFIX/etc/icecast.xml" ]; then
   [ -d "$IC_BASEDIR" ] || IC_BASEDIR="$(brew --prefix icecast 2>/dev/null)/share/icecast" || IC_BASEDIR=""
   cat > "$PREFIX/etc/icecast.xml" <<XML
 <icecast>
-  <limits><clients>50</clients><sources>12</sources><queue-size>524288</queue-size></limits>
+  <!-- Buffering is LATENCY. A listener's first audio is the burst icecast
+       replays on connect, so burst-size/bitrate is a fixed delay on every
+       mount: at chirp's 32 kbps (4000 B/s), icecast's built-in 65536 default
+       -- which this block used to inherit by not setting burst-size at all --
+       is 16.4 s before the stream even reaches live. 8192 = 2.05 s, still
+       ~57 MPEG-2 Layer III frames, far more than a browser needs to start
+       decoding. queue-size is the per-client backlog: 524288 let a slow
+       client bank 131 s of lag instead of being dropped and recovering.
+       NOTE: this is only half the delay. The chirp->lame->libshout chain
+       also buffers ~64 kB in OS pipes (~16 s at 32 kbps); no icecast
+       setting reaches that -- see chirp/dsp/icecast_sink.py. -->
+  <limits>
+    <clients>50</clients>
+    <sources>12</sources>
+    <queue-size>65536</queue-size>
+    <burst-size>8192</burst-size>
+  </limits>
   <authentication>
     <source-password>CHANGE_ME_source_password</source-password>
     <admin-user>admin</admin-user>
