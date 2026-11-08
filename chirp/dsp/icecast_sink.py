@@ -326,6 +326,43 @@ def _lame_available() -> bool:
     return shutil.which("lame") is not None
 
 
+def _unbuffer_prefix() -> list:
+    """``['stdbuf', '-o0']`` when available, else ``[]``.
+
+    lame writes its MP3 to stdout through libc stdio, which FULL-buffers when
+    stdout is a pipe -- to the pipe's ``st_blksize``, 16 KiB on macOS. At
+    chirp's 32 kbps (4000 B/s) that is 4.1 s of audio held back before a single
+    byte moves, and it moves as a clump rather than a stream.
+
+    Measured on neptune 2026-11-08 with the exact deployed argv:
+
+        lame as-is        first byte at 4.45 s, chunks of 16384 B
+        stdbuf -o0 lame   first byte at 0.10 s, chunks of 144 B
+
+    144 bytes is precisely one MPEG-2 Layer III frame (576 samples at 16 kHz =
+    36 ms), i.e. frame-at-a-time delivery. The live publisher confirmed the
+    unfixed behaviour independently: icecast_bytes_sent advanced in increments
+    of exactly 16384 spaced 4.08/4.15/4.03/4.09/4.05 s apart.
+
+    This is not only latency. icecast replays its ``burst-size`` to each new
+    listener, so with a source that emits nothing for 4 s at a time the burst
+    buffer is empty between clumps -- three successive connects to the ground
+    mount returned 0 B, 19600 B, 0 B. A listener that connects into the gap
+    gets no audio at all until the next clump, which a browser may never
+    recover from.
+
+    The ffmpeg encoder paths in this module already pass ``-flush_packets 1``
+    (see ``_ffmpeg_base_cmd``); only the plain-lame path lacked flush control.
+    That asymmetry is the actual defect, not the pipe size -- the 64 KiB pipe
+    is a useful stall absorber and is deliberately left alone.
+
+    Falls back to no prefix if ``stdbuf`` is absent, so this can only make
+    delivery smoother, never break the encoder.
+    """
+    sb = shutil.which("stdbuf")
+    return [sb, "-o0"] if sb else []
+
+
 class IcecastSink(gr.sync_block):
     """Mono float32 GR sink → libmp3lame → Icecast (python-shout).
 
@@ -555,7 +592,9 @@ class IcecastSink(gr.sync_block):
         # `-m m` = mono. `--cbr -b N` = constant bitrate at N kbps.
         # `-q 5` = mid quality. `--silent` = no progress chatter.
         sr_khz = self.cfg.sample_rate / 1000.0
-        cmd = [
+        # stdbuf -o0 so lame emits one MP3 frame at a time instead of holding
+        # 16 KiB (4.1 s) in libc's stdio buffer -- see _unbuffer_prefix().
+        cmd = _unbuffer_prefix() + [
             "lame",
             "-r", "-s", str(sr_khz),
             "--bitwidth", "16", "--signed",
