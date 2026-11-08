@@ -129,8 +129,24 @@ class PinnedPerBandTests(unittest.TestCase):
             "spacing so the neighbour's centre is in the stopband"
             % (bw + _TRANSITION_HZ, _GMRS_SPACING_HZ))
 
-    def test_ground_squelch_matches_the_shipped_value(self):
-        self.assertEqual(_cfg("ground")["global_squelch_dbfs"], -56.0)
+    def test_ground_squelch_hears_the_gmrs15_identifier(self):
+        """-56.0 was too tight, and the margin was tiny but decisive.
+
+        A real repeater identifier on 462.5500 bursts for 9.14 s every 30 min
+        at median -56.94 dBFS; 84 of 103 logged events sit below -56.0, so that
+        threshold missed ~82% of them. This pins the value as a detection
+        requirement rather than a magic number, so a future tightening has to
+        argue with the measurement.
+        """
+        sq = _cfg("ground")["global_squelch_dbfs"]
+        self.assertLessEqual(
+            sq, -58.0,
+            "squelch %.1f dBFS is too tight to hear the GMRS 15 identifier "
+            "(median -56.94, min -62.88)" % sq)
+        self.assertGreaterEqual(
+            sq, -70.0,
+            "squelch %.1f dBFS is low enough to open on noise; -73.0 was tried "
+            "on 2026-11-03 and abandoned" % sq)
 
     def test_daemon_default_is_documented_as_one_sided(self):
         """The old comment called 12500 the "full 25 kHz AM channel", which

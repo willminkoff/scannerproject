@@ -1140,13 +1140,84 @@ def _pretty_chirp_label(ch, freq_mhz=None):
     return " ".join(words)
 
 
+def _merge_chirp_hit_records(data):
+    """Pair chirp's ``hit_start`` / ``hit_end`` records from a raw log tail.
+
+    chirp emits TWO records per transmission, carrying different fields
+    (chirp/hit_detector.py):
+
+        hit_start  ts, ch, freq_mhz, level_dbfs, warmup, cluster_center_hz
+        hit_end    ts, ch, freq_mhz, start_ts_ms, end_ts_ms, duration_s,
+                   peak_dbfs, warmup, cluster_center_hz
+
+    ``duration_s`` and ``peak_dbfs`` exist ONLY on ``hit_end``, because both are
+    computed when the squelch closes. Reading ``hit_start`` alone -- which
+    /api/hits did -- therefore reported duration 0.0 and peak null for every
+    chirp hit on every band. Not a missing value: a structural impossibility.
+
+    That cost real diagnostic time on 2026-11-08. A 9.14 s automatic repeater
+    identifier on GMRS 15, recurring every 30 minutes for seven weeks, appeared
+    as a run of zero-duration nulls and was taken for a software artifact. The
+    duration was in the log the whole time, one record later.
+
+    ``hit_end`` is self-sufficient, so it is the primary source. A 200 kB tail
+    can clip a ``hit_start`` while keeping its ``hit_end``, which is harmless;
+    the reverse only happens for a transmission still in progress, and those
+    are returned with ``in_flight=True`` so the caller can show live activity
+    instead of dropping it.
+
+    Returns ``[((ch, start_ms), record, in_flight), ...]`` sorted by start time.
+    """
+    import json as _mj
+
+    ends, starts = {}, {}
+    for ln in data.splitlines():
+        if "hit_start" not in ln and "hit_end" not in ln:
+            continue
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            obj = _mj.loads(ln)
+        except Exception:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        evt = obj.get("evt")
+        # A record with no usable start time cannot be keyed, paired, sorted or
+        # displayed, so drop it rather than emitting an entry stamped 1970.
+        if evt == "hit_end":
+            try:
+                start_ms = int(obj.get("start_ts_ms") or 0)
+            except (TypeError, ValueError):
+                continue
+            if start_ms <= 0:
+                continue
+            ends[(obj.get("ch") or "", start_ms)] = obj
+        elif evt == "hit_start":
+            try:
+                start_ms = int(float(obj.get("ts") or 0.0) * 1000)
+            except (TypeError, ValueError):
+                continue
+            if start_ms <= 0:
+                continue
+            # hit_end.start_ts_ms is int(hit_start.ts * 1000), so the keys match
+            # exactly; setdefault keeps the first of any duplicate.
+            starts.setdefault((obj.get("ch") or "", start_ms), obj)
+
+    merged = [(k, o, False) for k, o in ends.items()]
+    merged += [(k, o, True) for k, o in starts.items() if k not in ends]
+    merged.sort(key=lambda t: t[0][1])
+    return merged
+
+
 def hits(state: State) -> Dict:
     """/api/hits — unified recent activity across all bands.
 
     Reads: chirp-airband hits.jsonl, chirp-ground.hits.jsonl, and op25 digital
     /hits from Venus (SB3_OP25_REMOTE_URL). Merges + sorts by ts descending.
     """
-    import json as _json, os as _os, urllib.request as _ur, urllib.error as _ue
+    import json as _json, os as _os, time as _time, urllib.request as _ur, urllib.error as _ue
     from pathlib import Path as _Path
 
     LIMIT = 200
@@ -1169,29 +1240,28 @@ def hits(state: State) -> Dict:
                     data = fh.read().decode("utf-8", errors="ignore")
         except (OSError, Exception):
             return
-        # Filter for hit_start events first, THEN keep the last N. Otherwise
-        # cluster_hop noise dominates the tail and hit_starts get truncated.
-        all_lines = data.splitlines()
-        hit_lines = [ln for ln in all_lines if b"hit_start" in ln.encode() or "hit_start" in ln]
-        lines = hit_lines[-keep:]
-        for ln in lines:
-            ln = ln.strip()
-            if not ln:
-                continue
-            try:
-                obj = _json.loads(ln)
-            except Exception:
-                continue
-            evt = obj.get("evt")
-            if evt != "hit_start":
-                continue
-            ts_val = obj.get("ts")
-            if not ts_val:
-                end_ms = obj.get("end_ts_ms") or 0
-                ts_val = end_ms / 1000.0 if end_ms else 0.0
+        # hit_start alone has neither duration nor peak -- see
+        # _merge_chirp_hit_records() for why that mattered.
+        merged = _merge_chirp_hit_records(data)
+        now_s = _time.time()
+
+        for (_ch, start_ms), obj, in_flight in merged[-keep:]:
+            ts_val = start_ms / 1000.0 if start_ms else float(obj.get("ts") or 0.0)
             fmhz = float(obj.get("freq_mhz") or 0.0)
-            _ch = obj.get("ch") or ""
-            _dur = float(obj.get("duration_s") or 0.0)
+            if in_flight:
+                # Still open: elapsed so far, and the level at open as the
+                # best-known peak. Never None -- the UI formats these as
+                # numbers.
+                _dur = max(0.0, now_s - ts_val) if ts_val else 0.0
+                _peak = obj.get("level_dbfs")
+            else:
+                _dur = float(obj.get("duration_s") or 0.0)
+                _peak = obj.get("peak_dbfs")
+            if _peak is not None:
+                try:
+                    _peak = round(float(_peak), 2)
+                except (TypeError, ValueError):
+                    _peak = None
             _pretty = _pretty_chirp_label(_ch, fmhz)
             items.append({
                 "band": band,
@@ -1199,14 +1269,14 @@ def hits(state: State) -> Dict:
                 "ts": float(ts_val),
                 "time": _fmt_hit_time(ts_val),
                 "duration": round(_dur, 1),
-                "duration_s": _dur,
+                "duration_s": round(_dur, 3),
                 "label": _pretty,
                 "label_full": _pretty,
                 "freq_mhz": fmhz,
                 "freq": f"{fmhz:.3f}",
                 "channel_id": _ch,
-                "duration_s": float(obj.get("duration_s") or 0.0),
-                "peak_dbfs": obj.get("peak_dbfs"),
+                "peak_dbfs": _peak,
+                "in_flight": in_flight,
                 "kind": "voice",
             })
 
