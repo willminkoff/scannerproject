@@ -4972,7 +4972,7 @@
       applyTimeout: null,
       pendingApply: { airband: null, ground: null },
       filterTimeout: null,
-      userActivatedEmbedAudio: { analog: false, digital: false },
+      userActivatedEmbedAudio: { analog: false, ground: false, digital: false },
       latencyTest: {
         running: false,
         mode: 'rf_manual',
@@ -9461,14 +9461,18 @@
       });
     }
 
+    // Ground's mount is fixed (unlike analog/digital, which resolve against
+    // whatever icecast reports). Named once so the player, the URL builder and
+    // the health check cannot drift apart.
+    const GROUND_STREAM_MOUNT = 'neptune-ground.mp3';
+
     function groundStreamUrl() {
       // Ground tab streams the neptune-ground.mp3 mount (renamed from
       // the legacy ANALOG_GROUND.mp3 during the sb3-ui refactor).
-      const mountName = 'neptune-ground.mp3';
       if (shouldPreferDirectIcecastStream()) {
-        return buildIcecastUrl(mountName, 'neptune-ground.mp3');
+        return buildIcecastUrl(GROUND_STREAM_MOUNT, GROUND_STREAM_MOUNT);
       }
-      return buildProxyStreamUrl(mountName, 'neptune-ground.mp3', {
+      return buildProxyStreamUrl(GROUND_STREAM_MOUNT, GROUND_STREAM_MOUNT, {
         transcode: isLikelyIOSClient(),
       });
     }
@@ -9591,6 +9595,7 @@
 
     function audioTargetLabel(audioEl) {
       if (audioEl === els.audioPlayerDigital) return 'Digital';
+      if (audioEl === els.audioPlayerGround) return 'Ground';
       return 'Analog';
     }
 
@@ -9600,6 +9605,19 @@
 
     function isDigitalAudioElement(audioEl) {
       return audioEl === els.audioPlayerDigital;
+    }
+
+    function isGroundAudioElement(audioEl) {
+      return audioEl === els.audioPlayerGround;
+    }
+
+    // Three players, so a two-way 'digital' : 'analog' ternary is no longer
+    // enough: it filed Ground under 'analog' and let the two bands overwrite
+    // each other's userActivatedEmbedAudio flag.
+    function audioKindFor(audioEl) {
+      if (isDigitalAudioElement(audioEl)) return 'digital';
+      if (isGroundAudioElement(audioEl)) return 'ground';
+      return 'analog';
     }
 
     function analogStreamHealthyForPlayer() {
@@ -9616,16 +9634,29 @@
       return Boolean(digitalMount && mountSet.has(digitalMount));
     }
 
+    function groundStreamHealthyForPlayer() {
+      if (!state.icecastActive) return false;
+      const mountSet = normalizedIcecastMountSet();
+      const groundMount = normalizeMountPath(GROUND_STREAM_MOUNT, GROUND_STREAM_MOUNT);
+      return Boolean(groundMount && mountSet.has(groundMount));
+    }
+
+    function audioStreamHealthyForPlayer(audioEl) {
+      if (isDigitalAudioElement(audioEl)) return digitalStreamHealthyForPlayer();
+      if (isGroundAudioElement(audioEl)) return groundStreamHealthyForPlayer();
+      return analogStreamHealthyForPlayer();
+    }
+
     function audioRecoverCooldownMs(audioEl) {
-      return isAnalogAudioElement(audioEl) ? AUDIO_RECOVER_COOLDOWN_ANALOG_MS : AUDIO_RECOVER_COOLDOWN_MS;
+      return isDigitalAudioElement(audioEl) ? AUDIO_RECOVER_COOLDOWN_MS : AUDIO_RECOVER_COOLDOWN_ANALOG_MS;
     }
 
     function audioWaitingGraceMs(audioEl) {
-      return isAnalogAudioElement(audioEl) ? AUDIO_WAITING_GRACE_ANALOG_MS : AUDIO_WAITING_GRACE_MS;
+      return isDigitalAudioElement(audioEl) ? AUDIO_WAITING_GRACE_MS : AUDIO_WAITING_GRACE_ANALOG_MS;
     }
 
     function audioStartupRecoverGraceMs(audioEl) {
-      return isAnalogAudioElement(audioEl) ? AUDIO_STARTUP_RECOVER_GRACE_ANALOG_MS : AUDIO_STARTUP_RECOVER_GRACE_MS;
+      return isDigitalAudioElement(audioEl) ? AUDIO_STARTUP_RECOVER_GRACE_MS : AUDIO_STARTUP_RECOVER_GRACE_ANALOG_MS;
     }
 
     function ensureAudioAudible(audioEl) {
@@ -9715,7 +9746,7 @@
       if (latencyTestOwnsAudio(audioEl)) return;
       const wasPaused = audioEl.paused;
       const wantsPlay = audioEl.dataset.wantplay === '1';
-      const kind = isDigitalAudioElement(audioEl) ? 'digital' : 'analog';
+      const kind = audioKindFor(audioEl);
       const activated = state.userActivatedEmbedAudio[kind];
       const shouldPlay = activated && (wantsPlay || !wasPaused);
       const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
@@ -9798,7 +9829,7 @@
       state[stateKey] = base;
       const wasPaused = audioEl.paused;
       const wantsPlay = audioEl.dataset.wantplay === '1';
-      const kind = isDigitalAudioElement(audioEl) ? 'digital' : 'analog';
+      const kind = audioKindFor(audioEl);
       const activated = state.userActivatedEmbedAudio[kind];
       const shouldPlay = activated && (forcePlay || wantsPlay || !wasPaused);
       const hardReset = Boolean(options && options.hardReset);
@@ -9858,6 +9889,18 @@
         'streamBaseUrl',
         reason,
         'stream-reload-analog',
+        forcePlay,
+        options
+      );
+    }
+
+    function reloadGroundStream(reason, forcePlay = false, options = {}) {
+      reloadStreamPlayer(
+        els.audioPlayerGround,
+        groundStreamUrl(),
+        'groundStreamBaseUrl',
+        reason,
+        'stream-reload-ground',
         forcePlay,
         options
       );
@@ -10109,7 +10152,7 @@
       if (!tracker) return;
       if (audioEl.dataset.autorecoverBound === '1') return;
       audioEl.dataset.autorecoverBound = '1';
-      const targetLabel = audioEl === els.audioPlayerDigital ? 'Digital' : 'Analog';
+      const targetLabel = audioTargetLabel(audioEl);
       const markUserPauseHint = () => {
         tracker.userPauseHintTs = Date.now();
       };
@@ -10130,7 +10173,7 @@
         // Only latch wantplay if user initiated (recent pointer/key) or already wanted
         const userInitiated = (Date.now() - (tracker.userPauseHintTs || 0)) < 2000;
         if (userInitiated) {
-          const kind = isDigitalAudioElement(audioEl) ? 'digital' : 'analog';
+          const kind = audioKindFor(audioEl);
           state.userActivatedEmbedAudio[kind] = true;
           audioEl.dataset.wantplay = '1';
         } else if (audioEl.dataset.wantplay === '1') {
@@ -10213,11 +10256,10 @@
           // Only honor manual pause if the stream is still healthy —
           // if Icecast is down, this pause was triggered by the backend
           // restart, not the user, even if they recently touched the player.
-          const isAnalog = isAnalogAudioElement(audioEl);
-          const streamOk = isAnalog ? analogStreamHealthyForPlayer() : digitalStreamHealthyForPlayer();
+          const streamOk = audioStreamHealthyForPlayer(audioEl);
           if (streamOk) {
             audioEl.dataset.wantplay = '0';
-            const pauseKind = isAnalog ? 'analog' : 'digital';
+            const pauseKind = audioKindFor(audioEl);
             state.userActivatedEmbedAudio[pauseKind] = false;
             clearEmbeddedRecovery(audioEl);
             setEmbeddedPlayerState(audioEl, 'idle', '');
@@ -10320,6 +10362,7 @@
         }
       }
       bindAudioAutoRecover(els.audioPlayerAnalog, reloadAnalogStream);
+      bindAudioAutoRecover(els.audioPlayerGround, reloadGroundStream);
       bindAudioAutoRecover(els.audioPlayerDigital, reloadDigitalStream);
     }
 
