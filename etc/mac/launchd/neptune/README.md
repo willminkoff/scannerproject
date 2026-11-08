@@ -28,9 +28,53 @@ They activate on the **next login cycle** (logout/login or reboot). To force-act
 without a login cycle: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/<label>.plist`.
 
 ## Deploy base
-Agents + logs live under `~/scannerproject/...` on Neptune (the audio harness was deployed
-there; the git clone is separately at `~/Documents/scannerproject`). Plist paths are
-absolute (`/Users/willminkoff/...`) since launchd does not expand `~`.
+Agents + logs live under `~/scannerproject/...` on Neptune. Plist paths are absolute
+(`/Users/willminkoff/...`) since launchd does not expand `~`.
+
+**`~/scannerproject` IS a git clone** — `origin` is the GitHub repo and its upstream is
+`origin/main`, so **deploy is `git pull --ff-only`, not rsync.** Verified on the box
+2026-11-08; this section previously said the opposite ("the audio harness was deployed
+there; the git clone is separately at `~/Documents/scannerproject`") and that cost a
+deploy's worth of guessing.
+
+Both `com.scannerproject.chirp-ground` and `com.scannerproject.sb3-ui` have
+WorkingDirectory `~/scannerproject`, so **one pull deploys chirp and the UI together.**
+sb3-ui reads `ui/sb3.html` from disk per request (no restart needed for HTML), but
+imports `sb3/ui/routes.py` at startup — Python changes need `launchctl kickstart -k`.
+chirp-ground takes **~44 s** to answer UDP 7401 after a kickstart (SDRplay open +
+flowgraph build), so poll rather than assuming it failed. Its channel pool **survives**
+a restart via `CHIRP_STATE_PATH`.
+
+Two other trees exist and neither is a deploy target:
+
+- `/opt/scannerproject/app` — **does not exist on this box.** Plist comments that cite
+  it (and `/opt/scannerproject/etc/icecast.xml`) are stale; they describe the intended
+  TCC-safe layout from the SB7.5 design, not what is installed.
+- `~/Documents/scannerproject` — a third clone whose only remote is `micro` (dead), yet
+  its HEAD tracks the laptop's commits within seconds and its reflog shows them as
+  locally created. iCloud Documents sync is the only explanation. **Never deploy from
+  it**, and avoid editing it from two machines at once.
+
+## icecast config lives somewhere else than you expect
+The running server is `/opt/homebrew/bin/icecast -c ~/.config/icecast/icecast.xml`
+(Homebrew build, user config). Note that `scripts/mac-bootstrap.sh` writes
+`$PREFIX/etc/icecast.xml` = `/opt/scannerproject/etc/icecast.xml`, which is **not** the
+file in use here — editing the bootstrap template changes future provisioning only, so a
+live buffering change must also be made in `~/.config/icecast/icecast.xml`.
+`/opt/homebrew/etc/icecast.xml` is a third copy, carries two conflicting `<burst-size>`
+tags, and is unused.
+
+Restarting icecast is cheap and safe: measured cost on 2026-11-08 was one drop /
+one reconnect per source, with the mount answering again in **1 s**. That is nowhere
+near the chirp sink's escalation gate, which needs `fatal_reconnect_failures=10`
+**and** `fatal_window_s=600` together.
+
+## no log rotation
+Nothing rotates `~/Library/Logs/chirp/`. As of 2026-11-08: `ground.out.log` **1.0 GB**,
+`airband.out.log` 85 MB (stale since Sep 10), `mount-watchdog.log` 20 MB,
+`hits.jsonl` 30 MB. Disk is fine (68 GB free), but **never run a bare `grep`/`cat` over
+`ground.out.log`** — it times out. Use `tail -n`, `sed -n` on a line range, or an
+anchored pattern with `--max-count`.
 
 ## launchd gotcha
 `Bootstrap failed: 5: Input/output error` = a half-registration race, not a bad plist.

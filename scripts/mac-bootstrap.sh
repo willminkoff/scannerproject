@@ -205,9 +205,20 @@ if [ ! -f "$PREFIX/etc/icecast.xml" ]; then
        ~57 MPEG-2 Layer III frames, far more than a browser needs to start
        decoding. queue-size is the per-client backlog: 524288 let a slow
        client bank 131 s of lag instead of being dropped and recovering.
-       NOTE: this is only half the delay. The chirp->lame->libshout chain
-       also buffers ~64 kB in OS pipes (~16 s at 32 kbps); no icecast
-       setting reaches that -- see chirp/dsp/icecast_sink.py. -->
+       NOTE: this is only half the delay in principle -- the
+       chirp->lame->libshout chain can also bank audio in OS pipes while a
+       failed feed retries, and no icecast setting reaches that (see
+       chirp/dsp/icecast_sink.py). In practice it is moot on Neptune:
+       get_status there showed icecast_reconnect_count=1 and
+       icecast_drop_count=0 over ~5 days and 1.5 GB published, so that path
+       essentially never fires and the burst below is the whole standing delay.
+
+       NOTE 2: this template writes $PREFIX/etc/icecast.xml. Neptune does NOT
+       run that file -- it runs `/opt/homebrew/bin/icecast -c
+       ~/.config/icecast/icecast.xml`. Editing this block changes future
+       provisioning only; a live buffering change must also be applied to
+       ~/.config/icecast/icecast.xml. See
+       etc/mac/launchd/neptune/README.md. -->
   <limits>
     <clients>50</clients>
     <sources>12</sources>
