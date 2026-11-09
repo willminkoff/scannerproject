@@ -94,6 +94,23 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(h.kicks, 0)
         self.assertEqual(h.intent_writes, [])
 
+    def test_healthy_is_silent_but_heartbeats_hourly(self):
+        """Silent at 60 s intervals (1440 lines/day otherwise), but a watchdog
+        that never speaks is indistinguishable from a dead one."""
+        m = _load()
+        h = _Harness("acars", {self.ACARS: "running"},
+                     state={"last_heartbeat": _real_time.time()})
+        h.run()
+        self.assertEqual([l for l in h.logs if "heartbeat" in l], [],
+                         "must not log on every healthy pass")
+
+        h2 = _Harness("acars", {self.ACARS: "running"},
+                      state={"last_heartbeat": _real_time.time() - m.HEARTBEAT_SEC - 1})
+        h2.run()
+        self.assertTrue([l for l in h2.logs if "heartbeat" in l],
+                        "must emit proof of life once the interval elapses")
+        self.assertEqual(h2.started, [], "a heartbeat must not touch services")
+
     def test_radiosonde_running_is_left_alone(self):
         h = _Harness("radiosonde", {self.SONDE: "running"})
         h.run()
@@ -153,7 +170,11 @@ class ContractTests(unittest.TestCase):
         h = _Harness("radiosonde", {self.SONDE: "running"},
                      state={"strikes": 1, "sonde_restarts": 2})
         h.run()
-        self.assertEqual(h.last_state, {"strikes": 0, "sonde_restarts": 0})
+        # Assert the counters, not the whole dict -- the state file also
+        # carries last_heartbeat, and pinning exact equality would make every
+        # future field a test failure.
+        self.assertEqual(h.last_state["strikes"], 0)
+        self.assertEqual(h.last_state["sonde_restarts"], 0)
 
     def test_a_failed_retry_stays_armed_and_spends_budget(self):
         """A failed retry must NOT reset the strike count.

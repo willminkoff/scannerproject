@@ -79,6 +79,10 @@ STRIKES_BEFORE_ACTION = 2
 # How many times to put radiosonde back before giving up and restoring ACARS.
 # Reset whenever it is seen running, so this is "consecutive failures".
 MAX_SONDE_RESTARTS = 3
+# A healthy check is silent, because at a 60 s interval logging every pass
+# would be 1440 lines a day. But a watchdog that says nothing is a watchdog you
+# cannot distinguish from a dead one, so emit one proof-of-life line an hour.
+HEARTBEAT_SEC = 3600
 
 
 def log(msg: str) -> None:
@@ -204,10 +208,15 @@ def main() -> int:
     restarts = int(state.get("sonde_restarts") or 0)
 
     if st == "running":
+        now = time.time()
+        last_hb = float(state.get("last_heartbeat") or 0)
         if strikes or restarts:
             log("OK %s running again (clearing %d strike(s), %d restart(s))"
                 % (intent, strikes, restarts))
-            write_state({"strikes": 0, "sonde_restarts": 0})
+            write_state({"strikes": 0, "sonde_restarts": 0, "last_heartbeat": now})
+        elif now - last_hb >= HEARTBEAT_SEC:
+            log("OK %s running (heartbeat)" % intent)
+            write_state({"strikes": 0, "sonde_restarts": 0, "last_heartbeat": now})
         return 0
 
     strikes += 1
