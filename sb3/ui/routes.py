@@ -2362,19 +2362,52 @@ def _wx_is_daemon_running(pattern: str) -> bool:
 
 
 def _wx_msg_is_met(obj: dict) -> bool:
-    """Heuristic: does this ACARS/VDL2 payload carry meteorological data?
+    """Does this ACARS/VDL2 record carry meteorological data?
 
-    AMDAR reports include altitude+wind+temp fields; BUFR blobs carry a marker.
-    Keep this cheap; the sidecar shows the flag next to each row.
+    Ask the real parser. The previous version was a hand-rolled heuristic that
+    tested for the keys ``temp_c``/``temperature_c``/``wind_speed_kt``/
+    ``wind_dir_deg``/``altitude_ft``/``pressure_hpa``/``amdar``/``bufr`` -- but
+    those are ``ui.wxdata.MetObservation``'s OUTPUT field names, i.e. what comes
+    back OUT of the parser, not what acarsdec writes IN. An acarsdec record
+    carries ack/app/assstat/block_id/channel/end/error/flight/freq/label/level/
+    libacars/mfi/mode/msgno/station_id/sublabel/tail and none of those eight, so
+    the heuristic could never return True and ``met_count`` was structurally
+    pinned at 0 -- on every band, for every message, since it was written.
+
+    Measured on neptune 2026-11-08 over one 200 kB window: the heuristic matched
+    0 of 422 records while ``parse_acars_message`` extracted 37 real
+    observations from the very same records (the met payload lives in the
+    decoded ``libacars`` sublabel). So the operator had weather data all along
+    and the UI reported none.
+
+    Cost is not a reason to keep the heuristic: the parser measured 0.05 ms per
+    record, 430 records in 22 ms.
+
+    Falls back to the old key test if ui.wxdata cannot be imported, so a broken
+    import degrades the flag rather than 500-ing the endpoint.
     """
     if not isinstance(obj, dict):
         return False
-    for k in ("temp_c", "temperature_c", "wind_speed_kt", "wind_dir_deg",
-              "altitude_ft", "pressure_hpa", "amdar", "bufr"):
-        if k in obj:
-            return True
-    text = str(obj.get("text") or obj.get("message") or "")
-    return "AMDAR" in text or "BUFR" in text
+    try:
+        from ui.wxdata import parse_acars_message
+    except Exception:
+        for k in ("temp_c", "temperature_c", "wind_speed_kt", "wind_dir_deg",
+                  "altitude_ft", "pressure_hpa", "amdar", "bufr"):
+            if k in obj:
+                return True
+        text = str(obj.get("text") or obj.get("message") or "")
+        return "AMDAR" in text or "BUFR" in text
+    try:
+        parsed = parse_acars_message(obj)
+    except Exception:
+        return False
+    # parse_acars_message returns (raw, observations); a non-empty observation
+    # list is the definition of "this record carried met data".
+    obs = parsed[1] if isinstance(parsed, tuple) and len(parsed) > 1 else parsed
+    try:
+        return bool(obs)
+    except Exception:
+        return False
 
 
 # __WX_SOUNDING_WIRED__ 2026-09-22
@@ -2470,7 +2503,21 @@ def _wx_get_store():
 
 
 def wx_status(state: State) -> Dict:
-    """/api/wx/status — daemon health + running message counts."""
+    """/api/wx/status — daemon health + recent-window message counts.
+
+    NOTE on the counts: ``message_count`` and ``met_count`` describe a FIXED
+    200 kB tail of the newest jsonl per stream, not a session or store total.
+    Against a continuously-appended 43 MB acars.jsonl that is roughly the last
+    few minutes of traffic, and it is not monotonic -- it can go down. The
+    ``counts_are_recent_window`` flag says so explicitly so a consumer does not
+    mistake it for a running total; ``ui.wxdata.MetStore.get_status()`` holds
+    the real cumulative figures.
+
+    ``active_decoder`` / ``radiosonde_running`` come from
+    :func:`_wx_decoder_active`, which tests RUNNING rather than merely loaded.
+    Before 2026-11-08 it tested "loaded" and reported radiosonde permanently,
+    because that job is loaded-but-idle (``RunAtLoad=false``, ``runs = 0``).
+    """
     acars_up = _wx_is_daemon_running("acarsdec")
     vdl2_up = _wx_is_daemon_running("dumpvdl2")
     # Cheap count: tail 200 KB of the newest file per stream.
@@ -2497,6 +2544,7 @@ def wx_status(state: State) -> Dict:
         "radiosonde_running": radiosonde_up,
         "message_count": total,
         "met_count": met,
+        "counts_are_recent_window": True,
         "filtered_count": 0,
         "spatial_filter": False,
     }
@@ -2652,95 +2700,199 @@ _WX_DECODER_LABELS = {
     "radiosonde": "com.scannerproject.radiosonde",
 }
 
+# Every launchd service that must be stopped/started for a mode, in START
+# order. The RSPduo is a master/slave pair: acarsdec opens serial 180903EF32 as
+# mode=MA and dumpvdl2 opens the SAME serial as mode=SL tuner=2, so "ACARS
+# mode" is really two processes sharing one tuner. radiosonde wants that serial
+# in mode=ST, which needs the whole device. Releasing only acarsdec -- which is
+# what the two-way label flip used to do -- left dumpvdl2 holding the tuner and
+# the radio was never freed. Master must start before slave.
+_WX_DECODER_SERVICES = {
+    "acars": ["com.scannerproject.acarsdec", "com.scannerproject.dumpvdl2"],
+    "radiosonde": ["com.scannerproject.radiosonde"],
+}
 
-def _wx_decoder_launchctl_list(label: str) -> bool:
+
+def _wx_launchctl_states() -> dict:
+    """``label -> "running" | "loaded"`` from ONE ``launchctl list``.
+
+    THREE states matter here and the old code only had two. ``launchctl list``
+    prints ``PID  Status  Label``, and the PID column is ``-`` for a job that is
+    loaded in the domain but has no process:
+
+        17890   0       com.scannerproject.acarsdec      <- running
+        -       0       com.scannerproject.radiosonde    <- loaded, NOT running
+
+    The previous helper returned True on any line whose last field matched the
+    label and never looked at the PID, so "loaded" read as "running". That one
+    mistake produced both of the operator's symptoms on 2026-11-08: the mode
+    label was pinned to radiosonde (checked first, and permanently loaded), and
+    the switch early-returned "already loaded" without doing anything.
+
+    Labels absent from the output are simply missing from the returned dict, so
+    callers see three states: running / loaded / absent.
+    """
     import subprocess
+    out: dict = {}
     try:
         r = subprocess.run(
             ["/bin/launchctl", "list"],
             capture_output=True, text=True, timeout=5,
         )
-        for line in r.stdout.splitlines():
-            parts = line.split()
-            if len(parts) >= 3 and parts[-1] == label:
-                return True
     except Exception:
-        pass
-    return False
+        return out
+    for line in (r.stdout or "").splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        pid, label = parts[0].strip(), parts[-1]
+        if label == "Label":          # header row
+            continue
+        out[label] = "running" if pid not in ("-", "") else "loaded"
+    return out
 
 
-def _wx_decoder_active() -> str:
-    """Which decoder (acars/radiosonde) is currently loaded, if any."""
-    if _wx_decoder_launchctl_list(_WX_DECODER_LABELS["radiosonde"]):
-        return "radiosonde"
-    if _wx_decoder_launchctl_list(_WX_DECODER_LABELS["acars"]):
-        return "acars"
+def _wx_service_state(label: str, states: dict = None) -> str:
+    """``"running"`` / ``"loaded"`` / ``"absent"`` for one launchd label."""
+    if states is None:
+        states = _wx_launchctl_states()
+    return states.get(label, "absent")
+
+
+def _wx_decoder_active(states: dict = None) -> str:
+    """Which decoder is actually RUNNING -- not merely loaded.
+
+    Returns the primary label's state only. radiosonde is checked first because
+    it is exclusive: when it holds the RSPduo in ST mode nothing else can.
+    """
+    if states is None:
+        states = _wx_launchctl_states()
+    for target in ("radiosonde", "acars"):
+        if states.get(_WX_DECODER_LABELS[target]) == "running":
+            return target
     return "none"
 
 
 def _wx_decoder_switch(target: str) -> dict:
-    """Hand off the RSPduo from whatever's running to the target label.
+    """Hand the shared RSPduo over to ``target``, releasing BOTH halves first.
 
-    Three-step dance (recovery sequence documented in
-    reference_sdrplay_restart_op25.md):
-      1. bootout the active decoder
-      2. kick system/com.sdrplay.service (releases wedged device state)
-      3. bootstrap the target decoder
+    Hardware constraint, measured on neptune 2026-11-08: there are exactly two
+    SDRs on the box -- RSPduo 180903EF32 and RSP1B 240526DE60 (chirp-ground).
+    The RSPduo is opened by TWO processes at once as a master/slave pair:
+
+        acarsdec   serial=180903EF32 mode=MA            (master)
+        dumpvdl2   serial=180903EF32 mode=SL tuner=2    (slave)
+
+    radiosonde's shim (tools/auto_rx/bin/_shim.sh) opens that same serial in
+    ``mode=ST``, which needs the whole device. So the three cannot coexist, and
+    a handoff has to release both halves -- the old code flipped between two
+    labels and left dumpvdl2 holding the tuner, so the radio was never actually
+    freed. Coming back, the master must start before the slave.
+
+    Four defects this replaces:
+      1. the early return fired on "loaded", so switching did nothing;
+      2. only acarsdec was released, never dumpvdl2;
+      3. the target was started with ``bootstrap``, which cannot start a
+         ``RunAtLoad=false`` job -- and radiosonde's plist sets exactly that,
+         which is why it showed ``runs = 0`` having never once executed.
+         ``launchctl bootstrap`` on an ALREADY-loaded label also exits non-zero
+         ("Bootstrap failed: 37"), and the old code never inspected
+         returncode, so the failure branch was unreachable and it reported
+         success either way;
+      4. the sdrplay API was kicked unconditionally. That matters because
+         acarsdec and dumpvdl2 are KeepAlive jobs: during a routine respawn
+         blip a running-only check reads "not running", and an unconditional
+         kick would then yank the SDRplay API out from under dumpvdl2 AND
+         chirp-ground, which are fine. It is now kicked only when we actually
+         stopped something that was running.
+
+    Starting is delegated to ui.service_backend.LaunchdBackend, which already
+    gets this right (``kickstart`` first, ``bootstrap`` + ``kickstart`` only as
+    a fallback) instead of keeping a second, wrong copy here.
     """
-    import os as _os
-    import subprocess as _sp
     import time as _tm
+
     label = _WX_DECODER_LABELS.get(target)
     if not label:
-        return {"ok": False, "error": f"unknown target: {target}"}
-    uid = _os.getuid()
-    other_target = "radiosonde" if target == "acars" else "acars"
-    other_label = _WX_DECODER_LABELS[other_target]
+        return {"ok": False, "error": f"unknown target: {target}",
+                "known": sorted(_WX_DECODER_LABELS)}
 
-    steps = []
-    if _wx_decoder_launchctl_list(label):
-        steps.append(f"{target} already loaded")
-        return {"ok": True, "target": target, "steps": steps,
+    try:
+        from ui.service_backend import LaunchdBackend
+        backend = LaunchdBackend()
+    except Exception as exc:
+        return {"ok": False, "error": f"service backend unavailable: {exc!r}"}
+
+    states = _wx_launchctl_states()
+    steps: list = []
+
+    # Already genuinely running -> nothing to do. Note this now tests RUNNING,
+    # so a loaded-but-idle target no longer short-circuits the handoff.
+    if states.get(label) == "running":
+        return {"ok": True, "target": target, "steps": [f"{target} already running"],
                 "active_decoder": target}
 
-    # 1. bootout the other one if loaded
-    if _wx_decoder_launchctl_list(other_label):
+    # 1. Release every service belonging to the other mode that is ACTUALLY
+    #    running. Skipping the not-running ones is what keeps a KeepAlive
+    #    respawn blip from triggering a device teardown.
+    stopped = []
+    for other, labels in _WX_DECODER_SERVICES.items():
+        if other == target:
+            continue
+        for other_label in labels:
+            if states.get(other_label) != "running":
+                steps.append(f"{other_label}: {_wx_service_state(other_label, states)}, nothing to stop")
+                continue
+            ok, err = backend.stop(other_label)
+            steps.append(f"stop {other_label}" + ("" if ok else f" FAILED: {err}"))
+            if ok:
+                stopped.append(other_label)
+
+    # 2. Kick the SDRplay API only if we took a device away. Kicking it when
+    #    nothing was released would disturb healthy users of the other radio.
+    if stopped:
+        _tm.sleep(2)
         try:
-            _sp.run(["/bin/launchctl", "bootout", f"gui/{uid}/{other_label}"],
+            import subprocess as _sp
+            _sp.run(["/usr/bin/sudo", "-n", "/bin/launchctl",
+                     "kickstart", "-k", "system/com.sdrplay.service"],
                     capture_output=True, timeout=10)
-            steps.append(f"bootout {other_target}")
-            _tm.sleep(2)
+            steps.append("kicked com.sdrplay.service")
+            _tm.sleep(4)
         except Exception as exc:
-            return {"ok": False, "error": f"bootout {other_target} failed: {exc!r}",
-                    "steps": steps}
+            # Not fatal: the device may already be clean.
+            steps.append(f"sdrplay kick failed (continuing): {exc!r}")
+    else:
+        steps.append("nothing was running; skipped sdrplay kick")
 
-    # 2. kick sdrplay_apiService so RSPduo state resets
-    try:
-        _sp.run(["/usr/bin/sudo", "-n", "/bin/launchctl",
-                 "kickstart", "-k", "system/com.sdrplay.service"],
-                capture_output=True, timeout=10)
-        steps.append("kickstart sdrplay")
-        _tm.sleep(4)
-    except Exception as exc:
-        steps.append(f"sdrplay kick FAILED: {exc!r}")
-        # Not fatal — the target may still succeed if device is already clean.
+    # 3. Start every service for the target, master before slave.
+    for start_label in _WX_DECODER_SERVICES.get(target, [label]):
+        ok, err = backend.start(start_label)
+        steps.append(f"start {start_label}" + ("" if ok else f" FAILED: {err}"))
+        if not ok:
+            return {"ok": False, "target": target, "steps": steps,
+                    "error": f"start {start_label} failed: {err}",
+                    "active_decoder": _wx_decoder_active()}
+        _tm.sleep(1)
 
-    # 3. bootstrap target
-    plist = f"{_os.path.expanduser('~')}/Library/LaunchAgents/{label}.plist"
-    if not _os.path.exists(plist):
-        return {"ok": False, "error": f"plist missing: {plist}", "steps": steps}
-    try:
-        _sp.run(["/bin/launchctl", "bootstrap", f"gui/{uid}", plist],
-                capture_output=True, timeout=10)
-        steps.append(f"bootstrap {target}")
-        _tm.sleep(3)
-    except Exception as exc:
-        return {"ok": False, "error": f"bootstrap {target} failed: {exc!r}",
-                "steps": steps}
-
-    active = _wx_decoder_active()
-    return {"ok": active == target, "target": target, "steps": steps,
-            "active_decoder": active}
+    # 4. Verify, with retries. radiosonde's ThrottleInterval is 20 s and
+    #    acarsdec's is 10 s, so launchd can defer a start issued soon after an
+    #    exit; a single immediate check would report a false failure.
+    active = "none"
+    for _ in range(12):
+        active = _wx_decoder_active()
+        if active == target:
+            break
+        _tm.sleep(2)
+    steps.append(f"verified active_decoder={active}")
+    result = {"ok": active == target, "target": target, "steps": steps,
+              "active_decoder": active}
+    if active != target:
+        result["error"] = (
+            f"{target} did not reach running state; see steps. "
+            f"Check its log and whether the RSPduo was released."
+        )
+    return result
 
 
 def wx_decoder(form: Dict, state: State) -> Dict:
