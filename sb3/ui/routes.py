@@ -2545,6 +2545,7 @@ def wx_status(state: State) -> Dict:
         "message_count": total,
         "met_count": met,
         "counts_are_recent_window": True,
+        "requested_decoder": _wx_read_intent(),
         "filtered_count": 0,
         "spatial_filter": False,
     }
@@ -2713,6 +2714,32 @@ _WX_DECODER_SERVICES = {
 }
 
 
+# Where the switch records which decoder the operator ASKED for. The watchdog
+# (macos/bin/wx-decoder-watchdog.py) reads this so it can tell "radiosonde died
+# and should be retried" from "we are deliberately on ACARS". Without a record
+# of intent a watchdog can only guess, and would either fight a deliberate
+# radiosonde session or silently end it at the first hiccup.
+_WX_INTENT_PATH = _WxPath("~/.local/share/sb3/wx_decoder_intent").expanduser()
+
+
+def _wx_write_intent(target: str) -> None:
+    """Record the requested decoder. Best-effort: never fail a switch over it."""
+    try:
+        _WX_INTENT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _WX_INTENT_PATH.write_text(str(target).strip() + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _wx_read_intent() -> str:
+    """The last requested decoder, or "acars" -- the always-on baseline."""
+    try:
+        v = _WX_INTENT_PATH.read_text(encoding="utf-8").strip()
+    except Exception:
+        return "acars"
+    return v if v in _WX_DECODER_SERVICES else "acars"
+
+
 def _wx_launchctl_states() -> dict:
     """``label -> "running" | "loaded"`` from ONE ``launchctl list``.
 
@@ -2822,6 +2849,10 @@ def _wx_decoder_switch(target: str) -> dict:
         backend = LaunchdBackend()
     except Exception as exc:
         return {"ok": False, "error": f"service backend unavailable: {exc!r}"}
+
+    # Record intent FIRST. If the handoff dies halfway -- or the target starts
+    # and then crashes at 3am -- the watchdog still knows what was wanted.
+    _wx_write_intent(target)
 
     states = _wx_launchctl_states()
     steps: list = []

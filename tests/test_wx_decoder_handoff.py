@@ -34,6 +34,7 @@ from __future__ import annotations
 import ast
 import io
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -42,8 +43,9 @@ _ROUTES = Path(__file__).resolve().parents[1] / "sb3" / "ui" / "routes.py"
 _SRC = io.open(_ROUTES, encoding="utf-8").read()
 
 _FUNCS = ["_wx_launchctl_states", "_wx_service_state", "_wx_decoder_active",
-          "_wx_decoder_switch", "_wx_msg_is_met"]
-_CONSTS = {"_WX_DECODER_LABELS", "_WX_DECODER_SERVICES"}
+          "_wx_decoder_switch", "_wx_msg_is_met",
+          "_wx_write_intent", "_wx_read_intent"]
+_CONSTS = {"_WX_DECODER_LABELS", "_WX_DECODER_SERVICES", "_WX_INTENT_PATH"}
 
 ACARS = "com.scannerproject.acarsdec"
 VDL2 = "com.scannerproject.dumpvdl2"
@@ -61,6 +63,9 @@ def _load(ns=None):
     if missing:
         raise AssertionError("routes.py missing %s" % sorted(missing))
     ns = {} if ns is None else ns
+    # routes.py aliases pathlib.Path as _WxPath; _WX_INTENT_PATH needs it at
+    # exec time. Tests redirect the path itself so nothing touches $HOME.
+    ns.setdefault("_WxPath", Path)
     exec(compile(ast.Module(body=body, type_ignores=[]), "<routes-sub>", "exec"), ns)
     return ns
 
@@ -180,6 +185,9 @@ class SwitchTests(unittest.TestCase):
 
     def _run(self, target, states, after=None, fail_start=()):
         ns = _load()
+        # Never write the operator's real intent file from a test.
+        self.intent_file = Path(tempfile.mkdtemp()) / "wx_decoder_intent"
+        ns["_WX_INTENT_PATH"] = self.intent_file
         backend = _FakeBackend(fail_start=fail_start)
         seq = [dict(states)] + [dict(a) for a in (after or [])]
 
@@ -288,6 +296,32 @@ class SwitchTests(unittest.TestCase):
         res = ns["_wx_decoder_switch"]("banana")
         self.assertFalse(res["ok"])
         self.assertIn("unknown target", res["error"])
+
+    def test_intent_is_recorded_before_the_slow_work(self):
+        """The watchdog cannot tell a dead radiosonde session from a deliberate
+        ACARS one without this, so it must be written even if the switch then
+        fails partway."""
+        self._run("radiosonde",
+                  {ACARS: "running", VDL2: "running", SONDE: "loaded"},
+                  fail_start=(SONDE,))
+        self.assertEqual(self.intent_file.read_text(encoding="utf-8").strip(),
+                         "radiosonde",
+                         "intent must be recorded even when the start fails")
+
+    def test_intent_round_trips(self):
+        ns = _load()
+        f = Path(tempfile.mkdtemp()) / "intent"
+        ns["_WX_INTENT_PATH"] = f
+        ns["_wx_write_intent"]("radiosonde")
+        self.assertEqual(ns["_wx_read_intent"](), "radiosonde")
+
+    def test_unknown_intent_reads_back_as_acars(self):
+        ns = _load()
+        f = Path(tempfile.mkdtemp()) / "intent"
+        f.write_text("banana\n", encoding="utf-8")
+        ns["_WX_INTENT_PATH"] = f
+        self.assertEqual(ns["_wx_read_intent"](), "acars",
+                         "acars is the KeepAlive=true baseline")
 
     def test_steps_are_reported_for_diagnosis(self):
         res, _, _ = self._run(

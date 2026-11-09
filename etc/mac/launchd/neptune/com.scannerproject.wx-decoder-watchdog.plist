@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  com.scannerproject.wx-decoder-watchdog
+
+  Guarantees the box is never left with no weather/ACARS decoder.
+
+  The RSPduo (180903EF32) serves either ACARS+VDL2 (acarsdec mode=MA +
+  dumpvdl2 mode=SL tuner=2) or radiosonde (auto_rx, mode=ST) – never both –
+  so /api/wx/decoder hands it over by booting one side out and starting the
+  other.
+
+  The hazard: com.scannerproject.radiosonde ships RunAtLoad=false AND
+  KeepAlive=false, so if auto_rx dies nothing restarts it, and ACARS does not
+  return either – the handoff booted it out of the launchd domain, which is
+  exactly what prevents its own KeepAlive from recovering it. A crash at 3am
+  used to mean no ACARS, no radiosonde, and no sign anything had happened.
+
+  This runs every 60 s and:
+    * does nothing while the requested decoder is actually running;
+    * retries radiosonde up to 3 consecutive times if that is what was asked
+      for, so a transient failure does not silently end an overnight session;
+    * restores ACARS (the KeepAlive=true baseline) once that budget is spent.
+
+  It reads the requested decoder from ~/.local/share/sb3/wx_decoder_intent,
+  which sb3/ui/routes.py:_wx_decoder_switch writes before it starts work.
+  Without that it could not tell a dead radiosonde session from a deliberate
+  ACARS one.
+
+  StartInterval rather than KeepAlive: this is a periodic check, not a daemon.
+  RunAtLoad so a reboot gets a check immediately rather than 60 s later.
+
+  Install:
+    cp etc/mac/launchd/neptune/com.scannerproject.wx-decoder-watchdog.plist \
+       ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) \
+       ~/Library/LaunchAgents/com.scannerproject.wx-decoder-watchdog.plist
+
+  Log: ~/Library/Logs/sb3/wx-decoder-watchdog.log (the script also writes
+  there itself, so the launchd stdio files stay small).
+-->
+<dict>
+    <key>Label</key>
+    <string>com.scannerproject.wx-decoder-watchdog</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/willminkoff/scannerproject/macos/bin/wx-decoder-watchdog.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/willminkoff/scannerproject</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>60</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/willminkoff/Library/Logs/sb3/wx-decoder-watchdog.out</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/willminkoff/Library/Logs/sb3/wx-decoder-watchdog.out</string>
+</dict>
+</plist>
