@@ -35,22 +35,42 @@ CHIRP_SERVICE = os.environ.get(
 )
 
 
+# Which host each band's chirp daemon runs on. Environment-driven, defaulting
+# to loopback -- see the long note on _CHIRP_HOSTS_BY_PORT in ui/routes.py. A
+# hardcoded live address here is the same loaded gun: apply_profile_to_chirp
+# reaches the real radio the moment anything imports this module.
+#
+# "vfo" deliberately shares airband's variable: it is not a separate daemon,
+# it is the airband daemon on port 7400 driven with a single channel.
+_CHIRP_HOST_ENV = {
+    "airband": "SB3_CHIRP_AIRBAND_HOST",
+    "ground":  "SB3_CHIRP_GROUND_HOST",
+    "vfo":     "SB3_CHIRP_AIRBAND_HOST",
+}
+
+
+def _band_host(band: str) -> str:
+    """Resolve a band's chirp host, loopback unless the deployment says otherwise."""
+    var = _CHIRP_HOST_ENV.get(band, "")
+    return ((os.environ.get(var) or "").strip() if var else "") or "127.0.0.1"
+
+
 # Per-band chirp config: cmd port, env file, launchd service.
 _BAND_CFG = {
     "airband": {
-        "host": "100.114.219.115",
+        "host": _band_host("airband"),
         "port": 7400,
         "env":  "/Users/willminkoff/.config/sb3/chirp-airband.env",
         "svc":  "com.scannerproject.chirp-airband",
     },
     "ground": {
-        "host": "127.0.0.1",
+        "host": _band_host("ground"),
         "port": 7401,
         "env":  "/Users/willminkoff/.config/sb3/chirp-ground.env",
         "svc":  "com.scannerproject.chirp-ground",
     },
     "vfo": {
-        "host": "100.114.219.115",
+        "host": _band_host("vfo"),
         "port": 7400,
         "env":  "/Users/willminkoff/.config/sb3/chirp-airband.env",
         "svc":  "com.scannerproject.chirp-airband",

@@ -2098,8 +2098,30 @@ _LAST_APPLIED_GAIN = {}  # {port: db} module state for gain UI reconciliation
 
 
 _CHIRP_PORT_BY_BAND = {"airband": 7400, "ground": 7401}
-# Chirp cmd hosts per port: airband lives on Venus, ground stays local.
-_CHIRP_HOSTS_BY_PORT = {7400: "100.114.219.115", 7401: "127.0.0.1"}
+# Where each chirp daemon lives. Read from the environment, defaulting to
+# LOOPBACK on purpose.
+#
+# This line used to be {7400: "100.114.219.115", 7401: "127.0.0.1"} -- the live
+# airband box's address baked in as a constant. Importing this module was
+# therefore enough to reach a real radio, so anything exercising the tune or
+# apply path hit it for real, `pytest` included: airband's 10-channel pool was
+# wiped down to a single `vfo` at 119.35 three times on 2026-11-09 and again on
+# 2026-11-10 08:05 (remove_channel x10 then add_channel n=1, logged from a
+# laptop's IP in ~/.local/share/chirp/logs/cmd-audit.log). Ground never once
+# suffered it because ground was already loopback -- the asymmetry WAS the bug.
+#
+# Reaching a real radio is now a deployment decision, matching the
+# SB3_OP25_APPLY_URL / SB3_DISCO_URL convention already used in this file.
+# DEPLOYMENT: sb3-ui must be started with SB3_CHIRP_AIRBAND_HOST set, or
+# airband control silently talks to nothing.
+_CHIRP_HOST_ENV_BY_PORT = {
+    7400: "SB3_CHIRP_AIRBAND_HOST",
+    7401: "SB3_CHIRP_GROUND_HOST",
+}
+_CHIRP_HOSTS_BY_PORT = {
+    _port: ((os.environ.get(_var) or "").strip() or "127.0.0.1")
+    for _port, _var in _CHIRP_HOST_ENV_BY_PORT.items()
+}
 
 def _chirp_host(port):
     return _CHIRP_HOSTS_BY_PORT.get(int(port), "127.0.0.1")
