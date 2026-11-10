@@ -17439,6 +17439,70 @@
             return (typeof f === 'object' && f) ? (f.freq_mhz || f.mhz || f) : f;
           }).filter(Boolean).join(',');
         }
+        // ---- TOGGLE ------------------------------------------------------
+        // This shim overrides applyBandScanPresetByKey, so the toggle has to
+        // live HERE. The original function further up the file is shadowed and
+        // never runs -- a fix applied there has no effect, which is exactly
+        // what happened on 2026-11-09 before this was found.
+        //
+        // Decide from the radio, fetched fresh. scanStateFor() reads
+        // state[target].scan, which is only as current as the last status
+        // poll; right after an apply it is stale, and a stale read makes the
+        // button re-apply instead of stopping.
+        let activePreset = '';
+        try {
+          const stNow = await (await fetch('/api/status', { cache: 'no-store' })).json();
+          const scanNow = (target === 'ground' ? stNow.ground_scan : stNow.airband_scan) || {};
+          activePreset = String(scanNow.preset || '').trim();
+        } catch (_) {}
+        if (activePreset && activePreset === key) {
+          // Stopping. Prefer landing on a profile over leaving the band at
+          // zero channels -- see resolveBandScanFallbackProfile().
+          let fallback = '';
+          try {
+            if (typeof resolveBandScanFallbackProfile === 'function') {
+              fallback = resolveBandScanFallbackProfile(target, preset.profileId) || '';
+            }
+          } catch (_) {}
+          try {
+            let ok = false;
+            if (fallback) {
+              // POST /api/profile directly, NOT selectProfileForTarget: that
+              // helper verifies by polling for an active profile id, and the
+              // backend always reports active_<band>_id "", so its
+              // verification can never succeed and it reports failure on a
+              // switch that worked.
+              const res = await postAPI('/api/profile',
+                { profile: fallback, target: target }, { timeoutMs: 20000 });
+              ok = Boolean(res && res.ok !== false);
+              try {
+                logActivity(ok
+                  ? (label + ' scan stopped -> ' + fallback)
+                  : (label + ' scan stop failed: ' + ((res && res.error) || 'unknown')),
+                  ok ? 'info' : 'warn', 'bandscan-stop-' + key);
+              } catch (_) {}
+            } else {
+              const res = await postAPI('/api/bandscan/stop',
+                { target: target, preset: key }, { timeoutMs: 15000 });
+              ok = Boolean(res && res.ok);
+              try {
+                logActivity(ok
+                  ? (label + ' scan stopped (' + ((res && res.removed_count) || 0) + ' channels cleared)')
+                  : (label + ' scan stop failed: ' + ((res && res.error) || 'unknown')),
+                  ok ? 'info' : 'warn', 'bandscan-stop-' + key);
+              } catch (_) {}
+            }
+            if (ok) {
+              try { if (typeof refresh === 'function') await refresh(); } catch (_) {}
+              try { if (typeof updateBandScanButtonStates === 'function') updateBandScanButtonStates(); } catch (_) {}
+            }
+            return ok;
+          } catch (e) {
+            try { logActivity(label + ' scan stop error: ' + ((e && e.message) || e), 'warn', 'bandscan-stop-err-' + key); } catch (_) {}
+            return false;
+          }
+        }
+        // ---- APPLY -------------------------------------------------------
         if (!freqsText) {
           try { logActivity('No frequencies for ' + label, 'warn', 'bandscan-nofreq-' + key); } catch (_) {}
           return false;

@@ -188,8 +188,74 @@ class ServerWiringTests(unittest.TestCase):
         self.assertIn("routes.bandscan_stop(form, state)", _SERVER_SRC)
 
 
+class ShadowingTests(unittest.TestCase):
+    """applyBandScanPresetByKey is DEFINED TWICE, and the later one wins.
+
+    A `__BANDSCAN_DIRECT_POST_SHIM__` IIFE near the end of sb3.html assigns
+    `window.applyBandScanPresetByKey`, overriding the `async function`
+    declaration ~2000 lines earlier. Its own comment says why: both
+    /api/profile/create and /api/profile-editor/analog/save return 501, so the
+    bandscan_* profiles the original path wanted never existed.
+
+    This cost a whole fix cycle on 2026-11-09. The toggle was implemented in
+    the declaration, every grep-level test passed because they matched that
+    declaration, and clicking the button in a real browser still re-applied the
+    scan -- the patched function was shadowed and never ran.
+
+    So: assert the EFFECTIVE implementation carries the behaviour, not merely
+    some implementation.
+    """
+
+    DECL = re.compile(r"async function applyBandScanPresetByKey\s*\(")
+    ASSIGN = re.compile(r"window\.applyBandScanPresetByKey\s*=")
+
+    def test_the_shim_still_exists(self):
+        """If it is ever removed, the effective-impl helper below must change."""
+        self.assertIn("__BANDSCAN_DIRECT_POST_SHIM__", _HTML_SRC)
+        self.assertTrue(self.ASSIGN.search(_HTML_SRC),
+                        "the shim assigns window.applyBandScanPresetByKey")
+
+    def test_the_shim_comes_after_the_declaration(self):
+        d = self.DECL.search(_HTML_SRC)
+        a = self.ASSIGN.search(_HTML_SRC)
+        self.assertIsNotNone(d)
+        self.assertIsNotNone(a)
+        self.assertGreater(a.start(), d.start(),
+                           "the assignment must be the later definition; if "
+                           "this flips, the shadowing direction changed")
+
+    def test_the_effective_implementation_is_the_shim(self):
+        self.assertEqual(_effective_impl_name(), "shim")
+
+
+def _effective_impl_name():
+    """Which definition of applyBandScanPresetByKey actually wins."""
+    decl = re.search(r"async function applyBandScanPresetByKey\s*\(", _HTML_SRC)
+    assign = re.search(r"window\.applyBandScanPresetByKey\s*=", _HTML_SRC)
+    if assign and (not decl or assign.start() > decl.start()):
+        return "shim"
+    return "declaration"
+
+
+def _effective_impl_body():
+    """Source of the definition that actually runs.
+
+    Grepping the first `async function applyBandScanPresetByKey` is exactly
+    the mistake that produced a passing test suite over a dead code path.
+    """
+    if _effective_impl_name() == "shim":
+        start = _HTML_SRC.index("__BANDSCAN_DIRECT_POST_SHIM__")
+        end = _HTML_SRC.index("</script>", start)
+        return _HTML_SRC[start:end]
+    m = re.search(r"async function applyBandScanPresetByKey\([^)]*\)\s*\{(.*?)\n    \}",
+                  _HTML_SRC, re.S)
+    return m.group(1) if m else ""
+
+
 class ClientToggleTests(unittest.TestCase):
     def _fn(self, name):
+        if name == "applyBandScanPresetByKey":
+            return _effective_impl_body()
         m = re.search(r"async function %s\([^)]*\)\s*\{(.*?)\n    \}" % name,
                       _HTML_SRC, re.S)
         self.assertIsNotNone(m, "%s() missing" % name)
@@ -200,12 +266,16 @@ class ClientToggleTests(unittest.TestCase):
         self.assertNotRegex(
             body, r"const isActive = currentProfile === profileId;",
             "that comparison is false even mid-scan, because applying a band "
-            "scan never registers a profile")
+            "scan never registers a profile -- /api/status reports "
+            "profile_ground '' with 15 channels loaded")
 
     def test_is_active_reads_live_scan_state(self):
+        """And FRESH, not the cached status: state[target].scan is only as
+        current as the last poll, and a stale read makes the button re-apply."""
         body = self._fn("applyBandScanPresetByKey")
-        self.assertIn("scanStateFor(target)", body)
-        self.assertRegex(body, r"livePreset === String\(preset\.key\)")
+        self.assertIn("'/api/status'", body)
+        self.assertIn("cache: 'no-store'", body)
+        self.assertRegex(body, r"activePreset === key")
 
     def test_the_dead_end_bail_is_gone(self):
         self.assertNotIn("No stop profile available", _HTML_SRC,
@@ -215,23 +285,34 @@ class ClientToggleTests(unittest.TestCase):
     def test_stop_calls_the_endpoint_scoped_to_the_preset(self):
         body = self._fn("applyBandScanPresetByKey")
         self.assertIn("'/api/bandscan/stop'", body)
-        self.assertRegex(body, r"preset:\s*preset\.key")
+        self.assertRegex(body, r"preset:\s*key")
 
     def test_stop_only_clears_when_there_is_nothing_to_return_to(self):
-        """A remembered profile is still the nicer destination."""
+        """Landing on a profile beats leaving the band at zero channels."""
         body = self._fn("applyBandScanPresetByKey")
-        self.assertRegex(body, r"if \(isActive && !nextProfile\)")
-        self.assertIn("selectProfileForTarget(target, nextProfile, true)", body,
-                      "the return-to-profile path must survive")
+        self.assertIn("resolveBandScanFallbackProfile(target, preset.profileId)", body)
+        self.assertRegex(body, r"if \(fallback\)")
+
+    def test_fallback_posts_the_profile_directly(self):
+        """NOT via selectProfileForTarget: that verifies by polling for an
+        active profile id, and the backend always reports active_<band>_id "",
+        so its verification can never succeed and it reports failure on a
+        switch that actually worked."""
+        body = self._fn("applyBandScanPresetByKey")
+        self.assertIn("'/api/profile'", body)
+        # Not *called*. The shim's own header comment names it in prose
+        # ("Bypass the broken ... selectProfileForTarget chain"), so match the
+        # call syntax rather than the identifier.
+        self.assertNotIn("selectProfileForTarget(", body)
 
     def test_a_failed_stop_is_surfaced(self):
         body = self._fn("applyBandScanPresetByKey")
-        self.assertIn("bandscan-stop-failed-", body)
+        self.assertIn("bandscan-stop-", body)
 
     def test_stop_falls_back_to_a_profile_not_an_empty_band(self):
         """Zero channels is a worse resting state than the band's prior one."""
         body = self._fn("applyBandScanPresetByKey")
-        self.assertIn("resolveBandScanFallbackProfile(target, profileId)", body)
+        self.assertIn("resolveBandScanFallbackProfile(target, preset.profileId)", body)
 
     def test_every_preset_benefits(self):
         """The fix is in the shared handler, not per button."""
