@@ -23,10 +23,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import logging.handlers
+import os
 import socket
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from pydantic import ValidationError
@@ -42,6 +45,146 @@ from chirp.cmd.schema import (
 )
 
 log = logging.getLogger("chirp.cmd.server")
+
+
+# ---------------------------------------------------------------------------
+# Caller attribution
+# ---------------------------------------------------------------------------
+#
+# This socket binds whatever CHIRP_CMD_HOST says, and on scannerbox-1 that is
+# 0.0.0.0 -- so any host able to route to port 7400 can retune the radio, with
+# no authentication and, until this, no record of who did.
+#
+# That gap made one failure undiagnosable. Airband kept being wiped from a
+# 10-channel scan pool down to a single VFO channel at 119.35 MHz, three times
+# in a day, always the same signature: a gain change, then ten remove_channel,
+# then one add_channel. sb3-ui's request log held no matching request -- which
+# looked like evidence and was not, because a client speaking straight to this
+# port never touches sb3-ui, so its absence from that log is what you would
+# expect whether or not it was the culprit. These lines name the sender
+# whichever path it takes.
+#
+# get_status, subscribe and unsubscribe are excluded: the UI polls get_status
+# several times a second, and logging it would bury the commands that matter.
+audit = logging.getLogger("chirp.cmd.audit")
+# Pinned to INFO so attribution survives someone quieting the rest of the
+# daemon: during propagation Python consults ancestor *handlers*, never
+# ancestor logger levels, so a root-level change cannot suppress these.
+audit.setLevel(logging.INFO)
+
+READ_ONLY_COMMANDS = frozenset({"get_status", "subscribe", "unsubscribe"})
+
+# Args worth seeing in an audit line. A whitelist, so a field added to a
+# command's schema later can never silently start being logged.
+_AUDIT_ARG_FIELDS = ("id", "freq_mhz", "mhz", "mode", "db", "dbfs",
+                     "threshold", "bypass")
+# add_channel carries a list; show the first few so a wipe-and-retune reads at
+# a glance without opening the payload.
+_AUDIT_CHANNEL_PREVIEW = 4
+# One "new client" line per source IP -- keyed by IP, not (ip, port), because a
+# client gets a fresh source port per socket and a port scan would otherwise
+# grow the table without bound.
+_AUDIT_MAX_PEERS = 128
+# Cap on any one field written into an audit line.
+_AUDIT_MAX_FIELD = 400
+
+_audit_handler_installed = False
+_audit_path: Optional[str] = None
+
+
+def _audit_log_path() -> Path:
+    """Where audit lines go.
+
+    Deliberately NOT the daemon's stdout log. That file takes a cluster_hop
+    event roughly every 0.8 s -- 1.4 GB in four hours on airband, with
+    StandardOutput=append and so no rotation -- and a handful of audit lines a
+    day would be unfindable in it.
+    """
+    explicit = os.environ.get("CHIRP_CMD_AUDIT_LOG", "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    hit = os.environ.get("CHIRP_HIT_LOG", "").strip()
+    if hit:
+        return Path(hit).expanduser().parent / "cmd-audit.log"
+    return Path("~/.local/share/chirp/logs/cmd-audit.log").expanduser()
+
+
+def install_audit_handler() -> Optional[str]:
+    """Give the audit logger its own small rotating file. Idempotent.
+
+    Returns the path in use, or None if it could not be opened -- in which case
+    the records still reach the root logger's handlers, so attribution degrades
+    instead of disappearing.
+    """
+    global _audit_handler_installed, _audit_path
+    if _audit_handler_installed:
+        return _audit_path
+    path = _audit_log_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handler = logging.handlers.RotatingFileHandler(
+            str(path), maxBytes=2_000_000, backupCount=3, encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+        audit.addHandler(handler)
+        _audit_path = str(path)
+    except Exception as exc:  # permissions, read-only fs, full disk
+        log.warning("could not open command audit log %s: %r", path, exc)
+        _audit_path = None
+    _audit_handler_installed = True
+    return _audit_path
+
+
+def _audit_scrub(text: str) -> str:
+    """Keep an audit line to one line, and bounded.
+
+    This port takes commands from unauthenticated clients, and the request id
+    and channel ids are free-form strings, so a newline in one would otherwise
+    let a caller forge an audit entry -- including one naming a different
+    sender. Length is capped for the same reason a 4 KB packet is.
+    """
+    try:
+        out = str(text).replace("\r", " ").replace("\n", " ")
+    except Exception:
+        return "<unprintable>"
+    if len(out) > _AUDIT_MAX_FIELD:
+        return out[:_AUDIT_MAX_FIELD] + "..."
+    return out
+
+
+def _fmt_addr(addr: Any) -> str:
+    """"ip:port" from a datagram address, tolerant of odd shapes."""
+    try:
+        if isinstance(addr, (str, bytes, bytearray)):
+            return _audit_scrub(str(addr))
+        return "%s:%s" % (addr[0], addr[1])
+    except Exception:
+        return _audit_scrub(str(addr))
+
+
+def _audit_args(cmd: str, args: Any) -> str:
+    """Compact summary of a command's args.
+
+    Never raises: a vague audit line is worth far more than a command dropped
+    because summarising it went wrong.
+    """
+    try:
+        if cmd == "add_channel":
+            chans = list(getattr(args, "channels", None) or [])
+            parts = ["n=%d" % len(chans)]
+            for c in chans[:_AUDIT_CHANNEL_PREVIEW]:
+                parts.append("%s@%s" % (getattr(c, "id", "?"),
+                                        getattr(c, "freq_mhz", "?")))
+            if len(chans) > _AUDIT_CHANNEL_PREVIEW:
+                parts.append("+%d" % (len(chans) - _AUDIT_CHANNEL_PREVIEW))
+            return _audit_scrub(" ".join(parts))
+        parts = []
+        for field in _AUDIT_ARG_FIELDS:
+            val = getattr(args, field, None)
+            if val is not None:
+                parts.append("%s=%s" % (field, val))
+        return _audit_scrub(" ".join(parts))
+    except Exception:
+        return "<args unsummarizable>"
 
 
 # A dispatch callable receives a validated Envelope + validated args model
@@ -79,6 +222,10 @@ class _CommandProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data: bytes, addr: tuple) -> None:  # type: ignore[override]
         if self.transport is None:
             return
+        # Before validation, so a client speaking the wrong protocol still
+        # shows up as a host that is talking to the radio.
+        if self.server.note_peer(addr):
+            audit.info("new client %s", _fmt_addr(addr))
         if len(data) > self.server.cfg.max_packet:
             resp = Response.make_error("unknown", f"packet too large ({len(data)} > {self.server.cfg.max_packet})")
             self._reply(resp, addr)
@@ -137,6 +284,13 @@ class _CommandProtocol(asyncio.DatagramProtocol):
             }), addr)
             return
 
+        # 4c) Record who is about to change the radio. Logged before dispatch
+        # so a command that wedges the flowgraph still leaves its sender named.
+        if env.cmd not in READ_ONLY_COMMANDS:
+            audit.info("cmd=%s id=%s from=%s %s", _audit_scrub(env.cmd),
+                       _audit_scrub(env.id), _fmt_addr(addr),
+                       _audit_args(env.cmd, args))
+
         # 4b) Dispatch to flowgraph
         try:
             resp = self.dispatch(env, args)
@@ -189,6 +343,35 @@ class CommandServer:
         # Map (host, port) → set of event-name strings ('' set ⇒ all events).
         self._subscribers: dict[tuple[str, int], set[str]] = {}
         self._sub_lock = threading.Lock()
+        # Source IPs seen at least once, for the one-line-per-host notice.
+        self._seen_peers: set[str] = set()
+        self._peer_lock = threading.Lock()
+        self._peer_table_full = False
+
+    def note_peer(self, addr: tuple) -> bool:
+        """Record a source host; True only the first time one is seen.
+
+        Keyed by IP rather than (ip, port): a client gets a fresh source port
+        per socket, so port-keying would log the same host repeatedly and let a
+        port scan grow the table without bound. Capped anyway -- past the cap
+        new hosts stop being announced, but their mutating commands are still
+        logged with ``from=``, which is the part that matters.
+        """
+        try:
+            ip = str(addr[0])
+        except Exception:
+            return False
+        with self._peer_lock:
+            if ip in self._seen_peers:
+                return False
+            if len(self._seen_peers) >= _AUDIT_MAX_PEERS:
+                if not self._peer_table_full:
+                    self._peer_table_full = True
+                    log.warning("audit peer table full at %d hosts; new-client "
+                                "notices suppressed", _AUDIT_MAX_PEERS)
+                return False
+            self._seen_peers.add(ip)
+            return True
 
     # -- Phase 3: dynamic event subscriber registry -------------------------
 
@@ -217,6 +400,7 @@ class CommandServer:
     def start(self) -> None:
         if self._thread is not None:
             raise RuntimeError("CommandServer already started")
+        install_audit_handler()
         self._thread = threading.Thread(target=self._run, name="chirp-cmdserver", daemon=True)
         self._thread.start()
         # Wait for bind to succeed (or fail) before returning.
