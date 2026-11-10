@@ -15229,7 +15229,19 @@
         }
         const currentProfile = String(observedCurrentProfile || (state[target] || {}).currentProfile || '').trim();
         const currentIsBandScanProfile = isBandScanProfileForTarget(target, currentProfile);
-        const isActive = currentProfile === profileId;
+        // Ask the RADIO what is loaded, not the profile system. Applying a
+        // band scan goes through the direct-post shim, which never registers a
+        // profile -- /api/status reports profile_ground: "" the whole time a
+        // scan is running. So `currentProfile === profileId` was false even
+        // mid-scan: every button re-applied instead of toggling, and the stop
+        // path below was unreachable. /api/status already carries the live
+        // answer as <band>_scan.preset -- the same signal
+        // updateQuickScanButtons() uses to light the button.
+        const liveScan = (typeof scanStateFor === 'function') ? scanStateFor(target) : null;
+        const livePreset = liveScan && liveScan.preset ? String(liveScan.preset) : '';
+        const isActive = livePreset
+          ? livePreset === String(preset.key)
+          : currentProfile === profileId;
         const stopProfileId = String(
           preset.stopProfileId || (target === 'ground' ? QUICK_GROUND_OFF_PROFILE_ID : QUICK_AIRBAND_OFF_PROFILE_ID)
         ).trim();
@@ -15254,10 +15266,10 @@
         const captureReturnProfile = (!isActive && !currentIsBandScanProfile && currentProfile && currentProfile !== profileId)
           ? currentProfile
           : '';
-        if (isActive && !nextProfile) {
-          logActivity(`No stop profile available for ${displayLabel} scan`, 'warn', `bandscan-stop-missing-${preset.key}`);
-          return false;
-        }
+        // No bail-out when there is nothing to return to. Stopping a scan is
+        // removing its channels; it does not need a profile. This used to
+        // demand a `none_<band>` profile that was never created, so "off"
+        // dead-ended here with a warning while the scan kept running.
         if (btn) {
           btn.disabled = true;
           btn.textContent = isActive ? 'Stopping...' : 'Applying...';
@@ -15267,7 +15279,27 @@
             await ensureBandScanProfile(preset);
           }
           switchTarget(target);
-          const ok = await selectProfileForTarget(target, nextProfile, true);
+          let ok;
+          if (isActive && !nextProfile) {
+            // Nothing to go back to: clear this preset's channels outright.
+            // Scoped to preset.key so a band carrying other channels keeps
+            // them, and the server never removes a keepalive (it holds the
+            // icecast mount).
+            const res = await postAPI('/api/bandscan/stop', {
+              target,
+              preset: preset.key,
+            });
+            ok = Boolean(res && res.ok);
+            if (!ok) {
+              logActivity(
+                messageFromError(res && res.error, `${displayLabel} scan stop failed`),
+                'warn',
+                `bandscan-stop-failed-${preset.key}`
+              );
+            }
+          } else {
+            ok = await selectProfileForTarget(target, nextProfile, true);
+          }
           if (ok) {
             if (isActive) {
               clearBandScanReturnProfile(target);

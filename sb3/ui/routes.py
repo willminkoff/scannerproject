@@ -3391,6 +3391,101 @@ def bandscan_apply(form, state):
     return out
 
 
+def bandscan_stop(form, state):
+    """POST /api/bandscan/stop — remove a band's band-scan channels.
+
+    Band-scan buttons could start a scan but never stop one, because "off" was
+    routed through the profile system: the handler looked for a
+    ``none_ground`` / ``none_airband`` profile to switch back to, and neither
+    exists. With no return profile it logged "No stop profile available" and
+    returned, so every preset was a one-way door -- GMRS, Marine, Rail, CB
+    alike.
+
+    Stopping a scan does not need a profile. The scan IS a set of channels
+    named ``bs-<preset>-<n>`` (see :func:`bandscan_apply`), so stopping it is
+    removing exactly those. Anything the operator put there by other means is
+    left alone, and a keepalive is never touched -- it holds the icecast mount,
+    and dropping it would take the band's audio down rather than just its
+    scan list.
+
+    form:
+        target   "air" / "airband" / "ground"
+        preset   optional; remove only ``bs-<preset>-*``. Omitted = every bs-*.
+    """
+    import socket as _s
+    import json as _j
+
+    target_raw = str((form or {}).get("target", "")).strip().lower()
+    if target_raw in ("air", "airband"):
+        target = "airband"
+    elif target_raw == "ground":
+        target = "ground"
+    else:
+        return {"ok": False, "error": f"unknown target: {target_raw!r}"}
+
+    preset = str((form or {}).get("preset", "")).strip().lower()
+    prefix = ("bs-%s-" % preset) if preset else "bs-"
+
+    port = _CHIRP_PORT_BY_BAND[target]
+    host = _chirp_host(port)
+
+    def _send(cmd, args, timeout=3.0):
+        sk = _s.socket(_s.AF_INET, _s.SOCK_DGRAM)
+        sk.settimeout(timeout)
+        try:
+            sk.sendto(_j.dumps({"v": 1, "id": cmd, "cmd": cmd, "args": args}).encode(),
+                      (host, port))
+            data, _ = sk.recvfrom(65535)
+            return _j.loads(data)
+        finally:
+            sk.close()
+
+    try:
+        st = _send("get_status", {})
+    except Exception as exc:
+        return {"ok": False, "error": f"chirp {host}:{port} unreachable: {exc!r}",
+                "target": target}
+
+    chans = (st.get("data") or {}).get("channels", [])
+    if isinstance(chans, dict):
+        cur_ids = list(chans.keys())
+    else:
+        cur_ids = [c.get("id") for c in chans if isinstance(c, dict) and c.get("id")]
+
+    removed, failed = [], []
+    for cid in cur_ids:
+        cid_s = str(cid or "")
+        if not cid_s or "keepalive" in cid_s.lower():
+            continue
+        if not cid_s.lower().startswith(prefix):
+            continue
+        try:
+            r = _send("remove_channel", {"id": cid_s})
+            if (r or {}).get("error"):
+                failed.append({"id": cid_s, "error": r["error"]})
+            else:
+                removed.append(cid_s)
+        except Exception as exc:
+            failed.append({"id": cid_s, "error": repr(exc)})
+
+    try:
+        after = _send("get_status", {})
+        data = after.get("data") or {}
+        ch = data.get("channels")
+        remaining = len(ch) if hasattr(ch, "__len__") else None
+    except Exception:
+        remaining = None
+
+    out = {"ok": not failed, "target": target, "prefix": prefix,
+           "removed": removed, "removed_count": len(removed),
+           "remaining": remaining}
+    if failed:
+        out["failed"] = failed
+    if not removed:
+        out["note"] = "no band-scan channels were loaded for this band"
+    return out
+
+
 def profile_create_stub(form, state):
     """POST /api/profile/create — no-op (profile registry is unimplemented).
 

@@ -264,6 +264,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(routes.hp_scan_state_save(body))
             if p == "/api/bandscan/apply":
                 return self._json(routes.bandscan_apply(form, state))
+            if p == "/api/bandscan/stop":
+                return self._json(routes.bandscan_stop(form, state))
             if p == "/api/profile/create":
                 return self._json(routes.profile_create_stub(form, state))
             if p == "/api/profile-editor/analog/save":
