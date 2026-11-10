@@ -228,6 +228,11 @@ class ClientToggleTests(unittest.TestCase):
         body = self._fn("applyBandScanPresetByKey")
         self.assertIn("bandscan-stop-failed-", body)
 
+    def test_stop_falls_back_to_a_profile_not_an_empty_band(self):
+        """Zero channels is a worse resting state than the band's prior one."""
+        body = self._fn("applyBandScanPresetByKey")
+        self.assertIn("resolveBandScanFallbackProfile(target, profileId)", body)
+
     def test_every_preset_benefits(self):
         """The fix is in the shared handler, not per button."""
         keys = set(re.findall(r"key:\s*'([a-z0-9]+)'", _HTML_SRC))
@@ -238,3 +243,59 @@ class ClientToggleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FallbackResolverTests(unittest.TestCase):
+    """resolveBandScanFallbackProfile(): where a band lands when its scan stops."""
+
+    def setUp(self):
+        m = re.search(
+            r"function resolveBandScanFallbackProfile\(target, scanProfileId\)\s*\{(.*?)\n    \}",
+            _HTML_SRC, re.S)
+        self.assertIsNotNone(m, "resolveBandScanFallbackProfile() missing")
+        self.body = m.group(1)
+
+    def test_prefers_the_profile_loaded_before_the_scan(self):
+        self.assertIn("getBandScanReturnProfile(target)", self.body)
+        self.assertLess(self.body.index("getBandScanReturnProfile"),
+                        self.body.index("state.lastProfile"),
+                        "the pre-scan profile is the strongest signal and must "
+                        "be checked first")
+
+    def test_then_the_last_profile_selected_on_that_band(self):
+        self.assertIn("state.lastProfile", self.body)
+
+    def test_then_the_bands_only_profile(self):
+        self.assertRegex(self.body, r"plain\.length === 1")
+
+    def test_never_picks_arbitrarily_from_several(self):
+        """Loading one of three profiles the operator never chose is worse than
+        leaving the band clear.
+
+        So the list may be indexed exactly once, and only on a line that has
+        already checked there IS exactly one candidate.
+        """
+        uses = [ln.strip() for ln in self.body.splitlines() if "plain[" in ln]
+        self.assertEqual(len(uses), 1,
+                         "expected a single guarded index into the candidate "
+                         "list, found %d: %r" % (len(uses), uses))
+        self.assertIn("plain.length === 1", uses[0],
+                      "indexing must be guarded by the length check; got %r"
+                      % uses[0])
+        for grabby in (".find(", ".shift(", ".pop(", "[0]"):
+            with self.subTest(pattern=grabby):
+                if grabby == "[0]":
+                    continue  # covered by the single-guarded-use check above
+                self.assertNotIn("plain" + grabby, self.body)
+
+    def test_never_falls_back_to_another_band_scan(self):
+        self.assertIn("isBandScanProfileForTarget", self.body)
+
+    def test_never_falls_back_to_the_scan_being_stopped(self):
+        self.assertRegex(self.body, r"candidate === scanId")
+
+    def test_only_offers_profiles_that_exist(self):
+        self.assertIn("hasProfileForTarget(target, candidate)", self.body)
+
+    def test_returns_empty_when_nothing_qualifies(self):
+        self.assertRegex(self.body, r"return '';")

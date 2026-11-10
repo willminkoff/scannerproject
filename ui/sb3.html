@@ -8915,6 +8915,50 @@
       return _profilesForAnalogTarget(target);
     }
 
+    // Where a band lands when its scan is switched off.
+    //
+    // Zero channels is a worse resting state than whatever the band had
+    // before: the daemon stays up and the icecast mount survives (the
+    // silent-frame keepalive holds it), but the band hears nothing and the UI
+    // reports "not loaded". So prefer a profile, in descending order of how
+    // confident we are the operator wants it:
+    //
+    //   1. the profile loaded when the scan started -- captured by
+    //      setBandScanReturnProfile(), i.e. their actual prior state;
+    //   2. the last profile they selected on this band this session;
+    //   3. the band's ONLY profile, when it has exactly one -- unambiguous.
+    //
+    // Deliberately NOT "the first of several": picking arbitrarily would
+    // silently load something never chosen, which is worse than leaving the
+    // band clear and saying so. Ground has exactly one profile so it resolves
+    // by rule 3; airband has three and falls back only via rule 1 or 2.
+    //
+    // Returns '' when nothing qualifies; the caller then clears the scan's
+    // channels instead.
+    function resolveBandScanFallbackProfile(target, scanProfileId) {
+      const scanId = String(scanProfileId || '').trim();
+      const usable = (id) => {
+        const candidate = String(id || '').trim();
+        if (!candidate || candidate === scanId) return false;
+        if (isBandScanProfileForTarget(target, candidate)) return false;
+        return hasProfileForTarget(target, candidate);
+      };
+
+      const remembered = getBandScanReturnProfile(target);
+      if (usable(remembered)) return remembered;
+
+      const analogTarget = normalizeAnalogTarget(target);
+      const last = String((state.lastProfile || {})[analogTarget] || '').trim();
+      if (usable(last)) return last;
+
+      const plain = getProfilesForTarget(target)
+        .map((row) => String((row && row.id) || '').trim())
+        .filter((id) => id && id !== scanId && !isBandScanProfileForTarget(target, id));
+      if (plain.length === 1) return plain[0];
+
+      return '';
+    }
+
     function hasProfileForTarget(target, profileId) {
       const wanted = String(profileId || '').trim();
       if (!wanted) return false;
@@ -15252,16 +15296,13 @@
           } catch (_) {}
           stopToNone = hasProfileForTarget(target, stopProfileId);
         }
-        const rememberedProfile = getBandScanReturnProfile(target);
-        const rememberedUsable = Boolean(
-          rememberedProfile
-          && rememberedProfile !== profileId
-          && !isBandScanProfileForTarget(target, rememberedProfile)
-          && hasProfileForTarget(target, rememberedProfile)
-        );
-        const returnProfile = rememberedUsable
-          ? rememberedProfile
-          : (stopToNone ? stopProfileId : '');
+        // Fall back to a profile rather than leaving the band empty. The
+        // resolver prefers the pre-scan profile, then the last one selected,
+        // then the band's single profile when it has exactly one.
+        // stopProfileId (`none_<band>`) ranks ahead of nothing at all, but it
+        // does not exist in this deployment -- which is why "off" dead-ended.
+        const fallbackProfile = resolveBandScanFallbackProfile(target, profileId);
+        const returnProfile = fallbackProfile || (stopToNone ? stopProfileId : '');
         const nextProfile = isActive ? returnProfile : profileId;
         const captureReturnProfile = (!isActive && !currentIsBandScanProfile && currentProfile && currentProfile !== profileId)
           ? currentProfile
