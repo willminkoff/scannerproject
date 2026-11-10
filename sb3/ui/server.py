@@ -11,6 +11,7 @@ resume.
 
 from __future__ import annotations
 
+import time
 import json
 import os
 import urllib.parse
@@ -32,9 +33,50 @@ SB3_HTML = deploy_root() / "ui" / "sb3.html"
 class Handler(BaseHTTPRequestHandler):
     server_version = "sb3-ui/3.1"
 
-    # quiet default logging (launchd captures stdout separately)
+    # quiet default logging (launchd captures stdout separately): GETs are a
+    # 1 Hz status poll and would bury everything. Mutating POSTs ARE logged —
+    # see _log_mutation below.
     def log_message(self, fmt, *args):
         pass
+
+    # Paths that change the radio. A POST to one of these gets one line naming
+    # the caller, because three times now a client has silently replaced
+    # airband's 10-channel pool with a single vfo at 119.35 and there was no
+    # way to find out which one: every tune path inside sb3.html requires a
+    # human to type a frequency into a prompt, so it was not this page, and
+    # with no request log there was nothing else to go on.
+    MUTATING_PATHS = (
+        "/api/tune", "/api/tune-restore", "/api/apply", "/api/apply-batch",
+        "/api/filter", "/api/profile", "/api/profile/apply",
+        "/api/bandscan/apply", "/api/bandscan/stop", "/api/scan/state",
+        "/api/wx/decoder", "/api/dongles/power", "/api/volume",
+    )
+    # Never echo a value whose key looks like a credential.
+    _SECRET_KEYS = ("pass", "secret", "token", "key", "auth", "pw")
+
+    def _log_mutation(self, path, form):
+        if path not in self.MUTATING_PATHS:
+            return
+        try:
+            client = self.client_address[0] if self.client_address else "?"
+            ua = (self.headers.get("User-Agent") or "-")[:70]
+            ref = (self.headers.get("Referer") or "-")[:70]
+            bits = []
+            for k, v in sorted((form or {}).items()):
+                lk = str(k).lower()
+                if any(t in lk for t in self._SECRET_KEYS):
+                    bits.append("%s=<redacted>" % k)
+                else:
+                    sv = str(v)
+                    # Long payloads (a band-scan freq list) are summarised,
+                    # not dumped -- the useful part is who called and with what
+                    # shape.
+                    bits.append("%s=%s" % (k, sv if len(sv) <= 60 else "<%d chars>" % len(sv)))
+            print("MUTATE %s %s from=%s ua=%r ref=%r %s"
+                  % (time.strftime("%Y-%m-%d %H:%M:%S"), path, client, ua, ref,
+                     " ".join(bits)), flush=True)
+        except Exception:
+            pass  # logging must never break a request
 
     # -- helpers ----------------------------------------------------------
 
@@ -232,6 +274,8 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 return self._json({"ok": False, "error": f"bad body: {exc}"}, 400)
 
+        self._log_mutation(p, form if p != "/api/scan/state" else {"<json body>": ""})
+
         try:
             if p == "/api/dongles/power/schedule":
                 return self._json(routes.dongles_power_schedule(form, self._state))
@@ -246,6 +290,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(routes.apply_filter(form, state))
             if p == "/api/tune":
                 return self._json(routes.tune(form, state))
+            if p == "/api/tune-restore":
+                return self._json(routes.tune_restore(form, state))
             if p == "/api/volume":
                 return self._json(routes.volume(form, state))
             if p == "/api/scan/state":

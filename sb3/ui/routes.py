@@ -2132,6 +2132,131 @@ def _chirp_send(port: int, cmd: str, args: dict, timeout: float = 3.0) -> dict:
         sk.close()
 
 
+_TUNE_SNAPSHOT_DIR = _WxPath("~/.local/share/sb3/tune-snapshots").expanduser()
+
+
+def _tune_snapshot_path(band: str):
+    return _TUNE_SNAPSHOT_DIR / ("%s.json" % band)
+
+
+def _save_tune_snapshot(band: str, channels) -> int:
+    """Record a band's channel pool before a tune replaces it.
+
+    A tune is destructive: it removes every non-keepalive channel and leaves a
+    single `vfo`. On 2026-11-08/09 that happened three times to airband's
+    10-channel N4 pool, each time replacing it with one vfo at 119.35, and each
+    time the pool had to be rebuilt by hand from the daemon's own log -- it is
+    also written to the chirp state file, so even a restart does not bring it
+    back.
+
+    Snapshotting first makes the action undoable (see :func:`tune_restore`),
+    which matters more than usual here because the caller doing the tuning has
+    not been identified: every tune path in sb3.html needs a human to type a
+    frequency into a prompt, so something else on the network is doing it.
+
+    Best-effort: a tune must never fail because the snapshot could not be
+    written. Returns how many channels were recorded.
+    """
+    keep = []
+    for c in (channels or []):
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("id") or "")
+        if not cid or cid == "vfo" or "keepalive" in cid.lower():
+            continue
+        try:
+            keep.append({
+                "id": cid,
+                "freq_mhz": round(float(c.get("freq_mhz")), 6),
+                "mode": c.get("mode") or ("am" if band == "airband" else "nfm"),
+                "squelch_dbfs": float(c.get("squelch_dbfs", -55.0)),
+                "gain_db": float(c.get("gain_db", 3.0)),
+            })
+        except (TypeError, ValueError):
+            continue
+    if not keep:
+        # Tuning from an already-tuned band must not erase the good snapshot
+        # taken before the FIRST tune -- that is the one worth keeping.
+        return 0
+    try:
+        import json as _j
+        import time as _t
+        _TUNE_SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        _tune_snapshot_path(band).write_text(
+            _j.dumps({"band": band, "saved_at": _t.time(), "channels": keep}),
+            encoding="utf-8")
+    except Exception:
+        return 0
+    return len(keep)
+
+
+def tune_restore(form, state):
+    """POST /api/tune-restore — put back the pool a tune replaced.
+
+    sb3.html has always called this (restoreTuneOrProfile, the "Scan" state of
+    the tune button) and it has always returned 501, so the UI's own undo was
+    dead and a tune was a one-way door.
+    """
+    import json as _j
+
+    target_raw = str((form or {}).get("target", "")).strip().lower()
+    if target_raw in ("air", "airband"):
+        band = "airband"
+    elif target_raw in ("ground", "vfo"):
+        band = "ground" if target_raw == "ground" else "vfo"
+    else:
+        return {"ok": False, "error": f"unknown target: {target_raw!r}"}
+
+    path = _tune_snapshot_path(band)
+    try:
+        snap = _j.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"ok": False, "error": "no snapshot for %s" % band,
+                "note": "nothing has been tuned away on this band since the "
+                        "snapshot feature was deployed"}
+    except Exception as exc:
+        return {"ok": False, "error": "snapshot unreadable: %r" % (exc,)}
+
+    channels = snap.get("channels") or []
+    if not channels:
+        return {"ok": False, "error": "snapshot for %s is empty" % band}
+
+    port = _CHIRP_PORT_BY_BAND.get(band)
+    if not port:
+        return {"ok": False, "error": f"no chirp port for band={band!r}"}
+
+    try:
+        status = _chirp_send(port, "get_status", {})
+    except Exception as exc:
+        return {"ok": False, "error": f"chirp unreachable: {exc!r}"}
+
+    cur = (status.get("data") or {}).get("channels", [])
+    cur_ids = list(cur.keys()) if isinstance(cur, dict) else [
+        c.get("id") for c in cur if isinstance(c, dict) and c.get("id")]
+    removed = 0
+    for cid in cur_ids:
+        cid_s = str(cid or "")
+        if not cid_s or "keepalive" in cid_s.lower():
+            continue
+        try:
+            _chirp_send(port, "remove_channel", {"id": cid_s})
+            removed += 1
+        except Exception:
+            pass
+
+    try:
+        r = _chirp_send(port, "add_channel", {"channels": channels})
+    except Exception as exc:
+        return {"ok": False, "error": f"add_channel failed: {exc!r}",
+                "removed": removed}
+
+    ok = (r.get("status") == "ok") or (r.get("ok") is True)
+    added = len(((r.get("data") or {}).get("added")) or [])
+    return {"ok": bool(ok), "band": band, "removed": removed,
+            "restored": added or len(channels),
+            "saved_at": snap.get("saved_at"), "chirp": r}
+
+
 def _tune_chirp_band(role: str, freq_mhz: float) -> Dict:
     """VFO-style hot-tune on a chirp band: replace non-keepalive channels
     with one 'vfo' channel at freq_mhz. Keepalive is preserved so the mount
@@ -2154,6 +2279,10 @@ def _tune_chirp_band(role: str, freq_mhz: float) -> Dict:
         channel_ids = list(channels.keys())
     else:
         channel_ids = [c.get("id") for c in channels if c.get("id")]
+
+    # Record what we are about to destroy, so /api/tune-restore can undo it.
+    saved = _save_tune_snapshot(band, channels if not isinstance(channels, dict)
+                                else list(channels.values()))
 
     removed = 0
     for cid in channel_ids:
@@ -2191,6 +2320,8 @@ def _tune_chirp_band(role: str, freq_mhz: float) -> Dict:
         "freq_hz": freq_hz,
         "freq_mhz": round(freq_hz / 1e6, 6),
         "removed_channels": removed,
+        "snapshot_channels": saved,
+        "restorable": bool(saved),
         "vfo_channel": added_or_moved,
         "chirp_response": r,
     }
