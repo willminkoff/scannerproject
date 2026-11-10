@@ -92,8 +92,26 @@ MOD_TO_CHANNEL_SPEC = {
 # the base channel's 12 kHz NFM filter is intelligible but compressed).
 _VALID_MODULATIONS = {"am", "nfm"}
 
-ICECAST_HOST_PUBLIC = os.environ.get("DISCO_ICECAST_HOST", "100.67.20.40")
-ICECAST_PORT_PUBLIC = int(os.environ.get("DISCO_ICECAST_PORT", "8000"))
+def _int_env(name: str, default: int) -> int:
+    """Parse an int from the environment, tolerating blank and malformed.
+
+    A bare int() here used to be able to take the whole listen feature down: an
+    empty DISCO_ICECAST_PORT raises ValueError at import, dashboard.py catches
+    it at its import of this module and sets _LISTEN_AVAILABLE = False, so the
+    headphones button silently disappears rather than anything reporting why.
+    """
+    try:
+        return int((os.environ.get(name) or "").strip())
+    except ValueError:
+        return default
+
+
+# Empty default on purpose. This used to be "100.67.20.40" -- micro, a box that
+# has since been RETIRED (see DEPLOY-COMMANDS.md), so the override existed and
+# the default pointed at a host that no longer answers. Icecast now runs
+# elsewhere, and a deployment that wants a listen URL has to say where.
+ICECAST_HOST_PUBLIC = (os.environ.get("DISCO_ICECAST_HOST") or "").strip()
+ICECAST_PORT_PUBLIC = _int_env("DISCO_ICECAST_PORT", 8000)
 
 # H3 (2026-06-03 audit): the dedicated /disco.mp3 icecast mount has been
 # removed from /etc/icecast2/icecast.xml because in MA/SL split mode there
@@ -104,7 +122,7 @@ ICECAST_PORT_PUBLIC = int(os.environ.get("DISCO_ICECAST_PORT", "8000"))
 # (scripts/build-service-config.py, scripts/build-combined-config.py); if
 # the disco listen feature needs an audio surface later the env override
 # below can repoint it at a freshly-added mount.
-DEFAULT_STREAM_MOUNT = os.environ.get("DISCO_STREAM_MOUNT", "")
+DEFAULT_STREAM_MOUNT = (os.environ.get("DISCO_STREAM_MOUNT") or "").strip()
 
 PROFILES_DIR = os.environ.get("DISCO_PROFILES_DIR", "/home/willminkoff/scannerproject/profiles")
 RUNTIME_DIR = os.environ.get("DISCO_RUNTIME_DIR", "/home/willminkoff/scannerproject/runtime")
@@ -432,7 +450,11 @@ def _stream_url() -> str:
     # H3 (2026-06-03): return empty when no mount is configured, so the
     # dashboard doesn't hand listeners a URL that 404s. See the
     # DEFAULT_STREAM_MOUNT comment above for context.
-    if not DEFAULT_STREAM_MOUNT:
+    # Both halves are required. The mount was already checked here; the host
+    # was not, so setting DISCO_STREAM_MOUNT alone used to produce a URL
+    # pointing at the retired micro box -- and this string is handed to a
+    # browser <audio> element via dashboard.py's stream_url.
+    if not DEFAULT_STREAM_MOUNT or not ICECAST_HOST_PUBLIC:
         return ""
     return f"http://{ICECAST_HOST_PUBLIC}:{ICECAST_PORT_PUBLIC}/{DEFAULT_STREAM_MOUNT}"
 

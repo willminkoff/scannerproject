@@ -37,11 +37,49 @@ import json
 import os
 import urllib.error
 import urllib.request
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
-DEFAULT_TARGET_URL = os.environ.get("SB3_OP25_APPLY_URL", "http://100.114.219.115:9200")
 APPLY_TIMEOUT_SEC = float(os.environ.get("SB3_OP25_APPLY_TIMEOUT_SEC", "45"))
+
+# There is no DEFAULT_TARGET_URL any more, and that is the point. It used to be
+#
+#     DEFAULT_TARGET_URL = os.environ.get("SB3_OP25_APPLY_URL", "http://<the rack>:9200")
+#
+# which had an override and still defaulted to a real radio -- and being module
+# level, it froze at import, so a caller or a test could not change it without
+# reloading. Resolve at call time instead, and refuse when nothing is set.
+REFUSAL = ("SB3_OP25_APPLY_URL is not set; refusing to guess a host for "
+           "/apply-profile")
+
+
+def resolve_apply_target(profile: Optional[Dict[str, Any]] = None) -> str:
+    """Where /apply-profile should be POSTed, or "" meaning refuse.
+
+    A profile may carry its own ``target_host_url``; otherwise the environment
+    decides, and an unset environment means refuse rather than guess. Arriving
+    at /apply-profile rewrites talkgroups.csv and control_channels.txt, repoints
+    ACTIVE_LINK and runs three ``systemctl restart`` calls, so the request IS
+    the action -- the same reasoning as ``_VENUS_POWER_URL`` in sb3/ui/routes.py.
+    Loopback is specifically unsafe here: op25-log-server and
+    sdrtrunk-log-server both default to port 9200.
+
+    Requiring a scheme is not pedantry. ``.rstrip("/")`` does not strip
+    whitespace, so a plist value pasted with padding is truthy and sails past a
+    bare ``if not target`` -- and then ``Request("   /apply-profile")`` raises
+    ValueError for a missing scheme, from OUTSIDE the try block at both call
+    sites, where nothing catches it and the failure surfaces as a cheerful
+    HTTP 200. The two sibling guards pin the same case by test:
+    tests/test_power_url_not_hardcoded.py and
+    tests/test_chirp_host_not_hardcoded.py both cover "", "   " and "\t".
+    """
+    raw = str((profile or {}).get("target_host_url") or "")
+    if not raw.strip():
+        raw = os.environ.get("SB3_OP25_APPLY_URL") or ""
+    target = raw.strip().rstrip("/")
+    if not target.startswith(("http://", "https://")):
+        return ""
+    return target
 
 
 def _profile_to_blob(profile: Dict[str, Any]) -> Dict[str, Any]:
@@ -80,7 +118,14 @@ def _profile_to_blob(profile: Dict[str, Any]) -> Dict[str, Any]:
 
 def apply_digital_profile_op25(profile: Dict[str, Any]) -> Dict[str, Any]:
     """POST the profile to op25-log-server on Venus. Returns Venus's response."""
-    target_url = str(profile.get("target_host_url") or DEFAULT_TARGET_URL).rstrip("/")
+    # Guard the RESOLVED value, not the default. The `or` above used to collapse
+    # an unset variable AND a profile carrying "target_host_url": "" or null into
+    # the same empty string, then build the Request anyway -- and the try below
+    # opens after it, catching only HTTPError/URLError/TimeoutError/OSError, so a
+    # ValueError from a schemeless URL escaped this module entirely.
+    target_url = resolve_apply_target(profile)
+    if not target_url:
+        return {"ok": False, "error": REFUSAL}
     blob = _profile_to_blob(profile)
     if not blob.get("name"):
         return {"ok": False, "error": "profile has no name"}

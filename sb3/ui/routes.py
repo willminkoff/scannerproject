@@ -1301,13 +1301,20 @@ def hits(state: State) -> Dict:
                 "kind": "voice",
             })
 
-    _tail_jsonl(
-        _os.environ.get(
-            "SB3_CHIRP_AIRBAND_LOG_URL",
-            "http://100.114.219.115:9200/chirp/airband.out.log?tail=200000",
-        ),
-        "airband",
-    )
+    # The airband log lives on the box running the airband radio, not here, so
+    # this is an HTTP tail across hosts. Empty default + skip when unset -- the
+    # same shape as SB3_OP25_REMOTE_URL a few lines below. It used to default to
+    # the live rack, which is how tests/test_sb3_ui_write.py came to fetch the
+    # real hit log on every run; tests/netguard.py caught it.
+    #
+    # Loopback would be the wrong default even though this is only a read:
+    # whatever bytes come back are fed to _merge_chirp_hit_records and rendered
+    # as voice hits, so an unrelated service on :9200 would inject phantom
+    # traffic into the hit list an operator is reading. A UDP command bus can
+    # shrug off a stray listener; a displayed HTTP body cannot.
+    _airband_log = (_os.environ.get("SB3_CHIRP_AIRBAND_LOG_URL") or "").strip()
+    if _airband_log:
+        _tail_jsonl(_airband_log, "airband")
     _tail_jsonl(_Path.home() / "Library" / "Logs" / "chirp" / "ground.out.log", "ground")
 
     remote = _os.environ.get("SB3_OP25_REMOTE_URL", "").rstrip("/")
@@ -2026,10 +2033,25 @@ def _hp_push_op25(digital_by_system, state_obj=None):
         out = {"ok": True, "skipped": "no digital systems with control channels"}
         out.update(diag)
         return out
-    target = _os.environ.get("SB3_OP25_APPLY_URL", "http://100.114.219.115:9200").rstrip("/")
-    req = _ur.Request(target + "/apply-profile", data=_j.dumps(blob).encode(),
-                      method="POST", headers={"Content-Type": "application/json"})
+    # Refuse rather than guess -- see resolve_apply_target for why this one
+    # cannot default to loopback the way the chirp hosts do. Imported here
+    # rather than at module scope, matching the lazy import this module already
+    # uses for apply_digital_profile_op25.
+    #
+    # **diag is not decoration: it carries sites / unlocated_used_stored_controls
+    # / skipped_no_site_in_range, and a refusal that dropped it would silently
+    # discard the site-selection evidence this function exists to surface.
+    from ..op25_applier import REFUSAL as _OP25_REFUSAL, resolve_apply_target
+    target = resolve_apply_target()
+    if not target:
+        return {"ok": False, "error": _OP25_REFUSAL, **diag}
     try:
+        # Built inside the try. It used to sit above it, so a malformed target
+        # raised ValueError past the handler below, through _hp_auto_sync, into
+        # the blanket except in hp_scan_state_save -- surfacing as HTTP 200
+        # {"ok": true} with the real error buried in a key nothing reads.
+        req = _ur.Request(target + "/apply-profile", data=_j.dumps(blob).encode(),
+                          method="POST", headers={"Content-Type": "application/json"})
         with _ur.urlopen(req, timeout=45) as resp:
             out = _j.loads(resp.read().decode("utf-8"))
         if isinstance(out, dict):
@@ -2458,14 +2480,21 @@ def build_subsystems():
         else:
             out[name] = _card("bad", "not loaded")
 
-    # Disco on Venus (dashboard at :8092 on Venus).
-    disco_url = os.environ.get("SB3_DISCO_URL", "http://100.114.219.115:8092")
-    try:
-        with _ur.urlopen(disco_url, timeout=2) as resp:
-            code = getattr(resp, "status", 200)
-        out["disco"] = _card("good" if 200 <= code < 400 else "bad", f"HTTP {code}")
-    except Exception as exc:
-        out["disco"] = _card("bad", f"unreachable: {exc!r}")
+    # Disco's dashboard, on whichever box runs it (:8092). Empty default, and
+    # unset reports "unknown" rather than "bad" -- exactly the shape the op25
+    # cards above already use. The old live default meant an unconfigured
+    # deployment showed "bad: unreachable", which reads as "disco is broken"
+    # when the truth is "nobody told sb3-ui where disco is".
+    disco_url = (os.environ.get("SB3_DISCO_URL") or "").strip()
+    if not disco_url:
+        out["disco"] = _card("unknown", "SB3_DISCO_URL not set")
+    else:
+        try:
+            with _ur.urlopen(disco_url, timeout=2) as resp:
+                code = getattr(resp, "status", 200)
+            out["disco"] = _card("good" if 200 <= code < 400 else "bad", f"HTTP {code}")
+        except Exception as exc:
+            out["disco"] = _card("bad", f"unreachable: {exc!r}")
 
     # ADS-B panel - placeholder until wired.
     out["adsb"] = _card("unknown", "not probed")

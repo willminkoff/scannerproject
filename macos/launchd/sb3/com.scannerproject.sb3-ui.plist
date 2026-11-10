@@ -43,6 +43,29 @@
         <string>1</string>
         <key>SB3_UI_PORT</key>
         <string>5050</string>
+        <!-- Deliberately absent, and this is load-bearing. sb3-ui reaches other
+             boxes through these, and every one of them used to be a hardcoded
+             address in the source (3106e18, 19a2c58, and the commit adding this
+             comment). They are deployment facts, not repo facts, so they are not
+             written here: this template lives in a public repo, and baking an
+             address back in is the bug all three commits removed.
+
+             The live plist on the box must set whichever of these that
+             deployment needs. With one absent, sb3-ui fails SAFE but QUIET:
+               SB3_CHIRP_AIRBAND_HOST      airband control goes to loopback
+               SB3_CHIRP_AIRBAND_LOG_URL   airband hits vanish from /api/hits
+               SB3_OP25_APPLY_URL          digital profile apply refuses
+               SB3_OP25_REMOTE_URL         op25 health cards read "unknown"
+               SB3_SDRTRUNK_REMOTE_URL     sdrtrunk status unavailable
+               SB3_VENUS_POWER_URL         dongle power refuses
+               SB3_DISCO_URL               disco card reads "unknown"
+
+             sb3.install is dry-run only today (its execute flag is refused), so
+             it cannot yet overwrite a configured plist with this one. Before that
+             changes, render() needs to carry these through, or the first real
+             `sb3-ctl install` silently un-configures a working box.
+             After editing the live plist: launchctl bootout then bootstrap.
+             `launchctl kickstart -k` does NOT re-read a changed plist. -->
     </dict>
 
     <key>RunAtLoad</key>

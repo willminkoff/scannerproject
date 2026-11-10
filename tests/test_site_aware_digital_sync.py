@@ -265,6 +265,17 @@ class TestPushEmitsSites(_DBCase):
         urllib.request.urlopen = _capture
         self.addCleanup(setattr, urllib.request, "urlopen", real)
 
+        # SB3_OP25_APPLY_URL no longer defaults to a live rack: unset means
+        # _hp_push_op25 refuses before it builds a request, so _capture would
+        # never fire and every assertion here would read an empty dict. Point it
+        # at a port nothing listens on, like TestPushFallbackPolicy does.
+        prior = os.environ.get("SB3_OP25_APPLY_URL")
+        os.environ["SB3_OP25_APPLY_URL"] = "http://127.0.0.1:1"
+        if prior is None:
+            self.addCleanup(os.environ.pop, "SB3_OP25_APPLY_URL", None)
+        else:
+            self.addCleanup(os.environ.__setitem__, "SB3_OP25_APPLY_URL", prior)
+
     def _push(self, state):
         digital = {str(NJICS): {"name": "NJICS", "ccs": [769.1], "tgs": []}}
         orig = routes._resolve_site_controls
