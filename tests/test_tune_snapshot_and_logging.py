@@ -54,8 +54,8 @@ class SnapshotTests(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp())
         self.ns = _load(
-            ["_tune_snapshot_path", "_save_tune_snapshot"],
-            {"_TUNE_SNAPSHOT_DIR": self.dir, "_WxPath": Path},
+            ["_tune_snapshot_dir", "_tune_snapshot_path", "_save_tune_snapshot"],
+            {"_TUNE_SNAPSHOT_DIR": self.dir},
         )
 
     def _save(self, band, channels):
@@ -96,6 +96,7 @@ class SnapshotTests(unittest.TestCase):
     def test_never_raises(self):
         """A tune must not fail because the snapshot could not be written."""
         self.ns["_TUNE_SNAPSHOT_DIR"] = Path("/proc/nonexistent/nope")
+        self.ns["_tune_snapshot_dir"] = lambda: Path("/proc/nonexistent/nope")
         try:
             self.assertEqual(self._save("airband", [{"id": "a", "freq_mhz": 1.0}]), 0)
         except Exception as exc:
@@ -124,8 +125,8 @@ class RestoreTests(unittest.TestCase):
             return {"status": "ok"}
 
         self.ns = _load(
-            ["_tune_snapshot_path", "tune_restore"],
-            {"_TUNE_SNAPSHOT_DIR": self.dir, "_WxPath": Path,
+            ["_tune_snapshot_dir", "_tune_snapshot_path", "tune_restore"],
+            {"_TUNE_SNAPSHOT_DIR": self.dir,
              "_CHIRP_PORT_BY_BAND": {"airband": 7400, "ground": 7401},
              "_chirp_send": fake_send},
         )
@@ -227,3 +228,27 @@ class MutationLoggingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ImportOrderTests(unittest.TestCase):
+    """The snapshot dir must not be evaluated at import time.
+
+    It was, as a module-level `_WxPath(...)` constant ~300 lines ABOVE
+    `from pathlib import Path as _WxPath`. That is a NameError at module load,
+    and it took sb3-ui down on startup with exit code 1 -- a dead UI shipped to
+    fix a UI bug. Module-level work in a 4000-line file is ordering-sensitive
+    in a way that no unit test of the function itself can catch.
+    """
+
+    def test_snapshot_dir_is_resolved_lazily(self):
+        self.assertIn("def _tune_snapshot_dir():", _ROUTES_SRC)
+        self.assertRegex(_ROUTES_SRC, r"_TUNE_SNAPSHOT_DIR = None")
+
+    def test_no_module_level_path_call_before_its_import(self):
+        decl = _ROUTES_SRC.index("_TUNE_SNAPSHOT_DIR = None")
+        self.assertNotIn("_WxPath", _ROUTES_SRC[decl:decl + 200],
+                         "resolve the path inside a function, not at import")
+
+    def test_routes_compiles_standalone(self):
+        """Cheap proxy for 'the module can be loaded at all'."""
+        compile(_ROUTES_SRC, "routes.py", "exec")

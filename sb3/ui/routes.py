@@ -2132,11 +2132,22 @@ def _chirp_send(port: int, cmd: str, args: dict, timeout: float = 3.0) -> dict:
         sk.close()
 
 
-_TUNE_SNAPSHOT_DIR = _WxPath("~/.local/share/sb3/tune-snapshots").expanduser()
+# Resolved lazily, NOT as a module-level constant: this sits ~300 lines above
+# `from pathlib import Path as _WxPath`, so evaluating it at import time raised
+# NameError and took sb3-ui down on startup (exit code 1).
+_TUNE_SNAPSHOT_DIR = None
+
+
+def _tune_snapshot_dir():
+    global _TUNE_SNAPSHOT_DIR
+    if _TUNE_SNAPSHOT_DIR is None:
+        from pathlib import Path as _P
+        _TUNE_SNAPSHOT_DIR = _P("~/.local/share/sb3/tune-snapshots").expanduser()
+    return _TUNE_SNAPSHOT_DIR
 
 
 def _tune_snapshot_path(band: str):
-    return _TUNE_SNAPSHOT_DIR / ("%s.json" % band)
+    return _tune_snapshot_dir() / ("%s.json" % band)
 
 
 def _save_tune_snapshot(band: str, channels) -> int:
@@ -2181,7 +2192,7 @@ def _save_tune_snapshot(band: str, channels) -> int:
     try:
         import json as _j
         import time as _t
-        _TUNE_SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        _tune_snapshot_dir().mkdir(parents=True, exist_ok=True)
         _tune_snapshot_path(band).write_text(
             _j.dumps({"band": band, "saved_at": _t.time(), "channels": keep}),
             encoding="utf-8")
