@@ -353,11 +353,48 @@ class HandlerInstallTests(unittest.TestCase):
         self.assertEqual(S._audit_log_path(),
                          Path("/var/x/chirp/logs/cmd-audit.log"))
 
-    def test_last_resort_default(self):
+    def test_no_configured_location_means_no_file(self):
+        """There is no last-resort default, on purpose.
+
+        chirp's own test suite starts real CommandServers. With a default
+        path, running the suite on scannerbox-1 wrote 49 lines of fixture
+        traffic into the live attribution log -- the one file whose entire
+        worth is that every line in it is a real command from a real client.
+        """
         os.environ.pop("CHIRP_CMD_AUDIT_LOG", None)
         os.environ.pop("CHIRP_HIT_LOG", None)
-        self.assertEqual(S._audit_log_path(),
-                         Path("~/.local/share/chirp/logs/cmd-audit.log").expanduser())
+        self.assertIsNone(S._audit_log_path())
+
+    def test_unconfigured_install_adds_no_handler(self):
+        os.environ.pop("CHIRP_CMD_AUDIT_LOG", None)
+        os.environ.pop("CHIRP_HIT_LOG", None)
+        self.assertIsNone(S.install_audit_handler())
+        self.assertEqual(S.audit.handlers, [])
+        # Still idempotent, and still silent on a second call.
+        self.assertIsNone(S.install_audit_handler())
+        self.assertEqual(S.audit.handlers, [])
+
+    def test_a_bare_command_server_writes_nothing(self):
+        """The regression itself: start a server the way chirp's other tests
+        do -- no audit env at all -- and no file may be created anywhere."""
+        os.environ.pop("CHIRP_CMD_AUDIT_LOG", None)
+        os.environ.pop("CHIRP_HIT_LOG", None)
+        srv = S.CommandServer(S.ServerConfig(host="127.0.0.1", port=0),
+                              lambda env, args: Response.make_ok(env.id, {}))
+        srv.start()
+        try:
+            port = srv._transport.get_extra_info("sockname")[1]
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                sock.sendto(json.dumps({"v": 1, "id": "x", "cmd": "set_master_gain",
+                                        "args": {"db": 3.0}}).encode("utf-8"),
+                            ("127.0.0.1", port))
+                _recv_json(sock)
+            finally:
+                sock.close()
+        finally:
+            srv.stop()
+        self.assertEqual(S.audit.handlers, [])
 
     def test_install_is_idempotent(self):
         os.environ["CHIRP_CMD_AUDIT_LOG"] = str(Path(self.tmp.name) / "b.log")

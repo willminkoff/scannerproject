@@ -92,13 +92,21 @@ _audit_handler_installed = False
 _audit_path: Optional[str] = None
 
 
-def _audit_log_path() -> Path:
-    """Where audit lines go.
+def _audit_log_path() -> Optional[Path]:
+    """Where audit lines go, or None to leave them on the inherited handlers.
 
     Deliberately NOT the daemon's stdout log. That file takes a cluster_hop
     event roughly every 0.8 s -- 1.4 GB in four hours on airband, with
     StandardOutput=append and so no rotation -- and a handful of audit lines a
     day would be unfindable in it.
+
+    Equally deliberately, there is no last-resort default path. The first
+    version of this had one, and the consequence showed up within the hour:
+    chirp's own test suite starts real CommandServers, so running the tests on
+    scannerbox-1 wrote 49 lines of fixture traffic -- ch01@0.2, solo@121.5 --
+    into the live attribution log, the one file whose whole value is that
+    every line in it is real. A configured log location is the signal that
+    this is a deployment and not a test run.
     """
     explicit = os.environ.get("CHIRP_CMD_AUDIT_LOG", "").strip()
     if explicit:
@@ -106,7 +114,7 @@ def _audit_log_path() -> Path:
     hit = os.environ.get("CHIRP_HIT_LOG", "").strip()
     if hit:
         return Path(hit).expanduser().parent / "cmd-audit.log"
-    return Path("~/.local/share/chirp/logs/cmd-audit.log").expanduser()
+    return None
 
 
 def install_audit_handler() -> Optional[str]:
@@ -120,6 +128,10 @@ def install_audit_handler() -> Optional[str]:
     if _audit_handler_installed:
         return _audit_path
     path = _audit_log_path()
+    if path is None:
+        _audit_handler_installed = True
+        _audit_path = None
+        return None
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
