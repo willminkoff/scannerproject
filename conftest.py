@@ -26,3 +26,56 @@ _ROOT = os.path.dirname(os.path.abspath(__file__))
 for _p in (_ROOT, os.path.join(_ROOT, "tests")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
+
+# ---------------------------------------------------------------------------
+# No test reaches a real radio.
+# ---------------------------------------------------------------------------
+# Armed here, at conftest import, which happens BEFORE pytest imports any test
+# module -- so a module that reaches the network while merely being imported is
+# caught too. That is the exact shape of both outages on 2026-11-10: importing
+# sb3/ui/routes.py was enough to be able to command the airband radio and to
+# cut power to the rack. See tests/netguard.py for the full story, the opt-out,
+# and why the refusal is a BaseException.
+import netguard  # noqa: E402  (needs the sys.path entries above)
+
+netguard.install()
+
+import pytest  # noqa: E402
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        f"{netguard.MARKER}: test genuinely needs off-box network access; "
+        f"lifts the loopback-only socket guard for its duration",
+    )
+
+
+def pytest_report_header(config):
+    if netguard.is_installed():
+        return "netguard: armed (sockets restricted to loopback)"
+    return (
+        f"netguard: DISARMED by {netguard.ENV_OPT_OUT} -- tests can reach live radios"
+    )
+
+
+@pytest.fixture(autouse=True)
+def _netguard(request):
+    """Fail the test if it tried to reach off-box, even if the attempt was
+    swallowed.
+
+    netguard raises a BaseException at the call site, which is enough on its
+    own in the main thread. This fixture is the backstop for the two cases
+    where that is not enough: an attempt made on a background thread (where
+    the exception dies with the thread), and a caller that catches BaseException
+    on its way past. Without it, a blocked call could still leave a green test.
+    """
+    if request.node.get_closest_marker(netguard.MARKER):
+        with netguard.allowed():
+            yield
+        return
+    before = netguard.violation_count()
+    yield
+    leaked = netguard.violations()[before:]
+    if leaked:
+        pytest.fail(netguard.format_violations(leaked), pytrace=False)
