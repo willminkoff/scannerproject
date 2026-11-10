@@ -3126,7 +3126,22 @@ def wx_decoder(form: Dict, state: State) -> Dict:
 
 _POWER_STATE_PATH = _WxPath("/Users/willminkoff/scannerproject/data/power_state.json")
 _POWER_SCHEDULE_PATH = _WxPath("/Users/willminkoff/scannerproject/data/power_schedule.json")
-_VENUS_POWER_URL = "http://100.114.219.115:9200"
+# Where dongle power is controlled. Environment-driven, with NO default.
+#
+# Same hazard as _CHIRP_HOSTS_BY_PORT above, and worse: _venus_power() POSTs
+# /power/on and /power/off, which cuts power to the SDRs, and the far end
+# neither confirms nor dry-runs. A baked-in live address meant that importing
+# this module was enough to be able to switch the radios off -- and the chirp
+# wipe of 2026-11-10 proved that "only the UI ever imports this" is not true.
+#
+# Unset means REFUSE, not "fall back to loopback". For the chirp command bus
+# loopback is a safe default because nothing answers there; for this, a 9200
+# that happens to be listening locally would be a worse outcome than an honest
+# error. There is no address worth guessing for an action this destructive.
+#
+# DEPLOYMENT: set SB3_VENUS_POWER_URL, or the dongle-power controls go inert
+# and say so.
+_VENUS_POWER_URL = (os.environ.get("SB3_VENUS_POWER_URL") or "").strip()
 
 
 _NEPTUNE_POWER_OFF_LABELS = [
@@ -3174,7 +3189,13 @@ def _neptune_power_on():
 
 def _venus_power(action):
     import urllib.request as _ur, json as _j
-    url = f"{_VENUS_POWER_URL}/power/{action}"
+    # Refuse rather than guess: see the note on _VENUS_POWER_URL. Reads the
+    # module global (not os.environ) so a caller or test can set it explicitly.
+    if not _VENUS_POWER_URL:
+        return {"ok": False,
+                "error": "SB3_VENUS_POWER_URL is not set; refusing to guess a "
+                         f"host for /power/{action}"}
+    url = f"{_VENUS_POWER_URL.rstrip('/')}/power/{action}"
     try:
         req = _ur.Request(url, data=b"", method="POST")
         with _ur.urlopen(req, timeout=45) as resp:
