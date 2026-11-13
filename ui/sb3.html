@@ -3550,7 +3550,6 @@
                     id="btn-bandscan-gmrs"
                     type="button"
                     title="Scan GMRS/FRS channels 1-22 (462.550-462.725 MHz)"
-                    onclick="console.log('GMRS clicked'); applyBandScanPresetByKey('gmrs');"
                   >
                     GMRS
                   </button>
@@ -8935,6 +8934,59 @@
     //
     // Returns '' when nothing qualifies; the caller then clears the scan's
     // channels instead.
+    // Stopping a band scan should go back to the operator's OWN channels.
+    // Everything below this used to be the only option, and for ground that
+    // meant NOAA Weather Radio every time: ground has exactly one profile, so
+    // resolveBandScanFallbackProfile's "the band's only profile" rule had
+    // exactly one destination. GMRS off -> WX. Marine off -> WX. Rail, CB -> WX.
+    //
+    // Favorites are not profiles, and nothing restored them: they reach chirp
+    // only through _hp_auto_sync, whose sole caller is POST /api/scan/state.
+    // /api/scan/restore pushes one band's favorites and nothing else.
+    //
+    // Returns the number of channels restored; 0 means "no favorites for this
+    // band", and the caller should fall back to a profile as before.
+    // Returns one of three outcomes, and the caller MUST tell them apart:
+    //   {restored: N}   N>0 channels are on the radio. Done.
+    //   {empty: true}   the band genuinely has no favorites -> a profile is
+    //                   the right place to land, so fall through.
+    //   {failed: true}  the restore broke. Do NOT apply a profile: for ground
+    //                   that profile is always Weather Radio, so treating a
+    //                   transient chirp timeout as "no favorites" recreates
+    //                   the very bug this fixes. Leave the band alone.
+    // Collapsing failed into empty is what the first draft of this did.
+    async function restoreFavoritesForTarget(target) {
+      try {
+        const res = await postAPI('/api/scan/restore', { target }, { timeoutMs: 30000 });
+        if (!res || res.ok === false) {
+          logActivity(
+            messageFromError(res && res.error, 'favorites restore failed'),
+            'warn', 'scan-restore-failed-' + target);
+          return { failed: true };
+        }
+        const n = Number(res.channels || 0);
+        if (n > 0) {
+          const dropped = Number(res.dropped || 0);
+          logActivity(
+            dropped > 0
+              ? `${target} back to ${n} of ${n + dropped} favorites (${dropped} did not fit)`
+              : `${target} back to ${n} favorite channel${n === 1 ? '' : 's'}`,
+            dropped > 0 ? 'warn' : 'info', 'scan-restore-' + target);
+          return { restored: n };
+        }
+        if (res.empty === true) return { empty: true };
+        // ok, zero channels, not flagged empty: the push reported nothing
+        // added. Treat as a failure rather than guessing.
+        logActivity(`${target} favorites restore added nothing`, 'warn',
+          'scan-restore-none-' + target);
+        return { failed: true };
+      } catch (e) {
+        logActivity(messageFromError(e, 'favorites restore failed'),
+          'warn', 'scan-restore-err-' + target);
+        return { failed: true };
+      }
+    }
+
     function resolveBandScanFallbackProfile(target, scanProfileId) {
       const scanId = String(scanProfileId || '').trim();
       const usable = (id) => {
@@ -15321,6 +15373,14 @@
           }
           switchTarget(target);
           let ok;
+          // NOTE: this whole function is DEAD. The direct-post shim near the
+          // end of this file assigns window.applyBandScanPresetByKey,
+          // shadowing this declaration, and every caller resolves the global
+          // at call time. The favorites-restore fix therefore lives in the
+          // shim's toggle, NOT here; a change made here has no effect, which
+          // is what happened on 2026-11-09 and again while fixing the WX
+          // fallback. tests/test_bandscan_toggle.py::_effective_impl_body()
+          // exists to tell the two apart -- assert against that, not this.
           if (isActive && !nextProfile) {
             // Nothing to go back to: clear this preset's channels outright.
             // Scoped to preset.key so a band carrying other channels keeps
@@ -17458,6 +17518,46 @@
         if (activePreset && activePreset === key) {
           // Stopping. Prefer landing on a profile over leaving the band at
           // zero channels -- see resolveBandScanFallbackProfile().
+          // Favorites first -- this is the path whose /api/profile call put
+          // ground on WX at 2026-11-10 07:30 and again at 2026-11-12 07:25.
+          // This is the LIVE implementation; the same-named function earlier
+          // in the file is shadowed by this shim and never runs.
+          let outcome = { failed: true };
+          try {
+            if (typeof restoreFavoritesForTarget === 'function') {
+              outcome = await restoreFavoritesForTarget(target);
+            }
+          } catch (_) {}
+          if (outcome && outcome.restored > 0) {
+            try { if (typeof refresh === 'function') await refresh(); } catch (_) {}
+            try { if (typeof updateBandScanButtonStates === 'function') updateBandScanButtonStates(); } catch (_) {}
+            return true;
+          }
+          if (outcome && outcome.failed) {
+            // Do not land on a profile after a failed restore. Clear the
+            // preset's own channels instead -- /api/bandscan/stop is surgical
+            // -- so the scan really stops without choosing WX for the user.
+            try {
+              const res = await postAPI('/api/bandscan/stop',
+                { target: target, preset: key }, { timeoutMs: 15000 });
+              const ok = Boolean(res && res.ok);
+              logActivity(ok
+                ? (label + ' scan stopped; favorites could not be restored')
+                : (label + ' scan stop failed: ' + ((res && res.error) || 'unknown')),
+                'warn', 'bandscan-stop-norestore-' + key);
+              if (ok) {
+                try { if (typeof refresh === 'function') await refresh(); } catch (_) {}
+                try { if (typeof updateBandScanButtonStates === 'function') updateBandScanButtonStates(); } catch (_) {}
+              }
+              return ok;
+            } catch (e) {
+              logActivity(label + ' scan stop error: ' + ((e && e.message) || e),
+                'warn', 'bandscan-stop-err-' + key);
+              return false;
+            }
+          }
+          // outcome.empty: the band has no favorites, so a profile genuinely
+          // is the right place to land. Original behaviour from here down.
           let fallback = '';
           try {
             if (typeof resolveBandScanFallbackProfile === 'function') {
@@ -17532,6 +17632,42 @@
           return false;
         }
       };
+
+      // Serialize the toggle: one in flight per band.
+      //
+      // The GMRS button used to carry BOTH an inline onclick and an
+      // addEventListener, so a single click invoked this function twice. The
+      // two ran concurrently against a ThreadingHTTPServer: the second
+      // get_status landed inside the first restore's removal loop, so its
+      // add_channel asked for ids that already existed, chirp rejected the
+      // whole batch, and that invocation fell through to the WX fallback --
+      // stopping GMRS still parked ground on Weather Radio.
+      //
+      // The duplicate binding is gone, but a double-press is a user action,
+      // not a bug, so make it safe rather than merely unlikely. The original
+      // (shadowed) implementation serialized through queueBandScanApply; the
+      // shim never did.
+      (function serializeBandScanToggle() {
+        const impl = window.applyBandScanPresetByKey;
+        const busy = new Set();
+        window.applyBandScanPresetByKey = async function (presetKey) {
+          const k = String(presetKey || '').trim();
+          const p = (typeof BAND_SCAN_PRESET_BY_KEY === 'object' && BAND_SCAN_PRESET_BY_KEY)
+            ? BAND_SCAN_PRESET_BY_KEY[k] : null;
+          const band = (p && p.target === 'ground') ? 'ground' : 'airband';
+          if (busy.has(band)) {
+            try { logActivity(band + ' band-scan toggle already running', 'info',
+                              'bandscan-busy-' + band); } catch (_) {}
+            return false;
+          }
+          busy.add(band);
+          try {
+            return await impl(presetKey);
+          } finally {
+            busy.delete(band);
+          }
+        };
+      })();
     })();
 
 </script>

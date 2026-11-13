@@ -316,10 +316,6 @@ class TestPushEmitsSites(_DBCase):
         self.assertNotIn("legacy:auto", ids)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestChirpCapacityTrim(unittest.TestCase):
     """Chirp rejects an oversized add_channel batch in full, not partially.
 
@@ -371,11 +367,32 @@ class TestChirpCapacityTrim(unittest.TestCase):
         self.assertEqual(out["removed"], 3)
         self.assertEqual(len(batch), 3)
 
-    def test_keepalive_is_never_removed(self):
-        """Keepalive holds the icecast mount up during quiet — it stays."""
+    def test_keepalive_is_removed_like_any_other_channel(self):
+        """Reversed on 2026-11-12. This used to assert removed == 1, on the
+        grounds that "keepalive holds the icecast mount up during quiet".
+
+        That is false on the chirp path, and two live observations say so:
+        chirp/dsp/icecast_sink.py:32-38 emits valid MP3 frames from
+        constant-zero PCM ("No special keepalive code needed in this sink"),
+        live airband has run 10 channels with ZERO keepalives and its mount at
+        200, and removing ground's wx-keepalive-(out-of-band) left
+        neptune-ground.mp3 serving HTTP 200 at 32 kbps.
+
+        Keeping it was not free. On 2026-11-10 that channel at 162.375,
+        stranded 16 MHz from a 145-146 MHz favorites group, owned its own LO
+        cluster and 38.5% of the scheduler's time while MTEARS on 442.80 got
+        2.1% -- the identical harm this file already documents for a stale vfo
+        in test_stale_vfo_is_removed.
+
+        Keepalives ARE load-bearing on the SDRangel path, where
+        translator.apply gates on verify_mount and icecast only creates a
+        mount once real bytes cross the UDP tap. _hp_push_chirp never touches
+        that path. /api/bandscan/stop still spares them, because it is
+        surgical about which channels it removes.
+        """
         out, _ = self._run(n_freqs=2, pool_free=11, max_channels=12,
                            removed_ids=("keepalive-analog", "n4-0-a"))
-        self.assertEqual(out["removed"], 1)
+        self.assertEqual(out["removed"], 2)
 
     def test_stale_vfo_is_removed(self):
         """A 'vfo' is the artifact of a past manual Tune, not a fixture.
@@ -390,11 +407,15 @@ class TestChirpCapacityTrim(unittest.TestCase):
                            removed_ids=("vfo", "n4-0-a"))
         self.assertEqual(out["removed"], 2)
 
-    def test_removing_the_vfo_frees_its_slot(self):
+    def test_removing_the_vfo_and_keepalive_frees_both_slots(self):
+        # Was removed == 1 / capacity == 1, when the keepalive was spared.
+        # Both are artifacts now, so both slots come back -- which is why
+        # airband's "max_channels=12 but only 11 usable" arithmetic in
+        # test_airband_batch_fits_the_real_pool describes the old world.
         out, batch = self._run(n_freqs=16, pool_free=0, max_channels=16,
                                removed_ids=("vfo", "keepalive-x"))
-        self.assertEqual(out["removed"], 1)
-        self.assertEqual(out["capacity"], 1)
+        self.assertEqual(out["removed"], 2)
+        self.assertEqual(out["capacity"], 2)
 
     def test_under_capacity_is_untouched(self):
         out, batch = self._run(n_freqs=4, pool_free=11, max_channels=12)
@@ -405,3 +426,10 @@ class TestChirpCapacityTrim(unittest.TestCase):
         out, batch = self._run(n_freqs=4, pool_free=0, max_channels=12)
         self.assertFalse(out["ok"])
         self.assertEqual(batch, [])
+
+
+# NOTE: this used to sit above TestChirpCapacityTrim, so running this file
+# directly reported OK without executing any of that class -- including the two
+# tests that pin the reversed keepalive behaviour.
+if __name__ == "__main__":
+    unittest.main()

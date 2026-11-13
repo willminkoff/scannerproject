@@ -49,6 +49,7 @@ class Handler(BaseHTTPRequestHandler):
         "/api/tune", "/api/tune-restore", "/api/apply", "/api/apply-batch",
         "/api/filter", "/api/profile", "/api/profile/apply",
         "/api/bandscan/apply", "/api/bandscan/stop", "/api/scan/state",
+        "/api/scan/restore",
         "/api/wx/decoder", "/api/dongles/power", "/api/volume",
     )
     # Never echo a value whose key looks like a credential.
@@ -308,6 +309,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(routes.wizard_save_profile(body, state))
                 # Favorites-state blob — persist via HPState.
                 return self._json(routes.hp_scan_state_save(body))
+            if p == "/api/scan/restore":
+                return self._json(routes.hp_scan_restore(form, state))
             if p == "/api/bandscan/apply":
                 return self._json(routes.bandscan_apply(form, state))
             if p == "/api/bandscan/stop":

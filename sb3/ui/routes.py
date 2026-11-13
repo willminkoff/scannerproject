@@ -1833,17 +1833,35 @@ def _hp_push_chirp(port, freqs, mode):
     removed = 0
     for cid in cur_ids:
         cid_str = str(cid or "")
-        # Keepalive stays -- it holds the icecast mount up during quiet.
-        # A 'vfo' channel does NOT: it is the artifact of a past manual Tune
-        # (see _tune_chirp_band), and preserving it here meant one button
-        # press left a channel riding along in every later favorites push,
-        # permanently costing a pool slot and -- worse -- dragging a distant
-        # frequency into the LO plan. A stale 155.000 vfo forced marine's
-        # 1.125 MHz span into two clusters and halved the dwell on every
-        # channel. We are replacing the whole channel set here, so a leftover
-        # tune has no claim on it. Tune re-creates the vfo on demand.
-        if "keepalive" in cid_str.lower():
-            continue
+        # Neither a keepalive nor a 'vfo' survives this rewrite, and for the
+        # same reason.
+        #
+        # The vfo case was already understood: it is the artifact of a past
+        # manual Tune (see _tune_chirp_band), and preserving it meant one
+        # button press left a channel riding along in every later favorites
+        # push, permanently costing a pool slot and -- worse -- dragging a
+        # distant frequency into the LO plan. A stale 155.000 vfo forced
+        # marine's 1.125 MHz span into two clusters and halved the dwell on
+        # every channel.
+        #
+        # A keepalive does exactly that, and used to be exempted here on the
+        # belief that it "holds the icecast mount up during quiet". On the
+        # CHIRP path that is not true: chirp/dsp/icecast_sink.py:32-38 notes
+        # that constant-zero PCM still produces valid MP3 frames, so "No
+        # special keepalive code needed in this sink." Verified live on
+        # 2026-11-12 -- ground's wx-keepalive-(out-of-band) was removed and
+        # neptune-ground.mp3 kept serving, HTTP 200 at 32 kbps.
+        #
+        # Leaving it in cost real airtime. On 2026-11-10 that one channel at
+        # 162.375, stranded 16 MHz from a 145-146 MHz favorites group, owned
+        # its own LO cluster and 38.5% of the scheduler's time while MTEARS
+        # on 442.80 got 2.1%.
+        #
+        # This applies to the chirp command bus only. The SDRangel path is
+        # different and keepalives ARE load-bearing there: translator.apply
+        # arms copyToUDP and then gates on verify_mount, and icecast only
+        # creates a mount once real bytes cross the UDP tap. This function
+        # never touches that path.
         try:
             send("remove_channel", {"id": cid_str})
             removed += 1
@@ -2102,6 +2120,109 @@ def hp_scan_state_save(body):
     if sync_result is not None:
         resp["auto_sync"] = sync_result
     return resp
+
+
+def hp_scan_restore(form, state=None):
+    """POST /api/scan/restore — put ONE band's favorites back into its pool.
+
+    Why this exists. Stopping a band scan used to apply a PROFILE, because a
+    profile was the only thing the stop path knew how to land on
+    (resolveBandScanFallbackProfile in ui/sb3.html). For ground that meant
+    NOAA Weather Radio every single time: ground has exactly one profile, so
+    the resolver's last rule -- "the band's only profile, when it has exactly
+    one" -- had exactly one possible destination. Turning off GMRS, Marine,
+    Rail or CB all landed on Weather Radio.
+
+    Meanwhile the operator's actual channels are FAVORITES, not a profile, and
+    favorites only ever reached chirp through :func:`_hp_auto_sync`, whose sole
+    caller is :func:`hp_scan_state_save` (POST /api/scan/state). So nothing
+    restored them, and the band stayed on WX until someone happened to save
+    favorites again. Observed twice: 2026-11-10 07:30 and 2026-11-12 07:25.
+
+    Deliberately scoped to one band. ``_hp_auto_sync`` pushes airband, ground
+    AND digital, so reusing it here would rewrite airband's profile-derived
+    pool and POST /apply-profile to the digital radio -- restarting sdrplay and
+    two op25 units -- as side effects of stopping a ground scan.
+
+    Returns ``channels: 0`` with ``empty: True`` when the band has no
+    favorites, so the caller can fall back to its old profile behaviour rather
+    than leaving the band empty.
+
+    form:
+        target   "air" / "airband" / "ground"
+    """
+    target_raw = str((form or {}).get("target", "")).strip().lower()
+    if target_raw in ("air", "airband"):
+        target, port, mode = "airband", 7400, "am"
+    elif target_raw == "ground":
+        target, port, mode = "ground", 7401, "nfm"
+    else:
+        return {"ok": False, "error": f"unknown target: {target_raw!r}"}
+
+    # "No favorites" and "I could not read the favorites" must not look alike.
+    # HPState.load() NEVER raises: a missing file, unparseable JSON, or a
+    # non-dict payload all return cls.default(), whose custom_favorites is [].
+    # So a restore over a broken state file would answer empty:True, the UI
+    # would fall back to a profile, and for ground that profile is Weather
+    # Radio -- i.e. the fix for this outage would recreate it, silently.
+    # Check the file itself, via the module's own path constant rather than a
+    # second copy of it.
+    mod = _hp_state_module()
+    try:
+        import json as _sj
+        from pathlib import Path as _SPath
+        _sp = _SPath(str(getattr(mod, "_DEFAULT_STATE_PATH", "") or ""))
+        if not _sp.is_file():
+            return {"ok": False, "target": target,
+                    "error": f"favorites state file not found: {_sp}"}
+        with _sp.open(encoding="utf-8") as _fh:
+            if not isinstance(_sj.load(_fh), dict):
+                return {"ok": False, "target": target,
+                        "error": "favorites state file is not a JSON object"}
+    except Exception as exc:
+        return {"ok": False, "target": target,
+                "error": f"favorites state unreadable: {exc!r}"}
+
+    try:
+        state_obj = _hp_state_load().to_dict()
+    except Exception as exc:
+        return {"ok": False, "target": target, "error": f"load failed: {exc!r}"}
+
+    try:
+        airs, grounds, _digital = _hp_extract_pool(state_obj)
+    except Exception as exc:
+        return {"ok": False, "target": target, "error": f"extract failed: {exc!r}"}
+
+    wanted = airs if target == "airband" else grounds
+    if not wanted:
+        # Genuinely empty, now that the file is known to be readable. Not an
+        # error: this is exactly when landing on a profile is the right answer.
+        return {"ok": True, "target": target, "channels": 0, "empty": True,
+                "note": "no favorites for this band"}
+
+    try:
+        pushed = _hp_push_chirp(port, wanted, mode)
+    except Exception as exc:
+        # _hp_push_chirp removes every channel BEFORE it adds any, so an
+        # exception in the add can leave the band empty. Letting it propagate
+        # gave the server's blanket handler a bare HTTP 500, which told a
+        # non-browser caller nothing and let the UI read it as "no favorites"
+        # and apply WX over an empty band. bandscan_apply wraps the same call
+        # for the same reason.
+        return {"ok": False, "target": target, "channels": 0,
+                "error": f"chirp push raised: {exc!r}"}
+
+    # Report what chirp ACCEPTED, not what was asked for. The push trims to
+    # pool capacity and again to the LO cluster budget, and this number is
+    # logged to the operator -- claiming 20 channels while 8 are scanning is
+    # the silent shortfall _hp_push_chirp's own comment refuses to accept.
+    added = int(pushed.get("added") or 0)
+    dropped = (int(pushed.get("dropped_over_capacity") or 0)
+               + int(pushed.get("dropped_over_clusters") or 0))
+    ok = bool(pushed.get("ok", False)) and added > 0
+    return {"ok": ok, "target": target,
+            "channels": added if ok else 0,
+            "requested": len(wanted), "dropped": dropped, "push": pushed}
 
 
 def hp_service_types_get():
@@ -3618,9 +3739,13 @@ def bandscan_stop(form, state):
     Stopping a scan does not need a profile. The scan IS a set of channels
     named ``bs-<preset>-<n>`` (see :func:`bandscan_apply`), so stopping it is
     removing exactly those. Anything the operator put there by other means is
-    left alone, and a keepalive is never touched -- it holds the icecast mount,
-    and dropping it would take the band's audio down rather than just its
-    scan list.
+    left alone, including a keepalive.
+
+    The keepalive is spared here because this route is surgical -- it removes
+    the preset's channels and nothing else -- NOT because dropping one would
+    take the band's audio down. That older claim was wrong for chirp: see the
+    note in :func:`_hp_push_chirp`, which does remove them, and which was
+    verified live on 2026-11-12.
 
     form:
         target   "air" / "airband" / "ground"
