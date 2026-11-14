@@ -18,8 +18,11 @@ Two independent defects, either one fatal:
 Stopping a scan does not need a profile: the scan IS the channels named
 `bs-<preset>-<n>` that bandscan_apply created, so stopping it is removing
 exactly those. /api/bandscan/stop does that, scoped to one preset, and never
-touches a keepalive -- that channel holds the icecast mount, and dropping it
-would take the band's audio down rather than just its scan list.
+touches a keepalive -- because it is surgical, NOT because that channel holds
+the icecast mount. The mount claim is false on the chirp path (the icecast
+sink self-keepalives from constant-zero PCM), which is why bandscan_apply and
+_hp_push_chirp both DO remove keepalives: there, a stranded one adds an LO
+cluster and chops the audio.
 
 The server half is exercised against routes.py's AST (the module needs
 dependencies the dev box lacks); the client half is grep-level, as elsewhere
@@ -145,7 +148,16 @@ class StopEndpointTests(unittest.TestCase):
         self.assertEqual(sorted(fake.removed), sorted(chans))
 
     def test_keepalive_is_never_removed(self):
-        """It holds the icecast mount; dropping it takes the audio down."""
+        """bandscan_stop is surgical: it removes this preset's bs-* channels
+        and nothing else, a keepalive included.
+
+        NOT because "it holds the icecast mount" -- that was the old reason
+        and it is false on the chirp path, which is why bandscan_apply and
+        _hp_push_chirp both remove them now (a stranded keepalive at 162.375
+        added a second LO cluster to a GMRS scan and chopped the audio into
+        pops, 2026-11-13). Stopping a scan is a different operation from
+        replacing the pool, and only the latter has a claim on other channels.
+        """
         chans = ["bs-gmrs-0", "bs-gmrs-1", "keepalive-ground"]
         res, fake = _run_stop(chans, {"target": "ground", "preset": "gmrs"})
         self.assertNotIn("keepalive-ground", fake.removed)

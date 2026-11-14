@@ -169,6 +169,69 @@ class BandscanModeTests(_ChirpTestCase):
         self.assertEqual(out["added"], 2)
 
 
+class BandscanKeepaliveTests(_ChirpTestCase):
+    """A band scan replaces the whole pool, keepalive included.
+
+    Reported 2026-11-13: a GMRS scan produced "pops" instead of voice. The
+    GMRS preset spans 175 kHz and needs exactly ONE 2 MHz window, but a
+    surviving wx-keepalive at 162.375 added a second cluster 300 MHz away, so
+    the scheduler spent half of every 0.6 s dwell parked where nothing
+    transmits and chopped each transmission into fragments.
+
+    _hp_push_chirp stopped sparing keepalives on 2026-11-12; this loop was
+    left behind, so the band-scan path kept the bug. The old justification --
+    "it holds the icecast mount" -- is false on the chirp path: the icecast
+    sink emits valid MP3 frames from constant-zero PCM, and removing ground's
+    live keepalive twice left neptune-ground.mp3 serving HTTP 200 at 32 kbps
+    with listeners attached.
+    """
+
+    def _apply(self, fake, freqs="462.5625,462.5875,462.6125"):
+        return routes.bandscan_apply(
+            {"target": "ground", "modulation": "nfm", "preset_id": "gmrs",
+             "freqs_text": freqs}, None)
+
+    @staticmethod
+    def _removed_ids(fake):
+        # fake.removes is a list of command ARGS dicts, not id strings.
+        return [a.get("id") for a in fake.removes]
+
+    def test_a_keepalive_does_not_survive_a_band_scan(self):
+        fake = self._fake(pool_mode="nfm",
+                          channels=["wx-keepalive-(out-of-band)", "noaa-wx-162.400"])
+        out = self._apply(fake)
+        self.assertTrue(out["ok"], out)
+        self.assertIn("wx-keepalive-(out-of-band)", self._removed_ids(fake),
+                      "the stranded keepalive is what chopped the audio")
+        self.assertNotIn("wx-keepalive-(out-of-band)", fake.channels)
+
+    def test_every_keepalive_spelling_goes(self):
+        ids = ["wx-keepalive-(out-of-band)", "KEEPALIVE", "ka-keepalive-1"]
+        fake = self._fake(pool_mode="nfm", channels=list(ids))
+        self._apply(fake)
+        removed = self._removed_ids(fake)
+        for i in ids:
+            with self.subTest(id=i):
+                self.assertIn(i, removed)
+
+    def test_the_pool_is_fully_replaced(self):
+        old = ["wx-keepalive-(out-of-band)", "noaa-wx-162.400", "vfo"]
+        fake = self._fake(pool_mode="nfm", channels=list(old))
+        self._apply(fake)
+        self.assertEqual(sorted(self._removed_ids(fake)), sorted(old))
+
+    def test_the_scan_lands_in_one_cluster_once_the_keepalive_is_gone(self):
+        # The actual fault: GMRS alone is one window; GMRS + a 162 MHz
+        # keepalive is two, and two means rotation, and rotation means pops.
+        fake = self._fake(pool_mode="nfm", max_clusters=1,
+                          channels=["wx-keepalive-(out-of-band)"])
+        out = self._apply(fake)
+        self.assertTrue(out["ok"], out)
+        self.assertEqual(out["added"], 3)
+        self.assertNotIn("dropped_over_clusters", out,
+                         "GMRS must fit a single window with the keepalive gone")
+
+
 class BandscanClusterTests(_ChirpTestCase):
     """A preset spanning more than the LO budget is trimmed, not rejected."""
 

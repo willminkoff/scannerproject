@@ -3648,10 +3648,26 @@ def bandscan_apply(form, state):
         cid_s = str(cid or "")
         if not cid_s:
             continue
-        # Same rule as _hp_push_chirp: keepalive holds the mount, a stale
-        # 'vfo' is a leftover manual tune and must not survive a band scan.
-        if "keepalive" in cid_s.lower():
-            continue
+        # Same rule as _hp_push_chirp, which now REMOVES keepalives rather
+        # than sparing them -- this loop was left behind when that changed,
+        # and the band-scan path kept the bug for two more days.
+        #
+        # A keepalive does not hold the mount up on the chirp path:
+        # chirp/dsp/icecast_sink.py emits valid MP3 frames from constant-zero
+        # PCM, and removing ground's live keepalive left neptune-ground.mp3
+        # serving HTTP 200 at 32 kbps with listeners attached (2026-11-12 and
+        # again on 2026-11-13).
+        #
+        # What it DOES do is strand an LO cluster. A GMRS band scan spans
+        # 175 kHz and needs exactly one 2 MHz window; a surviving
+        # wx-keepalive at 162.375 added a second cluster 300 MHz away, so the
+        # scheduler spent half of every 0.6 s dwell parked where nothing
+        # transmits and chopped each GMRS transmission into fragments. The
+        # operator heard pops instead of voice. A band scan replaces the whole
+        # pool, so nothing in the old pool has a claim on it.
+        #
+        # bandscan_stop still spares keepalives, and correctly: that route is
+        # surgical, removing only this preset's bs-* channels.
         try:
             _send("remove_channel", {"id": cid_s})
             removed += 1
