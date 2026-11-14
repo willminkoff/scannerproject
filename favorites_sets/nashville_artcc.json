@@ -1,0 +1,83 @@
+{
+  "favorites_name": "Nashville ARTCC",
+  "custom_favorites": [
+    {
+      "id": "freq:AgencyId:2233:245983",
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "AgencyId:2233",
+      "system_name": "Memphis (ZME) Air Route Traffic Control Center",
+      "department_name": "Tennessee RCAG Sites - Joelton/Nashville, TN RCAG",
+      "alpha_tag": "Sector 62 Smyrna Hi",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 118.875
+    },
+    {
+      "id": "freq:AgencyId:2233:245985",
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "AgencyId:2233",
+      "system_name": "Memphis (ZME) Air Route Traffic Control Center",
+      "department_name": "Tennessee RCAG Sites - Joelton/Nashville, TN RCAG",
+      "alpha_tag": "Sector 61 Clarksville Super Hi",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 124.125
+    },
+    {
+      "id": "freq:AgencyId:2233:246323",
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "AgencyId:2233",
+      "system_name": "Memphis (ZME) Air Route Traffic Control Center",
+      "department_name": "Tennessee RCAG Sites - Graham, TN - RCAG",
+      "alpha_tag": "Sector 63 Campbell Hi",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 124.275
+    },
+    {
+      "id": "freq:AgencyId:2233:246324",
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "AgencyId:2233",
+      "system_name": "Memphis (ZME) Air Route Traffic Control Center",
+      "department_name": "Tennessee RCAG Sites - Graham, TN - RCAG",
+      "alpha_tag": "Sector 42 Graham Low",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 125.85
+    },
+    {
+      "id": "freq:AgencyId:2233:245989",
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "AgencyId:2233",
+      "system_name": "Memphis (ZME) Air Route Traffic Control Center",
+      "department_name": "Tennessee RCAG Sites - Joelton/Nashville, TN RCAG",
+      "alpha_tag": "Sector 40 Nashville Low",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 132.9
+    },
+    {
+      "id": "freq:AgencyId:2233:245987",
+      "kind": "conventional",
+      "system_id": 0,
+      "system_key": "AgencyId:2233",
+      "system_name": "Memphis (ZME) Air Route Traffic Control Center",
+      "department_name": "Tennessee RCAG Sites - Joelton/Nashville, TN RCAG",
+      "alpha_tag": "Sector 41 Bowling Green Low",
+      "service_tag": 15,
+      "talkgroup": "",
+      "control_channels": [],
+      "frequency": 133.85
+    }
+  ]
+}
