@@ -1,0 +1,31 @@
+{
+  "_comment": "SB3 profile: Air role, HUNT mode — Memphis Center (ZME) enroute sectors over Nashville, on the SDRplay RSP1B 2405265A60 that chirp-airband actually runs (read from scannerbox-1's chirp-airband.env on 2026-11-13; the note placing that radio on the M1 with SDRTrunk is stale) -> neptune-analog.mp3. ARTCC only: no ground, no digital, no TRACON/tower/ATIS.\n\nSOURCE: the HomePatrol DB on Neptune (~/scanner-db/homepatrol.db, RadioReference-curated), conventional_groups parent_key='AgencyId' AND parent_id=2233 (Memphis ZME). Note the join: parent_key is the literal string 'AgencyId', the number lives in parent_id. ZME has 24 site groups; these channels come from two of them, [58589] 'Tennessee RCAG Sites - Joelton/Nashville, TN RCAG' and [58689] 'Tennessee RCAG Sites - Graham, TN - RCAG'. Titles are the HPDB's own alpha_tags. UHF pairs exist for every sector (290.300, 285.500, 269.425, 257.750, 288.350, 379.250) and are omitted: this radio is tuned for the VHF airband.\n\nWHY mode=hunt AND NOT camp. Camp pins one baseband window — sb3/profile.py rejects any channel whose edge falls outside sample_rate/2^log2_decim/2 (profile-channel-outside-baseband) and demands exactly one keepalive. These span 118.875-133.850 = 14.975 MHz, which no single 2 MHz window holds. Hunt skips both rules and chirp's LO scheduler retunes between clusters instead.\n\nTHE CLUSTER BUDGET IS WHY THIS LIST IS SIX AND NOT SEVEN. chirp tunes ONE 2 MHz IQ window at a time (CHIRP_SOURCE_SAMP_RATE=2000000) and plans at most max_clusters windows; the default is 3 (chirp/dsp/cluster_planner.py) and chirp/config/airband.json does not override it. Unlike the favorites path, sb3/chirp_applier.py does NOT trim — chirp's planner raises ClusterPlanError and the apply FAILS outright. Verified against the real planner: these six fit exactly 3 clusters — [118.875], [124.125/124.275/125.850 @ 124.9875], [132.900/133.850 @ 133.375]. Adding Shelbyville's 128.150 (Sector 60 Shelbyville Low, group [58691]) needs a FOURTH cluster and breaks the apply; it was dropped as the farthest site and the only channel from its group, keeping the Joelton/Nashville site whole. If you want Shelbyville, something else has to go, or raise max_clusters on the daemon.\n\nDEVICE VALUES ARE DELIBERATELY IDENTICAL TO THE RUNNING DAEMON. apply_profile_to_chirp rewrites chirp-airband.env and restarts sdrplay + chirp whenever center_freq_hz or |if_gain_db| differs from the live env, and a chirp restart wipes the channel list. So center stays 118925000 and if_gain_db stays -28 (live CHIRP_SDR_GAIN_DB=28.0); this profile applies as a pure channel swap with no restart. Do NOT copy air.airband.nashville.rsp1b's if_gain_db=-30 here — 30 != 28 would force exactly that restart.\n\nNOT VERIFIED ON AIR. The HPDB is a periodic RadioReference dump and ARTCC assignments change; 132.900 is independently corroborated by docs/sdrangel-scan-38380.md and RadioReference's ZME page, the rest rest on the HPDB alone. Sectors 40 and 41 are reported as combined and simulcast on both frequencies when traffic is light, so hearing the same audio twice is expected, not a fault.\n\nsquelch_db is carried for the SDRangel path only: chirp ignores per-channel squelch entirely (chirp/daemon.py) and applies one band-wide global.",
+  "name": "air.artcc.nashville",
+  "role": "air",
+  "sub_role": "artcc",
+  "mode": "hunt",
+  "deviceset_index": 0,
+  "device": {
+    "hardware_id": "SDRplayV3",
+    "serial": "2405265A60",
+    "center_freq_hz": 118925000,
+    "sample_rate_hz": 2000000,
+    "log2_decim": 0,
+    "agc": false,
+    "if_gain_db": -28,
+    "lna_index": 3,
+    "bandwidth_index": 3,
+    "tuner": 0
+  },
+  "channels": [
+    {"freq_hz": 118875000, "title": "ZME Sec 62 Smyrna Hi", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0},
+    {"freq_hz": 124125000, "title": "ZME Sec 61 Clarksville Super Hi", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0},
+    {"freq_hz": 124275000, "title": "ZME Sec 63 Campbell Hi", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0},
+    {"freq_hz": 125850000, "title": "ZME Sec 42 Graham Low", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0},
+    {"freq_hz": 132900000, "title": "ZME Sec 40 Nashville Low", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0},
+    {"freq_hz": 133850000, "title": "ZME Sec 41 Bowling Green Low", "demod": "AM", "rf_bw_hz": 8000, "squelch_db": -55, "volume": 3.0}
+  ],
+  "audio_device": {"strategy": "system_default"},
+  "copy_to_udp": {"address": "127.0.0.1", "port": 9998},
+  "mount": "neptune-analog.mp3"
+}
